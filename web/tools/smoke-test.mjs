@@ -363,6 +363,7 @@ console.log('Atış poligonu');
   await page.mouse.up({ button: 'right' });
   // Roket: 25 m'deki mankene
   await page.keyboard.press('Digit9');
+  await waitGame(page, 1.0); // kuşanma bitmeden şarjör değiştirilemez
   await page.keyboard.press('KeyR');
   await waitGame(page, 3.5);
   await page.mouse.move(480, 270);
