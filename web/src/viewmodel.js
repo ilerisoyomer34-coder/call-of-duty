@@ -49,6 +49,7 @@ export class Viewmodel {
     this.arms = buildArms();
     this.holder.add(this.arms.left.g, this.arms.right.g);
     this.grenade = buildGrenade();
+    this.grenade.scale.setScalar(0.7);
     this.grenade.visible = false;
     this.holder.add(this.grenade);
     this.holder.traverse((o) => {
@@ -150,8 +151,8 @@ export class Viewmodel {
       _p.y += -0.05 * sp;
       _p.z += 0.05 * sp;
       rx += -0.22 * sp;
-      ry += 0.75 * sp;
-      rz += 0.35 * sp;
+      ry += 0.6 * sp;
+      rz += 0.3 * sp;
     }
 
     // Yürüme sallantısı (8 figürü)
@@ -337,9 +338,9 @@ export class Viewmodel {
       _p.y -= 0.18 * k;
       _p.x += 0.06 * k;
       rx -= 0.5 * k;
-      const gx = throwing ? lerp(-0.14, 0.0, clamp(W.stateT / 0.12, 0, 1)) : -0.14;
-      const gz = throwing ? lerp(-0.34, -0.7, clamp(W.stateT / 0.12, 0, 1)) : -0.34 + Math.sin(this.time * 3) * 0.005;
-      this.grenade.position.set(gx, -0.08 + (throwing ? 0.08 : 0), gz);
+      const gx = throwing ? lerp(-0.2, 0.0, clamp(W.stateT / 0.12, 0, 1)) : -0.2;
+      const gz = throwing ? lerp(-0.45, -0.8, clamp(W.stateT / 0.12, 0, 1)) : -0.45 + Math.sin(this.time * 3) * 0.005;
+      this.grenade.position.set(gx, -0.13 + (throwing ? 0.1 : 0), gz);
       this.grenade.rotation.set(0.3, 0.4, 0);
     }
 

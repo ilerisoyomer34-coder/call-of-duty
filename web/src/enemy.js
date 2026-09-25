@@ -241,6 +241,10 @@ export class Enemy {
       this.act(dt);
     } else if (this.dummy && this.spec.patrol) {
       this.patrolMove(dt, false);
+    } else {
+      // Uyuyan (uzak) ya da dondurulmuş düşman son hızıyla kaymasın
+      this.vel.x = 0;
+      this.vel.z = 0;
     }
     this.moveBody(dt);
     if (distToPlayer < 110) this.animate(dt);

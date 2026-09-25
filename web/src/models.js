@@ -144,8 +144,8 @@ export function buildPistol() {
   B(slide, 0.03, 0.035, 0.19, slideM, 0, 0.032, -0.08);
   for (let i = 0; i < 5; i++) B(slide, 0.032, 0.03, 0.004, frame, 0, 0.032, 0.0 - i * 0.008);
   B(slide, 0.004, 0.009, 0.006, frame, 0, 0.054, -0.165); // arpacık
-  B(slide, 0.006, 0.009, 0.006, frame, -0.0075, 0.054, 0.004); // gez
-  B(slide, 0.006, 0.009, 0.006, frame, 0.0075, 0.054, 0.004);
+  B(slide, 0.005, 0.007, 0.005, frame, -0.0072, 0.053, 0.004); // gez
+  B(slide, 0.005, 0.007, 0.005, frame, 0.0072, 0.053, 0.004);
   B(root, 0.028, 0.022, 0.16, frame, 0, 0.005, -0.075);
   cylZ(root, 0.0065, 0.02, slideM, 0, 0.032, -0.18, 8);
   B(root, 0.028, 0.11, 0.045, frame, 0, -0.05, 0.012, -0.25);
@@ -175,13 +175,19 @@ export function buildShotgun() {
   cylZ(root, 0.013, 0.52, blk, 0, 0.06, -0.45);
   cylZ(root, 0.014, 0.42, blk, 0, 0.022, -0.4);
   B(root, 0.008, 0.005, 0.5, blk, 0, 0.0755, -0.45);
-  const bead = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 8, 6), mat(0xd8c89a, 0.3, 0.7));
-  bead.position.set(0, 0.079, -0.69);
+  // Arpacık direği ve boncuk; gez halkası alıcının üstünde (nişan hattı alıcının üzerinden geçer)
+  B(root, 0.004, 0.026, 0.01, blk, 0, 0.087, -0.685);
+  const bead = new THREE.Mesh(new THREE.SphereGeometry(0.0032, 8, 6), mat(0xe8d48a, 0.3, 0.7));
+  bead.position.set(0, 0.101, -0.685);
   root.add(bead);
-  B(root, 0.02, 0.004, 0.01, blk, 0, 0.079, 0.0); // gez sırtı
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0028, 6, 18), blk);
+  ring.position.set(0, 0.101, 0.0);
+  root.add(ring);
+  B(root, 0.004, 0.02, 0.008, blk, 0, 0.082, 0.0);
+  B(root, 0.03, 0.006, 0.03, blk, 0, 0.075, 0.0);
   B(root, 0.032, 0.1, 0.045, furn, 0, -0.058, 0.025, -0.3);
-  B(root, 0.046, 0.085, 0.26, furn, 0, 0.018, 0.2);
-  B(root, 0.05, 0.12, 0.022, blk, 0, 0.0, 0.33);
+  B(root, 0.046, 0.085, 0.26, furn, 0, -0.008, 0.2);
+  B(root, 0.05, 0.12, 0.022, blk, 0, -0.02, 0.33);
   B(root, 0.006, 0.028, 0.045, blk, 0, -0.022, -0.03);
   const pump = new THREE.Group();
   pump.position.set(0, 0.022, -0.34);
@@ -192,7 +198,7 @@ export function buildShotgun() {
     root,
     parts: { pump },
     muzzle: new THREE.Vector3(0, 0.06, -0.72),
-    sight: new THREE.Vector3(0, 0.0785, -0.3),
+    sight: new THREE.Vector3(0, 0.101, 0.0),
     leftHand: new THREE.Vector3(0, -0.012, -0.34),
     rightHand: new THREE.Vector3(0, -0.035, 0.03),
     eject: new THREE.Vector3(0.03, 0.04, -0.06),
