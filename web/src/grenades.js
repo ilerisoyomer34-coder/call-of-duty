@@ -1,17 +1,75 @@
 // El bombaları ve patlamalar: sekme fiziği, fitil, alan hasarı (görüş hattı kontrollü), sarsıntı.
 import * as THREE from 'three';
 import { GRENADE } from './config.js';
-import { buildGrenade } from './models.js';
-import { clamp } from './util.js';
+import { buildGrenade, buildRocket } from './models.js';
+import { clamp, rand } from './util.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _hit = {};
+const NEGZ = new THREE.Vector3(0, 0, -1);
 
 export class GrenadeSystem {
   constructor(game) {
     this.game = game;
     this.list = [];
+    this.rockets = [];
+  }
+
+  // Roket: hafif yerçekimli hızlı cisim; dünyaya ya da düşmana çarpınca patlar
+  spawnRocket(pos, dir, data, owner) {
+    const mesh = buildRocket();
+    mesh.position.copy(pos);
+    mesh.quaternion.setFromUnitVectors(NEGZ, dir);
+    this.game.scene.add(mesh);
+    this.rockets.push({ mesh, pos: mesh.position, vel: dir.clone().multiplyScalar(data.rocketSpeed), data, owner, life: 6, age: 0 });
+  }
+
+  updateRockets(dt) {
+    const g = this.game;
+    for (let i = this.rockets.length - 1; i >= 0; i--) {
+      const r = this.rockets[i];
+      r.life -= dt;
+      r.age += dt;
+      r.vel.y -= 2.5 * dt;
+      const len = r.vel.length() * dt;
+      _d.copy(r.vel).normalize();
+      let point = null;
+      let enemyHit = null;
+      if (r.life <= 0) point = r.pos.clone();
+      else {
+        const wh = g.world.raycast(r.pos, _d, len + 0.15, _hit);
+        const eh = g.enemies.raycast(r.pos, _d, wh ? wh.dist : len + 0.15);
+        if (eh) {
+          point = eh.point.clone();
+          enemyHit = eh;
+        } else if (wh) point = wh.point.clone().addScaledVector(wh.normal, 0.25);
+      }
+      if (point) {
+        this.rockets.splice(i, 1);
+        r.mesh.removeFromParent();
+        if (enemyHit && r.owner === 'player') {
+          const out = enemyHit.enemy.takeDamage(r.data.damage, { zone: enemyHit.zone, dir: _d.clone(), point, source: 'player', weapon: 'rpg' });
+          if (out.killed) {
+            g.events.emit('hitmarker', 'kill');
+            g.audio.hitmarker('kill');
+          }
+        }
+        g.explode(point, r.data.splashRadius, r.data.splashDamage, r.owner, 1.25);
+        continue;
+      }
+      r.pos.addScaledVector(r.vel, dt);
+      r.mesh.quaternion.setFromUnitVectors(NEGZ, _d);
+      // Duman izi ve itki alevi
+      const fx = g.effects;
+      const tail = _v.copy(r.pos).addScaledVector(_d, 0.3);
+      fx.add.spawn(tail.x, tail.y, tail.z, -_d.x * 4, -_d.y * 4, -_d.z * 4, 0.08, 0.35, 0.1, fx._c.setRGB(1, 0.7, 0.3), 1);
+      for (let k = 0; k < 2; k++) {
+        const s = rand(0.18, 0.28);
+        fx.smoke.spawn(tail.x + rand(-0.05, 0.05), tail.y + rand(-0.05, 0.05), tail.z + rand(-0.05, 0.05), rand(-0.3, 0.3), rand(0.1, 0.5), rand(-0.3, 0.3), rand(1.2, 2.2), 0.25, 1.4, fx._c.setRGB(s * 3, s * 2.9, s * 2.7), 0.5, -0.15, 0.6);
+      }
+      if (r.age < 0.05) fx.flashLight(r.pos, 0xffa050, 30, 6, 0.06);
+    }
   }
 
   spawn(pos, vel, fuse, owner) {
@@ -26,10 +84,13 @@ export class GrenadeSystem {
 
   clear() {
     for (const g of this.list) g.mesh.removeFromParent();
+    for (const r of this.rockets) r.mesh.removeFromParent();
     this.list = [];
+    this.rockets = [];
   }
 
   update(dt) {
+    this.updateRockets(dt);
     const W = this.game.world;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const g = this.list[i];
@@ -102,6 +163,7 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
       if (f > 0.01) P.takeDamage(damage * f * mult, pos);
     }
   }
+  let hitAny = false;
   for (const e of game.enemies.list) {
     if (!e.alive) continue;
     const c = e.chestPos(_v);
@@ -113,6 +175,11 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
     const dir = new THREE.Vector3().subVectors(c, pos).normalize();
     const out = e.takeDamage(damage * f * (owner === 'player' ? 1.3 : 0.8), { zone: 'torso', dir, point: c.clone(), source: owner === 'player' ? 'player' : 'env', weapon: 'explosion' });
     if (out.killed && owner === 'player') result.kills++;
+    if (owner === 'player') hitAny = true;
+  }
+  if (hitAny) {
+    game.events.emit('hitmarker', result.kills ? 'kill' : 'hit');
+    game.audio.hitmarker(result.kills ? 'kill' : 'hit');
   }
   // Zincirleme: yakındaki patlayıcı variller
   for (const b of game.barrels) {

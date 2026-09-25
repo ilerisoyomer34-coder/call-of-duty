@@ -291,6 +291,7 @@ export function buildMission(W) {
   jersey(W, -2.2, 60);
   // Nöbetçi kulübesi
   house(W, 6.8, 68.5, 3.2, 3.2, 2.7, 'plasterWhite', { w: [{ at: 0, width: 2.0, type: 'door' }], s: [{ at: 0, width: 1.4, type: 'window' }], n: [{ at: 0, width: 1.4, type: 'window' }] });
+  W.block(7.55, 0, 69.2, 0.9, 0.75, 0.6, 'woodDark', 'wood'); // nöbetçi masası (MAR-556)
   // Kum torbası sığınağı (pompalı burada)
   sandbags(W, -10, 60.4, 5, true);
   sandbags(W, -12.9, 62.4, 3.2, false);
@@ -318,6 +319,7 @@ export function buildMission(W) {
     s: [{ at: 1.5, width: 1.4, type: 'window' }],
     w: [{ at: 0, width: 2.0, type: 'door' }],
   });
+  W.block(-16.5, 0, 40.3, 1.9, 0.75, 0.7, 'woodDark', 'wood'); // ev içi masa (MR-82)
   house(W, -15, 24, 8, 8, 3.4, 'plasterOchre', {
     e: [{ at: -1.5, width: 2.0, type: 'door' }],
     w: [{ at: 1, width: 1.4, type: 'window' }],
@@ -406,9 +408,11 @@ export function buildMission(W) {
   crate(W, 8.9, -46.4, 0.8, 0, 0.3);
   // Kışla
   house(W, -20, -35, 10, 6, 3.0, 'plasterOchre', { e: [{ at: 0, width: 2.0, type: 'door' }], s: [{ at: -2, width: 1.4, type: 'window' }, { at: 2, width: 1.4, type: 'window' }] });
+  W.block(-22.5, 0, -33.2, 1.3, 0.75, 0.6, 'woodDark', 'wood'); // kışla masası (SMG-9)
   // Garaj
   house(W, 20, -36, 10, 7, 3.4, 'concrete', { s: [{ at: 0, width: 4.5, type: 'door' }], w: [{ at: 0, width: 1.4, type: 'window' }] });
   truck(W, 20, -36.5, 0);
+  crate(W, 17.3, -33.4, 1.0); // roketatar sandığı
   // Avlu siperleri
   jersey(W, -8, -28);
   jersey(W, 9, -30, false);
@@ -449,7 +453,15 @@ export function buildMission(W) {
     ],
     laptop: { pos: V(-7, -52.5, 0.8), yaw: Math.PI },
     ammoCrates: [V(8.6, 64.2), V(-2, 44), V(-8, -41.5), V(-3.5, -86)],
-    shotgun: { pos: V(-10, 62.6, 0.8) },
+    weaponPickups: [
+      { id: 'shotgun', pos: V(-10, 62.6, 0.8), rotY: 1.2 },
+      { id: 'mar556', pos: V(7.55, 69.2, 0.75), rotY: 0.1 },
+      { id: 'sniper', pos: V(-16.5, 40.3, 0.75), rotY: 0.04 },
+      { id: 'lmg', pos: V(40, 17.5, 1.05), rotY: 0.0 },
+      { id: 'smg', pos: V(-22.5, -33.2, 0.75), rotY: 0.2 },
+      { id: 'd50', pos: V(5.3, -52, 0.8), rotY: 0.4 },
+      { id: 'rpg', pos: V(17.3, -33.4, 1.0), rotY: -0.3 },
+    ],
     lz: V(0, -95),
     checkpoints: [
       { pos: V(0, 104), yaw: 0 },

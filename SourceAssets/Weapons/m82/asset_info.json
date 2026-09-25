@@ -1,0 +1,14 @@
+{
+  "title": "Marret M82 keskin nişancı tüfeği",
+  "author": "Oyuncu (kendi Blender dosyası — doğrulanmalı)",
+  "author_url": "",
+  "source_url": "",
+  "license": "Kullanıcıya ait — doğrulanmalı",
+  "download_date": "2026-09-25",
+  "format": "Blender (.blend, zstd sıkıştırmalı, Blender 5.1)",
+  "category": "Weapons",
+  "intended_use": "Oyuncu keskin nişancı tüfeği (MR-82 Marret)",
+  "original_file": "marret_m82.blend1",
+  "modifications": "Değiştiriciler uygulandı; 22.278 → ~17.000 üçgen; parçalar gövde/şarjör/kurma kolu olarak birleştirildi.",
+  "notes": "Doku yok, yalnızca renk tabanlı PBR malzemeler. Oyun içi ad kurgusaldır. Dönüştürme: Tools/blender/export_weapon.py, rapor: Docs/import_reports/m82.md"
+}

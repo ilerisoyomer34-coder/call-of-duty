@@ -71,6 +71,7 @@ console.log('Görsel kontrol (yüksek kalite)');
   await page.screenshot({ path: join(shots, '00-menu-high.png') });
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   await page.evaluate(() => {
     const g = window.__game;
@@ -94,6 +95,10 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await sleep(200);
   check(await page.isVisible('#diffScreen'), 'Zorluk ekranı görünüyor');
   await page.click('#diffList .diff:nth-child(2)');
+  check(await page.isVisible('#loadoutScreen'), 'Teçhizat ekranı açıldı');
+  check((await page.$$('#primaryList .gun')).length === 6 && (await page.$$('#secondaryList .gun')).length === 3, 'Teçhizatta 6 ana + 3 yan silah');
+  await page.screenshot({ path: join(shots, '01b-loadout.png') });
+  await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   check(true, 'Görev başladı');
   await page.evaluate(() => {
@@ -231,7 +236,11 @@ console.log('Etkileşimler');
   const page = await openPage('standalone');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#primaryList .gun[data-id="mar556"]');
+  await page.click('#secondaryList .gun[data-id="d50"]');
+  await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
+  check((await page.evaluate(() => window.__game.weapons.slots.join(','))) === 'mar556,d50', 'Seçilen teçhizatla başladı (MAR-556 + D-50)');
   const tp = (x, z, yaw) =>
     page.evaluate(([x, z, yaw]) => {
       const g = window.__game;
@@ -253,6 +262,17 @@ console.log('Etkileşimler');
   await page.keyboard.press('KeyF');
   await waitGame(page, 0.3);
   check(await page.evaluate(() => !!window.__game.weapons.owned.shotgun), 'Pompalı yerden alındı');
+  const swap = await page.evaluate(() => {
+    const g = window.__game;
+    return { slots: g.weapons.slots.join(','), dropped: g.mission.pickups3.some((p) => p.id === 'mar556' && !p.taken) };
+  });
+  check(swap.slots === 'shotgun,d50' && swap.dropped, `Pompalı ana silahın yerine geçti, MAR-556 yere düştü (${swap.slots})`);
+  // M82'yi evdeki masadan al
+  await tp(-16.5, 39.1, Math.PI);
+  await waitGame(page, 0.3);
+  await page.keyboard.press('KeyF');
+  await waitGame(page, 0.3);
+  check((await page.evaluate(() => window.__game.weapons.slots[0])) === 'sniper', 'MR-82 masadan alındı');
   await page.evaluate(() => window.__game.debugSkipTo(2));
   for (const [x, z, id] of [[-41, 25.2, 'aa1'], [40.5, 15.2, 'aa2']]) {
     await tp(x, z, 0);
@@ -305,7 +325,9 @@ console.log('Atış poligonu');
     return { dummies: g.enemies.list.length, owned: Object.keys(g.weapons.owned) };
   });
   check(r.dummies === 10, `Mankenler yerleşti (${r.dummies})`);
-  check(r.owned.length === 3, `Poligonda üç silah (${r.owned.join(', ')})`);
+  check(r.owned.length === 9, `Poligonda dokuz silah (${r.owned.join(', ')})`);
+  await page.waitForFunction(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 30000 }).catch(() => {});
+  check(await page.evaluate(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb)), 'Blender modelleri (MAR-556, MG-43, MR-82, D-50) yüklendi');
   await waitGame(page, 0.1);
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.35);
@@ -317,7 +339,55 @@ console.log('Atış poligonu');
   await page.mouse.up({ button: 'right' });
   const hitInfo = await page.evaluate(() => ({ hits: window.__game.stats.hits, shots: window.__game.stats.shots }));
   check(hitInfo.hits > 0, `Mankene isabet (${hitInfo.hits}/${hitInfo.shots})`);
-  await page.keyboard.press('Digit2');
+  // Her silahı seç ve bir kez ateş et
+  const fired = [];
+  for (let i = 1; i <= 9; i++) {
+    await page.keyboard.press(`Digit${i}`);
+    await waitGame(page, 1.0);
+    const before = await page.evaluate(() => window.__game.stats.shots);
+    await page.mouse.down();
+    await waitGame(page, 0.05);
+    await page.mouse.up();
+    await waitGame(page, 0.1);
+    const id = await page.evaluate(() => window.__game.weapons.currentId);
+    if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
+  }
+  check(fired.length === 9, `Dokuz silahın hepsi ateş etti (${fired.join(', ')})`);
+  // Dürbün kaplaması
+  await page.keyboard.press('Digit6');
+  await waitGame(page, 1.0);
+  await page.mouse.down({ button: 'right' });
+  await waitGame(page, 0.6);
+  check(await page.isVisible('#scope'), 'MR-82 dürbün kaplaması görünüyor');
+  await page.screenshot({ path: join(shots, '08b-scope.png') });
+  await page.mouse.up({ button: 'right' });
+  // Roket: 25 m'deki mankene
+  await page.keyboard.press('Digit9');
+  await page.keyboard.press('KeyR');
+  await waitGame(page, 3.5);
+  await page.mouse.move(480, 270);
+  await waitGame(page, 0.2);
+  const rk = await page.evaluate(() => {
+    const g = window.__game;
+    const d = g.enemies.list[3];
+    const o = g.camera.position;
+    g.player.yaw = Math.atan2(-(d.pos.x - o.x), -(d.pos.z - o.z));
+    g.player.pitch = Math.atan2(d.pos.y + 1.0 - o.y, Math.hypot(d.pos.x - o.x, d.pos.z - o.z));
+    return g.enemies.list.indexOf(d);
+  });
+  await waitGame(page, 0.1);
+  const ex0 = await page.evaluate(() => window.__game.stats.explosions);
+  await page.mouse.down();
+  await waitGame(page, 0.05);
+  await page.mouse.up();
+  await waitGame(page, 1.2);
+  const rres = await page.evaluate(([k, ex0]) => {
+    const g = window.__game;
+    return { exploded: g.stats.explosions > ex0, target: !g.enemies.list[k].alive, anyDown: g.enemies.list.some((e) => !e.alive) };
+  }, [rk, ex0]);
+  check(rres.exploded && rres.anyDown, `Roket patladı ve manken düştü (hedef: ${rres.target ? 'vuruldu' : 'yoldaki mankene çarptı'})`);
+  await page.screenshot({ path: join(shots, '09b-rocket.png') });
+  await page.keyboard.press('Digit4');
   await waitGame(page, 1.0);
   check((await page.evaluate(() => window.__game.weapons.currentId)) === 'shotgun', 'Pompalıya geçildi');
   await page.mouse.down();

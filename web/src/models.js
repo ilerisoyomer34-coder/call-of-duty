@@ -206,9 +206,129 @@ export function buildShotgun() {
   };
 }
 
+// Kompakt hafif makineli (SMG-9 Akrep): katlanır dipçik, refleks nişangah
+export function buildSMG() {
+  const root = new THREE.Group();
+  const poly = mat(0x26282a, 0.65, 0.1);
+  const metal = mat(0x1c1e20, 0.45, 0.6);
+  const olive = mat(0x5a5f44, 0.8, 0.05);
+  B(root, 0.05, 0.068, 0.26, poly, 0, 0.034, -0.085);
+  B(root, 0.046, 0.02, 0.2, metal, 0, 0.074, -0.09);
+  cylZ(root, 0.021, 0.13, olive, 0, 0.034, -0.27, 10);
+  cylZ(root, 0.009, 0.06, metal, 0, 0.034, -0.36, 8);
+  B(root, 0.03, 0.1, 0.042, poly, 0, -0.056, 0.022, -0.28);
+  B(root, 0.006, 0.026, 0.04, metal, 0, -0.018, -0.03);
+  B(root, 0.024, 0.06, 0.03, olive, 0, -0.03, -0.24, 0.15); // el dayanağı
+  // Katlanır dipçik: iki çubuk + omuz plakası
+  B(root, 0.008, 0.008, 0.22, metal, 0.02, 0.03, 0.13);
+  B(root, 0.008, 0.008, 0.22, metal, -0.02, 0.01, 0.13);
+  B(root, 0.05, 0.09, 0.014, poly, 0, 0.012, 0.245);
+  // Refleks nişangah: açık çerçeve
+  const sy = 0.108;
+  B(root, 0.032, 0.012, 0.05, metal, 0, 0.088, -0.06);
+  B(root, 0.004, 0.034, 0.008, metal, -0.02, sy, -0.075);
+  B(root, 0.004, 0.034, 0.008, metal, 0.02, sy, -0.075);
+  B(root, 0.044, 0.004, 0.008, metal, 0, sy + 0.017, -0.075);
+  const lens = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.036, 0.03),
+    new THREE.MeshBasicMaterial({ color: 0x7fb0a0, transparent: true, opacity: 0.12, depthWrite: false })
+  );
+  lens.position.set(0, sy, -0.075);
+  root.add(lens);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 12), new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
+  dot.position.set(0, sy, -0.078);
+  dot.renderOrder = 5;
+  root.add(dot);
+  const mag = new THREE.Group();
+  mag.position.set(0, -0.02, -0.1);
+  B(mag, 0.028, 0.17, 0.045, poly, 0, -0.08, 0, 0.06);
+  root.add(mag);
+  const charging = new THREE.Group();
+  charging.position.set(0, 0.07, 0.03);
+  B(charging, 0.05, 0.01, 0.016, metal, 0, 0, 0);
+  root.add(charging);
+  return {
+    root,
+    parts: { mag, charging },
+    muzzle: new THREE.Vector3(0, 0.034, -0.39),
+    sight: new THREE.Vector3(0, sy, -0.04),
+    leftHand: new THREE.Vector3(0, -0.02, -0.25),
+    rightHand: new THREE.Vector3(0, -0.035, 0.03),
+    eject: new THREE.Vector3(0.028, 0.04, -0.06),
+    dot,
+  };
+}
+
+// Omuzdan atılan roketatar (RK-7 Yıldırım)
+export function buildLauncher() {
+  const root = new THREE.Group();
+  const tube = mat(0x4f5638, 0.75, 0.2);
+  const dark = mat(0x1d1e1c, 0.6, 0.4);
+  const wood = mat(0x6a4a2e, 0.8, 0.05);
+  cylZ(root, 0.042, 1.0, tube, 0, 0.06, -0.2, 16);
+  const venturi = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.046, 0.14, 16, 1, true), mat(0x3c422b, 0.7, 0.3, { side: THREE.DoubleSide }));
+  venturi.rotation.x = -Math.PI / 2;
+  venturi.position.set(0, 0.06, 0.37);
+  root.add(venturi);
+  B(root, 0.09, 0.018, 0.36, wood, 0, 0.012, -0.02); // ısı kalkanı
+  B(root, 0.032, 0.1, 0.045, dark, 0, -0.056, 0.02, -0.25);
+  B(root, 0.03, 0.09, 0.04, dark, 0, -0.04, -0.3, 0.15);
+  B(root, 0.006, 0.026, 0.04, dark, 0, -0.012, -0.03);
+  // Nişangah tüpün sol üstünde: göz tüpün yanında kalır, arka huni omzun arkasında
+  const sy = 0.11;
+  const sx = -0.072;
+  B(root, 0.04, 0.012, 0.3, dark, sx * 0.55, 0.095, -0.36); // nişangah kızağı
+  B(root, 0.026, 0.028, 0.008, dark, sx, sy - 0.012, -0.24);
+  B(root, 0.008, 0.012, 0.008, dark, sx - 0.009, sy + 0.004, -0.24);
+  B(root, 0.008, 0.012, 0.008, dark, sx + 0.009, sy + 0.004, -0.24);
+  B(root, 0.01, 0.026, 0.008, dark, sx, sy - 0.012, -0.5);
+  B(root, 0.003, 0.012, 0.005, dark, sx, sy + 0.004, -0.5);
+  const warhead = new THREE.Group();
+  warhead.position.set(0, 0.06, -0.7);
+  const wbody = mat(0x3f5a3a, 0.6, 0.3);
+  cylZ(warhead, 0.05, 0.14, wbody, 0, 0, -0.05, 14);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 14), wbody);
+  cone.rotation.x = -Math.PI / 2;
+  cone.position.set(0, 0, -0.22);
+  warhead.add(cone);
+  cylZ(warhead, 0.012, 0.05, dark, 0, 0, -0.34, 8);
+  cylZ(warhead, 0.022, 0.06, mat(0x9a8a5a, 0.5, 0.6), 0, 0, 0.03, 10);
+  root.add(warhead);
+  return {
+    root,
+    parts: { warhead },
+    muzzle: new THREE.Vector3(0, 0.06, -0.72),
+    sight: new THREE.Vector3(sx, sy + 0.004, -0.24),
+    leftHand: new THREE.Vector3(0, -0.035, -0.3),
+    rightHand: new THREE.Vector3(0, -0.035, 0.025),
+    eject: new THREE.Vector3(0, 0.06, 0.4),
+    dot: null,
+  };
+}
+
+// Uçan roket (dünya sahnesi)
+export function buildRocket() {
+  const g = new THREE.Group();
+  const wbody = mat(0x3f5a3a, 0.6, 0.3);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 10), wbody);
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.2, 10), wbody);
+  cone.rotation.x = -Math.PI / 2;
+  cone.position.z = -0.25;
+  g.add(cone);
+  for (let i = 0; i < 4; i++) {
+    const fin = B(g, 0.004, 0.09, 0.08, mat(0x2a2c26, 0.7, 0.3), 0, 0, 0.16);
+    fin.rotation.z = (i * Math.PI) / 2;
+  }
+  return g;
+}
+
 export function buildWeapon(id) {
-  if (id === 'pistol') return buildPistol();
+  if (id === 'pistol' || id === 'd50') return buildPistol();
   if (id === 'shotgun') return buildShotgun();
+  if (id === 'smg') return buildSMG();
+  if (id === 'rpg') return buildLauncher();
   return buildRifle();
 }
 

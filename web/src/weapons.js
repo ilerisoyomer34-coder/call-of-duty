@@ -2,7 +2,7 @@
 // kare hızından bağımsız atış zamanlaması, hitscan (kamera merkezinden + namlu doğrulaması),
 // sapma (bloom), geri tepme, cephane, ateş modları, el bombası ve bıçak.
 import * as THREE from 'three';
-import { WEAPONS, WEAPON_ORDER, GRENADE, MELEE, SCORE } from './config.js';
+import { WEAPONS, GRENADE, MELEE, SCORE } from './config.js';
 import { DEG, clamp, randomInCone, rand } from './util.js';
 
 export class Weapon {
@@ -43,6 +43,7 @@ export class PlayerWeapons {
   constructor(game) {
     this.game = game;
     this.owned = {};
+    this.slots = [];
     this.currentId = null;
     this.state = 'idle';
     this.stateT = 0;
@@ -58,7 +59,9 @@ export class PlayerWeapons {
 
   reset(loadout) {
     this.owned = {};
+    this.slots = (loadout.slots || Object.keys(loadout.weapons)).filter((id) => WEAPONS[id]);
     for (const [id, ammo] of Object.entries(loadout.weapons)) {
+      if (!WEAPONS[id]) continue;
       const w = new Weapon(id);
       if (ammo) {
         w.mag = ammo.mag;
@@ -81,7 +84,50 @@ export class PlayerWeapons {
   snapshot() {
     const weapons = {};
     for (const [id, w] of Object.entries(this.owned)) weapons[id] = { mag: w.mag, reserve: w.reserve };
-    return { weapons, grenades: this.grenades, current: this.currentId };
+    return { weapons, slots: [...this.slots], grenades: this.grenades, current: this.currentId };
+  }
+
+  // Görevde iki slot (ana + yan). Aynı türden bir silah alınınca eldeki düşer.
+  // Dönüş: { dropped: {id, mag, reserve} | null, refilled: bool }
+  pickUp(id, ammo = null) {
+    const d = WEAPONS[id];
+    const g = this.game;
+    if (this.owned[id]) {
+      const w = this.owned[id];
+      w.reserve = Math.min(d.reserveMax, w.reserve + (ammo ? ammo.mag + ammo.reserve : d.magSize * 2));
+      g.events.emit('ammo', this.current);
+      return { dropped: null, refilled: true };
+    }
+    const w = new Weapon(id);
+    if (ammo) {
+      w.mag = ammo.mag;
+      w.reserve = ammo.reserve;
+    }
+    let dropped = null;
+    let idx = this.slots.findIndex((s) => WEAPONS[s].category === d.category);
+    if (this.slots.length < 2 || idx < 0) {
+      this.slots.push(id);
+      idx = this.slots.length - 1;
+    } else {
+      const old = this.slots[idx];
+      const ow = this.owned[old];
+      dropped = { id: old, mag: ow.mag, reserve: ow.reserve };
+      delete this.owned[old];
+      this.slots[idx] = id;
+    }
+    this.owned[id] = w;
+    this.cancelReload();
+    if (dropped && dropped.id === this.currentId) {
+      // Eldeki silah bırakıldı: yenisi doğrudan kuşanılır
+      this.currentId = id;
+      this.state = 'equipping';
+      this.stateT = 0;
+      g.audio.mech('equip');
+      g.events.emit('weapon', this.current);
+      g.events.emit('ammo', this.current);
+    } else this.switchTo(id);
+    g.events.emit('slots', this.slots);
+    return { dropped, refilled: false };
   }
 
   get current() {
@@ -96,15 +142,18 @@ export class PlayerWeapons {
       return false;
     }
     this.owned[id] = new Weapon(id);
+    if (!this.slots.includes(id)) this.slots.push(id);
     if (!silent) this.switchTo(id);
+    this.game.events.emit('slots', this.slots);
     return true;
   }
 
   addAmmo(fraction = 0.25) {
     let any = false;
     for (const w of Object.values(this.owned)) {
-      const add = Math.ceil(w.data.reserveMax * fraction);
-      if (w.reserve < w.data.reserveMax) any = true;
+      // Roket gibi nadir cephane her torbadan çıkmaz
+      const add = w.data.pickupChance !== undefined ? (Math.random() < w.data.pickupChance ? 1 : 0) : Math.ceil(w.data.reserveMax * fraction);
+      if (w.reserve < w.data.reserveMax && add > 0) any = true;
       w.reserve = Math.min(w.data.reserveMax, w.reserve + add);
     }
     this.game.events.emit('ammo', this.current);
@@ -154,7 +203,7 @@ export class PlayerWeapons {
   }
 
   cycle(dir) {
-    const ids = WEAPON_ORDER.filter((i) => this.owned[i]);
+    const ids = this.slots.filter((i) => this.owned[i]);
     if (ids.length < 2) return;
     const cur = this.pending && this.state === 'unequipping' ? this.pending : this.currentId;
     const i = ids.indexOf(cur);
@@ -214,10 +263,10 @@ export class PlayerWeapons {
       return;
     }
 
-    // Silah değiştirme girdileri
-    if (input.pressed('weapon1')) this.switchTo('rifle');
-    if (input.pressed('weapon2')) this.switchTo('shotgun');
-    if (input.pressed('weapon3')) this.switchTo('pistol');
+    // Silah değiştirme girdileri: 1-9 tuşları slot sırasına göre
+    for (let i = 0; i < 9; i++) {
+      if (input.pressed(`weapon${i + 1}`) && this.slots[i]) this.switchTo(this.slots[i]);
+    }
     if (input.pressed('nextWeapon')) this.cycle(1);
     if (input.pressed('prevWeapon')) this.cycle(-1);
     if (input.pressed('swapWeapon')) {
@@ -312,7 +361,7 @@ export class PlayerWeapons {
     if ((held || pressed) && P.sprinting) {
       P.stopSprint();
     }
-    const blocked = P.sprintOut > 0 || P.sprinting || P.interacting || w.pumpT >= 0 && w.pumpT < d.pumpDelay + 0.3;
+    const blocked = P.sprintOut > 0 || P.sprinting || P.interacting || (w.pumpT >= 0 && w.pumpT < d.pumpDelay + 0.3);
     if (!held && w.burstLeft === 0) w.cooldown = Math.max(w.cooldown, 0);
 
     if (w.mag <= 0 && !g.cheats.infiniteAmmo) {
@@ -321,7 +370,7 @@ export class PlayerWeapons {
         if (w.reserve > 0) this.startReload();
         else {
           g.events.emit('noAmmo');
-          if (w.slideLocked === false && d.id === 'pistol') w.slideLocked = true;
+          if (w.slideLocked === false && d.slide) w.slideLocked = true;
         }
       }
       w.burstLeft = 0;
@@ -386,11 +435,11 @@ export class PlayerWeapons {
     if (!g.cheats.infiniteAmmo) w.mag--;
     w.shotIndex = this.time - w.lastShot > 0.35 ? 0 : w.shotIndex + 1;
     w.lastShot = this.time;
-    if (d.id === 'shotgun') {
+    if (d.pump) {
       w.pumpT = 0;
       w.pumpSfx = false;
     }
-    if (d.id === 'pistol' && w.mag <= 0) w.slideLocked = true;
+    if (d.slide && w.mag <= 0) w.slideLocked = true;
     const cam = g.camera;
     cam.getWorldPosition(_o);
     cam.getWorldDirection(_fwd);
@@ -403,8 +452,12 @@ export class PlayerWeapons {
       .addScaledVector(_fwd, 0.55)
       .addScaledVector(_right, 0.12 * (1 - ads))
       .addScaledVector(_up, -0.08 * (1 - ads) - 0.03);
+    if (d.projectile === 'rocket') {
+      this.fireRocket(w, _muz, _fwd, _right, _up, spreadDeg);
+      return;
+    }
     const pellets = d.pellets;
-    const tracerEvery = d.id === 'rifle' ? 2 : 1;
+    const tracerEvery = d.tracerEvery || 1;
     let anyHit = false;
     let kill = false;
     let headKill = false;
@@ -463,7 +516,40 @@ export class PlayerWeapons {
     g.audio.gunshot(d.sound);
     g.effects.flashLight(_muz, 0xffb566, 12 + Math.random() * 6, 7, 0.05);
     g.effects.muzzleSmoke(_muz, _fwd);
-    if (d.id !== 'shotgun') this.ejectShell(false);
+    if (!d.pump) this.ejectShell(false);
+    P.shake(d.recoil.shake);
+    g.makeNoise(P.pos, d.noise, 'gunshot');
+    g.events.emit('ammo', w);
+    g.events.emit('fired', w);
+  }
+
+  // Roket: mermi yerine uçan cisim; arkaya geri alev ve duman
+  fireRocket(w, muzzle, fwd, right, up, spreadDeg) {
+    const g = this.game;
+    const P = g.player;
+    const d = w.data;
+    // Nişangahın gösterdiği noktayı bul, roketi namludan oraya yönelt (namlu kameranın yanında)
+    const aimDir = randomInCone(fwd, spreadDeg * DEG, new THREE.Vector3(), 1.3);
+    const cam = g.camera.getWorldPosition(new THREE.Vector3());
+    const wh = g.world.raycast(cam, aimDir, d.range, _hit);
+    const eh = g.enemies.raycast(cam, aimDir, wh ? wh.dist : d.range);
+    const aimPoint = eh ? eh.point : wh ? wh.point : cam.clone().addScaledVector(aimDir, d.range);
+    const start = muzzle.clone().addScaledVector(fwd, 0.2);
+    const dir = aimPoint.clone().sub(start);
+    if (dir.dot(fwd) < 0.2 || dir.lengthSq() < 1) dir.copy(aimDir);
+    dir.normalize();
+    g.grenades.spawnRocket(start, dir, d, 'player');
+    g.stats.shots++;
+    const back = _tmp.copy(fwd).negate();
+    const rear = g.camera.position.clone().addScaledVector(back, 0.6).addScaledVector(right, 0.15);
+    for (let i = 0; i < 10; i++) {
+      g.effects.smoke.spawn(rear.x, rear.y, rear.z, back.x * rand(3, 7) + rand(-1, 1), rand(-0.5, 1.2), back.z * rand(3, 7) + rand(-1, 1), rand(0.8, 1.6), 0.4, 2.4, g.effects.color(0xb8b0a0), 0.5, -0.2, 1.8);
+    }
+    g.effects.flashLight(rear, 0xffa050, 40, 8, 0.12);
+    const pat = d.recoil.pattern[0];
+    P.addRecoil(pat[1] + rand(-0.3, 0.3), rand(-0.6, 0.6));
+    g.viewmodel.onFire(w);
+    g.audio.gunshot(d.sound);
     P.shake(d.recoil.shake);
     g.makeNoise(P.pos, d.noise, 'gunshot');
     g.events.emit('ammo', w);

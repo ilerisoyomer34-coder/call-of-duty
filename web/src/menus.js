@@ -1,11 +1,11 @@
 // Menü ekranları: ana menü, zorluk, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
-import { DIFFICULTY } from './config.js';
+import { DIFFICULTY, WEAPONS, WEAPON_ORDER } from './config.js';
 import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'diffScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 export class Menus {
   constructor(game) {
@@ -66,6 +66,11 @@ export class Menus {
     click('btnDeathQuit', () => g.toMenu());
     click('btnAgain', () => g.startMode(g.mode, g.difficultyKey));
     click('btnVictoryMenu', () => g.toMenu());
+    click('btnDeploy', () => {
+      const L = this.selLoadout;
+      this.game.setLoadout(L.primary, L.secondary);
+      this.game.startMode('mission', this.pendingDiff || 'normal');
+    });
     click('btnResetSettings', () => {
       Object.assign(g.settings, DEFAULT_SETTINGS);
       this.fillSettings();
@@ -85,17 +90,79 @@ export class Menus {
       b.addEventListener('click', () => {
         this.game.audio.init();
         this.game.audio.uiClick();
-        this.game.startMode('mission', key);
+        this.pendingDiff = key;
+        this.showLoadout();
       });
       b.addEventListener('mouseenter', () => this.game.audio.uiHover());
       list.appendChild(b);
     }
   }
 
+  // Silah kartı için 0–1 arası özet değerler
+  static gunStats(d) {
+    const dmg = d.projectile ? 1 : Math.min(1, Math.pow((d.damage * d.pellets) / 150, 0.6));
+    const rate = Math.min(1, d.rpm / 1000);
+    const range = d.projectile ? 0.6 : Math.min(1, d.falloff.end / 220);
+    const pat = d.recoil.pattern;
+    const avg = pat.reduce((s, p) => s + Math.abs(p[1]) + Math.abs(p[0]) * 0.5, 0) / pat.length;
+    const control = Math.max(0.06, Math.min(1, 1 - (avg * (1 + d.recoil.random)) / 7));
+    const move = Math.min(1, ((d.mobility || 1) * (0.55 + 0.45 * d.ads.moveMult)) / 1.0);
+    return [['Hasar', dmg], ['Atış hızı', rate], ['Menzil', range], ['Kontrol', control], ['Hareket', move]];
+  }
+
+  showLoadout() {
+    const g = this.game;
+    this.selLoadout = { ...g.loadout };
+    document.getElementById('loadoutDiff').textContent = DIFFICULTY[this.pendingDiff || 'normal'].label;
+    for (const [cat, listId] of [['primary', 'primaryList'], ['secondary', 'secondaryList']]) {
+      const box = document.getElementById(listId);
+      box.innerHTML = '';
+      for (const id of WEAPON_ORDER) {
+        const d = WEAPONS[id];
+        if (d.category !== cat) continue;
+        const b = document.createElement('button');
+        b.className = `gun${this.selLoadout[cat] === id ? ' sel' : ''}`;
+        b.dataset.id = id;
+        const top = document.createElement('div');
+        top.className = 'top';
+        const name = document.createElement('b');
+        name.textContent = d.name;
+        top.appendChild(name);
+        if (d.model === 'glb') {
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = 'Blender';
+          top.appendChild(badge);
+        }
+        const kind = document.createElement('div');
+        kind.className = 'kind';
+        kind.textContent = d.kind;
+        const bars = document.createElement('div');
+        bars.className = 'bars';
+        for (const [label, v] of Menus.gunStats(d)) {
+          const s = document.createElement('span');
+          s.textContent = label;
+          const i = document.createElement('i');
+          i.style.setProperty('--v', `${Math.round(v * 100)}%`);
+          bars.append(s, i);
+        }
+        b.append(top, kind, bars);
+        b.addEventListener('click', () => {
+          g.audio.uiClick();
+          this.selLoadout[cat] = id;
+          for (const x of box.children) x.classList.toggle('sel', x.dataset.id === id);
+        });
+        b.addEventListener('mouseenter', () => g.audio.uiHover());
+        box.appendChild(b);
+      }
+    }
+    this.show('loadoutScreen');
+  }
+
   buildControls() {
     const groups = [
       ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
-      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'weapon3', 'swapWeapon', 'pause']],
+      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'holdBreath', 'pause']],
     ];
     const box = $('keyTables');
     box.innerHTML = '';

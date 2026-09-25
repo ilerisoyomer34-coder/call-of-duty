@@ -60,6 +60,9 @@ export class Player {
     this.lookDX = 0;
     this.lookDY = 0;
     this.dmgWindow = [];
+    this.breath = 1;
+    this.breathTired = false;
+    this.scopeAmp = 0;
   }
 
   get grounded() {
@@ -220,7 +223,7 @@ export class Player {
     _right.set(-_fwd.z, 0, _fwd.x);
     _wish.set(0, 0, 0).addScaledVector(_fwd, mv.y).addScaledVector(_right, mv.x);
     let maxSpeed = this.sprinting ? M.sprintSpeed : this.crouched ? M.crouchSpeed : M.walkSpeed;
-    if (w) maxSpeed *= lerp(1, w.data.ads.moveMult, this.adsT);
+    if (w) maxSpeed *= lerp(w.data.mobility || 1, w.data.ads.moveMult, this.adsT);
     if (this.interacting) maxSpeed *= 0.2;
     if (this.grounded) {
       const tx = _wish.x * maxSpeed;
@@ -321,9 +324,32 @@ export class Player {
       }
     }
 
+    this.updateScope(dt, input, w);
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     this.shakeT += dt;
     this.updateInteraction(dt, input);
+  }
+
+  // Dürbünde nefes salınımı: Shift ile birkaç saniye sabitlenir, sonra nefes nefese kalır
+  updateScope(dt, input, w) {
+    const scoped = !!(w && w.data.scope) && this.adsT > 0.6;
+    this.scopeT = (this.scopeT || 0) + dt;
+    if (this.breath === undefined) this.breath = 1;
+    const wantHold = scoped && input.isDown('holdBreath') && this.breath > 0 && !this.breathTired;
+    this.holdingBreath = wantHold;
+    if (wantHold) this.breath = Math.max(0, this.breath - dt / 4);
+    else this.breath = Math.min(1, this.breath + dt / 3);
+    if (this.breath <= 0) this.breathTired = true;
+    if (this.breathTired && this.breath > 0.6) this.breathTired = false;
+    let amp = scoped ? 0.55 : 0;
+    if (this.crouched) amp *= 0.6;
+    amp *= 1 + clamp(this.horizSpeed / 2, 0, 2);
+    if (wantHold) amp *= 0.06;
+    else if (this.breathTired) amp *= 1.8;
+    this.scopeAmp = damp(this.scopeAmp || 0, amp, 6, dt);
+    const t = this.scopeT;
+    this.scopeSwayP = (Math.sin(t * 1.1) * 0.8 + Math.sin(t * 2.3 + 1.3) * 0.35) * this.scopeAmp * DEG;
+    this.scopeSwayY = (Math.cos(t * 0.8) * 0.9 + Math.sin(t * 1.9 + 0.4) * 0.3) * this.scopeAmp * DEG;
   }
 
   updateInteraction(dt, input) {
@@ -412,7 +438,7 @@ export class Player {
       roll += k * 1.1;
     }
     camera.position.set(this.pos.x + _right.x * (leanX + bobX), y, this.pos.z + _right.z * (leanX + bobX));
-    camera.rotation.set(this.pitch + this.recoil.cp + sp, this.yaw + this.recoil.cy + sy, roll, 'YXZ');
+    camera.rotation.set(this.pitch + this.recoil.cp + sp + (this.scopeSwayP || 0), this.yaw + this.recoil.cy + sy + (this.scopeSwayY || 0), roll, 'YXZ');
     g.audio.setListener(camera.position.x, camera.position.y, camera.position.z, this.yaw);
   }
 }

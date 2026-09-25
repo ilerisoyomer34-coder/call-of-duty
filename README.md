@@ -31,7 +31,8 @@ Masaüstünde Chrome, Edge veya Firefox önerilir. Telefonda yatay tut; dokunmat
 | Bıçak | V | R3 |
 | Etkileşim (C4, istihbarat, ikmal) | F (basılı tut) | LB |
 | Sola / sağa eğil | Q / E | D-pad sol / sağ |
-| Silahlar | 1 tüfek, 2 pompalı, 3 tabanca, X son silah, tekerlek | Y |
+| Silahlar | 1 ana, 2 yan silah (poligonda 1–9), X son silah, tekerlek | Y |
+| Dürbünde nefesini tut | Shift | L3 |
 | Duraklat | Esc / P | Start |
 | Geliştirici konsolu | ` veya F2 | |
 
@@ -39,7 +40,21 @@ Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timesc
 
 ## İçerik
 
-- **Üç silah, üç his:** AR-7 Vanguard (otomatik / 3'lü seri / tek atış), SG-12 Breaker (fişek fişek dolan pompalı, 9 saçma), P-9 Sentinel (yarı otomatik tabanca). Her birinin kendi RPM'i, geri tepme deseni, sapması, ADS hızı ve sesi var.
+- **Dokuz silah:** her birinin kendi RPM'i, geri tepme deseni, sapması, nişan hızı, hareket ağırlığı ve sesi var.
+
+  | Silah | Tür | Model |
+  |---|---|---|
+  | AR-7 Vanguard | Taarruz tüfeği (otomatik / 3'lü / tek) | prosedürel |
+  | MAR-556 | Taarruz tüfeği, red dot | Blender (mar_556_1) |
+  | SMG-9 Akrep | Hafif makineli, refleks nişangah | prosedürel |
+  | SG-12 Breaker | Pompalı, fişek fişek dolum | prosedürel |
+  | MG-43 | Hafif makineli tüfek, 100'lük kutu şarjör | Blender (mg_43_1) |
+  | MR-82 Marret | .50 keskin nişancı, dürbün + nefes tutma | Blender (marret_m82) |
+  | P-9 Sentinel | Tabanca | prosedürel |
+  | D-50 Kartal | .50 ağır tabanca | Blender (golden_dessert_eagle_1) |
+  | RK-7 Yıldırım | Roketatar, alan hasarı | prosedürel |
+
+- **Teçhizat:** görevden önce ana ve yan silahı seçersin. Haritada yedi silah daha var; yerdekini F ile alınca aynı türdeki silahının yerine geçer, bıraktığın yere düşer.
 - **Silah hissi:** kare hızından bağımsız atış zamanlaması, kameradan hitscan ve namludan engel doğrulaması, oyuncunun karşı hareketini hesaba katan geri tepme toparlanması, sway, bob, nefes, koşu pozu, duvara yaklaşınca geri çekme, prosedürel reload (şarjör düşer, sol el yenisini takar, boş reload'da kurma kolu çekilir), pompa ve sürgü hareketi, namlu alevi, iz mermisi, kovan, yüzeye göre çarpma efekti ve ses, vuruş işaretleri (normal / kafa / öldürme).
 - **Düşman yapay zekâsı:** devriye, şüphelenme, araştırma, alarm yayma, siper bulma ve siperden göz atma, yan adım, hücum eden pompalılar, bastırma ateşi yapan ağır makineliler, lazerle nişan alan keskin nişancılar, el bombası atma, düşük canda geri çekilme. Adil isabet: mesafe, hareketin, ilk atış ıskası ve zorluk hesaba katılır; aynı anda yalnızca sınırlı sayıda düşman sana ateş eder.
 - **Görev:** kontrol noktaları, telsiz anonsları, patlayıcı variller, düşen mühimmat, ikmal sandıkları, dalga savunması ve helikopterle tahliye. Zorluklar: Acemi, Asker, Gazi.
@@ -68,4 +83,15 @@ web/
   tools/build.mjs  tek dosyaya paketleme
   tools/smoke-test.mjs  otomatik oynanış testi
 Docs/MASTER_PROMPT.md  Unreal Engine 5 ana planı
+Docs/import_reports/   her içe aktarılan model için rapor ve önizleme
+SourceAssets/Weapons/  özgün .blend dosyaları ve asset_info.json (lisans kaydı)
+Tools/blender/         model inceleme ve oyuna dönüştürme betikleri
 ```
+
+## Blender modeli ekleme
+
+1. `.blend` dosyasını `SourceAssets/Weapons/<ad>/original/` altına koy, yanına `asset_info.json` yaz.
+2. `Tools/blender/inspect_model.py` ile nesneleri ve üçgen sayılarını listele.
+3. `Tools/blender/weapon_rig_map.json` içine eksen, sağ el noktası, namlu/nişan/sol el noktalarını ve animasyonlu parça adlarını ekle.
+4. `python Tools/blender/export_weapon.py <ad> --render` (bpy kurulu Python ile) → `web/assets/weapons/<ad>.glb`, `web/src/weaponAssets.json` ve `Docs/import_reports/<ad>.md`.
+5. `web/src/config.js` içinde silah verisine `model: 'glb'` ekle, `npm run build`.

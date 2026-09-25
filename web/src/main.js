@@ -17,7 +17,8 @@ import { HUD } from './hud.js';
 import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE } from './config.js';
+import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS } from './config.js';
+import { storage } from './util.js';
 import { Emitter, clamp, rand } from './util.js';
 
 const SKY_VERT = /* glsl */ `
@@ -48,6 +49,13 @@ void main() {
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
+
+const LOADOUT_KEY = 'demirsafak.loadout.v1';
+function loadLoadout() {
+  const s = storage.get(LOADOUT_KEY, null);
+  const ok = s && WEAPONS[s.primary]?.category === 'primary' && WEAPONS[s.secondary]?.category === 'secondary';
+  return ok ? { primary: s.primary, secondary: s.secondary } : { ...DEFAULT_LOADOUT };
+}
 
 export class Game {
   constructor() {
@@ -84,6 +92,9 @@ export class Game {
     this.input = new Input(this.canvas, document.getElementById('touch'));
     this.player = new Player(this);
     this.viewmodel = new Viewmodel(this, this.textures);
+    this.envMap = this.buildEnvMap();
+    this.viewmodel.setEnvironment(this.envMap);
+    this.loadout = loadLoadout();
     this.hud = new HUD(this);
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
@@ -106,8 +117,33 @@ export class Game {
     this.resize();
   }
 
+  // Silahların metal yüzeyleri için şafak gökyüzünden ortam yansıma haritası
+  buildEnvMap() {
+    const envScene = new THREE.Scene();
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(10, 32, 16),
+      new THREE.ShaderMaterial({
+        uniforms: {
+          sunDir: { value: this.sunDir },
+          zenith: { value: new THREE.Color(0x4a78a8) },
+          horizon: { value: new THREE.Color(0xe0b595) },
+          ground: { value: new THREE.Color(0x9a7a58) },
+        },
+        vertexShader: SKY_VERT,
+        fragmentShader: SKY_FRAG,
+        side: THREE.BackSide,
+        depthWrite: false,
+      })
+    );
+    envScene.add(sky);
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const tex = pmrem.fromScene(envScene, 0.02).texture;
+    pmrem.dispose();
+    return tex;
+  }
+
   freshStats() {
-    return { kills: 0, headshots: 0, shots: 0, hits: 0, deaths: 0, score: 0, time: 0, grenades: 0, damageTaken: 0 };
+    return { kills: 0, headshots: 0, shots: 0, hits: 0, deaths: 0, score: 0, time: 0, grenades: 0, damageTaken: 0, explosions: 0 };
   }
 
   enableTouch() {
@@ -237,6 +273,11 @@ export class Game {
     this.menuT = 0;
   }
 
+  setLoadout(primary, secondary) {
+    this.loadout = { primary, secondary };
+    storage.set(LOADOUT_KEY, this.loadout);
+  }
+
   async startMode(mode, diffKey = 'normal') {
     this.audio.init();
     this.audio.stopMenuMusic();
@@ -304,9 +345,11 @@ export class Game {
   }
 
   explode(pos, radius, damage, owner, scale = 1) {
+    this.stats.explosions++;
     this.effects.explosion(pos, scale);
     this.audio.explosion(pos, scale);
     applyRadialDamage(this, pos, radius, damage, owner);
+    this.mission?.onExplosion?.(pos, radius, damage, owner);
     this.makeNoise(pos, 90, 'explosion');
     // Yakındaki patlama görüşü beyazlatır
     const d = pos.distanceTo(this.player.pos);

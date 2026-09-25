@@ -4,6 +4,8 @@
 // Ayrı sahnede çizilir: silah duvarların içine girmez.
 import * as THREE from 'three';
 import { buildWeapon, buildArms, poseArm, buildGrenade } from './models.js';
+import { WEAPONS, WEAPON_ORDER } from './config.js';
+import { preloadWeapons, rigFor, assetIdFor } from './assets.js';
 import { clamp, damp, lerp, smoothstep, Spring, rand } from './util.js';
 
 const _p = new THREE.Vector3();
@@ -35,17 +37,11 @@ export class Viewmodel {
     this.scene.add(this.flash);
     this.holder = new THREE.Group();
     this.scene.add(this.holder);
+    this.textures = textures;
     this.models = {};
-    for (const id of ['rifle', 'shotgun', 'pistol']) {
-      const m = buildWeapon(id);
-      m.root.visible = false;
-      this.holder.add(m.root);
-      m.flash = this.makeFlash(textures, id);
-      m.root.add(m.flash);
-      m.flash.position.copy(m.muzzle);
-      if (m.dot) m.dot.scale.setScalar(0.75);
-      this.models[id] = m;
-    }
+    for (const id of WEAPON_ORDER) this.installModel(id, buildWeapon(id));
+    // Blender modelleri hazır olunca yedek (prosedürel) modelin yerine geçer
+    preloadWeapons(WEAPONS, (id, scene) => this.installModel(id, this.modelFromGlb(id, scene), true));
     this.arms = buildArms();
     this.holder.add(this.arms.left.g, this.arms.right.g);
     this.grenade = buildGrenade();
@@ -71,11 +67,80 @@ export class Viewmodel {
     this.currentId = null;
   }
 
-  makeFlash(T, id) {
+  // Modeli tutucuya yerleştir; parçaların dinlenme konumlarını sakla
+  installModel(id, m, fromGlb = false) {
+    const old = this.models[id];
+    if (old) old.root.removeFromParent();
+    m.root.visible = this.currentId === id;
+    this.holder.add(m.root);
+    m.flash = this.makeFlash(this.textures, WEAPONS[id].flashSize || 0.14);
+    m.root.add(m.flash);
+    m.flash.position.copy(m.muzzle);
+    if (m.dot) m.dot.scale.setScalar(0.75);
+    for (const part of Object.values(m.parts)) if (part) part.userData.base = part.position.clone();
+    m.root.traverse((o) => {
+      if (o.isMesh) o.frustumCulled = false;
+    });
+    m.glb = fromGlb;
+    this.models[id] = m;
+  }
+
+  // GLB sahnesinden görünüm modeli: parçalar düğüm adlarıyla, noktalar dışa aktarma JSON'undan
+  modelFromGlb(id, scene) {
+    const d = WEAPONS[id];
+    const rig = rigFor(assetIdFor(d));
+    const root = new THREE.Group();
+    root.add(scene);
+    const parts = {};
+    for (const name of ['mag', 'charging', 'slide', 'optic']) {
+      const n = scene.getObjectByName(name);
+      if (n) parts[name] = n;
+    }
+    let dot = null;
+    if (d.reticle === 'dot') {
+      // Nişangah ekseninde kırmızı nokta: ADS'de tam ekran merkezine düşer
+      dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 12), new THREE.MeshBasicMaterial({ color: 0xff2a1a, depthTest: false }));
+      dot.position.copy(rig.sight).add(new THREE.Vector3(0, 0, d.id === 'lmg' ? -0.1 : -0.03));
+      dot.renderOrder = 6;
+      root.add(dot);
+    }
+    // Modeldeki nişangah kapalı bir gövde: nişan alırken yerine içinden bakılabilen açık tüp çizilir
+    let adsRing = null;
+    if (parts.optic && d.adsRing) {
+      const g = new THREE.CylinderGeometry(d.adsRing.r, d.adsRing.r, d.adsRing.len, 24, 1, true);
+      g.rotateX(Math.PI / 2);
+      adsRing = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x151719, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide }));
+      adsRing.position.copy(rig.sight).add(new THREE.Vector3(0, 0, -d.adsRing.len / 2 - 0.004));
+      adsRing.visible = false;
+      root.add(adsRing);
+    }
+    if (d.envIntensity) {
+      scene.traverse((o) => {
+        if (o.isMesh) o.material.envMapIntensity = d.envIntensity;
+      });
+    }
+    return {
+      root,
+      parts,
+      muzzle: rig.muzzle,
+      sight: rig.sight,
+      leftHand: rig.leftHand,
+      rightHand: new THREE.Vector3(0, -0.035, 0.025),
+      eject: rig.eject,
+      dot,
+      adsRing,
+    };
+  }
+
+  setEnvironment(tex) {
+    this.scene.environment = tex;
+    this.scene.environmentIntensity = 0.9;
+  }
+
+  makeFlash(T, size) {
     const g = new THREE.Group();
     const mk = (map) =>
       new THREE.MeshBasicMaterial({ map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, color: new THREE.Color(1.6, 1.3, 1.0) });
-    const size = id === 'shotgun' ? 0.2 : id === 'pistol' ? 0.1 : 0.14;
     const front = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mk(T.flash));
     g.add(front);
     const sideGeo = new THREE.PlaneGeometry(size * 2, size * 0.9);
@@ -102,7 +167,7 @@ export class Viewmodel {
     this.kickZ.impulse(d.recoil.kick * posMul);
     this.kickRot.impulse(d.recoil.kickRot * lerp(1, 0.4, ads) * rand(0.8, 1.2));
     this.kickRoll.impulse(rand(-0.6, 0.6) * d.recoil.kickRot);
-    if (d.id === 'pistol') this.slideZ.impulse(4.5);
+    if (d.slide) this.slideZ.impulse(d.id === 'd50' ? 6 : 4.5);
     this.flashT = 0.035;
     const m = this.models[d.id];
     m.flash.visible = true;
@@ -126,7 +191,10 @@ export class Viewmodel {
       for (const id in this.models) this.models[id].root.visible = id === w.id;
       this.currentId = w.id;
     }
-    this.holder.visible = P.alive;
+    // Dürbünlü silahta tam nişanda model gizlenir, dürbün kaplaması görünür
+    this.scoped = !!d.scope && P.adsT > 0.86;
+    this.holder.visible = P.alive && !this.scoped;
+    const handgun = d.category === 'secondary' && !d.projectile;
 
     // --- Temel poz: kalça ↔ nişan ---
     const ads = smoothstep(P.adsT);
@@ -142,7 +210,7 @@ export class Viewmodel {
     // Koşu pozu
     this.sprintT = damp(this.sprintT, P.sprinting ? 1 : 0, 9, dt);
     const sp = this.sprintT;
-    if (w.id === 'pistol') {
+    if (handgun) {
       _p.x += -0.02 * sp;
       _p.y += -0.08 * sp;
       rx += -0.7 * sp;
@@ -232,23 +300,40 @@ export class Viewmodel {
 
     // Sol el hedefi (varsayılan: tutamak)
     let leftOverride = null;
-    // Parça animasyonları
-    if (m.parts.mag) m.parts.mag.position.y = m.parts.mag.userData.baseY ?? (m.parts.mag.userData.baseY = m.parts.mag.position.y);
+    // Parça animasyonları: her karede dinlenme konumuna dön
+    for (const part of Object.values(m.parts)) {
+      if (part && part.userData.base) part.position.copy(part.userData.base);
+    }
     if (m.parts.mag) m.parts.mag.visible = true;
-    if (m.parts.charging) m.parts.charging.position.z = 0.045;
-    if (m.parts.pump) m.parts.pump.position.z = -0.34;
+    const chargeBase = m.parts.charging ? m.parts.charging.userData.base.z : 0;
+    const pumpBase = m.parts.pump ? m.parts.pump.userData.base.z : 0;
 
     const info = W.reloadInfo();
-    if (info && info.type === 'mag') {
+    if (info && info.type === 'mag' && d.projectile) {
+      // Roketatar: tüpü indir, yeni harp başlığını önden tak
+      const k = info.k;
+      const tilt = envelope(k, 0, 0.15, 0.8, 1);
+      rx += -tilt * 0.35;
+      rz += tilt * 0.25;
+      _p.y += -0.06 * tilt;
+      const wh = m.parts.warhead;
+      const s = smoothstep(clamp((k - 0.3) / 0.28, 0, 1));
+      wh.visible = k > 0.3;
+      wh.position.z = wh.userData.base.z - 0.45 * (1 - s);
+      wh.position.y = wh.userData.base.y - 0.1 * (1 - s);
+      if (k > 0.25 && k < info.insertAt + 0.1) {
+        leftOverride = _v.copy(wh.position).add(_v2.set(-0.03, -0.06, 0.06)).clone();
+      }
+    } else if (info && info.type === 'mag' && m.parts.mag) {
       const k = info.k;
       const tilt = envelope(k, 0, 0.16, 0.82, 1);
-      rz += tilt * (w.id === 'pistol' ? 0.35 : 0.6);
+      rz += tilt * (handgun ? 0.35 : 0.6);
       rx += tilt * 0.18;
       ry += tilt * 0.12;
       _p.y += -0.025 * tilt;
       _p.x += -0.02 * tilt;
       const mag = m.parts.mag;
-      const baseY = mag.userData.baseY;
+      const baseY = mag.userData.base.y;
       const ins = info.insertAt;
       let magOff = 0;
       if (k > 0.1 && k < 0.32) {
@@ -271,12 +356,12 @@ export class Viewmodel {
       }
       if (info.empty && m.parts.charging && k > 0.72 && k < 0.95) {
         const c = envelope(k, 0.74, 0.8, 0.83, 0.9);
-        m.parts.charging.position.z = 0.045 + c * 0.07;
+        m.parts.charging.position.z = chargeBase + c * 0.07;
         const toCh = envelope(k, 0.72, 0.76, 0.88, 0.95);
         _v.copy(m.leftHand).lerp(_v2.set(-0.02, 0.07, 0.06 + c * 0.07), toCh);
         leftOverride = _v.clone();
       }
-      if (info.empty && w.id === 'pistol' && k > 0.8) this.slideZ.x = Math.max(0, this.slideZ.x * 0.5);
+      if (info.empty && d.slide && k > 0.8) this.slideZ.x = Math.max(0, this.slideZ.x * 0.5);
     } else if (info && info.type === 'shell') {
       const k = info.k;
       let tilt = 1;
@@ -295,27 +380,34 @@ export class Viewmodel {
       }
       if (info.phase === 'end' && info.empty && m.parts.pump) {
         const pk = envelope(k, 0.2, 0.45, 0.5, 0.8);
-        m.parts.pump.position.z = -0.34 + pk * 0.09;
+        m.parts.pump.position.z = pumpBase + pk * 0.09;
       }
+    }
+    if (m.parts.warhead && !info) m.parts.warhead.visible = w.mag > 0;
+    if (m.parts.optic) {
+      const swap = ads > 0.72;
+      m.parts.optic.visible = !swap;
+      if (m.adsRing) m.adsRing.visible = swap;
     }
     // Pompa (atıştan sonra)
     if (m.parts.pump && w.pumpT >= 0) {
       const t = w.pumpT - d.pumpDelay;
       if (t > 0) {
         const pk = envelope(t / 0.32, 0, 0.4, 0.5, 1);
-        m.parts.pump.position.z = -0.34 + pk * 0.09;
+        m.parts.pump.position.z = pumpBase + pk * 0.09;
         rx += pk * 0.05;
       }
     }
     if (m.parts.pump) {
       _v.copy(m.leftHand);
-      _v.z += m.parts.pump.position.z + 0.34;
+      _v.z += m.parts.pump.position.z - pumpBase;
       if (!leftOverride) leftOverride = _v.clone();
     }
     // Tabanca sürgüsü
     if (m.parts.slide) {
       const sz = this.slideZ.update(dt);
-      m.parts.slide.position.z = w.slideLocked ? 0.035 : clamp(sz * 0.006, 0, 0.035);
+      const travel = d.id === 'd50' ? 0.045 : 0.035;
+      m.parts.slide.position.z = m.parts.slide.userData.base.z + (w.slideLocked ? travel : clamp(sz * 0.006, 0, travel));
     }
 
     // Bıçak (dipçik/silah darbesi)
@@ -364,7 +456,7 @@ export class Viewmodel {
     const leftHand = _v2.copy(leftLocal).applyMatrix4(m.root.matrix).clone();
     const elbowR = new THREE.Vector3(_p.x + 0.09, _p.y - 0.24, _p.z + 0.34);
     const elbowL =
-      w.id === 'pistol'
+      handgun
         ? new THREE.Vector3(_p.x - 0.2, _p.y - 0.28, _p.z + 0.22)
         : new THREE.Vector3(_p.x - 0.22, _p.y - 0.32, leftHand.z + 0.36);
     if (cooking || throwing) {

@@ -2,6 +2,7 @@
 // konuma bağlı öğeler (nişangah, pusula, işaretçiler, mini harita, hasar yönü, düşman farkındalık ikonları).
 import * as THREE from 'three';
 import { DEG, clamp } from './util.js';
+import { WEAPONS } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -25,6 +26,7 @@ export class HUD {
       markers: $('markers'), icons: $('icons'), dmgNums: $('dmgNums'), dmgDirs: $('dmgDirs'), grenadeWarn: $('grenadeWarn'),
       compassStrip: $('compassStrip'), compassObj: $('compassObj'), compass: $('compass'),
       minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'),
+      slots: $('slots'), scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
     };
     this.ch = {
       t: this.el.crosshair.querySelector('.t'), b: this.el.crosshair.querySelector('.b'),
@@ -54,7 +56,11 @@ export class HUD {
     const E = this.game.events;
     E.on('health', (hp, max) => this.setHealth(hp, max));
     E.on('ammo', (w) => this.setAmmo(w));
-    E.on('weapon', (w) => this.setAmmo(w));
+    E.on('weapon', (w) => {
+      this.setAmmo(w);
+      this.setSlots();
+    });
+    E.on('slots', () => this.setSlots());
     E.on('fireMode', (w) => this.setAmmo(w));
     E.on('grenades', (n) => this.setNades(n));
     E.on('hitmarker', (kind, headKill) => this.hitmarker(kind, headKill));
@@ -122,7 +128,7 @@ export class HUD {
     this.el.wMode.textContent = `${d.kind} · ${MODE_LABEL[w.mode]}`;
     this.el.aMag.textContent = inf ? '∞' : w.mag;
     this.el.aRes.textContent = `/ ${w.reserve}`;
-    const low = w.mag <= Math.ceil(d.magSize * 0.25);
+    const low = w.mag === 0 || (d.magSize > 3 && w.mag <= Math.ceil(d.magSize * 0.25));
     this.el.ammo.classList.toggle('low', low);
     const hint = this.el.reloadHint;
     if (w.mag === 0 && w.reserve === 0) {
@@ -132,6 +138,28 @@ export class HUD {
       hint.textContent = this.game.input.touch.active ? 'ŞARJÖR DEĞİŞTİR' : 'R · ŞARJÖR DEĞİŞTİR';
       hint.className = 'on';
     } else hint.className = '';
+  }
+
+  // Taşınan silahlar: görevde "1 AR-7 · 2 P-9", poligonda kısa ipucu
+  setSlots() {
+    const W = this.game.weapons;
+    const box = this.el.slots;
+    box.innerHTML = '';
+    if (!W || !W.slots) return;
+    if (W.slots.length > 3) {
+      const s = document.createElement('span');
+      s.textContent = `1–${W.slots.length} silah değiştir`;
+      box.appendChild(s);
+      return;
+    }
+    W.slots.forEach((id, i) => {
+      const s = document.createElement('span');
+      if (id === W.currentId) s.className = 'on';
+      const k = document.createElement('kbd');
+      k.textContent = i + 1;
+      s.append(k, document.createTextNode(WEAPONS[id].name.split(' ')[0]));
+      box.appendChild(s);
+    });
   }
 
   setNades(n) {
@@ -268,6 +296,15 @@ export class HUD {
       if (P.sprinting || W.state === 'unequipping' || W.state === 'melee' || !P.alive) op = 0;
       else if (W.state === 'reloading' || W.state === 'equipping') op *= 0.4;
       this.el.crosshair.style.opacity = op;
+    }
+
+    // Dürbün kaplaması ve nefes göstergesi
+    const scoped = g.viewmodel.scoped && P.alive;
+    if (this.el.scope.hidden === scoped) this.el.scope.hidden = !scoped;
+    if (scoped) {
+      this.el.breathBar.style.width = `${Math.round(P.breath * 100)}%`;
+      const t = P.breathTired ? 'NEFES NEFESE' : P.holdingBreath ? 'NEFES TUTULUYOR' : this.game.input.touch.active ? 'NİŞANI SABİT TUT' : 'SHIFT · NEFESİNİ TUT';
+      if (this.el.breathText.textContent !== t) this.el.breathText.textContent = t;
     }
 
     // Telsiz altyazısı

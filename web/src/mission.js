@@ -3,8 +3,9 @@
 // savunma dalgaları, helikopterle tahliye ve atış poligonu modu.
 import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
-import { buildAAGun, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildShotgunPickup, mat } from './models.js';
-import { C4, SCORE } from './config.js';
+import { buildAAGun, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildWeapon, mat } from './models.js';
+import { C4, SCORE, WEAPONS, WEAPON_ORDER } from './config.js';
+import { loadWeaponAsset, assetIdFor } from './assets.js';
 import { rand, lerp, clamp, smoothstep, pick } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -49,6 +50,89 @@ class Barrel {
       this.mesh.visible = false;
       this.game.explode(this.pos.clone().setY(0.5), 6.5, 160, 'player', 0.9);
     }
+  }
+}
+
+// Yerdeki silah: F ile alınır; görevde aynı türdeki silahın yerine geçer, eldeki yere düşer
+class WeaponPickup {
+  constructor(mission, id, pos, rotY = 0, ammo = null) {
+    const g = mission.game;
+    this.mission = mission;
+    this.id = id;
+    this.data = WEAPONS[id];
+    this.pos = pos.clone();
+    this.ammo = ammo;
+    this.taken = false;
+    this.spawnedAt = mission.time;
+    this.takenAt = -1;
+    this.root = new THREE.Group();
+    this.root.position.copy(pos);
+    this.root.rotation.y = rotY;
+    g.scene.add(this.root);
+    this.setModel(buildWeapon(id).root);
+    if (this.data.model === 'glb') {
+      loadWeaponAsset(assetIdFor(this.data))
+        .then((scene) => !this.taken && this.setModel(scene))
+        .catch(() => {});
+    }
+    // Uzaktan fark edilsin diye hafif parıltı
+    this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: g.textures.soft, color: 0xffe2a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.glow.scale.setScalar(0.9);
+    this.glow.position.set(pos.x, pos.y + 0.25, pos.z);
+    g.scene.add(this.glow);
+    this.interactable = {
+      id: `pickup-${id}`,
+      pos: this.pos.clone().setY(pos.y + 0.1),
+      radius: 2.0,
+      time: 0,
+      get prompt() {
+        return mission.pickupPrompt(this.pickup);
+      },
+      enabled: () => !this.taken,
+      action: () => mission.takePickup(this),
+    };
+    this.interactable.pickup = this;
+    mission.interactables.push(this.interactable);
+  }
+
+  // Silahı yan yatır, alt yüzeyi zemine otursun; metal yüzeyler ortam haritasını yansıtsın
+  setModel(obj) {
+    const g = this.mission.game;
+    if (this.model) this.model.removeFromParent();
+    const holder = new THREE.Group();
+    holder.add(obj);
+    holder.rotation.z = Math.PI / 2;
+    this.root.add(holder);
+    this.root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(holder);
+    holder.position.y = this.root.position.y - box.min.y + 0.005;
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.material = o.material.clone();
+      o.material.envMap = g.envMap;
+      o.material.envMapIntensity = 0.7;
+    });
+    this.model = holder;
+  }
+
+  remove() {
+    this.taken = true;
+    this.takenAt = this.mission.time;
+    this.root.removeFromParent();
+    this.glow.removeFromParent();
+  }
+
+  // Kontrol noktasına dönünce yerine koy
+  restore() {
+    const scene = this.mission.game.scene;
+    this.taken = false;
+    scene.add(this.root);
+    scene.add(this.glow);
+  }
+
+  update(t) {
+    if (!this.taken) this.glow.material.opacity = 0.3 + 0.25 * Math.sin(t * 3 + this.pos.x);
   }
 }
 
@@ -169,7 +253,6 @@ export class Mission {
     this.wavesSpawned = 0;
     this.destroyed = new Set();
     this.intel = false;
-    this.shotgunTaken = false;
     this.complete = false;
     this.checkpoint = null;
     this.markers = [];
@@ -225,23 +308,8 @@ export class Mission {
       enabled: () => !this.intel && this.current?.id === 'intel',
       action: () => this.onIntel(),
     });
-    // Pompalı (kontrol noktasındaki sığınakta)
-    const sg = buildShotgunPickup();
-    sg.position.copy(D.shotgun.pos);
-    sg.rotation.set(0, 1.2, Math.PI / 2);
-    g.scene.add(sg);
-    this.shotgunMesh = sg;
-    this.interactables.push({
-      id: 'shotgun', pos: D.shotgun.pos.clone(), radius: 2.0, prompt: 'SG-12 Breaker pompalıyı al', time: 0,
-      enabled: () => !this.shotgunTaken,
-      action: () => {
-        this.shotgunTaken = true;
-        sg.visible = false;
-        g.weapons.give('shotgun');
-        g.audio.mech('pickup');
-        g.events.emit('message', 'SG-12 BREAKER ALINDI  [2]', 'info');
-      },
-    });
+    // Haritaya dağıtılmış silahlar
+    this.pickups3 = (D.weaponPickups || []).map((p) => new WeaponPickup(this, p.id, p.pos, p.rotY));
     // Düşmanlar
     D.enemies.forEach((spec, i) => {
       const s = { ...spec, id: `m${i}` };
@@ -276,7 +344,7 @@ export class Mission {
     this.objectives = [{ id: 'range', text: 'Atış poligonu — hedefler 10 / 25 / 50 / 100 m', marker: () => null }];
     this.objIdx = 0;
     g.events.emit('objective', this.currentText());
-    this.radio('POLİGON', 'Tüm silahlar hazır: 1 tüfek, 2 pompalı, 3 tabanca. B ile tüfeğin atış modunu değiştir.', 1);
+    this.radio('POLİGON', 'Dokuz silahın hepsi hazır: 1–9 tuşlarıyla değiştir. B ile atış modunu, dürbünde Shift ile nefesini tut.', 1);
     this.radio('POLİGON', 'Turuncu mankenler hasar sayısını gösterir ve 3 saniyede yeniden kalkar.', 6);
   }
 
@@ -304,11 +372,11 @@ export class Mission {
     const g = this.game;
     this.checkpoint = {
       idx,
+      time: this.time,
       objIdx: this.objIdx,
       dead: new Set(g.enemies.list.filter((e) => !e.alive).map((e) => e.id)),
       destroyed: new Set(this.destroyed),
       intel: this.intel,
-      shotgunTaken: this.shotgunTaken,
       loadout: g.weapons.owned && Object.keys(g.weapons.owned).length ? g.weapons.snapshot() : null,
       spawnedIds: new Set(g.enemies.list.map((e) => e.id)),
     };
@@ -335,6 +403,19 @@ export class Mission {
       keep.push(e);
     }
     g.enemies.list = keep;
+    // Silah noktaları: kontrol noktasından sonra alınanlar geri gelir, sonradan bırakılanlar kalkar
+    if (this.pickups3) {
+      const kept = [];
+      for (const p of this.pickups3) {
+        if (p.spawnedAt > C.time) {
+          if (!p.taken) p.remove();
+          continue;
+        }
+        if (p.taken && p.takenAt > C.time) p.restore();
+        kept.push(p);
+      }
+      this.pickups3 = kept;
+    }
     this.objIdx = C.objIdx;
     this.intel = C.intel;
     this.defendT = 0;
@@ -354,8 +435,8 @@ export class Mission {
     const lo = C.loadout || this.defaultLoadout();
     // Yeniden doğuşta en az başlangıç cephanesi
     for (const [id, a] of Object.entries(lo.weapons)) {
-      const W0 = g.weapons.owned[id]?.data;
-      if (W0) a.reserve = Math.max(a.reserve, W0.reserveStart);
+      if (!a) continue;
+      a.reserve = Math.max(a.reserve, WEAPONS[id].reserveStart);
       a.mag = Math.max(a.mag, 0);
     }
     lo.grenades = Math.max(lo.grenades, 2);
@@ -366,11 +447,45 @@ export class Mission {
   }
 
   defaultLoadout() {
-    return {
-      weapons: this.mode === 'range' ? { rifle: null, shotgun: null, pistol: null } : { rifle: null, pistol: null },
-      grenades: 3,
-      current: 'rifle',
-    };
+    if (this.mode === 'range') {
+      const weapons = {};
+      for (const id of WEAPON_ORDER) weapons[id] = null;
+      return { weapons, slots: [...WEAPON_ORDER], grenades: 4, current: 'rifle' };
+    }
+    const L = this.game.loadout;
+    return { weapons: { [L.primary]: null, [L.secondary]: null }, slots: [L.primary, L.secondary], grenades: 3, current: L.primary };
+  }
+
+  pickupPrompt(p) {
+    const g = this.game;
+    const d = p.data;
+    if (g.weapons.owned[p.id]) return `${d.name} · cephane al`;
+    const same = g.weapons.slots.find((s) => WEAPONS[s].category === d.category);
+    return same && this.mode === 'mission' ? `${d.name} al (${WEAPONS[same].name} bırakılır)` : `${d.name} al`;
+  }
+
+  takePickup(p) {
+    const g = this.game;
+    const res = g.weapons.pickUp(p.id, p.ammo);
+    p.remove();
+    g.audio.mech('pickup');
+    g.events.emit('message', res.refilled ? `${p.data.name} · CEPHANE` : `${p.data.name.toUpperCase()} ALINDI`, 'info');
+    if (res.dropped) {
+      // Bırakılan silah oyuncunun önüne düşer, geri alınabilir
+      const P = g.player;
+      const fwd = new THREE.Vector3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+      const at = P.pos.clone().addScaledVector(fwd, 0.9);
+      at.y = P.pos.y;
+      this.pickups3.push(new WeaponPickup(this, res.dropped.id, at, P.yaw + 1.2, { mag: res.dropped.mag, reserve: res.dropped.reserve }));
+    }
+  }
+
+  // Roket ya da el bombası uçaksavarın dibinde patlarsa top da imha olur
+  onExplosion(pos, radius, damage, owner) {
+    if (!this.aa || owner !== 'player' || damage < 200 || this.current?.id !== 'aa') return;
+    for (const gun of this.aa) {
+      if (!gun.destroyed && !gun.planted && gun.pos.distanceTo(pos) < 3.6) gun.detonate();
+    }
   }
 
   advance() {
@@ -490,6 +605,7 @@ export class Mission {
     }
     this.radioT -= dt;
     for (const b of g.barrels) b.update(dt);
+    if (this.pickups3) for (const p of this.pickups3) p.update(this.time);
     if (this.aa) for (const a of this.aa) a.update(dt);
     // Yerden toplama
     const P = g.player;

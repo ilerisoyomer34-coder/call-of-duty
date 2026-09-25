@@ -611,5 +611,11 @@ const GUN_PROFILES = {
   enemyRifle: { vol: 0.8, crack: 0.8, crackFreq: 2000, crackDur: 0.07, body: 0.85, bodyFreq: 1800, bodyDur: 0.16, thump: 125, thumpGain: 0.7, thumpDur: 0.1, tail: 0.55, tailGain: 0.45, mech: 0 },
   enemyShotgun: { vol: 0.85, crack: 0.7, crackFreq: 1500, crackDur: 0.09, body: 0.9, bodyFreq: 1400, bodyDur: 0.26, thump: 90, thumpGain: 0.9, thumpDur: 0.18, tail: 0.8, tailGain: 0.5, mech: 0 },
   enemyLmg: { vol: 0.85, crack: 0.9, crackFreq: 1900, crackDur: 0.07, body: 0.9, bodyFreq: 1700, bodyDur: 0.17, thump: 110, thumpGain: 0.8, thumpDur: 0.1, tail: 0.55, tailGain: 0.5, mech: 0 },
+  rifle2: { vol: 0.9, crack: 1.05, crackFreq: 2700, crackDur: 0.06, body: 0.85, bodyFreq: 2400, bodyDur: 0.14, thump: 150, thumpGain: 0.8, thumpDur: 0.09, tail: 0.45, tailGain: 0.42, mech: 0.14 },
+  smg: { vol: 0.75, crack: 0.9, crackFreq: 3200, crackDur: 0.045, body: 0.75, bodyFreq: 3000, bodyDur: 0.09, thump: 190, thumpGain: 0.55, thumpDur: 0.06, tail: 0.3, tailGain: 0.32, mech: 0.2 },
+  lmg: { vol: 0.95, crack: 1.0, crackFreq: 2100, crackDur: 0.07, body: 1.0, bodyFreq: 1900, bodyDur: 0.17, thump: 120, thumpGain: 1.0, thumpDur: 0.11, tail: 0.6, tailGain: 0.5, mech: 0.1 },
+  bmg50: { vol: 1.1, crack: 1.3, crackFreq: 1800, crackDur: 0.12, body: 1.1, bodyFreq: 1300, bodyDur: 0.4, thump: 70, thumpGain: 1.2, thumpDur: 0.3, tail: 1.6, tailGain: 0.85, mech: 0.1 },
+  magnum: { vol: 1.0, crack: 1.25, crackFreq: 2500, crackDur: 0.08, body: 1.0, bodyFreq: 2000, bodyDur: 0.2, thump: 110, thumpGain: 1.0, thumpDur: 0.14, tail: 0.8, tailGain: 0.55, mech: 0.25 },
+  rocket: { vol: 1.0, crack: 0.5, crackFreq: 900, crackDur: 0.25, body: 1.0, bodyFreq: 900, bodyDur: 0.7, thump: 60, thumpGain: 1.1, thumpDur: 0.35, tail: 1.2, tailGain: 0.6, mech: 0 },
   sniper: { vol: 1.0, crack: 1.2, crackFreq: 2600, crackDur: 0.1, body: 1.0, bodyFreq: 2000, bodyDur: 0.3, thump: 100, thumpGain: 1.0, thumpDur: 0.2, tail: 1.3, tailGain: 0.7, mech: 0 },
 };

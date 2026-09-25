@@ -1,5 +1,6 @@
 // Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F2 ile açılır.
 import * as THREE from 'three';
+import { WEAPON_ORDER } from './config.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -85,7 +86,7 @@ export class DevConsole {
         this.print(`Sonsuz cephane: ${C.infiniteAmmo ? 'AÇIK' : 'KAPALI'}`);
         break;
       case 'giveall':
-        for (const id of ['rifle', 'shotgun', 'pistol']) g.weapons.give(id, true);
+        for (const id of WEAPON_ORDER) g.weapons.give(id, true);
         g.weapons.refill();
         this.print('Tüm silahlar verildi.');
         break;

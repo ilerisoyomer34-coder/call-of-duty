@@ -1,0 +1,178 @@
+{
+  "_aciklama": "Blender modellerini oyuna hazırlama eşlemesi. Noktalar orijinal .blend koordinatlarında (Z yukarı). forward: namlunun baktığı eksen. hand: sağ elin kabzayı kavradığı nokta (oyunda orijin olur). scaleTo: hedef toplam uzunluk (m), null ise ölçek korunur. parts: animasyonlu parçalar için nesne adı kalıpları (regex). exclude: aktarılmayacak nesneler. caps: nesne başına en fazla üçgen (sadeleştirme). optic: nişan alırken gizlenen kapalı nişangah gövdesi (oyunda yerine açık tüp çizilir).",
+  "mg43": {
+    "source": "SourceAssets/Weapons/mg43/original/mg_43_1.blend",
+    "forward": "+X",
+    "hand": [
+      -0.066,
+      0.0,
+      -0.07
+    ],
+    "scaleTo": null,
+    "points": {
+      "muzzle": [
+        0.806,
+        0.0,
+        0.012
+      ],
+      "sight": [
+        -0.072,
+        0.0,
+        0.108
+      ],
+      "leftHand": [
+        0.27,
+        0.0,
+        -0.05
+      ],
+      "eject": [
+        0.1,
+        -0.034,
+        0.018
+      ]
+    },
+    "parts": {
+      "mag": "^MG43_(ammo_|belt_|beltlink_)",
+      "charging": "^MG43_charge_",
+      "optic": "^MG43_(optic_|turret_)"
+    },
+    "exclude": "^MG43_(back|floor|rsight_post|rsight_aperture)$",
+    "caps": {
+      "default": 600
+    }
+  },
+  "mar556": {
+    "source": "SourceAssets/Weapons/mar556/original/mar_556_1.blend",
+    "forward": "+Y",
+    "hand": [
+      0.0,
+      -0.072,
+      -0.03
+    ],
+    "scaleTo": 0.98,
+    "points": {
+      "muzzle": [
+        0.0,
+        0.822,
+        0.024
+      ],
+      "sight": [
+        0.0,
+        -0.043,
+        0.085
+      ],
+      "leftHand": [
+        0.0,
+        0.439,
+        -0.065
+      ],
+      "eject": [
+        0.04,
+        0.07,
+        0.03
+      ]
+    },
+    "parts": {
+      "mag": "^Magazine$",
+      "charging": "^CH_",
+      "optic": "^(RedDot_(Body|Lens)|RD_Turret|RearSight|FrontSight|FS_Post)"
+    },
+    "exclude": "^$",
+    "caps": {
+      "default": 360,
+      "Magazine": 1600,
+      "Grip": 900,
+      "Foregrip": 700,
+      "ButtPad": 500,
+      "Upper": 900,
+      "Lower": 700,
+      "Handguard": 700,
+      "Stock": 600
+    }
+  },
+  "m82": {
+    "source": "SourceAssets/Weapons/m82/original/marret_m82.blend",
+    "forward": "+X",
+    "hand": [
+      -0.1,
+      0.0,
+      -0.04
+    ],
+    "scaleTo": null,
+    "points": {
+      "muzzle": [
+        0.95,
+        0.0,
+        0.0
+      ],
+      "sight": [
+        -0.182,
+        0.0,
+        0.072
+      ],
+      "leftHand": [
+        0.13,
+        0.0,
+        -0.035
+      ],
+      "eject": [
+        0.0,
+        -0.03,
+        0.012
+      ]
+    },
+    "parts": {
+      "mag": "^(Magazine|MagFloor\\.001)$",
+      "charging": "^ChargingHandle_"
+    },
+    "exclude": "^$",
+    "caps": {
+      "default": 700,
+      "Handguard": 1600,
+      "MuzzleBrake": 1200
+    }
+  },
+  "d50": {
+    "source": "SourceAssets/Weapons/d50/original/golden_dessert_eagle_1.blend",
+    "forward": "+Y",
+    "hand": [
+      0.0,
+      -0.128,
+      0.0
+    ],
+    "scaleTo": 0.28,
+    "points": {
+      "muzzle": [
+        0.0,
+        0.222,
+        0.065
+      ],
+      "sight": [
+        0.0,
+        -0.165,
+        0.124
+      ],
+      "leftHand": [
+        -0.03,
+        -0.165,
+        -0.06
+      ],
+      "eject": [
+        0.024,
+        0.02,
+        0.075
+      ]
+    },
+    "parts": {
+      "mag": "^(Magazine|Mag_Base)$",
+      "slide": "^(Slide_|Serr|RearSight|RearNotch|EjectPort|VentHole|TopRail|RailTooth)"
+    },
+    "exclude": "^$",
+    "caps": {
+      "default": 500,
+      "Grip_Panel_L": 1800,
+      "Grip_Panel_R": 1800,
+      "TriggerGuard": 700
+    }
+  }
+}

@@ -21,9 +21,16 @@ export const BINDINGS = {
   weapon1: ['Digit1'],
   weapon2: ['Digit2'],
   weapon3: ['Digit3'],
+  weapon4: ['Digit4'],
+  weapon5: ['Digit5'],
+  weapon6: ['Digit6'],
+  weapon7: ['Digit7'],
+  weapon8: ['Digit8'],
+  weapon9: ['Digit9'],
   nextWeapon: ['WheelDown'],
   prevWeapon: ['WheelUp'],
   swapWeapon: ['KeyX'],
+  holdBreath: ['ShiftLeft', 'ShiftRight'],
   pause: ['Escape', 'KeyP'],
   console: ['Backquote', 'F2'],
 };
@@ -32,7 +39,8 @@ export const ACTION_LABELS = {
   forward: 'İleri', back: 'Geri', left: 'Sol', right: 'Sağ', jump: 'Zıpla', crouch: 'Çömel',
   sprint: 'Koş', fire: 'Ateş', ads: 'Nişan al', reload: 'Şarjör değiştir', interact: 'Etkileşim',
   grenade: 'El bombası', melee: 'Bıçak', fireMode: 'Atış modu', leanLeft: 'Sola eğil', leanRight: 'Sağa eğil',
-  weapon1: 'Tüfek', weapon2: 'Pompalı', weapon3: 'Tabanca', swapWeapon: 'Son silah', pause: 'Duraklat',
+  weapon1: 'Ana silah (poligonda 1–9)', weapon2: 'Yan silah', swapWeapon: 'Son silah', pause: 'Duraklat',
+  holdBreath: 'Nefesini tut (dürbün)',
 };
 
 const KEY_NAMES = {
@@ -375,5 +383,5 @@ export class Input {
 // Standart gamepad düğme indeksleri
 const GP_MAP = {
   jump: 0, crouch: 1, reload: 2, swapWeapon: 3, grenade: 5, melee: 11, ads: 6, fire: 7,
-  sprint: 10, pause: 9, fireMode: 12, interact: 4, leanLeft: 14, leanRight: 15,
+  sprint: 10, holdBreath: 10, pause: 9, fireMode: 12, interact: 4, leanLeft: 14, leanRight: 15,
 };

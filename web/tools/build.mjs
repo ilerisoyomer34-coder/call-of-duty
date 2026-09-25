@@ -2,7 +2,7 @@
 //  dist/index.html    → bağımsız (three.js gömülü, çevrimdışı çift tıkla açılır)
 //  dist/artifact.html → claude.ai Artifact sürümü (three.js jsDelivr'dan, iskelet etiketsiz)
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,17 +10,31 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const THREE_VERSION = JSON.parse(readFileSync(join(root, 'node_modules/three/package.json'), 'utf8')).version;
 export const THREE_CDN = `https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/build/three.module.min.js`;
 
+// Blender'dan dışa aktarılan GLB silahları base64 olarak pakete gömülür (tek dosya, çevrimdışı)
+const glbPlugin = {
+  name: 'weapon-glbs',
+  setup(b) {
+    b.onResolve({ filter: /^virtual:weapon-glbs$/ }, () => ({ path: 'weapon-glbs', namespace: 'glbs' }));
+    b.onLoad({ filter: /.*/, namespace: 'glbs' }, () => {
+      const dir = join(root, 'assets/weapons');
+      const map = {};
+      for (const f of existsSync(dir) ? readdirSync(dir) : []) {
+        if (f.endsWith('.glb')) map[f.slice(0, -4)] = readFileSync(join(dir, f)).toString('base64');
+      }
+      return { contents: `export default ${JSON.stringify(map)};`, loader: 'js' };
+    });
+  },
+};
+
 async function bundle(externalThree) {
-  const plugins = externalThree
-    ? [
-        {
-          name: 'three-cdn',
-          setup(b) {
-            b.onResolve({ filter: /^three$/ }, () => ({ path: THREE_CDN, external: true }));
-          },
-        },
-      ]
-    : [];
+  const plugins = [glbPlugin];
+  if (externalThree)
+    plugins.push({
+      name: 'three-cdn',
+      setup(b) {
+        b.onResolve({ filter: /^three$/ }, () => ({ path: THREE_CDN, external: true }));
+      },
+    });
   const r = await build({
     entryPoints: [join(root, 'src/main.js')],
     bundle: true,
