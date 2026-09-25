@@ -1,0 +1,617 @@
+// Oyun modu ve görev akışı (AShooterGameMode karşılığı): hedefler, kontrol noktaları,
+// etkileşimli nesneler (C4, istihbarat, ikmal), patlayıcı variller, uçaksavarlar,
+// savunma dalgaları, helikopterle tahliye ve atış poligonu modu.
+import * as THREE from 'three';
+import { buildMission, buildRange } from './level.js';
+import { buildAAGun, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildShotgunPickup, mat } from './models.js';
+import { C4, SCORE } from './config.js';
+import { rand, lerp, clamp, smoothstep, pick } from './util.js';
+
+const _v = new THREE.Vector3();
+
+const TIPS = [
+  'Çömelmek (C) seni daha zor fark edilir kılar ve isabetini artırır.',
+  'Keskin nişancının kırmızı lazeri seni izler: hareket et ya da siper al.',
+  'Kafa vuruşları çok daha ölümcüldür. Nişan alırken (sağ tık) başa odaklan.',
+  'Yeşil mühimmat sandıklarında (F) cephane ve el bombanı yenileyebilirsin.',
+  'Q ve E ile siperin kenarından eğilerek ateş edebilirsin.',
+  'Kırmızı variller patlar. Düşmanlar yanındaysa bir mermi yeter.',
+  'Koşarken ateş edemezsin; koşudan çıkmak kısa bir an sürer.',
+  'Canın bir süre hasar almazsan kendiliğinden yenilenir.',
+  'Silah sesi uzağa gider. Sessiz ilerlemek için çatışmadan kaçın.',
+  'G tuşunu basılı tutarak el bombasının fitilini pişirebilirsin.',
+];
+
+class Barrel {
+  constructor(game, pos) {
+    this.game = game;
+    this.pos = pos.clone();
+    this.mesh = buildBarrel();
+    this.mesh.position.copy(pos);
+    game.scene.add(this.mesh);
+    this.collider = game.world.addCollider(pos.x - 0.3, 0, pos.z - 0.3, pos.x + 0.3, 0.9, pos.z + 0.3, 'metal', this);
+    this.hp = 30;
+    this.dead = false;
+    this.fuseT = -1;
+  }
+  onShot(dmg) {
+    if (this.dead) return;
+    this.hp -= dmg;
+    if (this.hp <= 0 && this.fuseT < 0) this.fuseT = 0.12 + Math.random() * 0.15;
+  }
+  update(dt) {
+    if (this.fuseT < 0 || this.dead) return;
+    this.fuseT -= dt;
+    if (this.fuseT <= 0) {
+      this.dead = true;
+      this.game.world.removeCollider(this.collider);
+      this.game.nav?.unstampCollider(this.collider);
+      this.mesh.visible = false;
+      this.game.explode(this.pos.clone().setY(0.5), 6.5, 160, 'player', 0.9);
+    }
+  }
+}
+
+class AAGun {
+  constructor(game, def) {
+    this.game = game;
+    this.def = def;
+    this.id = def.id;
+    this.pos = def.pos.clone();
+    const m = buildAAGun();
+    this.model = m;
+    m.root.position.copy(def.pos);
+    m.root.rotation.y = def.yaw;
+    game.scene.add(m.root);
+    game.world.addCollider(def.pos.x - 1.5, 0, def.pos.z - 1.5, def.pos.x + 1.5, 1.9, def.pos.z + 1.5, 'metal');
+    this.destroyed = false;
+    this.planted = false;
+    this.fuse = 0;
+    this.fireT = rand(1, 4);
+    this.beepT = 0;
+    this.c4 = null;
+  }
+  plant() {
+    const g = this.game;
+    this.planted = true;
+    this.fuse = C4.fuse;
+    const c = buildC4();
+    c.root.position.set(this.pos.x + 1.1, 0.55, this.pos.z + 0.6);
+    c.root.rotation.y = rand(0, 3);
+    g.scene.add(c.root);
+    this.c4 = c;
+    g.events.emit('message', 'C4 YERLEŞTİRİLDİ — UZAKLAŞ!', 'warn');
+    g.audio.beep(2200, 0.08, 0.3, this.pos);
+  }
+  update(dt) {
+    const g = this.game;
+    if (this.destroyed) return;
+    // Göğe doğru uçaksavar ateşi: uzaktan hedefi belli eder
+    const dist = this.pos.distanceTo(g.player.pos);
+    if (!this.planted && dist < 170) {
+      this.model.turret.rotation.y = Math.sin(g.time * 0.2 + this.pos.x) * 0.8;
+      this.fireT -= dt;
+      if (this.fireT <= 0) {
+        this.fireT = rand(3, 7);
+        this.burst = 5;
+        this.burstT = 0;
+      }
+      if (this.burst > 0) {
+        this.burstT -= dt;
+        if (this.burstT <= 0) {
+          this.burstT = 0.13;
+          this.burst--;
+          const m = this.model;
+          m.guns.updateMatrixWorld(true);
+          const start = new THREE.Vector3(this.burst % 2 ? 0.35 : -0.35, 0, -3.4).applyMatrix4(m.guns.matrixWorld);
+          const dir = new THREE.Vector3(0, 0, -1).transformDirection(m.guns.matrixWorld);
+          const end = start.clone().addScaledVector(dir, 260).add(new THREE.Vector3(rand(-8, 8), rand(-4, 4), rand(-8, 8)));
+          g.effects.tracer(start, end, 350, 0.07);
+          g.effects.enemyMuzzle(start, dir);
+          g.audio.gunshot('enemyLmg', start);
+        }
+      }
+    }
+    if (this.planted) {
+      this.fuse -= dt;
+      this.beepT -= dt;
+      if (this.beepT <= 0) {
+        this.beepT = clamp(this.fuse / C4.fuse, 0.08, 1) * 0.7;
+        g.audio.beep(2400, 0.05, 0.25, this.pos);
+        if (this.c4) this.c4.light.visible = true;
+      } else if (this.c4 && this.beepT < 0.05) this.c4.light.visible = false;
+      if (this.fuse <= 0) this.detonate();
+    }
+  }
+  detonate() {
+    const g = this.game;
+    this.destroyed = true;
+    this.planted = false;
+    if (this.c4) this.c4.root.removeFromParent();
+    g.explode(this.pos.clone().setY(1.2), C4.radius, C4.damage, 'player', 1.8);
+    // Kararmış enkaz
+    const burnt = mat(0x1f1c1a, 0.95, 0.2);
+    this.model.root.traverse((o) => {
+      if (o.isMesh) o.material = burnt;
+    });
+    this.model.guns.rotation.x = -0.15;
+    this.model.turret.rotation.z = 0.12;
+    const p = this.pos.clone();
+    g.effects.addEmitter({
+      rate: 22,
+      life: 90,
+      spawn: (fx) => {
+        const c = fx._c.setRGB(1, rand(0.35, 0.6), 0.1);
+        fx.add.spawn(p.x + rand(-0.8, 0.8), 1.2 + rand(0, 0.5), p.z + rand(-0.8, 0.8), rand(-0.3, 0.3), rand(1.5, 3), rand(-0.3, 0.3), rand(0.4, 0.8), 0.9, 0.3, c, 0.9, -1, 0.5);
+        if (Math.random() < 0.5) {
+          const gg = rand(0.08, 0.18);
+          fx.smoke.spawn(p.x + rand(-0.5, 0.5), 2, p.z + rand(-0.5, 0.5), rand(0.2, 0.8), rand(2, 3.5), rand(-0.3, 0.3), rand(4, 7), 1, 5, fx._c.setRGB(gg, gg, gg), 0.6, -0.1, 0.1);
+        }
+      },
+    });
+    g.mission.onTargetDestroyed(this.id);
+  }
+}
+
+export class Mission {
+  constructor(game, mode) {
+    this.game = game;
+    this.mode = mode; // 'mission' | 'range'
+    this.interactables = [];
+    this.pickups = [];
+    this.objectives = [];
+    this.objIdx = 0;
+    this.radioQueue = [];
+    this.radioT = 0;
+    this.time = 0;
+    this.heli = null;
+    this.defendT = 0;
+    this.wavesSpawned = 0;
+    this.destroyed = new Set();
+    this.intel = false;
+    this.shotgunTaken = false;
+    this.complete = false;
+    this.checkpoint = null;
+    this.markers = [];
+  }
+
+  build() {
+    const g = this.game;
+    const W = g.world;
+    this.data = this.mode === 'range' ? buildRange(W) : buildMission(W);
+    const D = this.data;
+    W.finalize();
+    g.buildNav();
+    g.barrels = (D.barrels || []).map((p) => new Barrel(g, p));
+    // İkmal sandıkları
+    for (const p of D.ammoCrates || []) {
+      const m = buildAmmoCrate();
+      m.position.copy(p);
+      g.scene.add(m);
+      W.addCollider(p.x - 0.5, 0, p.z - 0.28, p.x + 0.5, 0.5, p.z + 0.28, 'wood');
+      let cd = 0;
+      this.interactables.push({
+        id: 'ammo', pos: p.clone().setY(0.5), radius: 2.2, prompt: 'Mühimmat ikmali', time: 0,
+        enabled: () => g.time > cd,
+        action: () => {
+          cd = g.time + 1;
+          g.weapons.refill();
+          g.audio.mech('pickup');
+          g.events.emit('message', 'CEPHANE YENİLENDİ', 'info');
+        },
+      });
+    }
+    if (this.mode === 'range') {
+      this.buildRangeMode();
+      return;
+    }
+    // Uçaksavarlar
+    this.aa = D.aaGuns.map((def) => new AAGun(g, def));
+    for (const gun of this.aa) {
+      this.interactables.push({
+        id: gun.id, pos: gun.pos.clone().setY(1), radius: 2.9, prompt: 'C4 yerleştir', time: C4.plantTime,
+        enabled: () => !gun.destroyed && !gun.planted && this.current?.id === 'aa',
+        action: () => gun.plant(),
+      });
+    }
+    // İstihbarat dizüstü
+    const lap = buildLaptop();
+    lap.root.position.copy(D.laptop.pos);
+    lap.root.rotation.y = D.laptop.yaw;
+    g.scene.add(lap.root);
+    this.laptop = lap;
+    this.interactables.push({
+      id: 'intel', pos: D.laptop.pos.clone(), radius: 2.0, prompt: 'İstihbaratı indir', time: 2.6,
+      enabled: () => !this.intel && this.current?.id === 'intel',
+      action: () => this.onIntel(),
+    });
+    // Pompalı (kontrol noktasındaki sığınakta)
+    const sg = buildShotgunPickup();
+    sg.position.copy(D.shotgun.pos);
+    sg.rotation.set(0, 1.2, Math.PI / 2);
+    g.scene.add(sg);
+    this.shotgunMesh = sg;
+    this.interactables.push({
+      id: 'shotgun', pos: D.shotgun.pos.clone(), radius: 2.0, prompt: 'SG-12 Breaker pompalıyı al', time: 0,
+      enabled: () => !this.shotgunTaken,
+      action: () => {
+        this.shotgunTaken = true;
+        sg.visible = false;
+        g.weapons.give('shotgun');
+        g.audio.mech('pickup');
+        g.events.emit('message', 'SG-12 BREAKER ALINDI  [2]', 'info');
+      },
+    });
+    // Düşmanlar
+    D.enemies.forEach((spec, i) => {
+      const s = { ...spec, id: `m${i}` };
+      if (s.hardType && g.difficultyKey === 'hard') s.type = s.hardType;
+      g.enemies.spawn(s);
+    });
+    // Hedefler
+    this.objectives = [
+      { id: 'outpost', text: 'Kontrol noktasını temizle', group: 'outpost', marker: () => new THREE.Vector3(0, 1.5, 66) },
+      { id: 'aa', text: 'Uçaksavar toplarını C4 ile imha et', marker: () => this.aa.filter((a) => !a.destroyed).map((a) => a.pos.clone().setY(2.5)) },
+      { id: 'intel', text: 'Komuta merkezinden istihbaratı al', marker: () => D.laptop.pos.clone().setY(1.2) },
+      { id: 'lz', text: 'İniş bölgesine ulaş', marker: () => D.lz.clone().setY(1) },
+      { id: 'defend', text: 'Helikopter gelene kadar iniş bölgesini savun', marker: () => D.lz.clone().setY(1) },
+      { id: 'board', text: 'Helikoptere bin', marker: () => (this.heli ? this.heli.root.position.clone().setY(1.5) : D.lz.clone()) },
+    ];
+    this.objIdx = 0;
+    this.saveCheckpoint(0);
+    const P = D.playerStart;
+    g.player.reset(P.pos, P.yaw);
+    // Açılış telsizi
+    this.radio('YUVA', 'Kartal-1, burası Yuva. Kızılkum Vadisi\'ne hoş geldin. Şafak sökmeden işini bitirmen gerek.', 1.5);
+    this.radio('YUVA', 'İlk hedef kuzeydeki kontrol noktası. Temizle ve yolu aç.', 5.5);
+    this.radio('İPUCU', 'Çömelerek (C) daha zor fark edilirsin. Sağ tıkla nişan al, R ile şarjör değiştir.', 11);
+    g.events.emit('objective', this.currentText());
+  }
+
+  buildRangeMode() {
+    const g = this.game;
+    const D = this.data;
+    D.dummies.forEach((d, i) => g.enemies.spawn({ ...d, id: `d${i}`, type: 'dummy', dummy: true }));
+    g.player.reset(D.playerStart.pos, D.playerStart.yaw);
+    this.objectives = [{ id: 'range', text: 'Atış poligonu — hedefler 10 / 25 / 50 / 100 m', marker: () => null }];
+    this.objIdx = 0;
+    g.events.emit('objective', this.currentText());
+    this.radio('POLİGON', 'Tüm silahlar hazır: 1 tüfek, 2 pompalı, 3 tabanca. B ile tüfeğin atış modunu değiştir.', 1);
+    this.radio('POLİGON', 'Turuncu mankenler hasar sayısını gösterir ve 3 saniyede yeniden kalkar.', 6);
+  }
+
+  get current() {
+    return this.objectives[this.objIdx];
+  }
+
+  currentText() {
+    const o = this.current;
+    if (!o) return { title: '', detail: '' };
+    const g = this.game;
+    let detail = '';
+    if (o.id === 'outpost') detail = `Kalan düşman: ${g.enemies.aliveInGroup('outpost')}`;
+    else if (o.id === 'aa') detail = `${this.destroyed.size}/2 imha edildi`;
+    else if (o.id === 'defend') detail = `Helikopter: ${Math.max(0, Math.ceil(this.data.defendTime - this.defendT))} sn`;
+    else if (o.id === 'lz' || o.id === 'board' || o.id === 'intel') detail = '';
+    return { title: o.text, detail, index: this.objIdx + 1, total: this.objectives.length };
+  }
+
+  radio(who, text, delay = 0) {
+    this.radioQueue.push({ who, text, at: this.time + delay });
+  }
+
+  saveCheckpoint(idx) {
+    const g = this.game;
+    this.checkpoint = {
+      idx,
+      objIdx: this.objIdx,
+      dead: new Set(g.enemies.list.filter((e) => !e.alive).map((e) => e.id)),
+      destroyed: new Set(this.destroyed),
+      intel: this.intel,
+      shotgunTaken: this.shotgunTaken,
+      loadout: g.weapons.owned && Object.keys(g.weapons.owned).length ? g.weapons.snapshot() : null,
+      spawnedIds: new Set(g.enemies.list.map((e) => e.id)),
+    };
+    if (idx > 0) {
+      g.events.emit('message', 'KONTROL NOKTASI', 'checkpoint');
+    }
+  }
+
+  // Ölümden sonra son kontrol noktasına dön
+  restoreCheckpoint() {
+    const g = this.game;
+    const C = this.checkpoint;
+    // Kontrol noktasından sonra doğan düşmanları kaldır
+    const keep = [];
+    for (const e of g.enemies.list) {
+      if (!C.spawnedIds.has(e.id)) {
+        e.model.root.removeFromParent();
+        if (e.model.helmet.parent) e.model.helmet.removeFromParent();
+        continue;
+      }
+      if (C.dead.has(e.id)) {
+        e.model.root.visible = false;
+      } else e.reset();
+      keep.push(e);
+    }
+    g.enemies.list = keep;
+    this.objIdx = C.objIdx;
+    this.intel = C.intel;
+    this.defendT = 0;
+    this.wavesSpawned = 0;
+    this.reinforced = this.intel;
+    if (this.heli) {
+      this.heli.root.removeFromParent();
+      g.audio.stopRotor();
+      this.heli = null;
+    }
+    if (this.heliDust) {
+      g.effects.removeEmitter(this.heliDust);
+      this.heliDust = null;
+    }
+    const cp = this.data.checkpoints[C.idx] || this.data.checkpoints[0];
+    g.player.reset(cp.pos, cp.yaw);
+    const lo = C.loadout || this.defaultLoadout();
+    // Yeniden doğuşta en az başlangıç cephanesi
+    for (const [id, a] of Object.entries(lo.weapons)) {
+      const W0 = g.weapons.owned[id]?.data;
+      if (W0) a.reserve = Math.max(a.reserve, W0.reserveStart);
+      a.mag = Math.max(a.mag, 0);
+    }
+    lo.grenades = Math.max(lo.grenades, 2);
+    g.weapons.reset(lo);
+    g.grenades.clear();
+    this.radioQueue.length = 0;
+    g.events.emit('objective', this.currentText());
+  }
+
+  defaultLoadout() {
+    return {
+      weapons: this.mode === 'range' ? { rifle: null, shotgun: null, pistol: null } : { rifle: null, pistol: null },
+      grenades: 3,
+      current: 'rifle',
+    };
+  }
+
+  advance() {
+    const g = this.game;
+    this.objIdx++;
+    g.addScore(SCORE.objective, 'HEDEF TAMAMLANDI');
+    g.audio.radio();
+    const o = this.current;
+    if (!o) return;
+    g.events.emit('objective', this.currentText());
+    g.events.emit('objectiveNew', this.currentText());
+    switch (o.id) {
+      case 'aa':
+        this.saveCheckpoint(1);
+        this.radio('YUVA', 'Kontrol noktası temiz. Köydeki iki uçaksavar topu hava desteğimizi engelliyor. İkisini de C4 ile patlat.', 1.2);
+        this.radio('YUVA', 'Toplar göğe ateş ediyor, izli mermilerden yerlerini görebilirsin.', 7);
+        break;
+      case 'intel':
+        this.radio('YUVA', 'Gökyüzü temiz! Güneydeki kapıdan komuta merkezine gir ve binadaki istihbaratı al.', 1.2);
+        this.radio('YUVA', 'Kulede bir keskin nişancı var. Kırmızı lazeri görürsen siper al.', 8);
+        break;
+      case 'lz':
+        this.saveCheckpoint(4);
+        break;
+      case 'defend':
+        this.saveCheckpoint(5);
+        this.defendT = 0;
+        this.wavesSpawned = 0;
+        this.radio('YUVA', 'Helikopter yolda. Bölgeyi tut, düşman dört bir yandan geliyor!', 0.5);
+        break;
+      case 'board':
+        break;
+      default:
+        break;
+    }
+  }
+
+  onTargetDestroyed(id) {
+    const g = this.game;
+    this.destroyed.add(id);
+    g.addScore(SCORE.objective, 'HEDEF İMHA EDİLDİ');
+    g.events.emit('objective', this.currentText());
+    if (this.destroyed.size >= 2 && this.current?.id === 'aa') {
+      this.advance();
+      this.saveCheckpoint(3);
+    } else {
+      this.radio('YUVA', 'Güzel iş, bir top gitti. Diğerini de bul.', 1);
+      this.saveCheckpoint(2);
+    }
+  }
+
+  onIntel() {
+    const g = this.game;
+    this.intel = true;
+    this.laptop.screen.material.emissive.setHex(0xd63d3d);
+    g.audio.siren(9);
+    g.events.emit('message', 'İSTİHBARAT ALINDI', 'info');
+    this.radio('YUVA', 'Dosyalar elimizde! Alarm çaldı, takviye geliyor. Kuzey kapısından çık ve iniş bölgesine ilerle.', 0.8);
+    this.spawnReinforcements();
+    this.advance();
+  }
+
+  spawnReinforcements() {
+    const g = this.game;
+    this.reinforced = true;
+    this.data.reinforcements.forEach((u, i) => {
+      g.enemies.spawn({ ...u, id: `r${i}`, group: 'reinf', rush: true, rushTarget: g.player.pos.clone() });
+    });
+  }
+
+  spawnWave(i) {
+    const g = this.game;
+    const w = this.data.waves[i];
+    w.units.forEach((u, k) => {
+      const e = g.enemies.spawn({ ...u, id: `w${i}_${k}`, group: 'wave', rush: true, rushTarget: this.data.lz.clone() });
+      e.lastKnown.copy(g.player.pos);
+    });
+    this.radio('YUVA', i === 0 ? 'Kuzeyden hareket var!' : i === 1 ? 'Doğu ve batıdan yeni bir grup!' : 'Ağır makineli dahil büyük bir grup geliyor!', 0.2);
+  }
+
+  findInteractable(eye, fwd) {
+    let best = null;
+    let bestD = Infinity;
+    for (const it of this.interactables) {
+      if (!it.enabled()) continue;
+      const d = it.pos.distanceTo(eye);
+      if (d > it.radius + 0.8) continue;
+      _v.subVectors(it.pos, eye).normalize();
+      const facing = _v.dot(fwd);
+      if (facing < 0.35 && d > 1.2) continue;
+      if (d < bestD) {
+        best = it;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  spawnPouch(pos) {
+    const g = this.game;
+    const m = buildPouch();
+    m.position.set(pos.x, 0.02, pos.z);
+    m.rotation.y = rand(0, 6);
+    g.scene.add(m);
+    this.pickups.push({ mesh: m, pos: m.position, life: 90 });
+  }
+
+  update(dt) {
+    const g = this.game;
+    this.time += dt;
+    // Telsiz sırası
+    if (this.radioQueue.length && this.radioQueue[0].at <= this.time && this.radioT <= 0) {
+      const r = this.radioQueue.shift();
+      g.events.emit('radio', `${r.who}: ${r.text}`, r.who);
+      g.audio.radio();
+      this.radioT = 2.5;
+    }
+    this.radioT -= dt;
+    for (const b of g.barrels) b.update(dt);
+    if (this.aa) for (const a of this.aa) a.update(dt);
+    // Yerden toplama
+    const P = g.player;
+    for (let i = this.pickups.length - 1; i >= 0; i--) {
+      const p = this.pickups[i];
+      p.life -= dt;
+      p.mesh.rotation.y += dt;
+      if (p.life <= 0) {
+        p.mesh.removeFromParent();
+        this.pickups.splice(i, 1);
+        continue;
+      }
+      if (P.alive && p.pos.distanceTo(P.pos) < 1.3) {
+        const gotAmmo = g.weapons.addAmmo(0.18);
+        const gotNade = Math.random() < 0.3 && g.weapons.addGrenade(1);
+        if (gotAmmo || gotNade) {
+          p.mesh.removeFromParent();
+          this.pickups.splice(i, 1);
+          g.audio.mech('pickup');
+          g.events.emit('pickup', gotNade ? '+ CEPHANE  + EL BOMBASI' : '+ CEPHANE');
+        }
+      }
+    }
+    if (this.mode === 'range' || this.complete) {
+      this.updateHeli(dt);
+      return;
+    }
+    const o = this.current;
+    if (!o) return;
+    switch (o.id) {
+      case 'outpost': {
+        const left = g.enemies.aliveInGroup('outpost');
+        if (left !== this.lastLeft) {
+          this.lastLeft = left;
+          g.events.emit('objective', this.currentText());
+        }
+        if (left === 0) this.advance();
+        break;
+      }
+      case 'lz':
+        if (P.pos.distanceTo(this.data.lz) < 11) {
+          this.radio('YUVA', 'İniş bölgesindesin. Helikopter 95 saniye uzakta!', 0);
+          this.advance();
+        }
+        break;
+      case 'defend': {
+        this.defendT += dt;
+        const waves = this.data.waves;
+        while (this.wavesSpawned < waves.length && this.defendT >= waves[this.wavesSpawned].t) {
+          this.spawnWave(this.wavesSpawned);
+          this.wavesSpawned++;
+        }
+        const secs = Math.ceil(this.data.defendTime - this.defendT);
+        if (secs !== this.lastSecs) {
+          this.lastSecs = secs;
+          g.events.emit('objective', this.currentText());
+        }
+        if (!this.heli && this.defendT > this.data.defendTime - 22) this.spawnHeli();
+        if (this.defendT >= this.data.defendTime && this.heli && this.heli.landed) {
+          this.radio('PİLOT', 'Yere indik Kartal-1, hemen bin!', 0);
+          this.advance();
+        }
+        break;
+      }
+      case 'board':
+        if (this.heli && P.pos.distanceTo(this.heli.root.position) < 6.5) this.finish();
+        break;
+      default:
+        break;
+    }
+    this.updateHeli(dt);
+  }
+
+  spawnHeli() {
+    const g = this.game;
+    const h = buildHelicopter();
+    g.scene.add(h.root);
+    this.heli = { ...h, t: 0, landed: false };
+    h.root.position.set(0, 45, 160);
+    h.root.rotation.y = 0;
+    g.audio.startRotor();
+    this.radio('PİLOT', 'Kartal-1, burası Şahin-2. İniş bölgesini görüyorum, alçalıyorum!', 0);
+    const lz = this.data.lz;
+    this.heliDust = g.effects.addEmitter({
+      rate: 0,
+      spawn: (fx) => {
+        const a = Math.random() * Math.PI * 2;
+        const r = rand(2, 6);
+        fx.smoke.spawn(lz.x + Math.cos(a) * r, 0.3, lz.z + Math.sin(a) * r, Math.cos(a) * rand(6, 12), rand(0.3, 1.5), Math.sin(a) * rand(6, 12), rand(1.2, 2.2), 1.5, 5, fx._c.setHex(0xcbb08a), 0.5, 0, 1.5);
+      },
+    });
+  }
+
+  updateHeli(dt) {
+    const H = this.heli;
+    if (!H) return;
+    const g = this.game;
+    H.t += dt;
+    const lz = this.data.lz;
+    // Güneyden gelip iniş bölgesine süzülerek alçal
+    const dur = 20;
+    const k = clamp(H.t / dur, 0, 1);
+    const e = smoothstep(k);
+    const z = lerp(160, lz.z + 3, Math.min(1, e * 1.15));
+    const y = k < 0.7 ? lerp(45, 14, smoothstep(k / 0.7)) : lerp(14, 0.05, smoothstep((k - 0.7) / 0.3));
+    H.root.position.set(lz.x + Math.sin(H.t * 0.6) * (1 - k) * 4, y, z);
+    H.root.rotation.x = k < 0.85 ? 0.12 * (1 - k) : 0;
+    H.root.rotation.z = Math.sin(H.t * 0.8) * 0.04 * (1 - k);
+    H.rotor.rotation.y += dt * 28;
+    H.tail.rotation.x += dt * 40;
+    if (k >= 1) H.landed = true;
+    if (this.heliDust) this.heliDust.rate = y < 12 ? 40 * (1 - y / 12) : 0;
+    g.audio.updateRotor(H.root.position);
+  }
+
+  finish() {
+    if (this.complete) return;
+    this.complete = true;
+    this.game.onMissionComplete();
+  }
+
+  randomTip() {
+    return pick(TIPS);
+  }
+}

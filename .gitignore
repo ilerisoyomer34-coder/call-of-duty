@@ -1,0 +1,18 @@
+# Node
+node_modules/
+web/tools/shots/
+
+# Unreal Engine (ileride eklenecek UE5 projesi için)
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+*.opensdf
+*.sdf
+*.suo
+
+# Gizli bilgiler
+.env

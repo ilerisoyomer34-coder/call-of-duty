@@ -1,0 +1,147 @@
+// Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F2 ile açılır.
+import * as THREE from 'three';
+
+const HELP = `Komutlar:
+  god                 ölümsüzlük aç/kapa
+  ammo                sonsuz cephane aç/kapa
+  giveall             tüm silahlar ve tam cephane
+  spawn <n> [tür]     önüne n düşman (rifleman|shotgunner|heavy|sniper)
+  killall             tüm düşmanları etkisiz bırak
+  timescale <x>       zaman ölçeği (0.1–3)
+  ai                  yapay zekâyı dondur/çöz
+  debug ai            düşman durumlarını konsola yaz
+  cp <n>              n. hedefe atla (görev modunda)
+  fps                 FPS göstergesi
+  clear               konsolu temizle`;
+
+export class DevConsole {
+  constructor(game) {
+    this.game = game;
+    this.el = document.getElementById('console');
+    this.log = document.getElementById('consoleLog');
+    this.input = document.getElementById('consoleInput');
+    this.open = false;
+    this.history = [];
+    this.hIdx = 0;
+    this.input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        const cmd = this.input.value.trim();
+        this.input.value = '';
+        if (cmd) {
+          this.history.push(cmd);
+          this.hIdx = this.history.length;
+          this.print(`> ${cmd}`);
+          this.run(cmd);
+        }
+      } else if (e.key === 'Escape' || e.key === '`' || e.key === 'F2') {
+        e.preventDefault();
+        this.toggle(false);
+      } else if (e.key === 'ArrowUp') {
+        this.hIdx = Math.max(0, this.hIdx - 1);
+        this.input.value = this.history[this.hIdx] || '';
+      } else if (e.key === 'ArrowDown') {
+        this.hIdx = Math.min(this.history.length, this.hIdx + 1);
+        this.input.value = this.history[this.hIdx] || '';
+      }
+    });
+    this.print('Demir Şafak geliştirici konsolu. "help" yaz.');
+  }
+
+  toggle(on = !this.open) {
+    this.open = on;
+    this.el.hidden = !on;
+    const g = this.game;
+    if (on) {
+      g.input.exitLock();
+      setTimeout(() => this.input.focus(), 10);
+    } else {
+      this.input.blur();
+      if (g.state === 'playing') g.input.requestLock();
+    }
+  }
+
+  print(text) {
+    this.log.textContent += `${text}\n`;
+    this.log.scrollTop = this.log.scrollHeight;
+  }
+
+  run(line) {
+    const g = this.game;
+    const [cmd, ...args] = line.split(/\s+/);
+    const C = g.cheats;
+    switch (cmd.toLowerCase()) {
+      case 'help':
+        this.print(HELP);
+        break;
+      case 'god':
+        C.god = !C.god;
+        this.print(`Ölümsüzlük: ${C.god ? 'AÇIK' : 'KAPALI'}`);
+        break;
+      case 'ammo':
+      case 'infiniteammo':
+        C.infiniteAmmo = !C.infiniteAmmo;
+        g.events.emit('ammo', g.weapons.current);
+        this.print(`Sonsuz cephane: ${C.infiniteAmmo ? 'AÇIK' : 'KAPALI'}`);
+        break;
+      case 'giveall':
+        for (const id of ['rifle', 'shotgun', 'pistol']) g.weapons.give(id, true);
+        g.weapons.refill();
+        this.print('Tüm silahlar verildi.');
+        break;
+      case 'spawn': {
+        const n = Math.min(12, parseInt(args[0] || '1', 10) || 1);
+        const type = args[1] || 'rifleman';
+        const P = g.player;
+        for (let i = 0; i < n; i++) {
+          const fwd = new THREE.Vector3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+          const pos = P.pos.clone().addScaledVector(fwd, 14 + i * 1.5).add(new THREE.Vector3((i % 3 - 1) * 2, 0, 0));
+          const p = g.nav.randomPointNear(pos, 3) || pos;
+          g.enemies.spawn({ type, pos: p, yaw: P.yaw + Math.PI, group: 'debug' });
+        }
+        this.print(`${n} × ${type} oluşturuldu.`);
+        break;
+      }
+      case 'killall':
+        g.enemies.killAll();
+        this.print('Tüm düşmanlar etkisiz.');
+        break;
+      case 'timescale': {
+        const v = Math.max(0.1, Math.min(3, parseFloat(args[0]) || 1));
+        g.timeScale = v;
+        this.print(`Zaman ölçeği: ${v}`);
+        break;
+      }
+      case 'ai':
+      case 'toggleai':
+        C.aiOff = !C.aiOff;
+        this.print(`Yapay zekâ: ${C.aiOff ? 'DONDURULDU' : 'AKTİF'}`);
+        break;
+      case 'debug':
+        if (args[0] === 'ai') {
+          for (const e of g.enemies.list) {
+            if (!e.alive) continue;
+            this.print(`${e.id} ${e.type} durum=${e.aiState} farkındalık=${e.awareness.toFixed(2)} görüyor=${e.visible} mesafe=${e.pos.distanceTo(g.player.pos).toFixed(1)}m`);
+          }
+        } else this.print('Kullanım: debug ai');
+        break;
+      case 'cp': {
+        const n = parseInt(args[0], 10);
+        if (g.mission && g.mode === 'mission' && n >= 1) {
+          g.debugSkipTo(n);
+          this.print(`${n}. hedefe atlandı.`);
+        }
+        break;
+      }
+      case 'fps':
+        g.settings.showFps = !g.settings.showFps;
+        g.applySettings();
+        break;
+      case 'clear':
+        this.log.textContent = '';
+        break;
+      default:
+        this.print(`Bilinmeyen komut: ${cmd}`);
+    }
+  }
+}

@@ -1,0 +1,436 @@
+<title>Demir Şafak</title>
+<meta name="description" content="Tarayıcıda oynanan birinci şahıs taktiksel savaş oyunu.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --ink: #0d1013;
+  --ink-2: #161b1f;
+  --panel: rgba(13, 16, 19, 0.74);
+  --panel-solid: #12171b;
+  --line: rgba(231, 220, 196, 0.16);
+  --sand: #e7dcc4;
+  --sand-dim: #a8a08e;
+  --amber: #f0a33a;
+  --amber-dim: #9a6a2a;
+  --olive: #8c9a64;
+  --red: #e0513f;
+  --cyan: #7fc6c9;
+  --f-display: 'Big Shoulders Stencil Display', 'Impact', 'Arial Narrow Bold', sans-serif;
+  --f-ui: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif;
+  --f-num: 'Share Tech Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; background: var(--ink); color: var(--sand);
+  font-family: var(--f-ui); font-size: 16px; -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+#app { position: fixed; inset: 0; }
+#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #20252a; }
+button { font-family: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ---------- HUD ---------- */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+#hud .panel { background: var(--panel); border: 1px solid var(--line); }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transition: opacity .12s; }
+#crosshair i { position: absolute; background: var(--ch, #fff); box-shadow: 0 0 2px rgba(0,0,0,.9); }
+#crosshair .t, #crosshair .b { width: 2px; height: 9px; left: -1px; }
+#crosshair .l, #crosshair .r { width: 9px; height: 2px; top: -1px; }
+#crosshair .dot { width: 2px; height: 2px; left: -1px; top: -1px; }
+#hitmarker { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+#hitmarker i { position: absolute; width: 2px; height: 11px; background: #fff; left: -1px; top: -5px; box-shadow: 0 0 2px #000; }
+#hitmarker i:nth-child(1) { transform: rotate(45deg) translateY(-12px); }
+#hitmarker i:nth-child(2) { transform: rotate(135deg) translateY(-12px); }
+#hitmarker i:nth-child(3) { transform: rotate(225deg) translateY(-12px); }
+#hitmarker i:nth-child(4) { transform: rotate(315deg) translateY(-12px); }
+#hitmarker.show { animation: hm .28s ease-out forwards; }
+#hitmarker.head i { background: var(--amber); width: 3px; }
+#hitmarker.kill i { background: var(--red); width: 3px; height: 14px; }
+@keyframes hm { 0% { opacity: 1; transform: scale(1.35); } 60% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1); } }
+#vignette { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(120,8,4,.55) 80%, rgba(90,0,0,.85) 100%); transition: opacity .25s; }
+#flashbang { position: absolute; inset: 0; background: #fff; opacity: 0; }
+#dmgDirs { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.dmgdir { position: absolute; left: -60px; top: -140px; width: 120px; height: 140px; transform-origin: 60px 140px; opacity: 0; }
+.dmgdir::before { content: ''; position: absolute; left: 10px; top: 0; width: 100px; height: 26px; border-top: 5px solid rgba(230,50,30,.9); border-radius: 50% 50% 0 0 / 100% 100% 0 0; filter: drop-shadow(0 0 4px rgba(200,20,0,.8)); }
+#grenadeWarn { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.gwarn { position: absolute; left: -18px; top: -120px; width: 36px; height: 120px; transform-origin: 18px 120px; }
+.gwarn b { display: block; width: 36px; height: 36px; border-radius: 50%; background: rgba(13,16,19,.8); border: 2px solid var(--red); color: var(--red); font: 700 13px/32px var(--f-num); text-align: center; }
+
+#compass { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; width: min(480px, 70vw); height: 34px; transform: translateX(-50%); overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+#compassStrip { position: absolute; left: 50%; top: 0; height: 100%; white-space: nowrap; font: 600 14px/1 var(--f-ui); letter-spacing: .08em; }
+#compassStrip span { position: absolute; top: 14px; transform: translateX(-50%); color: var(--sand-dim); }
+#compassStrip span.card { color: var(--sand); font-size: 17px; top: 11px; }
+#compassStrip span.tick { top: 2px; width: 1px; height: 7px; background: var(--sand-dim); }
+#compassObj { position: absolute; top: 0; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--amber); transform: translateX(-50%); }
+#compassCenter { position: absolute; left: 50%; bottom: 0; width: 2px; height: 8px; background: var(--amber); transform: translateX(-50%); }
+
+#objective { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: 16px; max-width: min(360px, 42vw); padding: 10px 14px 11px; border-left: 3px solid var(--amber) !important; }
+#objective .k { font: 600 12px/1 var(--f-ui); letter-spacing: .16em; color: var(--amber); text-transform: uppercase; }
+#objective .t { font: 600 19px/1.15 var(--f-ui); margin-top: 5px; text-wrap: balance; }
+#objective .d { font: 400 15px/1.2 var(--f-num); color: var(--sand-dim); margin-top: 4px; }
+#objective.flash { animation: objflash 1.4s ease-out; }
+@keyframes objflash { 0%, 30% { background: rgba(240,163,58,.35); } 100% { background: var(--panel); } }
+
+#minimap { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px; width: 168px; height: 168px; border-radius: 50%; border: 2px solid rgba(231,220,196,.35); background: rgba(13,16,19,.62); }
+#score { position: absolute; top: calc(186px + env(safe-area-inset-top, 0px)); right: 16px; width: 168px; text-align: center; font: 400 15px/1 var(--f-num); color: var(--sand-dim); }
+#score b { color: var(--sand); font-weight: 400; }
+
+#health { position: absolute; left: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: 230px; padding: 10px 12px; }
+#health .row { display: flex; align-items: baseline; justify-content: space-between; }
+#health .lbl { font: 600 12px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand-dim); }
+#health .val { font: 400 26px/1 var(--f-num); }
+#health .bar { height: 6px; background: rgba(231,220,196,.14); margin-top: 7px; }
+#health .bar i { display: block; height: 100%; width: 100%; background: var(--sand); transition: width .15s, background .3s; }
+#health.low .bar i { background: var(--red); }
+#health.low .val { color: var(--red); }
+
+#ammo { position: absolute; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); min-width: 230px; padding: 10px 14px 12px; text-align: right; }
+#ammo .w { font: 700 18px/1 var(--f-ui); letter-spacing: .06em; text-transform: uppercase; }
+#ammo .m { font: 600 12px/1 var(--f-ui); letter-spacing: .16em; color: var(--amber); margin-top: 4px; }
+#ammo .n { margin-top: 6px; font-family: var(--f-num); display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+#ammo .mag { font-size: 44px; line-height: .9; }
+#ammo .res { font-size: 20px; color: var(--sand-dim); }
+#ammo.low .mag { color: var(--red); }
+#ammo .g { margin-top: 8px; display: flex; justify-content: flex-end; gap: 5px; }
+#ammo .g i { width: 10px; height: 13px; border-radius: 50% 50% 45% 45%; background: var(--olive); box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+#ammo .g i.off { background: rgba(231,220,196,.14); box-shadow: none; }
+#reloadHint { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); font: 700 15px/1 var(--f-ui); letter-spacing: .14em; color: var(--sand); text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity .15s; white-space: nowrap; }
+#reloadHint.on { opacity: 1; }
+#reloadHint.warn { color: var(--red); }
+
+#radio { position: absolute; left: 50%; bottom: calc(118px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(720px, 86vw); text-align: center; font: 500 19px/1.3 var(--f-ui); text-shadow: 0 1px 3px #000, 0 0 10px rgba(0,0,0,.7); opacity: 0; transition: opacity .3s; text-wrap: balance; }
+#radio.on { opacity: 1; }
+#radio b { color: var(--amber); font-weight: 700; letter-spacing: .05em; }
+#radio.enemy b { color: var(--red); }
+#message { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); font: 700 28px/1 var(--f-ui); letter-spacing: .22em; text-shadow: 0 2px 6px #000; opacity: 0; white-space: nowrap; }
+#message.on { animation: msg 2.6s ease-out forwards; }
+#message.warn { color: var(--red); }
+#message.checkpoint { color: var(--amber); }
+@keyframes msg { 0% { opacity: 0; transform: translate(-50%, 8px); } 10% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
+#feed { position: absolute; left: 50%; top: calc(50% + 70px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; }
+#feed div { font: 700 16px/1 var(--f-ui); letter-spacing: .12em; color: var(--sand); text-shadow: 0 1px 3px #000; animation: feed 1.8s ease-out forwards; white-space: nowrap; }
+#feed div.head { color: var(--amber); }
+@keyframes feed { 0% { opacity: 0; transform: translateY(6px) scale(1.15); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+#interact { position: absolute; left: 50%; top: calc(50% + 92px); transform: translateX(-50%); padding: 8px 14px; display: none; align-items: center; gap: 10px; font: 600 17px/1 var(--f-ui); letter-spacing: .04em; white-space: nowrap; }
+#interact.on { display: flex; }
+#interact kbd { font: 700 14px/1 var(--f-num); color: var(--ink); background: var(--amber); padding: 4px 7px; }
+#interact .p { width: 90px; height: 4px; background: rgba(231,220,196,.18); }
+#interact .p i { display: block; height: 100%; width: 0; background: var(--amber); }
+#markers, #icons, #dmgNums { position: absolute; inset: 0; }
+.marker { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.marker .dia { width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid var(--amber); background: rgba(240,163,58,.25); box-shadow: 0 0 6px rgba(0,0,0,.6); }
+.marker .dist { font: 400 13px/1 var(--f-num); color: var(--amber); text-shadow: 0 1px 2px #000; }
+.marker.enemy .dia { border-color: var(--red); background: rgba(224,81,63,.3); width: 10px; height: 10px; }
+.marker.enemy .dist { color: var(--red); }
+.eicon { position: absolute; transform: translate(-50%, -100%); font: 700 22px/1 var(--f-num); text-shadow: 0 1px 3px #000; }
+.eicon.q { color: #ffd060; }
+.eicon.x { color: var(--red); }
+.eicon .fill { position: absolute; left: 50%; bottom: -5px; width: 18px; height: 3px; transform: translateX(-50%); background: rgba(0,0,0,.5); }
+.eicon .fill i { display: block; height: 100%; background: #ffd060; }
+.dnum { position: absolute; font: 400 16px/1 var(--f-num); color: #fff; text-shadow: 0 1px 2px #000; transform: translate(-50%, -50%); }
+.dnum.head { color: var(--amber); font-size: 19px; }
+#fps { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); font: 400 12px/1 var(--f-num); color: var(--sand-dim); }
+#dead { position: absolute; inset: 0; background: rgba(40,0,0,.0); transition: background 1s; }
+#dead.on { background: rgba(40,0,0,.35); }
+#introCard { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); text-align: center; opacity: 0; pointer-events: none; width: min(640px, 90vw); }
+#introCard.on { animation: intro 6s ease-out forwards; }
+#introCard .a { font: 600 14px/1 var(--f-ui); letter-spacing: .3em; color: var(--amber); }
+#introCard .b { font: 900 clamp(38px, 8vw, 64px)/1 var(--f-display); letter-spacing: .04em; margin-top: 10px; }
+#introCard .c { font: 400 15px/1.3 var(--f-num); color: var(--sand-dim); margin-top: 10px; }
+@keyframes intro { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- Menüler ---------- */
+.screen { position: absolute; inset: 0; display: flex; pointer-events: auto; overflow-y: auto; }
+.screen[hidden] { display: none !important; }
+#menu { background: linear-gradient(90deg, rgba(10,12,14,.92) 0%, rgba(10,12,14,.72) 38%, rgba(10,12,14,.05) 72%); }
+#menu .col { display: flex; flex-direction: column; justify-content: center; gap: 28px; padding-block: 40px; padding-inline: max(24px, 7vw) 24px; width: min(520px, 100%); box-sizing: border-box; }
+.eyebrow { font: 600 13px/1 var(--f-ui); letter-spacing: .32em; color: var(--amber); text-transform: uppercase; }
+.title { font: 900 clamp(52px, 11vw, 104px)/.86 var(--f-display); letter-spacing: .02em; margin: 10px 0 0; color: var(--sand); text-wrap: balance; }
+.sub { font: 400 15px/1.4 var(--f-num); color: var(--sand-dim); margin-top: 12px; }
+.menuList { display: flex; flex-direction: column; gap: 2px; }
+.mbtn { appearance: none; background: none; border: 0; color: var(--sand); text-align: left; font: 700 24px/1 var(--f-ui); letter-spacing: .12em; text-transform: uppercase; padding: 11px 0 11px 16px; cursor: pointer; border-left: 3px solid transparent; transition: border-color .12s, color .12s, padding .12s; }
+.mbtn:hover, .mbtn:focus-visible { border-left-color: var(--amber); color: #fff; padding-left: 22px; outline: none; }
+.mbtn small { display: block; font: 400 14px/1.2 var(--f-ui); letter-spacing: .02em; text-transform: none; color: var(--sand-dim); margin-top: 4px; }
+.mbtn.primary { color: var(--amber); }
+.brief { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); max-width: 420px; }
+.brief b { font: 400 14px/1.3 var(--f-num); color: var(--amber); }
+.panelScreen { background: rgba(10,12,14,.9); align-items: flex-start; justify-content: center; }
+.sheet { width: min(760px, 100%); box-sizing: border-box; padding-block: 40px; padding-inline: 20px; display: flex; flex-direction: column; gap: 20px; margin: auto 0; }
+.sheet h2 { font: 900 clamp(34px, 6vw, 52px)/1 var(--f-display); letter-spacing: .03em; margin: 6px 0 0; }
+.sheet h3 { font: 600 13px/1 var(--f-ui); letter-spacing: .24em; color: var(--amber); text-transform: uppercase; margin: 8px 0 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 28px; }
+.set { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 500 17px/1.2 var(--f-ui); }
+.set label { flex: 1; }
+.set input[type=range] { width: 130px; accent-color: var(--amber); }
+.set output { font: 400 14px/1 var(--f-num); color: var(--sand-dim); min-width: 38px; text-align: right; }
+.set select { background: var(--ink-2); color: var(--sand); border: 1px solid var(--line); font: 500 16px/1 var(--f-ui); padding: 5px 8px; }
+.toggle { appearance: none; width: 42px; height: 22px; background: rgba(231,220,196,.18); position: relative; cursor: pointer; border-radius: 11px; transition: background .15s; flex: none; }
+.toggle::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; background: var(--sand); border-radius: 50%; transition: transform .15s; }
+.toggle:checked { background: var(--amber-dim); }
+.toggle:checked::after { transform: translateX(20px); background: var(--amber); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--ink-2); color: var(--sand); font: 700 17px/1 var(--f-ui); letter-spacing: .12em; text-transform: uppercase; padding: 12px 18px; cursor: pointer; }
+.btn:hover { border-color: var(--amber); color: #fff; }
+.btn.primary { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+.btn.primary:hover { background: #ffb44d; color: var(--ink); }
+.keys { width: 100%; border-collapse: collapse; font: 500 16px/1.2 var(--f-ui); }
+.keys td { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.keys td:last-child { text-align: right; }
+.keys kbd { font: 400 13px/1 var(--f-num); background: var(--ink-2); border: 1px solid var(--line); padding: 3px 6px; color: var(--sand); }
+.diffs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.diff { appearance: none; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 16px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+.diff:hover, .diff:focus-visible { border-color: var(--amber); outline: none; }
+.diff b { font: 700 24px/1 var(--f-ui); letter-spacing: .1em; text-transform: uppercase; }
+.diff span { font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); }
+.diff.sel { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stats div { background: var(--panel-solid); padding: 14px; }
+.stats b { display: block; font: 400 30px/1 var(--f-num); color: var(--sand); font-variant-numeric: tabular-nums; }
+.stats span { display: block; font: 600 12px/1.2 var(--f-ui); letter-spacing: .16em; color: var(--sand-dim); text-transform: uppercase; margin-top: 6px; }
+.tip { font: 400 17px/1.4 var(--f-ui); color: var(--sand-dim); max-width: 560px; }
+.tip b { color: var(--amber); font-weight: 600; }
+.credits p { font: 400 16px/1.5 var(--f-ui); color: var(--sand-dim); margin: 0; max-width: 62ch; }
+.credits p b { color: var(--sand); font-weight: 600; }
+#deathScreen, #pauseScreen, #victoryScreen { background: rgba(10,12,14,.78); }
+#deathScreen { background: radial-gradient(ellipse at center, rgba(60,6,4,.55), rgba(10,12,14,.9)); }
+#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ink); font: 600 16px/1 var(--f-ui); letter-spacing: .3em; color: var(--sand-dim); pointer-events: auto; }
+#loading[hidden] { display: none; }
+#clickToPlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10,12,14,.55); pointer-events: auto; cursor: pointer; }
+#clickToPlay[hidden] { display: none; }
+#clickToPlay div { font: 700 20px/1.3 var(--f-ui); letter-spacing: .2em; text-align: center; padding: 18px 24px; border: 1px solid var(--line); background: var(--panel); }
+#clickToPlay small { display: block; font: 400 15px/1.3 var(--f-ui); letter-spacing: .02em; color: var(--sand-dim); margin-top: 6px; }
+
+/* ---------- Geliştirici konsolu ---------- */
+#console { position: absolute; left: 0; right: 0; top: 0; background: rgba(8,10,12,.92); border-bottom: 1px solid var(--line); font: 400 14px/1.4 var(--f-num); pointer-events: auto; padding: 10px 16px; max-height: 40vh; display: flex; flex-direction: column; }
+#console[hidden] { display: none; }
+#consoleLog { overflow-y: auto; white-space: pre-wrap; color: var(--sand-dim); flex: 1; }
+#consoleInput { background: transparent; border: 0; border-top: 1px solid var(--line); color: var(--sand); font: inherit; padding: 6px 0 0; outline: none; }
+
+/* ---------- Dokunmatik kontroller ---------- */
+#touch { position: absolute; inset: 0; pointer-events: auto; }
+#touch[hidden] { display: none; }
+#moveZone { position: absolute; left: 0; top: 0; bottom: 0; width: 42%; }
+#lookZone { position: absolute; right: 0; top: 0; bottom: 0; width: 58%; }
+#stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(231,220,196,.35); background: rgba(13,16,19,.25); pointer-events: none; }
+#stick[hidden] { display: none; }
+#stickKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(231,220,196,.45); transform: translate(-50%, -50%); }
+.tb { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(231,220,196,.4); background: rgba(13,16,19,.45); color: var(--sand); font: 700 12px/1 var(--f-ui); letter-spacing: .06em; display: flex; align-items: center; justify-content: center; text-align: center; }
+.tb.on { background: rgba(240,163,58,.55); border-color: var(--amber); }
+.tb.big { width: 84px; height: 84px; font-size: 15px; border-color: rgba(224,81,63,.7); }
+#tbFire { right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+#tbAds { right: calc(122px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+#tbJump { right: calc(128px + env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+#tbCrouch { right: calc(198px + env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+#tbReload { right: calc(40px + env(safe-area-inset-right, 0px)); bottom: calc(200px + env(safe-area-inset-bottom, 0px)); }
+#tbNade { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(232px + env(safe-area-inset-bottom, 0px)); }
+#tbSwap { right: calc(260px + env(safe-area-inset-right, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
+#tbMelee { right: calc(186px + env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
+#tbUse { left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); margin-left: -34px; width: 68px; height: 68px; border-color: var(--amber); }
+#tbUse[hidden] { display: none; }
+#tbPause { right: calc(196px + env(safe-area-inset-right, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; border-radius: 6px; }
+#rotateHint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; background: var(--ink); font: 700 20px/1.4 var(--f-ui); letter-spacing: .12em; padding: 24px; pointer-events: auto; }
+@media (orientation: portrait) and (pointer: coarse) { body.playing #rotateHint { display: flex; } }
+
+@media (max-width: 900px), (max-height: 520px) {
+  #minimap { width: 110px; height: 110px; }
+  #score { display: none; }
+  #objective { max-width: 30vw; padding: 6px 9px 7px; }
+  #objective .k { font-size: 10px; }
+  #objective .t { font-size: 14px; }
+  #objective .d { font-size: 12px; }
+  #compass { width: 34vw; height: 28px; top: calc(6px + env(safe-area-inset-top, 0px)); }
+  #compassStrip span.card { font-size: 14px; top: 9px; }
+  #health { width: 150px; padding: 6px 9px; }
+  #health .val { font-size: 18px; }
+  #health .lbl { font-size: 10px; }
+  #ammo { min-width: 140px; padding: 6px 10px 8px; }
+  #ammo .w { font-size: 14px; }
+  #ammo .m { font-size: 10px; }
+  #ammo .mag { font-size: 28px; }
+  #ammo .res { font-size: 15px; }
+  #radio { font-size: 15px; width: 64vw; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  #message { font-size: 20px; }
+}
+/* Dokunmatikte paneller sol üst sütunda; sağ alt başparmak düğmelerine kalır */
+body.touch #health { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: auto; }
+body.touch #ammo { top: calc(142px + env(safe-area-inset-top, 0px)); bottom: auto; left: 16px; right: auto; text-align: left; }
+body.touch #ammo .n, body.touch #ammo .g { justify-content: flex-start; }
+body.touch #radio { bottom: auto; top: calc(44px + env(safe-area-inset-top, 0px)); width: 46vw; font-size: 14px; }
+body.touch #reloadHint { top: calc(50% + 34px); }
+@media (prefers-reduced-motion: reduce) {
+  #message.on, #feed div, #introCard.on, #hitmarker.show { animation-duration: .01s; }
+}
+</style>
+
+<div id="app">
+  <canvas id="game" aria-label="Oyun alanı"></canvas>
+
+  <div id="hud" hidden>
+    <div id="vignette"></div>
+    <div id="dead"></div>
+    <div id="markers"></div>
+    <div id="icons"></div>
+    <div id="dmgNums"></div>
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+    <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+    <div id="dmgDirs"></div>
+    <div id="grenadeWarn"></div>
+    <div id="compass"><div id="compassStrip"></div><div id="compassObj"></div><div id="compassCenter"></div></div>
+    <div id="objective" class="panel"><div class="k">Hedef <span id="objNum"></span></div><div class="t" id="objTitle"></div><div class="d" id="objDetail"></div></div>
+    <canvas id="minimap" width="336" height="336"></canvas>
+    <div id="score">PUAN <b id="scoreVal">0</b></div>
+    <div id="health" class="panel"><div class="row"><span class="lbl">SAĞLIK</span><span class="val" id="hpVal">100</span></div><div class="bar"><i id="hpBar"></i></div></div>
+    <div id="ammo" class="panel"><div class="w" id="wName"></div><div class="m" id="wMode"></div><div class="n"><span class="mag" id="aMag">30</span><span class="res" id="aRes">/ 150</span></div><div class="g" id="nades"></div></div>
+    <div id="reloadHint">R · ŞARJÖR DEĞİŞTİR</div>
+    <div id="interact" class="panel"><kbd id="interactKey">F</kbd><span id="interactText"></span><span class="p"><i id="interactBar"></i></span></div>
+    <div id="feed"></div>
+    <div id="radio"></div>
+    <div id="message"></div>
+    <div id="introCard"><div class="a">05:42 · KIZILKUM VADİSİ</div><div class="b">DEMİR ŞAFAK</div><div class="c">Kartal-1 · Tek kişilik sızma operasyonu</div></div>
+    <div id="fps" hidden></div>
+  </div>
+
+  <div id="touch" hidden>
+    <div id="moveZone"></div>
+    <div id="lookZone"></div>
+    <div id="stick" hidden><div id="stickKnob"></div></div>
+    <div class="tb big" id="tbFire" data-action="fire" data-look>ATEŞ</div>
+    <div class="tb" id="tbAds" data-action="ads">NİŞAN</div>
+    <div class="tb" id="tbJump" data-action="jump">ZIPLA</div>
+    <div class="tb" id="tbCrouch" data-action="crouch">ÇÖMEL</div>
+    <div class="tb" id="tbReload" data-action="reload">ŞARJÖR</div>
+    <div class="tb" id="tbNade" data-action="grenade">BOMBA</div>
+    <div class="tb" id="tbSwap" data-action="swapWeapon">SİLAH</div>
+    <div class="tb" id="tbMelee" data-action="melee">BIÇAK</div>
+    <div class="tb" id="tbUse" data-action="interact" hidden>KULLAN</div>
+    <div class="tb" id="tbPause" data-action="pause">II</div>
+  </div>
+
+  <div id="clickToPlay" hidden><div>OYUNA DÖNMEK İÇİN TIKLA<small>Fare imleci oyuna kilitlenir · Esc ile duraklat</small></div></div>
+
+  <section id="menu" class="screen" hidden>
+    <div class="col">
+      <div>
+        <div class="eyebrow">Operasyon · Kızılkum Vadisi · 05:42</div>
+        <h1 class="title">DEMİR<br>ŞAFAK</h1>
+        <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
+      </div>
+      <div class="menuList" id="mainList">
+        <button class="mbtn primary" id="btnPlay">Göreve başla<small>10–15 dakikalık sızma, sabotaj ve tahliye</small></button>
+        <button class="mbtn" id="btnRange">Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></button>
+        <button class="mbtn" id="btnSettings">Ayarlar</button>
+        <button class="mbtn" id="btnControls">Kontroller</button>
+        <button class="mbtn" id="btnCredits">Emeği geçenler</button>
+      </div>
+      <div class="brief">
+        <b>01</b><span>Kontrol noktasını temizle</span>
+        <b>02</b><span>İki uçaksavar topunu C4 ile imha et</span>
+        <b>03</b><span>Komuta merkezinden istihbaratı al</span>
+        <b>04</b><span>İniş bölgesini helikopter gelene kadar tut</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="diffScreen" class="screen panelScreen" hidden>
+    <div class="sheet">
+      <div><div class="eyebrow">Göreve başla</div><h2>Zorluk seç</h2></div>
+      <div class="diffs" id="diffList"></div>
+      <div class="row"><button class="btn" data-back>Geri</button></div>
+    </div>
+  </section>
+
+  <section id="settingsScreen" class="screen panelScreen" hidden>
+    <div class="sheet">
+      <div><div class="eyebrow">Tercihler</div><h2>Ayarlar</h2></div>
+      <div class="grid2">
+        <div>
+          <h3>Kontroller</h3>
+          <div class="set"><label for="sSens">Fare hassasiyeti</label><input type="range" id="sSens" min="0.2" max="3" step="0.05"><output id="oSens"></output></div>
+          <div class="set"><label for="sAdsSens">Nişan hassasiyeti</label><input type="range" id="sAdsSens" min="0.3" max="1.5" step="0.05"><output id="oAdsSens"></output></div>
+          <div class="set"><label for="sInvert">Y eksenini ters çevir</label><input type="checkbox" class="toggle" id="sInvert"></div>
+          <div class="set"><label for="sAdsMode">Nişan alma</label><select id="sAdsMode"><option value="hold">Basılı tut</option><option value="toggle">Aç / kapa</option></select></div>
+          <div class="set"><label for="sCrouchMode">Çömelme</label><select id="sCrouchMode"><option value="toggle">Aç / kapa</option><option value="hold">Basılı tut</option></select></div>
+          <div class="set"><label for="sSprintMode">Koşma</label><select id="sSprintMode"><option value="hold">Basılı tut</option><option value="toggle">Aç / kapa</option></select></div>
+          <h3>Ses</h3>
+          <div class="set"><label for="sMaster">Ana ses</label><input type="range" id="sMaster" min="0" max="1" step="0.05"><output id="oMaster"></output></div>
+          <div class="set"><label for="sSfx">Efektler</label><input type="range" id="sSfx" min="0" max="1" step="0.05"><output id="oSfx"></output></div>
+          <div class="set"><label for="sAmb">Ortam ve müzik</label><input type="range" id="sAmb" min="0" max="1" step="0.05"><output id="oAmb"></output></div>
+        </div>
+        <div>
+          <h3>Görüntü</h3>
+          <div class="set"><label for="sFov">Görüş alanı (yatay)</label><input type="range" id="sFov" min="70" max="110" step="1"><output id="oFov"></output></div>
+          <div class="set"><label for="sQuality">Grafik kalitesi</label><select id="sQuality"><option value="auto">Otomatik</option><option value="low">Düşük</option><option value="medium">Orta</option><option value="high">Yüksek</option></select></div>
+          <div class="set"><label for="sFps">FPS göstergesi</label><input type="checkbox" class="toggle" id="sFps"></div>
+          <h3>Erişilebilirlik</h3>
+          <div class="set"><label for="sShake">Kamera sarsıntısı</label><input type="checkbox" class="toggle" id="sShake"></div>
+          <div class="set"><label for="sBob">Yürürken kafa sallantısı</label><input type="checkbox" class="toggle" id="sBob"></div>
+          <div class="set"><label for="sCh">Nişangah rengi</label><select id="sCh"><option value="#ffffff">Beyaz</option><option value="#7dff6a">Yeşil</option><option value="#ffe14d">Sarı</option><option value="#5ee7ff">Camgöbeği</option><option value="#ff5ee1">Pembe</option></select></div>
+          <div class="set"><label for="sBlood">Kan efektleri</label><input type="checkbox" class="toggle" id="sBlood"></div>
+          <div class="set"><label for="sDmgNum">Hasar sayıları</label><input type="checkbox" class="toggle" id="sDmgNum"></div>
+        </div>
+      </div>
+      <div class="row"><button class="btn primary" data-back>Kaydet ve dön</button><button class="btn" id="btnResetSettings">Varsayılana dön</button></div>
+    </div>
+  </section>
+
+  <section id="controlsScreen" class="screen panelScreen" hidden>
+    <div class="sheet">
+      <div><div class="eyebrow">Klavye ve fare</div><h2>Kontroller</h2></div>
+      <div class="grid2" id="keyTables"></div>
+      <p class="tip"><b>Gamepad:</b> sol çubuk hareket, sağ çubuk bakış, RT ateş, LT nişan, A zıpla, B çömel, X şarjör, Y silah, RB el bombası, LB etkileşim, sağ çubuğa basma bıçak.</p>
+      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin.</p>
+      <div class="row"><button class="btn primary" data-back>Geri</button></div>
+    </div>
+  </section>
+
+  <section id="creditsScreen" class="screen panelScreen" hidden>
+    <div class="sheet credits">
+      <div><div class="eyebrow">Emeği geçenler</div><h2>Demir Şafak</h2></div>
+      <p><b>Tasarım ve kod:</b> Unreal Engine 5 shooter master planının tarayıcı için dikey kesiti. Silah hissi, yapay zekâ ve görev akışı aynı mimariyle kuruldu.</p>
+      <p><b>Modeller, dokular, sesler:</b> Tamamı kod ile prosedürel olarak üretildi. Harici model, doku veya ses dosyası kullanılmadı; lisans yükümlülüğü yoktur.</p>
+      <p><b>Silah adları:</b> AR-7 Vanguard, SG-12 Breaker ve P-9 Sentinel kurgusaldır; gerçek marka veya logo içermez.</p>
+      <p><b>Motor:</b> three.js (MIT lisansı) · Yazı tipleri: Big Shoulders Stencil, Barlow Condensed, Share Tech Mono (SIL Open Font License).</p>
+      <div class="row"><button class="btn primary" data-back>Geri</button></div>
+    </div>
+  </section>
+
+  <section id="pauseScreen" class="screen panelScreen" hidden>
+    <div class="sheet">
+      <div><div class="eyebrow">Duraklatıldı</div><h2 id="pauseObj">Kontrol noktasını temizle</h2></div>
+      <div class="menuList">
+        <button class="mbtn primary" id="btnResume">Devam et</button>
+        <button class="mbtn" id="btnPauseSettings">Ayarlar</button>
+        <button class="mbtn" id="btnPauseControls">Kontroller</button>
+        <button class="mbtn" id="btnRestartCp">Kontrol noktasından başla</button>
+        <button class="mbtn" id="btnQuit">Ana menüye dön</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="deathScreen" class="screen panelScreen" hidden>
+    <div class="sheet">
+      <div><div class="eyebrow">Kartal-1 yere düştü</div><h2>Etkisiz hale getirildin</h2></div>
+      <p class="tip" id="deathTip"></p>
+      <div class="row"><button class="btn primary" id="btnRespawn">Kontrol noktasından devam et</button><button class="btn" id="btnDeathQuit">Ana menü</button></div>
+    </div>
+  </section>
+
+  <section id="victoryScreen" class="screen panelScreen" hidden>
+    <div class="sheet">
+      <div><div class="eyebrow">Tahliye başarılı · Kızılkum Vadisi</div><h2>Görev tamamlandı</h2></div>
+      <p class="tip" id="victoryRank"></p>
+      <div class="stats" id="victoryStats"></div>
+      <div class="row"><button class="btn primary" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
+    </div>
+  </section>
+
+  <div id="console" hidden><div id="consoleLog"></div><input id="consoleInput" autocomplete="off" spellcheck="false" aria-label="Konsol komutu"></div>
+  <div id="rotateHint">Oynamak için telefonunu yatay çevir</div>
+  <div id="loading">HARİTA İNŞA EDİLİYOR</div>
+</div>
+<!--SCRIPT-->
