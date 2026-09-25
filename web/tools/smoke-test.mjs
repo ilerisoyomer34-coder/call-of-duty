@@ -343,7 +343,9 @@ console.log('Atış poligonu');
   const fired = [];
   for (let i = 1; i <= 9; i++) {
     await page.keyboard.press(`Digit${i}`);
-    await waitGame(page, 1.0);
+    // Ağır silahlarda bırakma + kuşanma 1,2 sn'yi bulur
+    await page.waitForFunction(() => window.__game.weapons.state === 'idle' && window.__game.weapons.pending === null, null, { timeout: 120000, polling: 50 });
+    await waitGame(page, 0.3);
     const before = await page.evaluate(() => window.__game.stats.shots);
     await page.mouse.down();
     await waitGame(page, 0.05);
