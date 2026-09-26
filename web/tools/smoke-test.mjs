@@ -367,10 +367,19 @@ console.log('Atış poligonu');
   await page.screenshot({ path: join(shots, '08b-scope.png') });
   await page.mouse.up({ button: 'right' });
   // Roket: 25 m'deki mankene
+  // Sabit süre yerine durum bekle: MR-82'den geçiş 1,1 sn sürer, kuşanma bitmeden şarjör değişmez
   await page.keyboard.press('Digit9');
-  await waitGame(page, 1.0); // kuşanma bitmeden şarjör değiştirilemez
-  await page.keyboard.press('KeyR');
-  await waitGame(page, 3.5);
+  await page.waitForFunction(() => {
+    const W = window.__game.weapons;
+    return W.currentId === 'rpg' && W.state === 'idle';
+  }, null, { timeout: 120000, polling: 50 });
+  if ((await page.evaluate(() => window.__game.weapons.current.mag)) === 0) {
+    await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => {
+      const W = window.__game.weapons;
+      return W.current.mag === 1 && W.state === 'idle';
+    }, null, { timeout: 180000, polling: 50 });
+  }
   await page.mouse.move(480, 270);
   await waitGame(page, 0.2);
   const rk = await page.evaluate(() => {
@@ -386,12 +395,14 @@ console.log('Atış poligonu');
   await page.mouse.down();
   await waitGame(page, 0.05);
   await page.mouse.up();
-  await waitGame(page, 1.2);
+  // Patlamayı bekle (roket ~0,6 sn uçar; en fazla 4 sn oyun zamanı)
+  const t0 = await page.evaluate(() => window.__game.time);
+  await page.waitForFunction(([ex0, t0]) => window.__game.stats.explosions > ex0 || window.__game.time > t0 + 4, [ex0, t0], { timeout: 180000, polling: 50 });
   const rres = await page.evaluate(([k, ex0]) => {
     const g = window.__game;
-    return { exploded: g.stats.explosions > ex0, target: !g.enemies.list[k].alive, anyDown: g.enemies.list.some((e) => !e.alive) };
+    return { exploded: g.stats.explosions > ex0, mag: g.weapons.current.mag, target: !g.enemies.list[k].alive, anyDown: g.enemies.list.some((e) => !e.alive) };
   }, [rk, ex0]);
-  check(rres.exploded && rres.anyDown, `Roket patladı ve manken düştü (hedef: ${rres.target ? 'vuruldu' : 'yoldaki mankene çarptı'})`);
+  check(rres.exploded && rres.anyDown, `Roket patladı ve manken düştü (patlama: ${rres.exploded}, şarjör: ${rres.mag}, hedef: ${rres.target ? 'vuruldu' : 'yoldaki mankene çarptı'})`);
   await page.screenshot({ path: join(shots, '09b-rocket.png') });
   await page.keyboard.press('Digit4');
   await waitGame(page, 1.0);
