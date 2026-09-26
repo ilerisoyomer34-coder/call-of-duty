@@ -132,6 +132,15 @@ export class Viewmodel {
     };
   }
 
+  // Haritanın ışığına uy: gecede silah parlak öğlen ışığıyla aydınlanmasın. v: [gök, zemin, şiddet, güneş, şiddet]
+  setLighting(v) {
+    this.hemi.color.setHex(v[0]);
+    this.hemi.groundColor.setHex(v[1]);
+    this.hemi.intensity = v[2];
+    this.sun.color.setHex(v[3]);
+    this.sun.intensity = v[4];
+  }
+
   setEnvironment(tex) {
     this.scene.environment = tex;
     this.scene.environmentIntensity = 0.9;

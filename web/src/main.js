@@ -18,7 +18,7 @@ import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS } from './config.js';
+import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS, MAPS } from './config.js';
 import { AllyManager } from './ally.js';
 import { storage, warnOnce } from './util.js';
 import { Emitter, clamp, rand } from './util.js';
@@ -36,17 +36,27 @@ uniform vec3 sunDir;
 uniform vec3 zenith;
 uniform vec3 horizon;
 uniform vec3 ground;
+uniform vec3 glowCol;
+uniform vec3 discCol;
+uniform vec3 bandCol;
+uniform float stars;
 varying vec3 vDir;
+float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 void main() {
   vec3 d = normalize(vDir);
   float h = d.y;
   vec3 col = mix(horizon, zenith, pow(clamp(h, 0.0, 1.0), 0.55));
   col = mix(col, ground, clamp(-h * 6.0, 0.0, 1.0));
   float s = max(dot(d, sunDir), 0.0);
-  col += vec3(1.0, 0.62, 0.32) * pow(s, 8.0) * 0.55;
-  col += vec3(1.0, 0.85, 0.6) * pow(s, 900.0) * 6.0;
-  // Ufuk çizgisinde sıcak bant
-  col += vec3(0.35, 0.16, 0.06) * exp(-abs(h) * 14.0) * (0.4 + 0.6 * pow(s, 2.0));
+  col += glowCol * pow(s, 8.0) * 0.55;
+  col += discCol * pow(s, 900.0) * 6.0;
+  // Ufuk çizgisinde bant (şafakta sıcak, gecede rafineri ışıklarının turuncu yansıması)
+  col += bandCol * exp(-abs(h) * 14.0) * (0.4 + 0.6 * pow(s, 2.0));
+  // Gece: seyrek yıldızlar (yönün hücresine göre sabit, kamera dönünce kaymaz)
+  if (stars > 0.0 && h > 0.05) {
+    float st = hash(floor(d * 260.0));
+    col += vec3(0.8, 0.85, 1.0) * step(0.9975, st) * stars * clamp(h * 4.0, 0.0, 1.0) * (0.5 + 0.5 * hash(floor(d * 90.0)));
+  }
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -92,16 +102,18 @@ function loadProgress() {
   return { unlocked, best: s && typeof s.best === 'object' && s.best ? s.best : {} };
 }
 
-// Seviyenin zorluk çarpanları seçilen temel zorluğun (Acemi/Asker/Gazi) üstüne uygulanır
+// Seviyenin zorluk çarpanları seçilen temel zorluğun (Acemi/Asker/Gazi) üstüne uygulanır.
+// Haritanın görüş koşulu (gece, kar) düşman algısını ayrıca kısar
 function levelDifficulty(base, level) {
   const t = level?.tuning;
   if (!t) return base;
+  const seeing = MAPS[level.map]?.env.perception ?? 1;
   return {
     ...base,
     reaction: base.reaction * t.reaction,
     aimMult: base.aimMult * t.aim,
     damageMult: base.damageMult * t.damage,
-    perception: base.perception * t.perception,
+    perception: base.perception * t.perception * seeing,
     awarenessRate: base.awarenessRate * t.awareness,
     maxAttackers: clamp(base.maxAttackers + t.attackers, 1, 4),
     grenades: base.grenades && t.grenades,
@@ -135,6 +147,7 @@ export class Game {
     this.barrels = [];
     this.debris = [];
     this.sunDir = new THREE.Vector3(0.82, 0.3, -0.22).normalize();
+    this.env = MAPS.kizilkum.env;
 
     const hi = this.quality === 'high';
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: this.quality !== 'low', powerPreference: 'high-performance' });
@@ -152,8 +165,7 @@ export class Game {
     this.input = new Input(this.canvas, document.getElementById('touch'));
     this.player = new Player(this);
     this.viewmodel = new Viewmodel(this, this.textures);
-    this.envMap = this.buildEnvMap();
-    this.viewmodel.setEnvironment(this.envMap);
+    this.applyEnvironment('kizilkum');
     this.loadout = loadLoadout();
     this.hud = new HUD(this);
     this.menus = new Menus(this);
@@ -189,29 +201,42 @@ export class Game {
 
   // Gölgelendiricileri yükleme ekranı açıkken derle: ilk karede telefonda saniyelerce donma olmasın.
   // KHR_parallel_shader_compile yoksa derleme yine olur ama zaman aşımı sonsuz beklemeyi önler.
-  async precompile() {
+  precompile() {
+    // Süren derleme bitmeden sahne değişirse (malzemeler atılırsa) three.js zamanlayıcısı çöker:
+    // startMode bu sözü bekler
+    this.compiling = this.precompileNow();
+    return this.compiling;
+  }
+
+  async precompileNow() {
     const r = this.renderer;
     const wait = (ms) => new Promise((res) => setTimeout(res, ms));
     try {
       this.camera.updateMatrixWorld();
-      await Promise.race([r.compileAsync(this.scene, this.camera), wait(PRECOMPILE_TIMEOUT_MS)]);
+      // Zaman aşımı kazansa da derleme arka planda sürer: bitene dek bu sahnenin malzemeleri atılmaz
+      const p = r.compileAsync(this.scene, this.camera);
+      this.sceneCompile = p;
+      p.then(() => {
+        if (this.sceneCompile === p) this.sceneCompile = null;
+      });
+      await Promise.race([p, wait(PRECOMPILE_TIMEOUT_MS)]);
       if (this.mode !== 'menu') await Promise.race([r.compileAsync(this.viewmodel.scene, this.viewmodel.camera), wait(PRECOMPILE_TIMEOUT_MS / 2)]);
     } catch (err) {
       warnOnce('precompile', `Gölgelendirici ön derlemesi atlandı (${err.message})`);
     }
   }
 
-  // Silahların metal yüzeyleri için şafak gökyüzünden ortam yansıma haritası
-  buildEnvMap() {
+  // Silahların metal yüzeyleri için haritanın gökyüzünden ortam yansıma haritası
+  buildEnvMap(env = MAPS.kizilkum.env) {
     const envScene = new THREE.Scene();
     const sky = new THREE.Mesh(
       new THREE.SphereGeometry(10, 32, 16),
       new THREE.ShaderMaterial({
         uniforms: {
-          sunDir: { value: this.sunDir },
-          zenith: { value: new THREE.Color(0x4a78a8) },
-          horizon: { value: new THREE.Color(0xe0b595) },
-          ground: { value: new THREE.Color(0x9a7a58) },
+          ...skyUniforms(env.sky, this.sunDir),
+          zenith: { value: new THREE.Color(env.reflect[0]) },
+          horizon: { value: new THREE.Color(env.reflect[1]) },
+          ground: { value: new THREE.Color(env.reflect[2]) },
         },
         vertexShader: SKY_VERT,
         fragmentShader: SKY_FRAG,
@@ -223,7 +248,25 @@ export class Game {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const tex = pmrem.fromScene(envScene, 0.02).texture;
     pmrem.dispose();
+    sky.geometry.dispose();
+    sky.material.dispose();
     return tex;
+  }
+
+  // Harita değişince yansıma haritası, silah görünümü ışıkları ve pozlama yeni ortama uyar
+  applyEnvironment(key) {
+    const env = MAPS[key]?.env || MAPS.kizilkum.env;
+    this.env = env;
+    this.sunDir.set(env.sunDir[0], env.sunDir[1], env.sunDir[2]).normalize();
+    this.renderer.toneMappingExposure = env.exposure;
+    if (this.envKey !== key) {
+      this.envKey = key;
+      this.envMap?.dispose();
+      this.envMap = this.buildEnvMap(env);
+      this.viewmodel.setEnvironment(this.envMap);
+      this.viewmodel.setLighting(env.view);
+    }
+    return env;
   }
 
   freshStats() {
@@ -261,22 +304,23 @@ export class Game {
   }
 
   // --- Sahne kurulumu ---
+  // Menü ve poligon Kızılkum'u kullanır; görev seviyesi kendi haritasının ortamını
+  mapKey(mode) {
+    return mode === 'mission' ? this.level.map || 'kizilkum' : 'kizilkum';
+  }
+
   buildScene(mode) {
     if (this.scene) this.disposeScene();
+    const env = this.applyEnvironment(this.mapKey(mode));
     const scene = new THREE.Scene();
     this.scene = scene;
-    const horizon = new THREE.Color(0xd8a987);
-    scene.fog = new THREE.Fog(horizon, 70, 460);
+    const horizon = new THREE.Color(env.sky.horizon);
+    scene.fog = new THREE.Fog(horizon, env.fog[0], env.fog[1]);
     scene.background = horizon;
     const sky = new THREE.Mesh(
       new THREE.SphereGeometry(900, 32, 16),
       new THREE.ShaderMaterial({
-        uniforms: {
-          sunDir: { value: this.sunDir },
-          zenith: { value: new THREE.Color(0x3d6a9a) },
-          horizon: { value: horizon },
-          ground: { value: new THREE.Color(0xb89878) },
-        },
+        uniforms: skyUniforms(env.sky, this.sunDir),
         vertexShader: SKY_VERT,
         fragmentShader: SKY_FRAG,
         side: THREE.BackSide,
@@ -288,9 +332,9 @@ export class Game {
     sky.renderOrder = -10;
     scene.add(sky);
     this.sky = sky;
-    const hemi = new THREE.HemisphereLight(0xb4c8e0, 0x8a6f4d, 1.15);
+    const hemi = new THREE.HemisphereLight(env.hemi[0], env.hemi[1], env.hemi[2]);
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffcf9c, 2.9);
+    const sun = new THREE.DirectionalLight(env.sun[0], env.sun[1]);
     sun.castShadow = this.renderer.shadowMap.enabled;
     const size = this.quality === 'high' ? 2048 : 1024;
     sun.shadow.mapSize.set(size, size);
@@ -311,8 +355,9 @@ export class Game {
     this.weapons = new PlayerWeapons(this);
     this.barrels = [];
     this.debris = [];
-    // Menü arka planı tam operasyon haritasını kullanır (toplar göğe ateş eder)
-    this.mission = new Mission(this, mode, mode === 'mission' ? this.level : LEVELS[LEVELS.length - 1]);
+    // Menü arka planı Kızılkum'un köy bölümü (toplar göğe ateş eder)
+    this.mission = new Mission(this, mode, mode === 'mission' ? this.level : MENU_LEVEL);
+    if (env.weather) this.effects.addEmitter(weatherEmitter(env.weather, this));
     this.resize();
   }
 
@@ -320,7 +365,13 @@ export class Game {
     this.scene.traverse((o) => {
       if (o.geometry && !o.geometry.userData?.shared) o.geometry.dispose();
     });
-    if (this.world) for (const m of Object.values(this.world.materials)) m.dispose();
+    if (this.world) {
+      const mats = Object.values(this.world.materials);
+      const dispose = () => mats.forEach((m) => m.dispose());
+      if (this.sceneCompile) this.sceneCompile.then(dispose);
+      else dispose();
+      this.sceneCompile = null;
+    }
     this.audio.stopRotor();
     this.scene = null;
   }
@@ -365,18 +416,21 @@ export class Game {
   }
 
   async startMode(mode, diffKey = 'normal', levelId = this.level.id) {
+    await this.compiling;
     this.audio.init();
     this.audio.stopMenuMusic();
     this.menus.hideAll();
     const L = loadingScreen();
-    L.show('HARİTA İNŞA EDİLİYOR');
+    const level = LEVELS.find((l) => l.id === levelId) || LEVELS[0];
+    const mapName = mode === 'mission' ? MAPS[level.map]?.name : 'Atış Poligonu';
+    L.show(`${(mapName || 'Harita').toLocaleUpperCase('tr-TR')} İNŞA EDİLİYOR`);
     this.state = 'loading';
     try {
       L.step('Harita ve düşmanlar yerleştiriliyor', 0.25);
       await nextPaint();
       this.mode = mode;
       this.difficultyKey = diffKey;
-      this.level = LEVELS.find((l) => l.id === levelId) || LEVELS[0];
+      this.level = level;
       const base = DIFFICULTY[diffKey] || DIFFICULTY.normal;
       this.difficulty = mode === 'mission' ? levelDifficulty(base, this.level) : base;
       this.stats = this.freshStats();
@@ -398,6 +452,7 @@ export class Game {
       L.fail('Harita açılamadı', err, 'Ana menüye dönüp yeniden dene. Sorun sürerse düşük grafikle açmayı dene.', true);
       return;
     }
+    this.hud.resetTransient();
     this.hud.show(true);
     this.hud.setHealth(this.player.health.hp, this.player.health.max);
     this.events.emit('interact', null, 0);
@@ -406,7 +461,7 @@ export class Game {
     this.input.enabled = true;
     this.input.enableTouch(this.isTouch);
     document.body.classList.add('playing');
-    this.audio.startAmbient();
+    this.audio.startAmbient(this.env.ambient);
     if (mode === 'mission') this.hud.intro();
     this.input.requestLock();
   }
@@ -664,6 +719,46 @@ export class Game {
     if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory') this.viewmodel.render(r);
   }
 }
+
+// Gökyüzü gölgelendiricisinin renk uniform'ları (ortam tablosundan)
+function skyUniforms(sky, sunDir) {
+  const v3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+  return {
+    sunDir: { value: sunDir },
+    zenith: { value: new THREE.Color(sky.zenith) },
+    horizon: { value: new THREE.Color(sky.horizon) },
+    ground: { value: new THREE.Color(sky.ground) },
+    glowCol: { value: v3(sky.glow) },
+    discCol: { value: v3(sky.disc) },
+    bandCol: { value: v3(sky.band) },
+    stars: { value: sky.stars },
+  };
+}
+
+// Hava durumu: kameranın çevresinde düşen kar ya da savrulan kül (duman havuzundan; ışık eklemez).
+// Yoğunluk grafik kalitesine göre: düşük kalitede parçacık havuzu küçük
+const WEATHER = {
+  snow: { rate: 140, color: 0xf4f8ff, size: 0.07, fall: [-1.6, -0.9], drift: 0.6, life: 4.5, alpha: 0.9 },
+  ash: { rate: 45, color: 0x7a7672, size: 0.06, fall: [-0.5, -0.15], drift: 0.9, life: 6, alpha: 0.7 },
+};
+function weatherEmitter(kind, game) {
+  const W = WEATHER[kind];
+  if (!W) return { rate: 0, spawn() {} };
+  const low = game.quality === 'low';
+  return {
+    rate: W.rate * (low ? 0.35 : 1),
+    spawn: (fx) => {
+      const c = game.camera.position;
+      const x = c.x + rand(-16, 16);
+      const z = c.z + rand(-16, 16);
+      const y = c.y + rand(1, 9);
+      fx.smoke.spawn(x, y, z, rand(-W.drift, W.drift), rand(W.fall[0], W.fall[1]), rand(-W.drift, W.drift), W.life, W.size, W.size, fx._c.setHex(W.color), W.alpha, 0, 0, 0, 0.15);
+    },
+  };
+}
+
+// Menü arka planı için sahte seviye: Kızılkum'un köy bölümü, düşmansız
+const MENU_LEVEL = { ...LEVELS[1], id: 0 };
 
 // Konsol açıkken ya da ölüyken oyuncu girdisi yok
 const NULL_INPUT = {

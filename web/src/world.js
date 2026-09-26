@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { clamp } from './util.js';
 
 const CELL = 8;
+// Zemin kaplamaları gölge düşürmez (gölge haritasında boşa çizilmesin)
+const FLAT_MATERIALS = new Set(['sand', 'dirt', 'helipad', 'snow', 'asphalt', 'water']);
 const cellKey = (ix, iz) => ((ix + 512) << 10) | (iz + 512);
 
 const FACES = [
@@ -82,6 +84,19 @@ export class World {
     M.helipad = std(T.concrete, 0x6d6a64, 0.95, 0, 2.5);
     M.paint = new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.9, vertexColors: true });
     M.paint.userData.tile = 1;
+    // Diğer haritalar (yalnızca kullanılan malzemelerin gölgelendiricisi derlenir: birleştirme boş kalanı atlar)
+    M.snow = std(T.snow, 0xffffff, 0.9, 0, 6);
+    M.asphalt = std(T.asphalt, 0xffffff, 0.95, 0, 4);
+    M.brick = std(T.brick, 0xffffff, 0.95, 0, 2);
+    M.pine = std(T.canvas, 0x33503a, 0.95, 0, 2);
+    M.steelPipe = std(T.metal, 0x8e9398, 0.45, 0.7, 1);
+    M.craneYellow = std(T.metal, 0xd6a02a, 0.6, 0.35, 1.5);
+    M.hullRed = std(T.corrugated, 0x7a2e24, 0.7, 0.3, 3);
+    M.water = new THREE.MeshStandardMaterial({ color: 0x1c3644, roughness: 0.18, metalness: 0.35, vertexColors: true });
+    M.water.userData.tile = 1;
+    // Işımalı lamba başlığı: gece haritasında ışık kaynağı eklemeden parlak görünür (ışık sayısı sabit)
+    M.lampGlow = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffd49a, emissiveIntensity: 3, vertexColors: true });
+    M.lampGlow.userData.tile = 1;
     return M;
   }
 
@@ -210,7 +225,7 @@ export class World {
       geo.setIndex(b.vertexCount > 65535 ? new THREE.Uint32BufferAttribute(b.idx, 1) : new THREE.Uint16BufferAttribute(b.idx, 1));
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, this.materials[key]);
-      mesh.castShadow = key !== 'sand' && key !== 'dirt' && key !== 'helipad';
+      mesh.castShadow = !FLAT_MATERIALS.has(key);
       mesh.receiveShadow = true;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
@@ -417,7 +432,7 @@ export class World {
     for (const r of this.roads) {
       if (x >= r.minx && x <= r.maxx && z >= r.minz && z <= r.maxz) return 'sand';
     }
-    return 'sand';
+    return this.floorSurface || 'sand';
   }
 
   // Dikey silindir olarak karakter hareketi. state: {pos, vel, grounded, height, radius}

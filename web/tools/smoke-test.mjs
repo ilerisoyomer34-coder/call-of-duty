@@ -16,7 +16,8 @@ const THREE_BODY = readFileSync(join(root, 'node_modules/three/build/three.modul
 const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png' };
 
 const errors = [];
-// SMOKE_ONLY=levels,range gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için)
+// SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
+// Bölümler: visual, mission, levels, interact, maps, range, artifact, mobile
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,8 +38,8 @@ const browser = await chromium.launch({
 async function openPage(kind, quality = 'low', opts = {}) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   // Yazılımsal GPU'da akış testleri düşük kalitede koşar; görsel kontrol için 'high'
-  // Akış testleri tam operasyonu (Seviye 5) kullanır; seviye testi sıfırdan (yalnızca Seviye 1 açık) başlar
-  const unlocked = opts.unlocked ?? 5;
+  // Akış testleri tüm seviyeler açık başlar; seviye testi sıfırdan (yalnızca Seviye 1 açık) başlar
+  const unlocked = opts.unlocked ?? 6;
   await page.addInitScript(([q, u]) => {
     try {
       localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: q }));
@@ -77,7 +78,8 @@ async function openPage(kind, quality = 'low', opts = {}) {
   } else {
     await page.goto(pathToFileURL(join(root, 'dist/index.html')).href);
   }
-  if (!opts.noWait) await page.waitForFunction(() => window.__game && window.__game.state === 'menu', null, { timeout: 60000 });
+  // Açılış tamamen bitsin (menü görünür olsa da gölgelendirici ön derlemesi sürüyor olabilir)
+  if (!opts.noWait) await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
   return page;
 }
 
@@ -97,7 +99,7 @@ console.log('Görsel kontrol (yüksek kalite)');
   await page.screenshot({ path: join(shots, '00-menu-high.png') });
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
-  await page.click('#levelList .lvl:nth-child(5)');
+  await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum köyü
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   await page.evaluate(() => {
@@ -134,7 +136,11 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#btnPlay');
   await sleep(200);
   check(await page.isVisible('#diffScreen'), 'Seviye ekranı görünüyor');
-  check((await page.$$('#levelList .lvl')).length === 5, 'Beş seviye listelendi');
+  check((await page.$$('#levelList .lvl')).length === 6, 'Altı seviye listelendi');
+  const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .lvl .m')].map((m) => m.textContent));
+  check(/Kızılkum/.test(cards[0]) && /Liman/.test(cards[2]) && /Gece Rafinerisi/.test(cards[5]), 'Kartlarda harita adları (Kızılkum → Gece Rafinerisi)');
+  check(/Komando/.test(cards[5]) && /5 makineli yuvası/.test(cards[5]) && !/makineli/.test(cards[0]), 'Son seviye: komando manga, 5 makineli yuvası; ilk seviyede yuva yok');
+  // Operasyonun tamamı (altı hedef) Karlı Geçit'te
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(5)');
   check(await page.isVisible('#loadoutScreen'), 'Teçhizat ekranı açıldı');
@@ -184,14 +190,18 @@ console.log('Bağımsız sürüm (dist/index.html)');
   const mag2 = await page.evaluate(() => window.__game.weapons.current.mag);
   check(mag2 >= 30, `Reload şarjörü doldurdu (${mag2})`);
 
-  // Kontrol noktasına yaklaş, düşmanlar fark etsin
+  // Karakola yaklaş (işaretçinin 24 m güneyi), düşmanlar fark etsin
   await page.evaluate(() => {
     const g = window.__game;
-    g.player.reset(new g.player.pos.constructor(0, 0, 84), 0);
+    const m = g.mission.data.obj.outpost.marker;
+    g.player.reset(new g.player.pos.constructor(m.x, 0, m.z + 24), 0);
   });
   await waitGame(page, 1.0);
   const hpEarly = await page.evaluate(() => window.__game.player.health.hp);
   check(hpEarly > 0, `Çatışma bölgesinde ilk saniyede ölmedi (can ${Math.round(hpEarly)})`);
+  // Karakolda makineli yuvası var: akışın geri kalanı ölümsüz sürer (hasar ölçümü ilk saniyeden)
+  const taken = await page.evaluate(() => window.__game.stats.damageTaken);
+  await page.evaluate(() => (window.__game.cheats.god = true));
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.4);
   await page.screenshot({ path: join(shots, '03-ads-outpost.png') });
@@ -202,9 +212,7 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await waitGame(page, 2.5);
   const combat = await page.evaluate(() => window.__game.enemies.list.filter((e) => e.aiState === 'combat').length);
   check(combat > 0, `Silah sesi düşmanları alarma geçirdi (${combat} çatışmada)`);
-  const taken = await page.evaluate(() => window.__game.stats.damageTaken);
-  await page.evaluate(() => (window.__game.cheats.god = true));
-  console.log(`    açıkta ~3.5 sn: alınan hasar ${Math.round(taken)}`);
+  console.log(`    açıkta ilk 1 sn: alınan hasar ${Math.round(taken)}`);
   await waitGame(page, 2);
   await page.screenshot({ path: join(shots, '04-firefight.png') });
   const shotsFired = await page.evaluate(() => window.__game.enemies.list.filter((e) => e.lastFired > 0).length);
@@ -373,7 +381,7 @@ console.log('Etkileşimler');
   const page = await openPage('standalone');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
-  await page.click('#levelList .lvl:nth-child(5)');
+  await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum: uçaksavarlar
   await page.click('#primaryList .gun[data-id="mar556"]');
   await page.click('#secondaryList .gun[data-id="d50"]');
   await page.click('#btnDeploy');
@@ -384,12 +392,14 @@ console.log('Etkileşimler');
       const g = window.__game;
       g.player.reset(new g.player.pos.constructor(x, 0, z), yaw);
     }, [x, z, yaw]);
-  await page.evaluate(() => {
-    const g = window.__game;
-    g.cheats.god = true;
-    g.cheats.aiOff = true;
-    g.input.lockFailed = true;
-  });
+  const quiet = () =>
+    page.evaluate(() => {
+      const g = window.__game;
+      g.cheats.god = true;
+      g.cheats.aiOff = true;
+      g.input.lockFailed = true;
+    });
+  await quiet();
   const hold = async (sec) => {
     await page.keyboard.down('KeyF');
     await waitGame(page, sec);
@@ -411,7 +421,6 @@ console.log('Etkileşimler');
   await page.keyboard.press('KeyF');
   await waitGame(page, 0.3);
   check((await page.evaluate(() => window.__game.weapons.slots[0])) === 'sniper', 'MR-82 masadan alındı');
-  await page.evaluate(() => window.__game.debugSkipTo(2));
   for (const [x, z, id] of [[-41, 25.2, 'aa1'], [40.5, 15.2, 'aa2']]) {
     await tp(x, z, 0);
     await waitGame(page, 0.3);
@@ -422,12 +431,6 @@ console.log('Etkileşimler');
     await waitGame(page, 5.5);
     check(await page.evaluate((i) => window.__game.mission.aa.find((a) => a.id === i).destroyed, id), `${id}: patladı`);
   }
-  check((await page.evaluate(() => window.__game.mission.current.id)) === 'intel', 'Hedef istihbarata geçti');
-  await tp(-7, -51.2, 0);
-  await waitGame(page, 0.3);
-  await hold(3);
-  check((await page.evaluate(() => window.__game.mission.current.id)) === 'lz', 'İstihbarat alındı, iniş bölgesi hedefi');
-  check((await page.evaluate(() => window.__game.enemies.list.filter((e) => e.group === 'reinf').length)) === 5, 'Takviye birlikler geldi');
   await page.evaluate(() => {
     const w = window.__game.weapons.current;
     w.reserve = 0;
@@ -438,6 +441,250 @@ console.log('Etkileşimler');
   await waitGame(page, 0.2);
   check(await page.evaluate(() => { const w = window.__game.weapons.current; return w.reserve === w.data.reserveMax; }), 'İkmal sandığı cephaneyi doldurdu');
   await page.screenshot({ path: join(shots, '13-interact.png') });
+  await page.waitForFunction(() => window.__game.state === 'victory', null, { timeout: 60000 }).catch(() => {});
+  check((await state(page)) === 'victory', 'İki top da patlayınca Seviye 2 bitti');
+  // İstihbarat: Yıkık Şehir'deki belediye binası
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 4));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await quiet();
+  await page.evaluate(() => window.__game.debugSkipTo(2));
+  check((await page.evaluate(() => window.__game.mission.current.id)) === 'intel', 'Yıkık Şehir: hedef istihbarat');
+  const lap = await page.evaluate(() => { const p = window.__game.mission.data.laptop.pos; return [p.x, p.z]; });
+  await tp(lap[0], lap[1] + 1.2, 0);
+  await waitGame(page, 0.3);
+  await hold(3);
+  check((await page.evaluate(() => window.__game.mission.current.id)) === 'lz', 'İstihbarat alındı, iniş bölgesi hedefi');
+  check((await page.evaluate(() => window.__game.enemies.list.filter((e) => e.group === 'reinf').length)) === 5, 'Takviye birlikler geldi');
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+}
+
+// ---------------- Haritalar, ağır makineli mevziler, manga kademeleri ----------------
+if (run('maps')) {
+console.log('Haritalar, mevziler ve manga kademeleri');
+
+  const page = await openPage('standalone');
+  const start = async (id) => {
+    await page.evaluate((k) => window.__game.startMode('mission', 'normal', k), id);
+    await page.waitForFunction(() => window.__game.state === 'playing' || window.__game.state === 'error', null, { timeout: 90000 });
+    await page.evaluate(() => (window.__game.input.lockFailed = true));
+  };
+  const expect = { 1: ['kizilkum', 0, 'Er'], 2: ['kizilkum', 0, 'Onbaşı'], 3: ['harbor', 2, 'Çavuş'], 4: ['ruins', 3, 'Çavuş'], 5: ['pass', 4, 'Uzman Çavuş'], 6: ['refinery', 5, 'Komando'] };
+  for (const id of [1, 2, 3, 4, 5, 6]) {
+    await start(id);
+    const r = await page.evaluate(() => {
+      const g = window.__game;
+      const D = g.mission.data;
+      const issues = [];
+      const walk = (p) => g.nav.isWalkable(p.x, p.z);
+      const reach = (a, b, label) => {
+        const p = g.nav.findPath(a, b, 400000);
+        const end = p && p.length ? p[p.length - 1] : null;
+        if (!end || Math.hypot(end.x - b.x, end.z - b.z) > 3) issues.push(label);
+      };
+      for (const e of g.enemies.list) if (!e.spec.elevated && !e.mount && !walk(e.pos)) issues.push(`düşman ${e.id}`);
+      const s = D.playerStart.pos;
+      D.checkpoints.forEach((c, i) => reach(s, c.pos, `cp${i}`));
+      for (const a of D.aaGuns || []) reach(s, a.pos.clone().add({ x: 0, y: 0, z: 2.2 }), a.id);
+      if (D.laptop) reach(s, D.laptop.pos.clone().setY(0).add({ x: 0, y: 0, z: 1.2 }), 'istihbarat');
+      reach(s, D.lz, 'iniş');
+      return {
+        state: g.state, map: g.level.map, gunners: g.enemies.list.filter((e) => e.type === 'gunner' && e.mount).length,
+        rank: g.allies.list[0]?.S.rank, tag: g.allies.list[0]?.rankName, issues, fog: g.scene.fog.color.getHexString(),
+      };
+    });
+    const [map, hmg, rank] = expect[id];
+    check(r.state === 'playing' && r.map === map, `Seviye ${id}: ${map} haritası açıldı`);
+    check(r.gunners === hmg, `Seviye ${id}: ${hmg} ağır makineli mevzi (${r.gunners})`);
+    check(r.rank === rank, `Seviye ${id}: manga kademesi ${rank} (etiket "${r.tag}")`);
+    check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
+    if (id >= 3) {
+      await waitGame(page, 1.0);
+      await page.screenshot({ path: join(shots, `14-map-${map}.png`) });
+    }
+  }
+  // Gece haritası daha az görür (algı çarpanı)
+  const seeing = await page.evaluate(() => window.__game.difficulty.perception);
+  check(seeing < 1, `Gece rafinerisinde düşman algısı kısık (${seeing.toFixed(2)})`);
+  // Düşman güncellemesinin maliyeti (en kalabalık harita: 34 düşman, 5 mevzi)
+  const cost = await page.evaluate(() => {
+    const g = window.__game;
+    const t = [];
+    for (let i = 0; i < 40; i++) {
+      const t0 = performance.now();
+      g.enemies.update(1 / 60);
+      t.push(performance.now() - t0);
+    }
+    t.sort((a, b) => a - b);
+    return t[20];
+  });
+  console.log(`    düşman güncellemesi (medyan): ${cost.toFixed(2)} ms`);
+  check(cost < 6, `Düşman güncellemesi makul (${cost.toFixed(2)} ms)`);
+
+  // --- Ağır makineli mevzi (Liman, kapıdaki yuva) ---
+  await start(3);
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.allies.clear(); // manga bastırmasın: mevziyi yalnız dene
+    const n = g.mission.nests[0];
+    g.player.reset(n.pos.clone().add({ x: 6, y: 0, z: 18 }), 0);
+    const e = n.gunner;
+    e.foe = g.player;
+    e.lastKnown.copy(g.player.pos);
+    e.lastSeen = g.time;
+    e.enterCombat();
+  });
+  await waitGame(page, 3);
+  const inArc = await page.evaluate(() => {
+    const g = window.__game;
+    const n = g.mission.nests[0];
+    // Ölçüm alındı: oyuncu burada ölürse sonraki beklemeler oyun süresi geçmeden döner
+    g.cheats.god = true;
+    return { shots: n.gunner.shotCount, hp: g.player.health.hp, aim: n.aimYaw, warned: n.warned, msg: document.getElementById('message').textContent, alive: g.player.alive };
+  });
+  check(inArc.alive, 'Oyuncu ölçüm sırasında hayatta');
+  check(inArc.shots > 5 && inArc.hp < 100, `Mevzi yay içindeki oyuncuya ateş etti (${inArc.shots} mermi, can ${Math.round(inArc.hp)})`);
+  check(Math.abs(inArc.aim - 0.32) < 0.05, `Silah hedefe döndü (${inArc.aim.toFixed(2)} rad)`);
+  check(inArc.warned && /MAKİNELİ/.test(inArc.msg), `HUD uyarısı: "${inArc.msg}"`);
+  await page.screenshot({ path: join(shots, '15-hmg-fire.png') });
+  const shield = await page.evaluate(() => {
+    const g = window.__game;
+    const n = g.mission.nests[0];
+    const e = n.gunner;
+    const V3 = g.camera.position.constructor;
+    const front = n.pivot(new V3()).add(new V3(-Math.sin(n.worldYaw) * 12, 0.1, -Math.cos(n.worldYaw) * 12));
+    const chest = e.chestPos(new V3());
+    const a = g.weapons.trace(front, chest.clone().sub(front).normalize(), 100, front);
+    // Arkadan (yay dışı): nişancı açıkta
+    const back = e.pos.clone().add(new V3(Math.sin(n.worldYaw) * 8, 1.3, Math.cos(n.worldYaw) * 8));
+    const b = g.weapons.trace(back, chest.clone().sub(back).normalize(), 100, back);
+    return { front: a.enemy ? 'nişancı' : a.surface, back: b.enemy ? 'nişancı' : b.surface };
+  });
+  check(shield.front === 'metal' && shield.back === 'nişancı', `Kalkan önden gelen mermiyi durdurdu, arkadan vurulur (${shield.front} / ${shield.back})`);
+  // Yay dışına geç: ateş kesilir, bir süre sonra nişancı iner ve tüfekle devam eder
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.cheats.god = true;
+    const n = g.mission.nests[0];
+    g.player.reset(n.pos.clone().add({ x: -14, y: 0, z: -1 }), -Math.PI / 2);
+  });
+  await waitGame(page, 1.5);
+  const s0 = await page.evaluate(() => window.__game.mission.nests[0].gunner.shotCount);
+  await waitGame(page, 2.5);
+  const s1 = await page.evaluate(() => window.__game.mission.nests[0].gunner.shotCount);
+  check(s1 === s0, `Yay dışındaki oyuncuya ateş edemedi (${s0} → ${s1})`);
+  await waitGame(page, 6);
+  const dis = await page.evaluate(() => { const e = window.__game.mission.nests[0].gunner; return { mount: !!e.mount, w: e.W.sound, cover: e.T.usesCover }; });
+  check(!dis.mount && dis.w === 'enemyRifle' && dis.cover, 'Uzun süre yay dışında kalınca nişancı silahı bıraktı (tüfek + siper)');
+  // Bastırma: yakından geçen mermiler eğdirir
+  const sup = await page.evaluate(() => {
+    const g = window.__game;
+    const n = g.mission.nests[1];
+    const e = n.gunner;
+    const V3 = g.camera.position.constructor;
+    const mounted = !!e.mount;
+    e.foe = g.player;
+    e.enterCombat();
+    if (!mounted) return -1;
+    const o = n.pivot(new V3()).add(new V3(-Math.sin(n.worldYaw) * 20, 0.4, -Math.cos(n.worldYaw) * 20));
+    for (let i = 0; i < 6; i++) {
+      const d = e.eyePos(new V3()).add(new V3(0.8, 0.2, 0)).sub(o).normalize();
+      g.enemies.bulletNearMiss(o, d, 30);
+    }
+    return e.suppressT;
+  });
+  await waitGame(page, 0.3);
+  const ducked = await page.evaluate(() => window.__game.mission.nests[1].gunner.crouch);
+  check(sup > 2 && ducked, `Yakından geçen mermiler nişancıyı bastırdı, kalkanın arkasına eğildi (${sup < 0 ? 'nişancı silahı bırakmıştı' : `${sup.toFixed(1)} s`})`);
+  // El bombası mevziyi susturur; kontrol noktasına dönünce (öncesinde susturulmamışsa) yeniden çalışır
+  const sil = await page.evaluate(() => {
+    const g = window.__game;
+    const n = g.mission.nests[1];
+    const p = n.pivot(n.pos.clone());
+    p.y = 0.3;
+    p.x += 1.5;
+    g.explode(p, 6, 150, 'player');
+    const out = { wrecked: n.wrecked, mount: !!n.gunner.mount };
+    g.mission.restoreCheckpoint();
+    out.restored = !n.wrecked && (!n.gunner.alive || !!n.gunner.mount);
+    return out;
+  });
+  check(sil.wrecked && !sil.mount, 'El bombası makineliyi susturdu, nişancı silahtan ayrıldı');
+  check(sil.restored, 'Kontrol noktasına dönünce mevzi yeniden kuruldu');
+
+  // --- Manga kademeleri: Er'e karşı Komando isabeti (25 m, açıkta duran düşman) ---
+  const shotsToKill = async (id, spot) => {
+    await start(id);
+    return page.evaluate((spot) => {
+      const g = window.__game;
+      const V3 = g.camera.position.constructor;
+      g.cheats.aiOff = true;
+      g.cheats.god = true;
+      const p = new V3(spot[0], 0, spot[1]);
+      g.player.reset(p, 0);
+      const a = g.allies.list[0];
+      a.reset(p.clone().add(new V3(2, 0, 1)), 0);
+      const e = g.enemies.spawn({ id: 'tgt', type: 'rifleman', pos: p.clone().add(new V3(1, 0, -25)), yaw: 0 });
+      e.model.root.updateMatrixWorld(true);
+      let total = 0;
+      for (let t = 0; t < 20; t++) {
+        e.reset();
+        e.model.root.updateMatrixWorld(true);
+        let n = 0;
+        while (e.alive && n < 300) {
+          a.shoot(e);
+          n++;
+        }
+        total += n;
+      }
+      return { rank: a.S.rank, mean: total / 20 };
+    }, spot);
+  };
+  const t1 = await shotsToKill(1, [-45, 100]);
+  const t5 = await shotsToKill(6, [-50, 92]);
+  console.log(`    25 m'de düşürmek için ortalama atış: ${t1.rank} ${t1.mean.toFixed(1)}, ${t5.rank} ${t5.mean.toFixed(1)}`);
+  check(t5.mean < t1.mean * 0.6, `Komando mangası Er'den belirgin isabetli (${t5.mean.toFixed(1)} < ${t1.mean.toFixed(1)} atış)`);
+  // Çavuş: bastırma ateşi ve ayıltma (Liman)
+  await start(3);
+  await page.evaluate(() => {
+    const g = window.__game;
+    const n = g.mission.nests[0];
+    const V3 = g.camera.position.constructor;
+    g.cheats.god = true;
+    g.player.reset(n.pos.clone().add(new V3(-16, 0, 14)), 0);
+    g.allies.regroup(g.player.pos, 0);
+    const e = n.gunner;
+    e.foe = g.player;
+    e.enterCombat();
+    g.lastPlayerShot = g.time;
+  });
+  await waitGame(page, 5);
+  const supp = await page.evaluate(() => {
+    const g = window.__game;
+    const e = g.mission.nests[0].gunner;
+    return g.allies.list.filter((a) => a.target === e).length;
+  });
+  check(supp >= 2, `Çavuş mangası makineli nişancısını bastırma ateşine aldı (${supp}/3 dost)`);
+  const down = await page.evaluate(() => {
+    const g = window.__game;
+    const a = g.allies.list[1];
+    a.takeDamage(9999, null);
+    return a.downT;
+  });
+  await waitGame(page, 5);
+  const rev = await page.evaluate(() => { const a = window.__game.allies.list[1]; return { down: a.down, t: a.downT }; });
+  check(!rev.down, `Yaralı dost arkadaşı tarafından ayıltıldı (bekleme ${down} s, 5 s içinde kalktı)`);
+  // Komando: mevziyi kanattan vurma
+  await start(6);
+  const fl = await page.evaluate(() => {
+    const g = window.__game;
+    const n = g.mission.nests[0];
+    g.allies.onHmgFire(n);
+    const f = g.allies.flanker;
+    return f ? { name: f.name, out: !n.inArc(Math.atan2(-(f.flankGoal.x - n.pos.x), -(f.flankGoal.z - n.pos.z))) } : null;
+  });
+  check(!!fl && fl.out, `Komando mevziyi yandan vurmak için yayın dışına dolandı (${fl?.name})`);
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();

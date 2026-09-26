@@ -435,8 +435,10 @@ export class Audio {
     lfo.stop(t + dur + 0.1);
   }
 
-  // Ortam: rüzgâr döngüsü + uzak topçu ve çatışma sesleri
-  startAmbient() {
+  // Ortam: rüzgâr döngüsü + uzak topçu ve çatışma sesleri. amb (harita ortamından): wind (süzgeç
+  // frekansı: kar fırtınasında tiz, limanda boğuk), gain, distant (uzak çatışma sıklığı çarpanı),
+  // sea (dalga uğultusu), hum (rafineri makinelerinin alçak uğultusu)
+  startAmbient(amb = {}) {
     if (!this.ctx || this.windSrc) return;
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
@@ -444,10 +446,14 @@ export class Audio {
     src.loop = true;
     const f = ctx.createBiquadFilter();
     f.type = 'lowpass';
-    f.frequency.value = 420;
+    f.frequency.value = amb.wind || 420;
     f.Q.value = 0.6;
     const g = ctx.createGain();
-    g.gain.value = 0.16;
+    g.gain.value = amb.gain ?? 0.16;
+    this.distantRate = amb.distant ?? 1;
+    this.ambExtras = [];
+    if (amb.sea) this.ambExtras.push(this.loopLayer({ type: 'lowpass', freq: 160, gain: 0.22, lfo: 0.09, lfoDepth: 0.16 }));
+    if (amb.hum) this.ambExtras.push(this.humLayer());
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.07;
     const lg = ctx.createGain();
@@ -471,6 +477,54 @@ export class Audio {
     this.nextDistant = this.now + rand(6, 14);
   }
 
+  // Döngüsel gürültü katmanı (dalga): yavaş genlik dalgalanmasıyla
+  loopLayer({ type, freq, gain, lfo, lfoDepth }) {
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    src.playbackRate.value = 0.7;
+    const f = ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    const o = ctx.createOscillator();
+    o.frequency.value = lfo;
+    const og = ctx.createGain();
+    og.gain.value = lfoDepth;
+    o.connect(og);
+    og.connect(g.gain);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.amb);
+    src.start();
+    o.start();
+    return [src, o];
+  }
+
+  // Makine uğultusu: iki alçak ton, hafif vuru (rafineri pompaları)
+  humLayer() {
+    const ctx = this.ctx;
+    const g = ctx.createGain();
+    g.gain.value = 0.035;
+    g.connect(this.amb);
+    const out = [];
+    for (const fr of [49, 98.6]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = fr;
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 180;
+      o.connect(f);
+      f.connect(g);
+      o.start();
+      out.push(o);
+    }
+    return out;
+  }
+
   stopAmbient() {
     if (this.windSrc) {
       try {
@@ -480,12 +534,22 @@ export class Audio {
       }
       this.windSrc = null;
     }
+    for (const nodes of this.ambExtras || []) {
+      for (const n of nodes) {
+        try {
+          n.stop();
+        } catch {
+          /* zaten durmuş */
+        }
+      }
+    }
+    this.ambExtras = [];
   }
 
   updateAmbient() {
     if (!this.ctx || !this.windSrc) return;
     if (this.now > this.nextDistant) {
-      this.nextDistant = this.now + rand(9, 26);
+      this.nextDistant = this.now + rand(9, 26) / Math.max(0.2, this.distantRate ?? 1);
       const t = this.now;
       const dest = this.out(rand(-0.8, 0.8), this.amb);
       if (Math.random() < 0.55) {
@@ -614,6 +678,7 @@ const GUN_PROFILES = {
   rifle2: { vol: 0.9, crack: 1.05, crackFreq: 2700, crackDur: 0.06, body: 0.85, bodyFreq: 2400, bodyDur: 0.14, thump: 150, thumpGain: 0.8, thumpDur: 0.09, tail: 0.45, tailGain: 0.42, mech: 0.14 },
   smg: { vol: 0.75, crack: 0.9, crackFreq: 3200, crackDur: 0.045, body: 0.75, bodyFreq: 3000, bodyDur: 0.09, thump: 190, thumpGain: 0.55, thumpDur: 0.06, tail: 0.3, tailGain: 0.32, mech: 0.2 },
   lmg: { vol: 0.95, crack: 1.0, crackFreq: 2100, crackDur: 0.07, body: 1.0, bodyFreq: 1900, bodyDur: 0.17, thump: 120, thumpGain: 1.0, thumpDur: 0.11, tail: 0.6, tailGain: 0.5, mech: 0.1 },
+  enemyHmg: { vol: 1.0, crack: 1.1, crackFreq: 1500, crackDur: 0.1, body: 1.05, bodyFreq: 1100, bodyDur: 0.3, thump: 62, thumpGain: 1.15, thumpDur: 0.22, tail: 1.2, tailGain: 0.7, mech: 0.05 },
   bmg50: { vol: 1.1, crack: 1.3, crackFreq: 1800, crackDur: 0.12, body: 1.1, bodyFreq: 1300, bodyDur: 0.4, thump: 70, thumpGain: 1.2, thumpDur: 0.3, tail: 1.6, tailGain: 0.85, mech: 0.1 },
   magnum: { vol: 1.0, crack: 1.25, crackFreq: 2500, crackDur: 0.08, body: 1.0, bodyFreq: 2000, bodyDur: 0.2, thump: 110, thumpGain: 1.0, thumpDur: 0.14, tail: 0.8, tailGain: 0.55, mech: 0.25 },
   rocket: { vol: 1.0, crack: 0.5, crackFreq: 900, crackDur: 0.25, body: 1.0, bodyFreq: 900, bodyDur: 0.7, thump: 60, thumpGain: 1.1, thumpDur: 0.35, tail: 1.2, tailGain: 0.6, mech: 0 },

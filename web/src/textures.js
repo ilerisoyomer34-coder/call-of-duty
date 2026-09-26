@@ -255,6 +255,58 @@ export function createTextures(quality = 'high') {
     );
   }
 
+  // Kar: mavimsi beyaz, rüzgâr izleri ve parıltılar
+  {
+    const n = fbmFactory(4, 5, 141);
+    const r = fbmFactory(12, 2, 143);
+    T.snow = toTexture(
+      fillPixels(mid, (u, v, o) => {
+        const a = n(u, v);
+        const drift = Math.sin((u * 18 + r(u, v) * 5) * Math.PI) * 0.025;
+        const k = 0.86 + a * 0.16 + drift;
+        const sparkle = r((u * 7) % 1, (v * 7) % 1) > 0.9 ? 0.06 : 0;
+        o[0] = clamp255(228 * k + sparkle * 255);
+        o[1] = clamp255(236 * k + sparkle * 255);
+        o[2] = clamp255(246 * k + sparkle * 255);
+      })
+    );
+  }
+  // Asfalt: koyu gri, çakıl taneleri, yama izleri
+  {
+    const n = fbmFactory(8, 4, 151);
+    const pt = fbmFactory(2, 3, 153);
+    T.asphalt = toTexture(
+      fillPixels(mid, (u, v, o) => {
+        const grain = n(u, v);
+        const patch = pt(u, v) > 0.64 ? 0.85 : 1;
+        const k = (0.55 + grain * 0.35) * patch;
+        o[0] = clamp255(92 * k);
+        o[1] = clamp255(92 * k);
+        o[2] = clamp255(96 * k);
+      })
+    );
+  }
+  // Tuğla: harç çizgili, tuğla başına renk farkı, is lekeleri
+  {
+    const n = fbmFactory(4, 4, 161);
+    const soot = fbmFactory(2, 3, 163);
+    T.brick = toTexture(
+      fillPixels(mid, (u, v, o) => {
+        const rows = 8;
+        const row = Math.floor(v * rows);
+        const uu = u * 4 + (row % 2 ? 0.5 : 0);
+        const col = Math.floor(uu);
+        const mortar = (v * rows) % 1 < 0.1 || uu % 1 < 0.05;
+        const tone = 0.82 + (((row * 31 + col * 17) % 7) / 7) * 0.25;
+        let k = mortar ? 0.75 : tone * (0.85 + n(u, v) * 0.2);
+        k *= 1 - Math.max(0, soot(u, v) - 0.55) * 0.9;
+        o[0] = clamp255((mortar ? 170 : 150) * k);
+        o[1] = clamp255((mortar ? 162 : 82) * k);
+        o[2] = clamp255((mortar ? 150 : 62) * k);
+      })
+    );
+  }
+
   // --- Çıkartmalar (decal) ve parçacık dokuları (tekrarsız, alfa kanallı) ---
   const radial = (size, fn) => toTexture(fillPixels(size, fn), { repeat: false });
 

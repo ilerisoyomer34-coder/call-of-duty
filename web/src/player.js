@@ -265,7 +265,7 @@ export class Player {
     const steps = dt > 0.02 ? 2 : 1;
     let groundC = null;
     for (let i = 0; i < steps; i++) groundC = g.world.moveCharacter(this.state, dt / steps, M.stepHeight);
-    this.groundSurface = groundC ? groundC.surface : 'sand';
+    this.groundSurface = groundC ? groundC.surface : g.world.floorSurface || 'sand';
     if (!wasGrounded && this.grounded && this.state.landSpeed > 2.5) {
       this.landVel -= Math.min(this.state.landSpeed, 10) * 0.18;
       g.audio.land(clamp(this.state.landSpeed / 8, 0.3, 1));

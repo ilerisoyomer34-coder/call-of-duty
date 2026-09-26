@@ -1,7 +1,7 @@
 # Demir Şafak — proje notları
 
 ## Durum
-- `web/` altında oynanabilir tarayıcı dikey kesiti var (three.js, tek dosyaya paketlenir).
+- `web/` altında oynanabilir tarayıcı dikey kesiti var (three.js, tek dosyaya paketlenir): 6 seviye, 5 harita (Kızılkum, Liman, Yıkık Şehir, Karlı Geçit, Gece Rafinerisi), ağır makineli mevziler, rütbesi seviyeyle artan mavi manga.
 - Unreal Engine 5 sürümü henüz başlamadı. Ana plan: `Docs/MASTER_PROMPT.md` (Faz 0'dan başlanacak; UE5, Visual Studio ve Windows makine gerekir).
 - Web sürümündeki ayar değerleri (`web/src/config.js`) UE5'teki Data Asset'lere taşınacak referans değerlerdir.
 
@@ -23,7 +23,10 @@
 - Silah adları kurgusal kalmalı; gerçek marka/logo yok. Harici asset eklenirse lisansı `CREDITS.md`, `SourceAssets/.../asset_info.json` ve menüdeki "Emeği geçenler" ekranına yazılmalı.
 - İçe aktarılan silahlarda kapalı nişangah gövdeleri `optic` parçası yapılır; nişan alırken gizlenip yerine açık tüp çizilir (`adsRing`).
 - Asker görünümü `soldier.js`'te: düşman yapay zekâsı yalnızca duruş/hız/nişan bilgisini verir (`animate(dt, st)`), kemiklere doğrudan dokunmaz. Model yüklenemezse `BlockSoldier` yedeği aynı arayüzle çalışır.
-- Seviyeler `config.js` → `LEVELS` (kolaydan zora). Görev hedefleri `mission.js` → `objectiveDefs()` tablosundan seçilir; yeni seviye yeni kod değil, yeni tablo satırıdır. İlerleme `demirsafak.progress.v1` anahtarında.
+- Seviyeler `config.js` → `LEVELS` (kolaydan zora, 6 seviye). Görev hedefleri `mission.js` → `objectiveDefs()` tablosundan seçilir; yeni seviye yeni kod değil, yeni tablo satırıdır. İlerleme `demirsafak.progress.v1` anahtarında.
+- Haritalar `web/src/maps/<id>.js` → `build(W)` veri döndürür (kontrol noktaları [0 başlangıç … 5 iniş], düşmanlar, `obj` hedef metinleri/telsiz, `hmg` mevzi listesi, `heliFrom`, `fires`); ortak yapı yardımcıları `maps/kit.js`. Yeni harita = yeni dosya + `maps/index.js` kaydı + `config.js` → `MAPS` ortam satırı. Ortamda ışık sayısı değişmez (yalnızca renk/şiddet); gece lambası ışımalı malzeme, alev parçacıktır. Oyuncunun başlangıç noktası mevzilerin görüş hattında olmamalı (önüne siper koy).
+- Ağır makineli mevzi: `hmg.js` (model, zırh, susturma) + `enemy.js` → `actMounted` (yay, dönüş, tarama, eğil–kalk, kuşatılınca inme). Seviye `enemies.hmg` kadarını haritanın `hmg` listesinden sırayla kurar. Kalkan zırhı `EnemyManager.armor`; oyuncu/dost mermisi orada durur.
+- Manga kademesi `config.js` → `ALLY_TIERS` (seviyenin `allyTier`'ı): değerler ve açık taktikler; taktik kodu `ally.js`. Manganın el bombası oyuncuyu ve dostları yaralamaz.
 - Dost askerler (`ally.js`) düşmanın gördüğü hedef arayüzünü (pos, alive, headPos, chestPos, takeDamage…) oyuncuyla aynı biçimde sunar; düşman `foe` alanında oyuncuyu ya da bir dostu tutar. Oyuncunun mermisi ve patlayıcısı dostu yaralamaz.
-- Testler: `SMOKE_ONLY=levels,range npm test` gibi yalnızca bazı bölümler koşturulabilir.
+- Testler: `SMOKE_ONLY=levels,maps npm test` gibi yalnızca bazı bölümler koşturulabilir (visual, mission, levels, interact, maps, range, artifact, mobile). `maps` bölümü her seviyede hedeflere yol ve düşman yerleşimini, mevzi davranışını ve manga kademelerini dener. Yazılımsal GPU'da oyun saati yavaş ilerler; ölçümleri kare beklemeden doğrudan çağrıyla yap.
 - Açılış ve harita yükleme `window.__boot` (shell.html'deki bekçi) üzerinden aşama gösterir; hata yükleme ekranına yazılır, sessizce asılı kalmamalı.

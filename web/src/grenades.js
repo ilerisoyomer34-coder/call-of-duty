@@ -139,7 +139,7 @@ export class GrenadeSystem {
   dangerNear(pos, radius) {
     const out = [];
     for (const g of this.list) {
-      if (g.owner === 'player') continue;
+      if (g.owner === 'player' || g.owner === 'ally') continue;
       if (g.pos.distanceTo(pos) < radius) out.push(g);
     }
     return out;
@@ -158,13 +158,13 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
     if (d < radius) {
       const los = W.lineOfSight(pos, c) || W.lineOfSight(pos, P.headPos(new THREE.Vector3()));
       const f = Math.pow(1 - d / radius, 1.4) * (los ? 1 : 0.2);
-      // Oyuncunun kendi bombası daha az acıtır ama yine tehlikeli
+      // Oyuncunun kendi bombası daha az acıtır ama yine tehlikeli; manganın bombası oyuncuyu yaralamaz
       const mult = owner === 'player' ? 0.7 : game.difficulty.damageMult;
-      if (f > 0.01) P.takeDamage(damage * f * mult, pos);
+      if (f > 0.01 && owner !== 'ally') P.takeDamage(damage * f * mult, pos);
     }
   }
-  // Dost askerler: düşman patlamasından etkilenir, oyuncunun patlamasından değil (dost ateşi kapalı)
-  if (owner !== 'player') {
+  // Dost askerler: düşman patlamasından etkilenir, oyuncunun ve manganın patlamasından değil (dost ateşi kapalı)
+  if (owner !== 'player' && owner !== 'ally') {
     for (const a of game.allies.list) {
       if (!a.alive) continue;
       const c = a.chestPos(_v);
@@ -184,7 +184,8 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
     const f = Math.pow(1 - d / radius, 1.1) * (los ? 1 : 0.25);
     if (f < 0.01) continue;
     const dir = new THREE.Vector3().subVectors(c, pos).normalize();
-    const out = e.takeDamage(damage * f * (owner === 'player' ? 1.3 : 0.8), { zone: 'torso', dir, point: c.clone(), source: owner === 'player' ? 'player' : 'env', weapon: 'explosion' });
+    const src = owner === 'player' ? 'player' : owner === 'ally' ? 'ally' : 'env';
+    const out = e.takeDamage(damage * f * (owner === 'player' ? 1.3 : 0.8), { zone: 'torso', dir, point: c.clone(), source: src, weapon: 'explosion' });
     if (out.killed && owner === 'player') result.kills++;
     if (owner === 'player') hitAny = true;
   }

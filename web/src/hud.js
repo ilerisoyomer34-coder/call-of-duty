@@ -2,7 +2,7 @@
 // konuma bağlı öğeler (nişangah, pusula, işaretçiler, mini harita, hasar yönü, düşman farkındalık ikonları).
 import * as THREE from 'three';
 import { DEG, clamp } from './util.js';
-import { WEAPONS } from './config.js';
+import { WEAPONS, MAPS, ALLY_TIERS } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -80,6 +80,11 @@ export class HUD {
     E.on('pickup', (text) => this.feed(text, false));
     E.on('interact', (target, k) => this.setInteract(target, k));
     E.on('noAmmo', () => this.message('CEPHANE YOK', 'warn'));
+    // Mevzi ateş açtı: bir kez büyük uyarı; mini haritada kalıcı işaret
+    E.on('hmgFire', () => this.message('AĞIR MAKİNELİ ATEŞİ · SİPER AL', 'warn'));
+    // Dostun bildirdiği düşman kısa süre işaretli kalır
+    this.marks = new Map();
+    E.on('allyMark', (enemy, time) => this.marks.set(enemy, this.game.time + time));
     E.on('friendlyFire', () => {
       // Dost asker vuruldu: uyarı sık sık tekrarlanmasın
       if (this.game.time - this.ffT < 2) return;
@@ -90,6 +95,15 @@ export class HUD {
 
   show(on) {
     this.root.hidden = !on;
+  }
+
+  // Yeni seviye: önceki seviyeden kalan telsiz yazısı, mesaj, işaretler ve etiketler görünmesin
+  resetTransient() {
+    this.radioT = 0;
+    this.el.radio.className = '';
+    this.el.message.className = '';
+    this.marks.clear();
+    for (const el of [...this.allyPool, ...this.iconPool, ...this.markerPool]) el.hidden = true;
   }
 
   applySettings(S) {
@@ -252,9 +266,11 @@ export class HUD {
     // Seviye kartı: numara ve zorluk, ad, manga büyüklüğü
     const L = this.game.level;
     if (L) {
-      c.children[0].textContent = `SEVİYE ${L.id} · ${L.tag.toLocaleUpperCase('tr-TR')} · KIZILKUM VADİSİ`;
+      const map = MAPS[L.map]?.name || '';
+      const rank = ALLY_TIERS[L.allyTier || 1]?.rank || '';
+      c.children[0].textContent = `SEVİYE ${L.id} · ${L.tag} · ${map}`.toLocaleUpperCase('tr-TR');
       c.children[1].textContent = L.name.toLocaleUpperCase('tr-TR');
-      c.children[2].textContent = L.allies ? `Kartal ekibi · ${L.allies} dost asker seninle` : 'Kartal-1 · tek başına';
+      c.children[2].textContent = L.allies ? `Kartal ekibi · ${L.allies} ${rank.toLocaleLowerCase('tr-TR')} seninle` : 'Kartal-1 · tek başına';
     }
     c.classList.remove('on');
     void c.offsetWidth;
@@ -360,6 +376,11 @@ export class HUD {
       const left = g.enemies.list.filter((e) => e.alive && e.group === obj.group);
       if (left.length <= 2) for (const e of left) markers.push({ p: e.pos.clone().setY(e.pos.y + 2.2), enemy: true });
     }
+    // Manganın bildirdiği düşmanlar
+    for (const [e, until] of this.marks) {
+      if (!e.alive || g.time > until) this.marks.delete(e);
+      else markers.push({ p: e.pos.clone().setY(e.pos.y + 2.2), enemy: true });
+    }
     let used = 0;
     let compassSet = false;
     for (const mk of markers) {
@@ -451,7 +472,7 @@ export class HUD {
       at++;
       el.hidden = false;
       el.classList.toggle('down', a.down);
-      const txt = a.down ? `${a.name} · YARALI` : a.name;
+      const txt = a.down ? `${a.rankName} · YARALI` : a.rankName;
       if (el.firstChild.textContent !== txt) el.firstChild.textContent = txt;
       el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
       el.style.opacity = String(clamp(1.2 - d / ALLY_TAG_RANGE, 0.4, 1));
@@ -577,6 +598,22 @@ export class HUD {
       ctx.beginPath();
       ctx.arc(x, z, 5, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // Kendini belli etmiş ağır makineli mevzileri: kırmızı üçgen (susturulunca kaybolur)
+    for (const n of g.mission?.nests || []) {
+      if (!n.warned || n.wrecked || !n.gunner.alive || n.gunner.mount !== n) continue;
+      const [x, z] = toMap(n.pos.x, n.pos.z);
+      ctx.save();
+      ctx.translate(x, z);
+      ctx.rotate(-P.yaw);
+      ctx.fillStyle = '#ff5a3c';
+      ctx.beginPath();
+      ctx.moveTo(0, -7);
+      ctx.lineTo(6.5, 5);
+      ctx.lineTo(-6.5, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
     for (const mk of markers) {
       const [x, z] = toMap(mk.p.x, mk.p.z);

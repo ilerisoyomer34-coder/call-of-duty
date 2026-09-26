@@ -3,10 +3,12 @@
 // savunma dalgaları, helikopterle tahliye ve atış poligonu modu.
 import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
-import { buildAAGun, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildWeapon, mat } from './models.js';
-import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS } from './config.js';
+import { nestRing } from './maps/kit.js';
+import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildWeapon, mat } from './models.js';
+import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG } from './config.js';
+import { HeavyNest } from './hmg.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
-import { rand, lerp, clamp, smoothstep, pick } from './util.js';
+import { rand, lerp, clamp, smoothstep, pick, dirToYaw } from './util.js';
 
 const _v = new THREE.Vector3();
 // Operasyonun kronolojik hedef sırası: bir seviyenin ilk hedefinden öncekiler yapılmış sayılır
@@ -139,13 +141,30 @@ class WeaponPickup {
   }
 }
 
+// C4 ile imha edilen hedef: uçaksavar topu (göğe ateş eder) ya da yakıt pompası (kind: 'pump')
+// Sürekli ateş: alev dili (toplamalı parçacık) + yükselen duman
+function fireEmitter(p, k) {
+  return {
+    rate: 26 * k,
+    spawn: (fx) => {
+      const c = fx._c.setRGB(1, rand(0.35, 0.65), 0.12);
+      fx.add.spawn(p.x + rand(-0.4, 0.4) * k, p.y + rand(0, 0.4) * k, p.z + rand(-0.4, 0.4) * k, rand(-0.3, 0.3), rand(2, 4) * k, rand(-0.3, 0.3), rand(0.4, 0.8), 1.1 * k, 0.4 * k, c, 0.9, -1, 0.5);
+      if (Math.random() < 0.35) {
+        const gg = rand(0.06, 0.14);
+        fx.smoke.spawn(p.x + rand(-0.5, 0.5), p.y + 1.5 * k, p.z + rand(-0.5, 0.5), rand(0.3, 1), rand(2, 3.5), rand(-0.3, 0.3), rand(5, 8), 1.2 * k, 6 * k, fx._c.setRGB(gg, gg, gg), 0.55, -0.1, 0.1);
+      }
+    },
+  };
+}
+
 class AAGun {
   constructor(game, def) {
     this.game = game;
     this.def = def;
     this.id = def.id;
+    this.kind = def.kind || 'aa';
     this.pos = def.pos.clone();
-    const m = buildAAGun();
+    const m = this.kind === 'pump' ? buildFuelPump() : buildAAGun();
     this.model = m;
     m.root.position.copy(def.pos);
     m.root.rotation.y = def.yaw;
@@ -175,7 +194,7 @@ class AAGun {
     if (this.destroyed) return;
     // Göğe doğru uçaksavar ateşi: uzaktan hedefi belli eder
     const dist = this.pos.distanceTo(g.player.pos);
-    if (!this.planted && dist < 170) {
+    if (!this.planted && dist < 170 && this.kind === 'aa') {
       this.model.turret.rotation.y = Math.sin(g.time * 0.2 + this.pos.x) * 0.8;
       this.fireT -= dt;
       if (this.fireT <= 0) {
@@ -272,8 +291,12 @@ export class Mission {
   build() {
     const g = this.game;
     const W = g.world;
-    this.data = this.mode === 'range' ? buildRange(W) : buildMission(W);
+    this.data = this.mode === 'range' ? buildRange(W) : buildMission(W, this.level.map);
     const D = this.data;
+    // Ağır makineli mevzileri: seviyenin istediği kadarı, haritanın listesinden sırayla (kum torbaları dünyaya
+    // birleştirilmeden önce eklenmeli)
+    const nestDefs = this.mode === 'range' ? [] : (D.hmg || []).slice(0, this.level.enemies?.hmg || 0);
+    for (const n of nestDefs) nestRing(W, n.pos.x, n.pos.z, n.yaw);
     W.finalize();
     g.buildNav();
     g.barrels = (D.barrels || []).map((p) => new Barrel(g, p));
@@ -299,8 +322,8 @@ export class Mission {
       this.buildRangeMode();
       return;
     }
-    // Uçaksavarlar
-    this.aa = D.aaGuns.map((def) => new AAGun(g, def));
+    // Uçaksavarlar / pompalar
+    this.aa = (D.aaGuns || []).map((def) => new AAGun(g, def));
     for (const gun of this.aa) {
       this.interactables.push({
         id: gun.id, pos: gun.pos.clone().setY(1), radius: 2.9, prompt: 'C4 yerleştir', time: C4.plantTime,
@@ -308,17 +331,21 @@ export class Mission {
         action: () => gun.plant(),
       });
     }
-    // İstihbarat dizüstü
-    const lap = buildLaptop();
-    lap.root.position.copy(D.laptop.pos);
-    lap.root.rotation.y = D.laptop.yaw;
-    g.scene.add(lap.root);
-    this.laptop = lap;
-    this.interactables.push({
-      id: 'intel', pos: D.laptop.pos.clone(), radius: 2.0, prompt: 'İstihbaratı indir', time: 2.6,
-      enabled: () => !this.intel && this.current?.id === 'intel',
-      action: () => this.onIntel(),
-    });
+    // İstihbarat dizüstü (haritada istihbarat hedefi varsa)
+    if (D.laptop) {
+      const lap = buildLaptop();
+      lap.root.position.copy(D.laptop.pos);
+      lap.root.rotation.y = D.laptop.yaw;
+      g.scene.add(lap.root);
+      this.laptop = lap;
+      this.interactables.push({
+        id: 'intel', pos: D.laptop.pos.clone(), radius: 2.0, prompt: 'İstihbaratı indir', time: 2.6,
+        enabled: () => !this.intel && this.current?.id === 'intel',
+        action: () => this.onIntel(),
+      });
+    }
+    // Sürekli yanan ateşler (rafineri bacası, yanan araçlar): yalnızca parçacık, ışık eklemez
+    for (const f of D.fires || []) g.effects.addEmitter(fireEmitter(f.pos, f.size || 1));
     // Haritaya dağıtılmış silahlar
     this.pickups3 = (D.weaponPickups || []).map((p) => new WeaponPickup(this, p.id, p.pos, p.rotY));
     // Seviye: hangi düşman grupları, hangi hedefler, nereden başlanır
@@ -332,7 +359,7 @@ export class Mission {
         this.destroyed.add(gun.id);
       }
     }
-    if (first > OBJECTIVE_ORDER.indexOf('intel')) {
+    if (first > OBJECTIVE_ORDER.indexOf('intel') && this.laptop) {
       this.intel = true;
       this.laptop.screen.material.emissive.setHex(0xd63d3d);
     }
@@ -342,7 +369,8 @@ export class Mission {
       if (s.hardType && (E.hardTypes || g.difficultyKey === 'hard')) s.type = s.hardType;
       g.enemies.spawn(s);
     });
-    this.waves = E.extraWave ? [...D.waves, D.extraWave] : D.waves;
+    this.nests = nestDefs.map((n, i) => new HeavyNest(g, n, i));
+    this.waves = E.extraWave && D.extraWave ? [...D.waves, D.extraWave] : D.waves;
     this.defendTime = L.defendTime || D.defendTime;
     // Hedefler
     const defs = this.objectiveDefs();
@@ -350,7 +378,7 @@ export class Mission {
     this.objIdx = 0;
     const cp = D.checkpoints[L.start] || D.checkpoints[0];
     g.player.reset(cp.pos, cp.yaw);
-    g.allies.spawnSquad(L.allies, cp.pos, cp.yaw);
+    g.allies.spawnSquad(L.allies, cp.pos, cp.yaw, L.allyTier || 1);
     this.saveCheckpoint(L.start, true);
     // Açılış telsizi
     this.radio('YUVA', `Kartal ekibi, burası Yuva. ${L.radioIntro}`, 1.5);
@@ -360,24 +388,30 @@ export class Mission {
   }
 
   // Hedef tablosu: seviyeler buradan sıra seçer. cp: hedef başlarken kaydedilen kontrol noktası,
-  // start(first): hedef başlarken çalışan telsiz ve ayarlar, skip: hata ayıklamada hedef atlanınca yapılacaklar
+  // start(first): hedef başlarken çalışan telsiz ve ayarlar, skip: hata ayıklamada hedef atlanınca yapılacaklar.
+  // Metinler, işaretçiler ve telsiz haritanın verisinden (D.obj) gelir: yeni harita yeni kod gerektirmez
   objectiveDefs() {
-    const g = this.game;
     const D = this.data;
+    const O = D.obj || {};
+    // Hedefin açılış telsizi: ilk hedefse brifingden sonra, değilse önceki hedefin "tamam" cümlesiyle hemen
+    const say = (id, first) => {
+      const lines = O[id]?.radio || [];
+      const prev = this.objectives[this.objIdx - 1];
+      const done = !first && prev ? O[prev.id]?.doneLine || '' : '';
+      lines.forEach((t, i) => this.radio('YUVA', i === 0 ? `${done}${t}` : t, first ? 5.5 + i * 6.5 : 1.2 + i * 6));
+    };
+    const outpost = O.outpost || {};
     return {
       outpost: {
-        id: 'outpost', text: 'Kontrol noktasını temizle', group: 'outpost', cp: 0,
-        marker: () => new THREE.Vector3(0, 1.5, 66),
-        start: () => this.radio('YUVA', 'İlk hedef kuzeydeki kontrol noktası. Temizle ve yolu aç.', 5.5),
-        skip: () => this.killGroup('outpost'),
+        id: 'outpost', text: outpost.text || 'Bölgeyi temizle', group: outpost.group || 'outpost', cp: 0,
+        marker: () => outpost.marker?.clone() || null,
+        start: (first) => say('outpost', first),
+        skip: () => this.killGroup(outpost.group || 'outpost'),
       },
       aa: {
-        id: 'aa', text: 'Uçaksavar toplarını C4 ile imha et', cp: 1,
+        id: 'aa', text: O.aa?.text || 'Hedefleri C4 ile imha et', cp: 1,
         marker: () => this.aa.filter((a) => !a.destroyed).map((a) => a.pos.clone().setY(2.5)),
-        start: (first) => {
-          this.radio('YUVA', `${first ? '' : 'Kontrol noktası temiz. '}Köydeki iki uçaksavar topu hava desteğimizi engelliyor. İkisini de C4 ile patlat.`, first ? 5.5 : 1.2);
-          this.radio('YUVA', 'Toplar göğe ateş ediyor, izli mermilerden yerlerini görebilirsin.', first ? 12 : 7);
-        },
+        start: (first) => say('aa', first),
         skip: () => {
           for (const a of this.aa) {
             if (a.destroyed) continue;
@@ -387,24 +421,22 @@ export class Mission {
         },
       },
       intel: {
-        id: 'intel', text: 'Komuta merkezinden istihbaratı al', cp: 3,
+        id: 'intel', text: O.intel?.text || 'İstihbaratı al', cp: 3,
         marker: () => D.laptop.pos.clone().setY(1.2),
-        start: (first) => {
-          this.radio('YUVA', `${first ? '' : 'Gökyüzü temiz! '}Güneydeki kapıdan komuta merkezine gir ve binadaki istihbaratı al.`, first ? 5.5 : 1.2);
-          this.radio('YUVA', 'Kulede bir keskin nişancı var. Kırmızı lazeri görürsen siper al.', first ? 12 : 8);
-        },
+        start: (first) => say('intel', first),
         skip: () => {
           this.intel = true;
         },
       },
-      lz: { id: 'lz', text: 'İniş bölgesine ulaş', cp: 4, marker: () => D.lz.clone().setY(1) },
+      lz: { id: 'lz', text: O.lz?.text || 'İniş bölgesine ulaş', cp: 4, marker: () => D.lz.clone().setY(1), start: (first) => say('lz', first) },
       defend: {
         id: 'defend', text: 'Helikopter gelene kadar iniş bölgesini savun', cp: 5,
         marker: () => D.lz.clone().setY(1),
         start: (first) => {
           this.defendT = 0;
           this.wavesSpawned = 0;
-          this.radio('YUVA', 'Helikopter yolda. Bölgeyi tut, düşman dört bir yandan geliyor!', first ? 5.5 : 0.5);
+          const line = O.defend?.radio?.[0] || 'Helikopter yolda. Bölgeyi tut!';
+          this.radio('YUVA', line, first ? 5.5 : 0.5);
         },
       },
       board: {
@@ -455,8 +487,8 @@ export class Mission {
     if (!o) return { title: '', detail: '' };
     const g = this.game;
     let detail = '';
-    if (o.id === 'outpost') detail = `Kalan düşman: ${g.enemies.aliveInGroup('outpost')}`;
-    else if (o.id === 'aa') detail = `${this.destroyed.size}/2 imha edildi`;
+    if (o.id === 'outpost') detail = `Kalan düşman: ${g.enemies.aliveInGroup(o.group)}`;
+    else if (o.id === 'aa') detail = `${this.destroyed.size}/${this.aa.length} imha edildi`;
     else if (o.id === 'defend') detail = `Helikopter: ${Math.max(0, Math.ceil(this.defendTime - this.defendT))} sn`;
     else if (o.id === 'lz' || o.id === 'board' || o.id === 'intel') detail = '';
     return { title: o.text, detail, index: this.objIdx + 1, total: this.objectives.length };
@@ -477,6 +509,7 @@ export class Mission {
       objIdx: this.objIdx,
       dead: new Set(g.enemies.list.filter((e) => !e.alive).map((e) => e.id)),
       destroyed: new Set(this.destroyed),
+      wrecked: new Set((this.nests || []).filter((n) => n.wrecked).map((n) => n.id)),
       intel: this.intel,
       loadout: g.weapons.owned && Object.keys(g.weapons.owned).length ? g.weapons.snapshot() : null,
       spawnedIds: new Set(g.enemies.list.map((e) => e.id)),
@@ -490,6 +523,8 @@ export class Mission {
   restoreCheckpoint() {
     const g = this.game;
     const C = this.checkpoint;
+    // Mevziler: kontrol noktasından sonra susturulanlar yeniden çalışır (nişancı reset'te başına geçer)
+    for (const n of this.nests || []) n.restore(C.wrecked.has(n.id));
     // Kontrol noktasından sonra doğan düşmanları kaldır
     const keep = [];
     for (const e of g.enemies.list) {
@@ -584,8 +619,13 @@ export class Mission {
     }
   }
 
-  // Roket ya da el bombası uçaksavarın dibinde patlarsa top da imha olur
+  // Roket ya da el bombası uçaksavarın dibinde patlarsa top da imha olur; mevzinin yanında patlarsa makineli susar
   onExplosion(pos, radius, damage, owner) {
+    if (this.nests && owner !== 'enemy' && damage >= HMG.silenceDamage) {
+      for (const n of this.nests) {
+        if (!n.wrecked && n.pivot(_v).distanceTo(pos) < HMG.silenceRadius) n.silence();
+      }
+    }
     if (!this.aa || owner !== 'player' || damage < 200 || this.current?.id !== 'aa') return;
     for (const gun of this.aa) {
       if (!gun.destroyed && !gun.planted && gun.pos.distanceTo(pos) < 3.6) gun.detonate();
@@ -615,10 +655,11 @@ export class Mission {
     this.destroyed.add(id);
     g.addScore(SCORE.objective, 'HEDEF İMHA EDİLDİ');
     g.events.emit('objective', this.currentText());
-    if (this.destroyed.size >= 2 && this.current?.id === 'aa') {
+    if (this.destroyed.size >= this.aa.length && this.current?.id === 'aa') {
       this.advance();
     } else {
-      this.radio('YUVA', 'Güzel iş, bir top gitti. Diğerini de bul.', 1);
+      const left = this.aa.length - this.destroyed.size;
+      this.radio('YUVA', this.data.obj?.aa?.one || `Güzel iş, biri gitti. Kalan: ${left}.`, 1);
       this.saveCheckpoint(2);
     }
   }
@@ -629,7 +670,7 @@ export class Mission {
     this.laptop.screen.material.emissive.setHex(0xd63d3d);
     g.audio.siren(9);
     g.events.emit('message', 'İSTİHBARAT ALINDI', 'info');
-    this.radio('YUVA', 'Dosyalar elimizde! Alarm çaldı, takviye geliyor. Kuzey kapısından çık ve iniş bölgesine ilerle.', 0.8);
+    this.radio('YUVA', this.data.obj?.intel?.got || 'Dosyalar elimizde! Alarm çaldı, iniş bölgesine ilerle.', 0.8);
     if (this.level.enemies.reinforcements) this.spawnReinforcements();
     this.advance();
   }
@@ -649,7 +690,7 @@ export class Mission {
       const e = g.enemies.spawn({ ...u, id: `w${i}_${k}`, group: 'wave', rush: true, rushTarget: this.data.lz.clone() });
       e.lastKnown.copy(g.player.pos);
     });
-    const calls = ['Güneyden hareket var!', 'Doğu ve batıdan yeni bir grup!', 'Ağır makineli dahil büyük bir grup geliyor!', 'Son dalga! İki ağır makineli yanlardan, hücumcular önden!'];
+    const calls = this.data.waveCalls || ['Yeni bir grup geliyor!'];
     this.radio('YUVA', calls[i] || calls[calls.length - 1], 0.2);
   }
 
@@ -694,6 +735,7 @@ export class Mission {
     for (const b of g.barrels) b.update(dt);
     if (this.pickups3) for (const p of this.pickups3) p.update(this.time);
     if (this.aa) for (const a of this.aa) a.update(dt);
+    if (this.nests) for (const n of this.nests) n.update(dt);
     // Yerden toplama
     const P = g.player;
     for (let i = this.pickups.length - 1; i >= 0; i--) {
@@ -728,7 +770,7 @@ export class Mission {
     if (!o) return;
     switch (o.id) {
       case 'outpost': {
-        const left = g.enemies.aliveInGroup('outpost');
+        const left = g.enemies.aliveInGroup(o.group);
         if (left !== this.lastLeft) {
           this.lastLeft = left;
           g.events.emit('objective', this.currentText());
@@ -774,18 +816,22 @@ export class Mission {
     const g = this.game;
     const h = buildHelicopter();
     g.scene.add(h.root);
-    this.heli = { ...h, t: 0, landed: false };
-    h.root.position.set(0, 45, 160);
-    h.root.rotation.y = 0;
+    // Helikopter haritanın verdiği yönden gelir (varsayılan: güneyden, haritanın üstünden)
+    const lz = this.data.lz;
+    const from = this.data.heliFrom || new THREE.Vector3(lz.x, 0, 160);
+    const yaw = dirToYaw(lz.x - from.x, lz.z - from.z);
+    this.heli = { ...h, t: 0, landed: false, from: from.clone(), yaw };
+    h.root.position.set(from.x, 45, from.z);
+    h.root.rotation.y = yaw;
     g.audio.startRotor();
     this.radio('PİLOT', 'Kartal-1, burası Şahin-2. İniş bölgesini görüyorum, alçalıyorum!', 0);
-    const lz = this.data.lz;
+    const dust = g.env?.dust ?? 0xcbb08a;
     this.heliDust = g.effects.addEmitter({
       rate: 0,
       spawn: (fx) => {
         const a = Math.random() * Math.PI * 2;
         const r = rand(2, 6);
-        fx.smoke.spawn(lz.x + Math.cos(a) * r, 0.3, lz.z + Math.sin(a) * r, Math.cos(a) * rand(6, 12), rand(0.3, 1.5), Math.sin(a) * rand(6, 12), rand(1.2, 2.2), 1.5, 5, fx._c.setHex(0xcbb08a), 0.5, 0, 1.5);
+        fx.smoke.spawn(lz.x + Math.cos(a) * r, 0.3, lz.z + Math.sin(a) * r, Math.cos(a) * rand(6, 12), rand(0.3, 1.5), Math.sin(a) * rand(6, 12), rand(1.2, 2.2), 1.5, 5, fx._c.setHex(dust), 0.5, 0, 1.5);
       },
     });
   }
@@ -796,13 +842,18 @@ export class Mission {
     const g = this.game;
     H.t += dt;
     const lz = this.data.lz;
-    // Güneyden gelip iniş bölgesine süzülerek alçal
+    // Geliş yönünden iniş bölgesine süzülerek alçal (pistin 3 m gerisine konar)
     const dur = 20;
     const k = clamp(H.t / dur, 0, 1);
-    const e = smoothstep(k);
-    const z = lerp(160, lz.z + 3, Math.min(1, e * 1.15));
+    const e = Math.min(1, smoothstep(k) * 1.15);
+    const dx = lz.x - H.from.x;
+    const dz = lz.z - H.from.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const endX = lz.x - (dx / len) * 3;
+    const endZ = lz.z - (dz / len) * 3;
     const y = k < 0.7 ? lerp(45, 14, smoothstep(k / 0.7)) : lerp(14, 0.05, smoothstep((k - 0.7) / 0.3));
-    H.root.position.set(lz.x + Math.sin(H.t * 0.6) * (1 - k) * 4, y, z);
+    const sway = Math.sin(H.t * 0.6) * (1 - k) * 4;
+    H.root.position.set(lerp(H.from.x, endX, e) + (dz / len) * sway, y, lerp(H.from.z, endZ, e) - (dx / len) * sway);
     H.root.rotation.x = k < 0.85 ? 0.12 * (1 - k) : 0;
     H.root.rotation.z = Math.sin(H.t * 0.8) * 0.04 * (1 - k);
     H.rotor.rotation.y += dt * 28;

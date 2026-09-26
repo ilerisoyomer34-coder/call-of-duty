@@ -598,6 +598,13 @@ export class PlayerWeapons {
       r.point = ah.point;
       r.dist = ah.dist;
       maxD = ah.dist;
+    } else if (eh?.armor) {
+      // Mevzi kalkanı: metal kıvılcım, hasar yok
+      r.point = eh.point.clone();
+      r.normal = eh.normal;
+      r.surface = 'metal';
+      r.dist = eh.dist;
+      maxD = eh.dist;
     } else if (eh) {
       r.enemy = eh.enemy;
       r.zone = eh.zone;

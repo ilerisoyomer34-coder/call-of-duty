@@ -1,5 +1,5 @@
 // Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
-import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS } from './config.js';
+import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS } from './config.js';
 import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
@@ -163,11 +163,30 @@ export class Menus {
       d.textContent = L.brief;
       const m = document.createElement('div');
       m.className = 'm';
-      if (locked) m.textContent = `Kilitli · önce Seviye ${L.id - 1}'i bitir`;
+      const tier = ALLY_TIERS[L.allyTier || 1];
+      const map = document.createElement('em');
+      map.textContent = MAPS[L.map]?.name || '';
+      if (locked) m.append('Harita: ', map, ` · Kilitli · önce Seviye ${L.id - 1}'i bitir`);
       else {
         const squad = document.createElement('em');
-        squad.textContent = `${L.allies} dost asker`;
-        m.append('Manga: ', squad);
+        squad.textContent = `${L.allies} × ${tier.rank}`;
+        m.append('Harita: ', map, ' · Manga: ', squad);
+        const hmg = L.enemies.hmg || 0;
+        if (hmg) {
+          const h = document.createElement('strong');
+          h.className = 'hmg';
+          h.textContent = `${hmg} makineli yuvası`;
+          m.append(' · ', h);
+        }
+        // Bu kademede açılan yeni taktikler (bir önceki seviyeye göre)
+        const prev = ALLY_TIERS[LEVELS.find((l) => l.id === L.id - 1)?.allyTier || 0];
+        const fresh = tier.tactics.filter((t) => !prev?.tactics.includes(t)).map((t) => TACTIC_LABELS[t]);
+        if (fresh.length) {
+          const t = document.createElement('div');
+          t.className = 't';
+          t.textContent = `Manga yeni taktik öğrendi: ${fresh.join(', ')}`;
+          m.append(t);
+        }
         const best = P.best[L.id];
         if (best) {
           const st = document.createElement('strong');
@@ -378,11 +397,15 @@ export class Menus {
   }
 
   showVictory(stats, diffLabel, level = null, next = null, firstClear = false) {
-    $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name}` : 'Tahliye başarılı · Kızılkum Vadisi';
+    $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name} · ${MAPS[level.map]?.name || ''}` : 'Tahliye başarılı';
     $('victoryTitle').textContent = next ? 'Seviye tamamlandı' : 'Operasyon tamamlandı';
     const un = $('victoryUnlock');
     un.hidden = !(firstClear && next);
-    if (next) un.textContent = `Yeni seviye açıldı: Seviye ${next.id} · ${next.name} (${next.tag})`;
+    if (next) {
+      // Sonraki seviyede manga terfi ediyorsa söyle: oyuncu ilerlemenin karşılığını görsün
+      const up = (next.allyTier || 1) > (level?.allyTier || 1) ? ` · Manga terfi etti: ${ALLY_TIERS[next.allyTier].rank}` : '';
+      un.textContent = `Yeni seviye açıldı: Seviye ${next.id} · ${next.name}, ${MAPS[next.map]?.name} (${next.tag})${up}`;
+    }
     $('btnNext').hidden = !next;
     const acc = stats.shots ? Math.round((stats.hits / stats.shots) * 100) : 0;
     const items = [

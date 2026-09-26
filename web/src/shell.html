@@ -226,6 +226,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .atag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 12px/1 var(--f-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--blue); text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,.6); white-space: nowrap; }
 .atag i { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--blue); filter: drop-shadow(0 1px 1px rgba(0,0,0,.8)); }
 .atag.down { color: var(--amber); }
+/* display: flex, hidden özniteliğini ezer: havuzdaki gizli etiket ve işaretçiler eski yerinde asılı kalmasın */
+.atag[hidden], .marker[hidden] { display: none; }
 .atag.down i { border-top-color: var(--amber); }
 #message { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); font: 700 28px/1 var(--f-ui); letter-spacing: .22em; text-shadow: 0 2px 6px #000; opacity: 0; white-space: nowrap; }
 #message.on { animation: msg 2.6s ease-out forwards; }
@@ -324,6 +326,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .lvl .m { font: 400 13px/1.3 var(--f-num); color: var(--sand-dim); }
 .lvl .m em { font-style: normal; color: var(--blue); }
 .lvl .m strong { font-weight: 400; color: var(--olive); }
+.lvl .m strong.hmg { color: var(--red); }
+.lvl .m .t { margin-top: 3px; color: var(--sand); }
 .lvl:disabled { cursor: not-allowed; opacity: .45; }
 .lvl:disabled .n { color: var(--sand-dim); }
 .seg { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--line); width: fit-content; max-width: 100%; }
@@ -523,7 +527,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
         <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
       </div>
       <div class="menuList" id="mainList">
-        <button class="mbtn primary" id="btnPlay">Göreve başla<small>Beş seviye, kolaydan zora · mavi mangan seninle</small></button>
+        <button class="mbtn primary" id="btnPlay">Göreve başla<small>Altı seviye, beş harita · kolaydan zora · mavi mangan seninle</small></button>
         <button class="mbtn" id="btnRange">Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></button>
         <button class="mbtn" id="btnSettings">Ayarlar</button>
         <button class="mbtn" id="btnControls">Kontroller</button>
@@ -535,7 +539,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
 
   <section id="diffScreen" class="screen panelScreen" hidden>
     <div class="sheet">
-      <div><div class="eyebrow">Göreve başla · Kızılkum Vadisi</div><h2>Seviye seç</h2></div>
+      <div><div class="eyebrow">Göreve başla · Kızılkum'dan gece rafinerisine</div><h2>Seviye seç</h2></div>
       <div class="levels" id="levelList"></div>
       <h3>Zorluk</h3>
       <div class="seg" id="diffList" role="radiogroup" aria-label="Zorluk"></div>

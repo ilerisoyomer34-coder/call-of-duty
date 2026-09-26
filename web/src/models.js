@@ -578,7 +578,7 @@ export function buildSoldier(type, colors) {
   if (C.scale) root.scale.setScalar(C.scale);
   return { root, pelvis, spine, head, helmet, legL, legR, meshes: bodyMeshes, muzzleLocal };
 }
-export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle' };
+export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle', gunner: 'rifle' };
 
 // --- Görev nesneleri ---
 export function buildAAGun() {
@@ -745,6 +745,120 @@ export function buildHelicopter() {
     if (o.isMesh) o.castShadow = true;
   });
   return { root, rotor, tail };
+}
+
+// Ağır makineli mevzi silahı ("AM-12 Mevzi Makineli", kurgusal). Kök: mevzi merkezi, zemin seviyesi.
+// yaw (Y ekseninde döner) → pitch (X ekseninde yükselir). Kalkan yaw düğümüne bağlı: silahla birlikte döner
+// ama namlu kalkınca eğilmez. armor: oyuncu/dost mermisini durduran görünmez kutular (kalkan, gövde).
+// points (pitch uzayında): muzzle, gripL/gripR (nişancının elleri; iki kürek tutamak)
+export function buildHeavyMG(H) {
+  const root = new THREE.Group();
+  const steel = mat(0x2c3032, 0.5, 0.65);
+  const dark = mat(0x181a1b, 0.55, 0.6);
+  const olive = mat(0x4a5238, 0.8, 0.3);
+  const brass = mat(0xb08a3a, 0.4, 0.8);
+  const h = H.pivotH;
+  // Sehpa: orta dikme + üç yayvan ayak
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, h - 0.12, 8), steel);
+  post.position.y = (h - 0.12) / 2;
+  root.add(post);
+  for (const [x, z] of [[-0.55, -0.5], [0.55, -0.5], [0, 0.75]]) {
+    const len = Math.hypot(x, z, 0.62);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, len, 6), steel);
+    leg.position.set(x / 2, 0.31, z / 2);
+    leg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-x, 0.62, -z).normalize());
+    root.add(leg);
+  }
+  const yaw = new THREE.Group();
+  yaw.position.y = h;
+  root.add(yaw);
+  B(yaw, 0.26, 0.1, 0.26, steel, 0, -0.08, 0); // döner tabla
+  B(yaw, 0.05, 0.22, 0.12, steel, -0.13, 0, 0); // beşik yanakları
+  B(yaw, 0.05, 0.22, 0.12, steel, 0.13, 0, 0);
+  // Kalkan: ortada namlu için boşluk, iki plaka; hafif geriye yatık
+  const S = H.shield;
+  const sy = S.y - h + S.h / 2;
+  const plateW = (S.w - 0.14) / 2;
+  for (const sx of [-1, 1]) B(yaw, plateW, S.h, 0.035, olive, sx * (0.07 + plateW / 2), sy, -S.ahead, 0.12);
+  B(yaw, 0.14, S.h * 0.35, 0.035, olive, 0, sy - S.h * 0.32, -S.ahead, 0.12);
+  const pitch = new THREE.Group();
+  yaw.add(pitch);
+  // Gövde, kapak, soğutma ceketi (delikli görünüm için halkalar), namlu, ağız freni
+  B(pitch, 0.19, 0.2, 0.78, dark, 0, 0.02, 0.1);
+  B(pitch, 0.2, 0.05, 0.5, steel, 0, 0.14, 0.05);
+  cylZ(pitch, 0.058, 0.95, steel, 0, 0.02, -0.76, 14);
+  for (let i = 0; i < 6; i++) cylZ(pitch, 0.064, 0.03, dark, 0, 0.02, -0.38 - i * 0.15, 14);
+  cylZ(pitch, 0.024, 0.34, dark, 0, 0.02, -1.38, 8);
+  cylZ(pitch, 0.045, 0.1, steel, 0, 0.02, -1.58, 8);
+  // Arka plaka ve iki kürek tutamak
+  B(pitch, 0.24, 0.16, 0.04, steel, 0, 0.0, 0.5);
+  for (const sx of [-1, 1]) {
+    B(pitch, 0.03, 0.03, 0.14, steel, sx * 0.1, -0.02, 0.56);
+    B(pitch, 0.035, 0.12, 0.035, dark, sx * 0.1, -0.02, H.gripBack);
+  }
+  // Gez-arpacık, fişek kutusu, şerit
+  B(pitch, 0.02, 0.07, 0.02, steel, 0, 0.1, -1.2);
+  B(pitch, 0.05, 0.08, 0.05, steel, 0, 0.19, 0.3);
+  B(pitch, 0.2, 0.2, 0.3, olive, -0.22, -0.06, 0.0);
+  B(pitch, 0.08, 0.02, 0.16, brass, -0.12, 0.05, 0.0, 0, 0, 0.5);
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  // Zırh (görünmez): kalkan yaw ile döner, gövde pitch ile
+  const armor = [];
+  const shieldBox = new THREE.Mesh(boxGeo(S.w, S.h, 0.08), steel);
+  shieldBox.position.set(0, sy, -S.ahead);
+  shieldBox.visible = false;
+  yaw.add(shieldBox);
+  armor.push(shieldBox);
+  const bodyBox = new THREE.Mesh(boxGeo(0.22, 0.24, 1.9), steel);
+  bodyBox.position.set(0, 0.02, -0.45);
+  bodyBox.visible = false;
+  pitch.add(bodyBox);
+  armor.push(bodyBox);
+  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  return { root, yaw, pitch, armor, points: { muzzle: v(0, 0.02, -1.64), gripL: v(-0.1, -0.02, H.gripBack), gripR: v(0.1, -0.02, H.gripBack) } };
+}
+
+// Rafineri yakıt pompası (C4 hedefi; uçaksavar yerine). AAGun ile aynı parça adları: turret (motor), guns (boru)
+export function buildFuelPump() {
+  const root = new THREE.Group();
+  const yellow = mat(0xc8962a, 0.6, 0.4);
+  const steel = mat(0x7a8084, 0.45, 0.7);
+  const dark = mat(0x26292b, 0.6, 0.5);
+  const red = mat(0x8e2418, 0.6, 0.35);
+  B(root, 3.0, 0.3, 2.0, dark, 0, 0.15, 0); // kızak
+  const turret = new THREE.Group();
+  turret.position.y = 0.3;
+  root.add(turret);
+  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.3, 14), yellow);
+  motor.rotation.z = Math.PI / 2;
+  motor.position.set(-0.6, 0.55, 0);
+  turret.add(motor);
+  for (let i = 0; i < 5; i++) B(turret, 0.04, 1.0, 1.0, yellow, -1.1 + i * 0.25, 0.55, 0); // soğutma kanatları
+  B(turret, 0.9, 0.9, 0.9, steel, 0.55, 0.45, 0); // pompa gövdesi
+  const guns = new THREE.Group();
+  guns.position.set(0.55, 0.9, 0);
+  turret.add(guns);
+  const pipeV = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.6, 10), steel);
+  pipeV.position.y = 0.8;
+  guns.add(pipeV);
+  cylZ(guns, 0.16, 2.2, steel, 0, 1.55, 0.9, 10);
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.04, 6, 16), red);
+  wheel.position.set(0, 1.1, -0.3);
+  guns.add(wheel);
+  // Uyarı şeritleri
+  for (let i = 0; i < 4; i++) B(root, 0.3, 0.02, 2.02, i % 2 ? dark : yellow, -1.35 + i * 0.3, 0.31, 0);
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  return { root, turret, guns };
 }
 
 export function buildShotgunPickup() {

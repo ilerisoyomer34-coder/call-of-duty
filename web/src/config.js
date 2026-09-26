@@ -473,6 +473,8 @@ export const ENEMY_WEAPONS = {
   shotgun: { rpm: 80, damage: 9, magSize: 6, reload: 2.8, burst: [1, 1], burstGap: [0.7, 1.0], pellets: 7, spreadDeg: 5, range: 22, sound: 'enemyShotgun', noise: 70 },
   lmg: { rpm: 700, damage: 11, magSize: 80, reload: 4.2, burst: [8, 16], burstGap: [0.5, 1.0], pellets: 1, range: 90, sound: 'enemyLmg', noise: 70 },
   sniper: { rpm: 30, damage: 72, magSize: 5, reload: 3.2, burst: [1, 1], burstGap: [2.2, 3.0], pellets: 1, range: 160, sound: 'sniper', noise: 90, charge: 1.3 },
+  // Mevzi makinelisi: uzun seriler, ağır mermi. Oyuncuya verdiği hasarı zorluktaki dpsCap sınırlar
+  hmg: { rpm: 450, damage: 15, magSize: 100, reload: 5.5, burst: [9, 18], burstGap: [0.7, 1.3], pellets: 1, range: 150, sound: 'enemyHmg', noise: 110, tracerEvery: 3 },
 };
 
 export const ENEMY_TYPES = {
@@ -497,6 +499,38 @@ export const ENEMY_TYPES = {
     prefDist: [30, 120], usesCover: false, rushes: false, aimBase: 0.35, headMult: 2.4, stationary: true,
     colors: { uniform: 0x7a6a4c, vest: 0x5b513d, helmet: 0x6a5d44, skin: 0xa77b5b, band: 0x8e2b23 },
   },
+  // Ağır makineli mevzi nişancısı: silahın başında durur (mounted). Silah susarsa ya da hedef uzun süre
+  // atış yayının dışında kalırsa iner ve yedek tüfekle siper kullanan bir tüfekçi gibi savaşır (dismount)
+  gunner: {
+    name: 'Mevzi Makinelisi', hp: 150, weapon: 'hmg', walk: 1.6, run: 4.0, viewRange: 75, fov: 150,
+    prefDist: [10, 26], usesCover: false, rushes: false, aimBase: 2.4, headMult: 2.4, mounted: true, fallbackWeapon: 'rifle',
+    colors: { uniform: 0x4a4436, vest: 0x2a2820, helmet: 0x33302a, skin: 0x9c7456, band: 0x8e2b23 },
+  },
+};
+
+// Ağır makineli mevzi (sehpalı silah + kum torbası halkası). Mevzi yalnızca önündeki yayı tarayabilir:
+// yandan ya da arkadan dolanmak, el bombası/roket ya da bastırma ateşi altında yanaşmak karşı hamledir.
+export const HMG = {
+  arcDeg: 65, // silah merkez yönünden bu kadar sağa/sola döner
+  turnRate: 1.1, // silahın dönüş hızı (rad/s): yana kaçan hedefe yetişmesi zaman alır
+  pivotH: 1.18, // silah ekseninin yerden yüksekliği
+  gunnerBack: 0.95, // nişancı silah ekseninin bu kadar arkasında durur
+  gripBack: 0.62, // tutamakların eksenden geriye uzaklığı (nişancının elleri buraya)
+  shield: { w: 0.9, h: 0.55, y: 0.98, ahead: 0.42 }, // kalkan plakası (taban yüksekliği y, eksenin önünde)
+  suppressPerRound: 0.55, // yakından geçen her mermi bastırma süresine eklenir (s)
+  suppressMax: 4.5,
+  suppressNear: 2.2, // mermi başa bu kadar yakın geçerse bastırır (m)
+  suppressAimDeg: 2.4, // bastırılmışken ek isabet hatası
+  duckAt: 1.6, // bastırma bu süreyi aşınca kalkanın arkasına eğilir, ateş keser
+  duckTime: 1.4, // eğilme süresi; sonra en az upTime boyunca kalkıp (dağınık) ateş eder: sürekli
+  upTime: 2.4, //   bastırma makineliyi susturmaz, yalnızca ateş penceresini daraltır
+  sweepDeg: 14, // hedefi göremezken son bilinen noktayı tarama genliği
+  sweepTime: 3.5, // hedef kaybolduktan sonra bu süre taramaya devam eder
+  dismountDelay: 7, // görünen hedef bu süre yay dışında ve yakında kalırsa (kuşatılma) nişancı iner
+  dismountRange: 35, // uzaktaki hedef yay dışında kalsa bile nişancı yerini bırakmaz
+  silenceRadius: 3.4, // patlayıcı bu yarıçapta patlarsa silah susar
+  silenceDamage: 90, // susturan patlamanın en az hasarı (el bombası yeter)
+  warnRange: 70, // oyuncu bu mesafedeyken ilk seri "AĞIR MAKİNELİ" uyarısı verir
 };
 
 // İskeletli asker (hazır model + prosedürel katmanlar). Değerler Soldier.glb klipleri ölçülerek bulundu:
@@ -548,16 +582,18 @@ export const SOLDIER_LOOKS = {
   // Dost manga: belirgin mavi. Doku ten rengi olduğundan çarpan 1'in üstüne çıkar (mavi kanal güçlendirilir),
   // hafif mavi ışıma gölgede de rengi korur
   ally: { tint: [0.5, 0.85, 1.95], visor: 0x0c2a55, glow: 0x0a1c3c },
+  // Komando kademesi: koyu lacivert, parlak vizör (seçkin birlik)
+  allyElite: { tint: [0.34, 0.5, 1.45], visor: 0x2a6adf, glow: 0x081436 },
+  gunner: { tint: 0x9a927e, visor: 0x2a1208 },
 };
 
 // Dost asker (oyuncunun mangası). Kalıcı ölmez: yaralanınca bir süre yerde kalıp toparlanır,
 // böylece seviye dengesi "dostlar öldü, seviye imkânsızlaştı" durumuna düşmez.
+// Can, yaralı kalma süresi, tepki, isabet, hasar ve seri arası kademeye göre değişir: ALLY_TIERS
 export const ALLY = {
   names: ['Kartal-2', 'Kartal-3', 'Kartal-4'],
-  hp: 140,
   regenDelay: 6, // hasar almadan bu kadar süre geçince can dolmaya başlar (s)
   regenRate: 18, // can / s
-  downTime: 12, // yaralı kalma süresi (s)
   reviveHp: 0.55, // toparlanınca canın oranı
   damageTaken: 0.6, // düşman mermisinin dosta etkisi (oyuncuya göre)
   walk: 2.2,
@@ -565,13 +601,9 @@ export const ALLY = {
   viewRange: 60,
   thinkInterval: 0.15,
   loseTargetTime: 2.5,
-  reaction: 0.45, // hedefi gördükten sonra ilk atışa kadar (s)
-  aimDeg: 2.2, // temel isabet hatası (derece)
-  damage: 17,
   zones: { head: 2.2, torso: 1, limb: 0.75 },
   rpm: 560,
   burst: [3, 5],
-  burstGap: [0.45, 0.9],
   magSize: 30,
   reload: 2.5,
   range: 120,
@@ -583,61 +615,150 @@ export const ALLY = {
   stuckCheck: 0.8, // takılma denetimi aralığı (s)
   stuckMove: 0.3, // bu sürede bundan az ilerleyen dost takılmış sayılır (m)
   fireLaneDeg: 12, // oyuncunun nişan hattındaki dost kenara çekilir
+  stealth: 0.6, // düşmanın dostu fark etme hızı çarpanı: manga oyuncunun arkasında, dikkat çekmemeye çalışır
   colors: { uniform: 0x3d5a8a, vest: 0x243650, helmet: 0x2f4b78, skin: 0xa77b5b, band: 0x4aa3ff },
+  // Kademe taktiklerinin ayarları (hangi taktiğin açık olduğu ALLY_TIERS'ta)
+  peek: { hide: [0.9, 1.6], show: [1.4, 2.4] }, // siperde saklanma / ateş için çıkma süreleri
+  callout: { cooldown: 9, markTime: 4 }, // düşman bildirme: telsiz + HUD işareti süresi
+  suppress: { range: 90, burst: [6, 10], gap: [0.35, 0.6], aimDeg: 3.5 }, // mevziye bastırma ateşi
+  revive: { range: 28, time: 2.4 }, // yerdeki dosta koşup ayıltma
+  // el bombası: clusterRadius içinde en az "cluster" düşman, bir mevzi ya da hiddenRange içinde siperde saklanan hedef
+  grenade: { cooldown: 16, range: [9, 28], safe: 8, cluster: 2, clusterRadius: 6, hiddenRange: 20 },
+  bound: { step: [7, 11], cover: 1.4 }, // sıçramalı ilerleme: ileri atılma mesafesi, örtme süresi
+  flank: { dist: 11, time: 18 }, // mevzinin yanına dolanma: yan mesafe, en uzun süre
 };
 
-// Seviyeler (kolaydan zora). Her seviye aynı Kızılkum haritasının bir bölümünü kullanır; son seviye
-// operasyonun tamamıdır. tuning: seçilen zorluğun (Acemi/Asker/Gazi) üstüne uygulanan çarpanlar.
+// Manga kademeleri: seviye ilerledikçe dostlar profesyonelleşir (LEVELS → allyTier).
+// reaction: hedefi görünce ilk atışa kadar (s), aimDeg: temel isabet hatası (derece), downTime: yaralı
+// kalma süresi (s); tactics açık taktiklerdir (ally.js)
+export const ALLY_TIERS = {
+  1: { rank: 'Er', short: 'Er', aimDeg: 2.2, reaction: 0.45, damage: 17, hp: 140, downTime: 12, burstGap: [0.45, 0.9], tactics: [] },
+  2: { rank: 'Onbaşı', short: 'Onb.', aimDeg: 1.8, reaction: 0.36, damage: 19, hp: 155, downTime: 10, burstGap: [0.4, 0.8], tactics: ['peek', 'callout'] },
+  3: { rank: 'Çavuş', short: 'Çvş.', aimDeg: 1.45, reaction: 0.3, damage: 20, hp: 170, downTime: 9, burstGap: [0.35, 0.7], tactics: ['peek', 'callout', 'suppress', 'revive'] },
+  4: { rank: 'Uzman Çavuş', short: 'Uzm.', aimDeg: 1.15, reaction: 0.24, damage: 22, hp: 185, downTime: 7.5, burstGap: [0.3, 0.6], tactics: ['peek', 'callout', 'suppress', 'revive', 'grenade', 'bound'] },
+  5: { rank: 'Komando', short: 'Kom.', aimDeg: 0.9, reaction: 0.18, damage: 24, hp: 200, downTime: 6, burstGap: [0.25, 0.5], tactics: ['peek', 'callout', 'suppress', 'revive', 'grenade', 'bound', 'flank'], elite: true },
+};
+export const TACTIC_LABELS = {
+  peek: 'siperden eğilip ateş', callout: 'düşman bildirme', suppress: 'bastırma ateşi', revive: 'yaralıyı ayıltma',
+  grenade: 'el bombası', bound: 'sıçramalı ilerleme', flank: 'mevziyi kanattan vurma',
+};
+
+// Harita ortamları. Işık SAYISI sabit (hemi + güneş/ay); yalnızca renk ve şiddet değişir, shader yeniden
+// derlenmez. sky: gökyüzü gölgelendiricisi (glow: güneş halesi, disc: güneş/ay diski, band: ufuk bandı,
+// stars: gece yıldızları), fog: [yakın, uzak] (renk ufuktan), view: silah görünümü sahnesinin ışıkları,
+// reflect: silah metalleri için yansıma gökyüzü, perception: gece/kar görüşü (düşman algısı çarpanı)
+export const MAPS = {
+  kizilkum: {
+    name: 'Kızılkum Vadisi', desc: 'Çöl vadisi, şafak',
+    env: {
+      sky: { zenith: 0x3d6a9a, horizon: 0xd8a987, ground: 0xb89878, glow: [1.0, 0.62, 0.32], disc: [1.0, 0.85, 0.6], band: [0.35, 0.16, 0.06], stars: 0 },
+      fog: [70, 460], sunDir: [0.82, 0.3, -0.22], sun: [0xffcf9c, 2.9], hemi: [0xb4c8e0, 0x8a6f4d, 1.15], exposure: 1.05,
+      reflect: [0x4a78a8, 0xe0b595, 0x9a7a58], view: [0xd6e0ec, 0x7a6650, 1.5, 0xffd9b0, 2.2],
+      dust: 0xcbb08a, ambient: { wind: 420, gain: 0.16, distant: 1 }, perception: 1, weather: null,
+    },
+  },
+  harbor: {
+    name: 'Liman', desc: 'Konteyner limanı, gün batımı',
+    env: {
+      sky: { zenith: 0x34457a, horizon: 0xf0925a, ground: 0x5a4a4c, glow: [1.0, 0.45, 0.18], disc: [1.0, 0.7, 0.4], band: [0.5, 0.18, 0.05], stars: 0 },
+      fog: [60, 420], sunDir: [-0.93, 0.13, 0.34], sun: [0xff9a5c, 2.7], hemi: [0x8a92c0, 0x6a4a3a, 1.05], exposure: 1.0,
+      reflect: [0x3e5088, 0xf0a070, 0x5a4a4c], view: [0xb8bde0, 0x6a4a3a, 1.35, 0xffb080, 2.1],
+      dust: 0xa89078, ambient: { wind: 300, gain: 0.2, distant: 0.7, sea: true }, perception: 1, weather: null,
+    },
+  },
+  ruins: {
+    name: 'Yıkık Şehir', desc: 'Savaşta yıkılmış şehir, kapalı hava',
+    env: {
+      sky: { zenith: 0x5d6975, horizon: 0xa9aeb0, ground: 0x6a6a68, glow: [0.25, 0.25, 0.25], disc: [0.3, 0.3, 0.3], band: [0.04, 0.04, 0.05], stars: 0 },
+      fog: [35, 290], sunDir: [0.35, 0.7, 0.45], sun: [0xe6ebf0, 1.55], hemi: [0xc2cad4, 0x5c5854, 1.55], exposure: 1.02,
+      reflect: [0x6a7682, 0xa9aeb0, 0x5a5a58], view: [0xc8d0d8, 0x5c5854, 1.6, 0xe6ebf0, 1.4],
+      dust: 0x8f8a82, ambient: { wind: 360, gain: 0.18, distant: 1.4 }, perception: 0.95, weather: 'ash',
+    },
+  },
+  pass: {
+    name: 'Karlı Dağ Geçidi', desc: 'Karlı sıradağlar, kar yağışı',
+    env: {
+      sky: { zenith: 0x4f78a6, horizon: 0xd2dde8, ground: 0xe4ebf0, glow: [0.6, 0.55, 0.45], disc: [1.0, 0.95, 0.85], band: [0.08, 0.08, 0.1], stars: 0 },
+      fog: [45, 360], sunDir: [0.5, 0.42, 0.62], sun: [0xfff0dc, 2.3], hemi: [0xcfe0f2, 0x8894a0, 1.3], exposure: 0.92,
+      reflect: [0x5a82b0, 0xd8e2ec, 0xe8eef2], view: [0xdbe6f2, 0x8894a0, 1.5, 0xfff0dc, 2.0],
+      dust: 0xe8eef2, ambient: { wind: 620, gain: 0.26, distant: 0.6 }, perception: 0.9, weather: 'snow',
+    },
+  },
+  refinery: {
+    name: 'Gece Rafinerisi', desc: 'Petrol rafinerisi, gece',
+    env: {
+      sky: { zenith: 0x040814, horizon: 0x1c2640, ground: 0x07070a, glow: [0.18, 0.22, 0.35], disc: [0.85, 0.9, 1.0], band: [0.12, 0.06, 0.02], stars: 1 },
+      fog: [28, 250], sunDir: [-0.42, 0.55, -0.62], sun: [0xa8bcff, 0.85], hemi: [0x4a5e9a, 0x2a2018, 0.95], exposure: 1.5,
+      reflect: [0x0a1224, 0x2a3450, 0x0a0a0c], view: [0x6a7aa8, 0x2a2018, 0.9, 0xb0c0ff, 0.6],
+      dust: 0x6a6a70, ambient: { wind: 260, gain: 0.12, distant: 0.8, hum: true }, perception: 0.85, weather: null,
+    },
+  },
+};
+
+// Seviyeler (kolaydan zora). İlk iki seviye Kızılkum'un bölümleri; sonrakiler başka haritalarda, her biri
+// tek bir operasyon. tuning: seçilen zorluğun (Acemi/Asker/Gazi) üstüne uygulanan çarpanlar.
 //   reaction ↑ = düşman geç tepki verir, aim ↑ = daha çok ıskalar, damage = mermi hasarı,
 //   perception/awareness = görme mesafesi ve fark etme hızı, attackers = aynı anda ateş eden sayısına ek
-// enemies: hangi gruplar doğar; exclude: bu türler doğmaz; hardTypes: kuledeki tüfekçiler keskin nişancı olur
+// enemies: hangi gruplar doğar; exclude: bu türler doğmaz; hardTypes: işaretli tüfekçiler keskin nişancı olur;
+//   hmg: haritanın mevzi listesinden kaç ağır makineli mevzi kurulur. allyTier: manganın kademesi (ALLY_TIERS)
 export const LEVELS = [
   {
-    id: 1, name: 'Kontrol Noktası', tag: 'Kolay',
+    id: 1, map: 'kizilkum', name: 'Kontrol Noktası', tag: 'Kolay',
     brief: 'Kuzeydeki kontrol noktasını mangayla birlikte temizle. Yavaş tepki veren, az isabet ettiren muhafızlar.',
-    start: 0, objectives: ['outpost'], allies: 3, allyDamage: 1.0,
+    start: 0, objectives: ['outpost'], allies: 3, allyTier: 1,
     radioIntro: 'Kızılkum Vadisi\'ne hoş geldiniz. Kartal-1, mangan arkanda: üç tüfekçi.',
     outro: 'Kontrol noktası temiz. Güzel iş Kartal ekibi, köyün kuzeyinde mevzilenin.',
-    enemies: { groups: ['outpost'], exclude: ['shotgunner'] },
+    enemies: { groups: ['outpost'], exclude: ['shotgunner'], hmg: 0 },
     tuning: { reaction: 1.45, aim: 1.55, damage: 0.6, perception: 0.85, awareness: 0.75, attackers: -1, grenades: false },
   },
   {
-    id: 2, name: 'Uçaksavarlar', tag: 'Kolay-orta',
+    id: 2, map: 'kizilkum', name: 'Uçaksavarlar', tag: 'Kolay-orta',
     brief: 'Köydeki iki uçaksavar topunu C4 ile imha et. Pompalılar hücum eder, çatıda nöbetçi var.',
-    start: 1, objectives: ['aa'], allies: 3, allyDamage: 0.9,
+    start: 1, objectives: ['aa'], allies: 3, allyTier: 2,
     radioIntro: 'Kontrol noktası bizde. Sıradaki iş köyde.',
-    outro: 'İki top da sustu, gökyüzü bizim! Hava desteği yolda.',
-    enemies: { groups: ['village'], exclude: ['heavy'] },
+    outro: 'İki top da sustu, gökyüzü bizim! Kartal ekibi, sizi limana gönderiyoruz.',
+    enemies: { groups: ['village'], exclude: ['heavy'], hmg: 0 },
     tuning: { reaction: 1.2, aim: 1.25, damage: 0.8, perception: 0.95, awareness: 0.9, attackers: 0, grenades: false },
   },
   {
-    id: 3, name: 'Komuta Merkezi', tag: 'Orta',
-    brief: 'Komuta merkezinden istihbaratı al, alarmla gelen takviyeyi yarıp iniş bölgesine ulaş. Kulede keskin nişancı.',
-    start: 6, objectives: ['intel', 'lz'], allies: 2, allyDamage: 0.85,
-    radioIntro: 'Köyün güneyindesiniz. Komuta merkezi hemen ileride.',
-    outro: 'İstihbarat güvende. İniş bölgesini tutmaya hazırlanın.',
-    enemies: { groups: ['hq'], exclude: [], reinforcements: true },
-    tuning: { reaction: 1.0, aim: 1.0, damage: 1.0, perception: 1.0, awareness: 1.0, attackers: 0, grenades: true },
+    id: 3, map: 'harbor', name: 'Liman', tag: 'Orta',
+    brief: 'Gün batarken limana sız: giriş kapısını temizle, rıhtımdaki iki uçaksavarı patlat, helikopter gelene kadar pisti tut. İki makineli yuvası var.',
+    start: 0, objectives: ['outpost', 'aa', 'lz', 'defend', 'board'], allies: 3, allyTier: 3,
+    radioIntro: 'Liman sektöründesiniz. Kapıdaki makineli yuvası yolu tutuyor; mangan bastırırken yanından dolan.',
+    outro: 'Tahliye tamam. Liman bizim.',
+    enemies: { groups: ['outpost', 'village'], exclude: [], hmg: 2 },
+    defendTime: 75,
+    tuning: { reaction: 1.05, aim: 1.08, damage: 0.92, perception: 1.0, awareness: 1.0, attackers: 0, grenades: true },
   },
   {
-    id: 4, name: 'İniş Bölgesi', tag: 'Zor',
-    brief: 'Helikopter gelene kadar iniş bölgesini tut. Dört dalga, dört yönden; sonuncusunda ağır makineliler.',
-    start: 5, objectives: ['defend', 'board'], allies: 3, allyDamage: 0.85,
-    radioIntro: 'İniş bölgesindesiniz. Helikopter gelene kadar dayanın.',
-    outro: 'Tahliye tamam.',
-    enemies: { groups: [], exclude: [], extraWave: true },
-    defendTime: 115,
-    tuning: { reaction: 0.9, aim: 0.92, damage: 1.1, perception: 1.05, awareness: 1.1, attackers: 1, grenades: true },
+    id: 4, map: 'ruins', name: 'Yıkık Şehir', tag: 'Orta-zor',
+    brief: 'Moloz kaplı meydanı temizle, eski belediye binasından istihbaratı al, takviyeyi yarıp stadyumdaki piste ulaş. Üç makineli yuvası.',
+    start: 0, objectives: ['outpost', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 3,
+    radioIntro: 'Şehir merkezine giriyorsunuz. Yıkıntılar siper dolu ama pencerelerde makineli var.',
+    outro: 'Tahliye tamam. İstihbarat komutanlığa ulaştı.',
+    enemies: { groups: ['outpost', 'hq'], exclude: [], reinforcements: true, hmg: 3 },
+    defendTime: 90,
+    tuning: { reaction: 0.95, aim: 0.98, damage: 1.0, perception: 1.03, awareness: 1.08, attackers: 0, grenades: true },
   },
   {
-    id: 5, name: 'Demir Şafak', tag: 'Çok zor',
-    brief: 'Operasyonun tamamı tek seferde: kontrol noktası, uçaksavarlar, istihbarat ve tahliye. Keskin düşmanlar, iki kişilik manga.',
-    start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 2, allyDamage: 0.75,
-    radioIntro: 'Bu kez her şey tek seferde. Şafak sökmeden işini bitirmen gerek.',
-    outro: 'Tahliye tamam.',
-    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true },
+    id: 5, map: 'pass', name: 'Karlı Geçit', tag: 'Zor',
+    brief: 'Kar fırtınasında dağ geçidini aç: karakolu al, iki uçaksavarı patlat, sığınaktaki haritaları çal ve tahliyeyi bekle. Dört makineli yuvası.',
+    start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 4,
+    radioIntro: 'Geçitte görüş kısa, kar sesleri yutuyor. Sığınakların mazgallarında ağır makineliler var.',
+    outro: 'Tahliye tamam. Geçit açıldı.',
+    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], reinforcements: true, hmg: 4 },
+    defendTime: 100,
+    tuning: { reaction: 0.88, aim: 0.9, damage: 1.08, perception: 1.06, awareness: 1.15, attackers: 1, grenades: true },
+  },
+  {
+    id: 6, map: 'refinery', name: 'Demir Şafak', tag: 'Çok zor',
+    brief: 'Gece rafinerisine baskın: kapıyı düşür, üç yakıt pompasını patlat, kontrol odasından kodları al, şafak sökene dek pisti tut. Beş makineli yuvası.',
+    start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Demir Şafak başladı. Karanlık seni gizler ama onları da. Komando mangan hazır.',
+    outro: 'Tahliye tamam. Demir Şafak operasyonu başarıyla tamamlandı.',
+    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 5 },
     defendTime: 115,
-    tuning: { reaction: 0.82, aim: 0.85, damage: 1.2, perception: 1.1, awareness: 1.2, attackers: 1, grenades: true },
+    tuning: { reaction: 0.82, aim: 0.85, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
   },
 ];
 
@@ -698,6 +819,7 @@ export const SCORE = { kill: 100, headshot: 50, melee: 75, objective: 250 };
 
 export const SURFACES = {
   sand: { impact: 'dust', color: 0xc8a878, step: 'sand' },
+  snow: { impact: 'dust', color: 0xeef2f6, step: 'sand' },
   concrete: { impact: 'dust', color: 0x9a978f, step: 'concrete' },
   metal: { impact: 'sparks', color: 0x6d7275, step: 'metal' },
   wood: { impact: 'splinter', color: 0x8b6a45, step: 'wood' },

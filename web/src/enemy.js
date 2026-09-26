@@ -3,7 +3,7 @@
 // Algı: görme (açı, mesafe, görüş hattı, duruş), duyma (silah/adım), hasar.
 // Adil isabet: mesafe, oyuncu hızı, ilk atış ıskası, zorluk; saldırı jetonu sistemiyle aynı anda sınırlı sayıda düşman ateş eder.
 import * as THREE from 'three';
-import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY } from './config.js';
+import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG } from './config.js';
 import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
 import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp } from './util.js';
@@ -12,6 +12,8 @@ const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _dir = new THREE.Vector3();
+const _aim = new THREE.Vector3(); // bağlı nişancının nişan noktası
+const _pv = new THREE.Vector3();
 const _hit = {};
 const _ray = new THREE.Raycaster();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -47,6 +49,7 @@ export class Enemy {
     this.dummy = !!spec.dummy;
     const T = { ...ENEMY_TYPES[this.type === 'dummy' ? 'rifleman' : this.type] };
     if (this.dummy) T.colors = { uniform: 0xc86b2a, vest: 0x8a4a1c, helmet: 0xd9a126, skin: 0xb08a6a, band: 0xffffff };
+    this.Tbase = T;
     this.T = T;
     this.group = spec.group || null;
     this.model = createSoldier(this.type, T.colors);
@@ -60,6 +63,9 @@ export class Enemy {
     this.health = new Health(T.hp, this.type === 'heavy' ? 80 : 0);
     this.weapon = { mag: W.magSize, cooldown: 0, burstLeft: 0, gapT: rand(0.2, 0.6), reloadT: 0, charge: 0 };
     this.anim = { aimPitch: 0, deathT: 0, fallDir: 1, fallSide: 0 };
+    this.shotCount = 0;
+    this.mount = null;
+    this.mountAnim = { gripL: new THREE.Vector3(), gripR: new THREE.Vector3() };
     this.reset();
     if (this.type === 'sniper') this.createLaser();
   }
@@ -115,6 +121,14 @@ export class Enemy {
     this.throwAnim = null;
     this.bloodPool = false;
     this.foe = this.game.player;
+    // Mevzi nişancısı: silahı susturulmadıysa yeniden başına geçer
+    this.mount = s.mount && !s.mount.wrecked ? s.mount : null;
+    this.setLoadout(!!this.mount);
+    this.suppressT = 0;
+    this.duckT = 0;
+    this.upT = 0;
+    this.outArcT = 0;
+    if (this.mount) this.mount.seatPos(this.pos);
     this.model.reset(this.pos, this.yaw);
     this.respawnT = 0;
     if (this.laser) this.laser.visible = false;
@@ -122,7 +136,34 @@ export class Enemy {
   }
 
   get stationary() {
-    return !!(this.spec.stationary || this.T.stationary);
+    return !!(this.mount || this.spec.stationary || this.T.stationary);
+  }
+
+  // Bağlı nişancı: ağır makineli ve geniş görüş; inince yedek tüfek ve siper kullanımı
+  setLoadout(mounted) {
+    const B = this.Tbase;
+    if (!B.mounted) return;
+    this.T = mounted ? B : { ...B, usesCover: true, fov: 120, viewRange: 60 };
+    this.W = ENEMY_WEAPONS[mounted ? B.weapon : B.fallbackWeapon];
+    this.weapon.mag = this.W.magSize;
+    this.weapon.reloadT = 0;
+    this.weapon.burstLeft = 0;
+  }
+
+  // Silahın başından ayrıl (silah susturuldu ya da hedef uzun süre atış yayının dışında)
+  dismount() {
+    if (!this.mount) return;
+    this.mount = null;
+    this.setLoadout(false);
+    this.cover = null;
+    this.path = null;
+    this.crouch = false;
+    this.alertIconT = 1.5;
+  }
+
+  // Yakından geçen oyuncu/dost mermisi mevzi nişancısını bastırır: eğilir, isabeti düşer
+  suppress() {
+    this.suppressT = Math.min(HMG.suppressMax, this.suppressT + HMG.suppressPerRound);
   }
 
   eyePos(out = new THREE.Vector3()) {
@@ -135,7 +176,7 @@ export class Enemy {
   }
 
   muzzlePos(out = new THREE.Vector3()) {
-    return this.model.muzzleWorld(out);
+    return this.mount ? this.mount.muzzleWorld(out) : this.model.muzzleWorld(out);
   }
 
   // --- Hasar ---
@@ -544,6 +585,10 @@ export class Enemy {
 
   // Her kare: hareket hedefi, bakış, ateş
   act(dt) {
+    if (this.mount) {
+      this.actMounted(dt);
+      return;
+    }
     const g = this.game;
     const P = this.foe || g.player;
     let faceYaw = null;
@@ -648,6 +693,113 @@ export class Enemy {
     this.yaw = dampAngle(this.yaw, target, turn, dt);
     this.lookYaw = this.yaw;
     this.updateWeapon(dt, wantShoot);
+  }
+
+  // Mevzi nişancısı: silahı hedefe sabit hızla çevirir (yay dışına dönemez), görmediği hedefin son
+  // bilinen yerini tarar, bastırılınca kalkanın arkasına eğilir. Nişancı silahla birlikte döner.
+  actMounted(dt) {
+    const g = this.game;
+    const N = this.mount;
+    const F = this.foe || g.player;
+    this.vel.set(0, 0, 0);
+    this.suppressT = Math.max(0, this.suppressT - dt);
+    // Eğil–kalk döngüsü: bastırma eğdirir ama bir süre sonra yine kalkar
+    this.upT -= dt;
+    if (this.duckT > 0) {
+      this.duckT -= dt;
+      if (this.duckT <= 0) this.upT = HMG.upTime;
+    } else if (this.upT <= 0 && this.suppressT > HMG.duckAt) this.duckT = HMG.duckTime;
+    const duck = this.duckT > 0;
+    const pivot = N.pivot(_pv);
+    let targetYaw = N.worldYaw;
+    let aimAt = null;
+    let blind = false;
+    if (this.aiState === 'combat' && F.alive) {
+      if (this.visible) aimAt = F.chestPos(_aim);
+      else if (g.time - this.lastSeen < HMG.sweepTime) {
+        // Tarama: son bilinen noktanın çevresine yelpaze
+        const sw = Math.sin(g.time * 1.7 + this.pos.x) * HMG.sweepDeg * DEG;
+        const base = dirToYaw(this.lastKnown.x - pivot.x, this.lastKnown.z - pivot.z) + sw;
+        const d = Math.hypot(this.lastKnown.x - pivot.x, this.lastKnown.z - pivot.z);
+        aimAt = _aim.set(pivot.x - Math.sin(base) * d, this.lastKnown.y + 1.1, pivot.z - Math.cos(base) * d);
+        blind = true;
+      }
+      if (aimAt) {
+        const want = dirToYaw(aimAt.x - pivot.x, aimAt.z - pivot.z);
+        if (N.inArc(want)) {
+          targetYaw = want;
+          this.outArcT = 0;
+        } else {
+          // Hedef yayın dışında: kenarda bekle; görünür ve yakınsa (yandan kuşatılıyor) uzun sürünce silahı
+          // bırakıp tüfekle karşılık ver. Uzaktaki çatışma yuvayı boşaltmasın
+          targetYaw = N.yaw + clamp(angleDiff(N.yaw, want), -N.arc, N.arc);
+          const near = this.visible && this.pos.distanceTo(F.pos) < HMG.dismountRange;
+          aimAt = null;
+          this.outArcT = near ? this.outArcT + dt : Math.max(0, this.outArcT - dt);
+          if (this.outArcT > HMG.dismountDelay) {
+            this.dismount();
+            return;
+          }
+        }
+      }
+    } else if (this.aiState === 'guard' || this.aiState === 'patrol') {
+      targetYaw = N.yaw + Math.sin(g.time * 0.25 + this.pos.x) * N.arc * 0.5; // nöbette yavaşça tara
+    } else targetYaw = dirToYaw(this.lastKnown.x - pivot.x, this.lastKnown.z - pivot.z);
+    const rel = clamp(angleDiff(N.yaw, targetYaw), -N.arc, N.arc);
+    const step = HMG.turnRate * dt;
+    const cur = N.aimYaw + clamp(rel - N.aimYaw, -step, step);
+    const wantPitch = aimAt ? clamp(Math.atan2(aimAt.y - pivot.y, Math.hypot(aimAt.x - pivot.x, aimAt.z - pivot.z)), -0.35, 0.3) : 0;
+    N.setAim(cur, damp(N.aimPitch, wantPitch, 6, dt));
+    this.yaw = N.worldYaw;
+    this.lookYaw = this.yaw;
+    N.seatPos(this.pos);
+    this.crouch = duck;
+    const aligned = aimAt && Math.abs(angleDiff(N.worldYaw, dirToYaw(aimAt.x - pivot.x, aimAt.z - pivot.z))) < 0.12;
+    this.updateMountedWeapon(dt, !!aligned && !duck && this.reactionT <= 0, aimAt, blind);
+  }
+
+  updateMountedWeapon(dt, want, aimAt, blind) {
+    const g = this.game;
+    const Wp = this.weapon;
+    const W = this.W;
+    Wp.cooldown -= dt;
+    if (Wp.reloadT > 0) {
+      Wp.reloadT -= dt;
+      if (Wp.reloadT <= 0) Wp.mag = W.magSize;
+      return;
+    }
+    if (Wp.mag <= 0) {
+      Wp.reloadT = W.reload;
+      g.audio.mech('magOut', this.pos);
+      return;
+    }
+    if (!want) {
+      Wp.burstLeft = 0;
+      return;
+    }
+    if (Wp.burstLeft <= 0) {
+      Wp.gapT -= dt;
+      if (Wp.gapT <= 0) {
+        Wp.burstLeft = Math.round(rand(W.burst[0], W.burst[1]));
+        Wp.gapT = rand(W.burstGap[0], W.burstGap[1]);
+        // Jetonsuz ya da körlemesine ateş: bastırma (daha dağınık). Makineli yine de sürekli konuşur
+        Wp.suppress = blind || (!this.hasToken && this.foe === g.player);
+        if (!this.mount.warned && this.pos.distanceTo(g.player.pos) < HMG.warnRange) {
+          this.mount.warned = true;
+          g.events.emit('hmgFire', this.mount);
+          g.allies.onHmgFire(this.mount);
+        }
+      }
+    }
+    let n = 0;
+    while (Wp.burstLeft > 0 && Wp.cooldown <= 0 && Wp.mag > 0 && n < 3) {
+      this.shoot(Wp.suppress, blind ? aimAt : null);
+      Wp.burstLeft--;
+      Wp.mag--;
+      Wp.cooldown += 60 / W.rpm;
+      n++;
+    }
+    if (Wp.cooldown < -0.2) Wp.cooldown = 0;
   }
 
   patrolMove(dt, run) {
@@ -880,6 +1032,7 @@ export class Enemy {
     const windup = Math.max(0, 1 - this.visibleT / AI.acquireWindup);
     err += AI.firstShotsMissBonus * windup * D.aimMult;
     if (suppress) err += 2.5;
+    if (this.suppressT > 0) err += HMG.suppressAimDeg;
     if (Math.hypot(this.vel.x, this.vel.z) > 1) err += 1.2;
     if (this.type === 'sniper') err = this.T.aimBase * D.aimMult;
     const pellets = W.pellets;
@@ -917,9 +1070,11 @@ export class Enemy {
           }
         }
       }
-      if (i === 0 && (Math.random() < 0.4 || this.type === 'sniper')) {
+      // İzli mermi: makinelide her W.tracerEvery atışta bir (mevzinin yeri belli olsun), diğerlerinde rastgele
+      const tracer = W.tracerEvery ? this.shotCount % W.tracerEvery === 0 : Math.random() < 0.4 || this.type === 'sniper';
+      if (i === 0 && tracer) {
         const end = hitPlayer ? foeHead.clone().add(new THREE.Vector3(rand(-0.3, 0.3), -0.3, rand(-0.3, 0.3))) : wh ? wh.point.clone() : _v.copy(muzzle).addScaledVector(d, 80).clone();
-        g.effects.tracer(muzzle, end, 300, 0.02);
+        g.effects.tracer(muzzle, end, W.tracerEvery ? 380 : 300, W.tracerEvery ? 0.035 : 0.02);
       }
     }
     void hitPlayer;
@@ -929,7 +1084,8 @@ export class Enemy {
       g.effects.flashLight(muzzle, 0xffb060, 18, 6, 0.05);
     }
     this.lastFired = g.time;
-    this.model.fire(this.type === 'sniper' ? 1.5 : 1);
+    this.shotCount++;
+    this.model.fire(this.type === 'sniper' ? 1.5 : this.mount ? 0.35 : 1);
   }
 
   // Atış hareketi başlar; bomba kol öne savrulduğunda (releaseGrenade) çıkar
@@ -993,6 +1149,14 @@ export class Enemy {
     ANIM_STATE.reload = W.reloadT > 0 ? 1 - W.reloadT / this.W.reload : -1;
     ANIM_STATE.dist = dist;
     ANIM_STATE.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
+    // Mevzide: eller silahın tutamaklarında (eğilince bırakır)
+    if (this.mount && !this.crouch) {
+      this.mount.grips(this.mountAnim.gripL, this.mountAnim.gripR);
+      ANIM_STATE.mount = this.mountAnim;
+      ANIM_STATE.stance = 'aim';
+      ANIM_STATE.aimPitch = this.mount.aimPitch;
+    } else ANIM_STATE.mount = null;
+    ANIM_STATE.hideGun = !!this.mount;
     this.model.animate(dt, ANIM_STATE);
   }
 
@@ -1023,7 +1187,7 @@ export class Enemy {
 }
 
 // Görünüm katmanına her karede aktarılan durum (bellek ayırmamak için tek nesne)
-const ANIM_STATE = { pos: null, yaw: 0, vel: null, crouch: false, aimPitch: 0, stance: 'relaxed', reload: -1, throw: -1, dist: 0 };
+const ANIM_STATE = { pos: null, yaw: 0, vel: null, crouch: false, aimPitch: 0, stance: 'relaxed', reload: -1, throw: -1, dist: 0, mount: null, hideGun: false };
 
 // Düşman yöneticisi: listeler, ışın testi, gürültü ve alarm yayılımı, saldırı jetonları.
 export class EnemyManager {
@@ -1033,6 +1197,7 @@ export class EnemyManager {
     this.pathBudget = 0;
     this.grenadeGlobalT = 0;
     this.tokenT = 0;
+    this.armor = []; // mevzi kalkanı ve silah gövdesi: mermiyi durdurur
   }
 
   spawn(spec) {
@@ -1048,6 +1213,7 @@ export class EnemyManager {
       if (e.glint) e.glint.removeFromParent();
     }
     this.list = [];
+    this.armor = [];
   }
 
   get alive() {
@@ -1129,6 +1295,17 @@ export class EnemyManager {
         best = { enemy: e, zone: hits[0].object.userData.zone || 'torso', dist: hits[0].distance, point: hits[0].point };
       }
     }
+    // Mevzi zırhı daha yakındaysa mermi orada durur (kıvılcım, hasar yok)
+    if (this.armor.length) {
+      _ray.set(o, d);
+      _ray.far = bestD;
+      const hits = _ray.intersectObjects(this.armor, false);
+      if (hits.length && hits[0].distance < bestD) {
+        const h = hits[0];
+        const normal = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : d.clone().negate();
+        return { enemy: null, armor: h.object.userData.nest, zone: null, dist: h.distance, point: h.point, normal };
+      }
+    }
     return best;
   }
 
@@ -1151,14 +1328,19 @@ export class EnemyManager {
   }
 
   // Oyuncunun (ya da dostun) mermisi bir düşmanın yakınından geçtiyse fark eder
+  // Mevzi nişancısı çatışmada da etkilenir: yakından geçen mermi onu bastırır
   bulletNearMiss(o, d, dist, shooter = this.game.player) {
     const g = this.game;
+    const near2 = HMG.suppressNear * HMG.suppressNear;
     for (const e of this.list) {
-      if (!e.alive || e.aiState === 'combat' || e.dummy) continue;
+      if (!e.alive || e.dummy || (e.aiState === 'combat' && !e.mount)) continue;
       _v.copy(e.eyePos(_v2)).sub(o);
       const t = _v.dot(d);
       if (t < 0 || t > dist + 2) continue;
-      if (_v.lengthSq() - t * t < 6) {
+      const miss2 = _v.lengthSq() - t * t;
+      if (e.mount && miss2 < near2) e.suppress();
+      if (e.aiState === 'combat') continue;
+      if (miss2 < 6) {
         e.foe = shooter;
         e.lastKnown.copy(shooter.pos);
         e.lastSeen = g.time;

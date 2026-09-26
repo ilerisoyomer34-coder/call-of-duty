@@ -402,7 +402,8 @@ class SkinnedSoldier {
     this.run.setEffectiveWeight(0);
   }
 
-  // st: { pos, yaw, vel, crouch, aimPitch, stance: 'aim'|'ready'|'relaxed', reload ve throw (-1 ya da 0..1), dist }
+  // st: { pos, yaw, vel, crouch, aimPitch, stance: 'aim'|'ready'|'relaxed', reload ve throw (-1 ya da 0..1), dist,
+  //       mount: { gripL, gripR } (mevzi silahının tutamakları, dünya) ya da null, hideGun: kendi tüfeği görünmez }
   animate(dt, st) {
     this.root.position.copy(st.pos);
     this.root.rotation.set(0, st.yaw, 0, 'YXZ');
@@ -464,7 +465,9 @@ class SkinnedSoldier {
     const chest = bonePos(B.RightArm, _t1).sub(bonePos(B.LeftArm, _t2));
     chest.addScaledVector(_up, -chest.dot(_up)).normalize();
     const chestErr = Math.atan2(_d.crossVectors(chest, _right).dot(_up), chest.dot(_right));
-    const yawFix = chestErr * lerp(0.75, 1, this.aimT) - A.aimBlade * this.aimT + tw * 0.1;
+    // Mevzi silahı iki elle, göğüs karşıdan tutulur: tüfek duruşundaki yan dönüş (blade) yok
+    const blade = st.mount ? 0 : A.aimBlade;
+    const yawFix = chestErr * lerp(0.75, 1, this.aimT) - blade * this.aimT + tw * 0.1;
     const pitchSpine = this.pitch * A.spinePitchShare * this.aimT - this.crouchT * 0.2 + fl * 0.1;
     for (let i = 0; i < 3; i++) {
       _q2.setFromAxisAngle(_up, yawFix * SPINE_SHARE[i]);
@@ -506,22 +509,35 @@ class SkinnedSoldier {
       this.gun.updateMatrixWorld();
     }
 
-    // 5) Kollar: iki kemikli IK ile kabza ve el kundağına (hedefler dünya uzayında)
+    this.gun.visible = !st.hideGun;
+
+    // 5) Kollar: iki kemikli IK ile kabza ve el kundağına (hedefler dünya uzayında); mevzide silahın tutamaklarına
     for (const f of this.fingers) f.bone.quaternion.copy(f.grip);
     _fwd.set(0, 0, -1).applyQuaternion(this.root.quaternion);
-    const rT = this.gun.localToWorld(_tR.copy(this.gp.grip));
-    const lT = st.throw >= 0 ? this.throwHandTarget(st.throw, _tL) : this.leftHandTarget(st.reload, _tL);
+    const M = st.mount;
+    const rT = M ? _tR.copy(M.gripR) : this.gun.localToWorld(_tR.copy(this.gp.grip));
+    const lT = M ? _tL.copy(M.gripL) : st.throw >= 0 ? this.throwHandTarget(st.throw, _tL) : this.leftHandTarget(st.reload, _tL);
     _pole.copy(bonePos(B.RightArm, _p)).addScaledVector(_right, 0.35 * s).addScaledVector(_up, -0.6 * s).addScaledVector(_fwd, -0.2 * s);
     solveTwoBone(B.RightArm, B.RightForeArm, B.RightHand, rT, _pole);
     _pole.copy(bonePos(B.LeftArm, _p)).addScaledVector(_right, -0.5 * s).addScaledVector(_up, -0.55 * s).addScaledVector(_fwd, 0.05 * s);
     solveTwoBone(B.LeftArm, B.LeftForeArm, B.LeftHand, lT, _pole);
-    _qg.copy(this.root.quaternion).multiply(this.gun.quaternion);
-    // Sağ el tabancı kabzayı kavrar: parmaklar öne-aşağı, avuç silahın sol yanına
-    handQuat(_qf[0], _u1.set(-0.3, -0.35, -0.88).applyQuaternion(_qg), _u2.set(-1, 0, 0.1).applyQuaternion(_qg), T.hands.right);
-    setBoneWorldQuat(B.RightHand, _qf[0]);
-    // Sol el kundağı alttan tutar: avuç yukarı, parmaklar sağ yana sarılır; şarjör değişiminde avuç içe döner
-    handQuat(_qf[1], _u1.set(0.5, 0.2, -0.85).applyQuaternion(_qg), _u2.set(0.35 * rk, 1, 0).applyQuaternion(_qg), T.hands.left);
-    setBoneWorldQuat(B.LeftHand, _qf[1]);
+    if (M) {
+      // Kürek tutamaklar dikey: iki el aynı biçimde, avuçlar içe bakar (ayna)
+      _eul.set(st.aimPitch, st.yaw, 0, 'YXZ');
+      _qg.setFromEuler(_eul);
+      handQuat(_qf[0], _u1.set(-0.3, -0.35, -0.88).applyQuaternion(_qg), _u2.set(-1, 0, 0.1).applyQuaternion(_qg), T.hands.right);
+      setBoneWorldQuat(B.RightHand, _qf[0]);
+      handQuat(_qf[1], _u1.set(0.3, -0.35, -0.88).applyQuaternion(_qg), _u2.set(1, 0, 0.1).applyQuaternion(_qg), T.hands.left);
+      setBoneWorldQuat(B.LeftHand, _qf[1]);
+    } else {
+      _qg.copy(this.root.quaternion).multiply(this.gun.quaternion);
+      // Sağ el tabancı kabzayı kavrar: parmaklar öne-aşağı, avuç silahın sol yanına
+      handQuat(_qf[0], _u1.set(-0.3, -0.35, -0.88).applyQuaternion(_qg), _u2.set(-1, 0, 0.1).applyQuaternion(_qg), T.hands.right);
+      setBoneWorldQuat(B.RightHand, _qf[0]);
+      // Sol el kundağı alttan tutar: avuç yukarı, parmaklar sağ yana sarılır; şarjör değişiminde avuç içe döner
+      handQuat(_qf[1], _u1.set(0.5, 0.2, -0.85).applyQuaternion(_qg), _u2.set(0.35 * rk, 1, 0).applyQuaternion(_qg), T.hands.left);
+      setBoneWorldQuat(B.LeftHand, _qf[1]);
+    }
 
     // 6) Baş bakış yönüne döner (klipteki yana bakışı düzeltir), nişanda hedefe eğilir, isabette sarsılır
     B.Head.matrixWorld.decompose(_p, _pq, _s);
@@ -595,8 +611,10 @@ class SkinnedSoldier {
     this.twist.impulse(rand(-2.5, 2.5));
   }
 
-  // Silah elden düşer (asıl silah gizlenir; yere düşen kopya ortak geometriyi kullanır)
+  // Silah elden düşer (asıl silah gizlenir; yere düşen kopya ortak geometriyi kullanır).
+  // Mevzi nişancısının elinde tüfek yoktu: düşecek bir şey yok
   die(info, game) {
+    if (!this.gun.visible) return;
     this.gun.updateMatrixWorld();
     const drop = new THREE.Mesh(this.gun.geometry, this.gun.material);
     this.gun.matrixWorld.decompose(drop.position, drop.quaternion, drop.scale);

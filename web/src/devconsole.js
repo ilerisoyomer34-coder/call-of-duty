@@ -1,6 +1,7 @@
 // Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F2 ile açılır.
 import * as THREE from 'three';
-import { WEAPON_ORDER, LEVELS } from './config.js';
+import { WEAPON_ORDER, LEVELS, ALLY_TIERS } from './config.js';
+import { HeavyNest } from './hmg.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -13,6 +14,8 @@ const HELP = `Komutlar:
   debug ai            düşman durumlarını konsola yaz
   cp <n>              seviyenin n. hedefine atla
   level <n>           n. seviyeyi başlat (kilidi de açar)
+  nest                önüne, sana bakan bir ağır makineli yuvası kur (kum torbasız)
+  tier <n>            mangayı n. kademeyle (1 Er … 5 Komando) yeniden kur
   unlock              tüm seviyelerin kilidini aç
   debug allies        dost asker durumlarını yaz
   fps                 FPS göstergesi
@@ -137,10 +140,34 @@ export class DevConsole {
         g.startMode('mission', g.difficultyKey, n);
         break;
       }
+      case 'nest': {
+        if (g.mode !== 'mission') {
+          this.print('Yalnızca görevde.');
+          break;
+        }
+        const P = g.player;
+        const fwd = new THREE.Vector3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+        const pos = P.pos.clone().addScaledVector(fwd, 18).setY(0);
+        const M = g.mission;
+        M.nests = M.nests || [];
+        M.nests.push(new HeavyNest(g, { pos, yaw: P.yaw + Math.PI, group: 'debug' }, M.nests.length));
+        this.print('Ağır makineli yuvası kuruldu (18 m önünde).');
+        break;
+      }
+      case 'tier': {
+        const n = parseInt(args[0], 10);
+        if (!ALLY_TIERS[n] || g.mode !== 'mission') {
+          this.print('Kullanım: tier 1–5 (görevde)');
+          break;
+        }
+        g.allies.spawnSquad(g.allies.list.length || 3, g.player.pos, g.player.yaw, n);
+        this.print(`Manga kademesi: ${ALLY_TIERS[n].rank} (${ALLY_TIERS[n].tactics.join(', ') || 'temel'})`);
+        break;
+      }
       case 'debug':
         if (args[0] === 'allies') {
           for (const a of g.allies.list) {
-            this.print(`${a.name} can=${Math.round(a.health.hp)} yaralı=${a.down} hedef=${a.target?.id || '-'} görüyor=${a.targetVisible} mesafe=${a.pos.distanceTo(g.player.pos).toFixed(1)}m`);
+            this.print(`${a.rankName} can=${Math.round(a.health.hp)} yaralı=${a.down} hedef=${a.target?.id || '-'} görüyor=${a.targetVisible} mesafe=${a.pos.distanceTo(g.player.pos).toFixed(1)}m`);
           }
           break;
         }
