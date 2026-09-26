@@ -470,6 +470,7 @@ export function buildMission(W) {
       { pos: V(0, 56), yaw: 0 },
       { pos: V(6, -60), yaw: 0 },
       { pos: V(-2, -88), yaw: 0 },
+      { pos: V(0, 4), yaw: 0 }, // Seviye 3 başlangıcı: köyün güney çıkışı
     ],
     enemies: [
       // Kontrol noktası
@@ -519,6 +520,8 @@ export function buildMission(W) {
       { t: 28, units: [{ type: 'rifleman', pos: V(64, -80) }, { type: 'shotgunner', pos: V(62, -86) }, { type: 'rifleman', pos: V(-64, -78) }, { type: 'shotgunner', pos: V(-60, -84) }] },
       { t: 58, units: [{ type: 'heavy', pos: V(0, -114) }, { type: 'rifleman', pos: V(-20, -113) }, { type: 'rifleman', pos: V(22, -113) }, { type: 'rifleman', pos: V(-66, -96) }, { type: 'rifleman', pos: V(66, -98) }] },
     ],
+    // Zor seviyelerde (4 ve 5) eklenen son dalga: iki ağır makineli yanlardan, hücumcular önden
+    extraWave: { t: 84, units: [{ type: 'heavy', pos: V(-64, -104) }, { type: 'heavy', pos: V(64, -102) }, { type: 'shotgunner', pos: V(-6, -114) }, { type: 'shotgunner', pos: V(6, -114) }, { type: 'rifleman', pos: V(-66, -86) }, { type: 'rifleman', pos: V(66, -84) }] },
     defendTime: 95,
   };
 }

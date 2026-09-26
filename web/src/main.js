@@ -18,7 +18,8 @@ import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS } from './config.js';
+import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS } from './config.js';
+import { AllyManager } from './ally.js';
 import { storage, warnOnce } from './util.js';
 import { Emitter, clamp, rand } from './util.js';
 
@@ -83,6 +84,31 @@ function nextPaint() {
     setTimeout(go, 150);
   });
 }
+// Seviye ilerlemesi: açılan son seviye ve her seviyenin en iyi sonucu (tarayıcı depolaması yoksa bellekte)
+const PROGRESS_KEY = 'demirsafak.progress.v1';
+function loadProgress() {
+  const s = storage.get(PROGRESS_KEY, null);
+  const unlocked = clamp(Math.floor(s?.unlocked || 1), 1, LEVELS.length);
+  return { unlocked, best: s && typeof s.best === 'object' && s.best ? s.best : {} };
+}
+
+// Seviyenin zorluk çarpanları seçilen temel zorluğun (Acemi/Asker/Gazi) üstüne uygulanır
+function levelDifficulty(base, level) {
+  const t = level?.tuning;
+  if (!t) return base;
+  return {
+    ...base,
+    reaction: base.reaction * t.reaction,
+    aimMult: base.aimMult * t.aim,
+    damageMult: base.damageMult * t.damage,
+    perception: base.perception * t.perception,
+    awarenessRate: base.awarenessRate * t.awareness,
+    maxAttackers: clamp(base.maxAttackers + t.attackers, 1, 4),
+    grenades: base.grenades && t.grenades,
+    dpsCap: base.dpsCap * t.damage,
+  };
+}
+
 function loadLoadout() {
   const s = storage.get(LOADOUT_KEY, null);
   const ok = s && WEAPONS[s.primary]?.category === 'primary' && WEAPONS[s.secondary]?.category === 'secondary';
@@ -104,6 +130,8 @@ export class Game {
     this.mode = 'menu';
     this.difficultyKey = 'normal';
     this.difficulty = DIFFICULTY.normal;
+    this.progress = loadProgress();
+    this.level = LEVELS[0];
     this.barrels = [];
     this.debris = [];
     this.sunDir = new THREE.Vector3(0.82, 0.3, -0.22).normalize();
@@ -278,11 +306,13 @@ export class Game {
     this.effects = new Effects(scene, this.textures, this.audio, this.quality);
     this.effects.bloodOn = this.settings.blood;
     this.enemies = new EnemyManager(this);
+    this.allies = new AllyManager(this);
     this.grenades = new GrenadeSystem(this);
     this.weapons = new PlayerWeapons(this);
     this.barrels = [];
     this.debris = [];
-    this.mission = new Mission(this, mode);
+    // Menü arka planı tam operasyon haritasını kullanır (toplar göğe ateş eder)
+    this.mission = new Mission(this, mode, mode === 'mission' ? this.level : LEVELS[LEVELS.length - 1]);
     this.resize();
   }
 
@@ -322,6 +352,7 @@ export class Game {
     M.mode = 'mission';
     M.build();
     this.enemies.clear();
+    this.allies.clear();
     M.objectives = [];
     M.radioQueue.length = 0;
     M.interactables.length = 0;
@@ -333,7 +364,7 @@ export class Game {
     storage.set(LOADOUT_KEY, this.loadout);
   }
 
-  async startMode(mode, diffKey = 'normal') {
+  async startMode(mode, diffKey = 'normal', levelId = this.level.id) {
     this.audio.init();
     this.audio.stopMenuMusic();
     this.menus.hideAll();
@@ -345,7 +376,9 @@ export class Game {
       await nextPaint();
       this.mode = mode;
       this.difficultyKey = diffKey;
-      this.difficulty = DIFFICULTY[diffKey] || DIFFICULTY.normal;
+      this.level = LEVELS.find((l) => l.id === levelId) || LEVELS[0];
+      const base = DIFFICULTY[diffKey] || DIFFICULTY.normal;
+      this.difficulty = mode === 'mission' ? levelDifficulty(base, this.level) : base;
       this.stats = this.freshStats();
       this.cheats.god = false;
       this.buildScene(mode);
@@ -353,7 +386,8 @@ export class Game {
       L.step('Teçhizat hazırlanıyor', 0.6);
       await nextPaint();
       this.weapons.reset(this.mission.defaultLoadout());
-      this.mission.saveCheckpoint(0);
+      // Seviyenin başlangıç kontrol noktasını teçhizatla birlikte sessizce yeniden kaydet
+      this.mission.saveCheckpoint(this.mission.checkpoint?.idx ?? 0, true);
       this.hud.bakeMinimap();
       this.player.applyCamera(this.camera, 0);
       L.step('Gölgelendiriciler derleniyor', 0.8);
@@ -438,7 +472,7 @@ export class Game {
       if (info.weapon !== 'melee') this.addScore(SCORE.kill + (head ? SCORE.headshot : 0), head ? 'KAFA VURUŞU' : 'ETKİSİZ', head);
     }
     if (this.mode === 'mission' && Math.random() < 0.5) this.mission.spawnPouch(enemy.pos);
-    this.events.emit('enemyKilled', enemy);
+    this.events.emit('enemyKilled', enemy, info);
   }
 
   onPlayerDeath() {
@@ -455,7 +489,22 @@ export class Game {
     this.clickToPlay.hidden = true;
     this.hud.show(false);
     this.input.enableTouch(false);
-    this.menus.showVictory(this.stats, this.difficulty.label);
+    // Sonraki seviyenin kilidi açılır; en iyi puan saklanır
+    const lv = this.level;
+    const P = this.progress;
+    const firstClear = P.unlocked <= lv.id && lv.id < LEVELS.length;
+    P.unlocked = Math.max(P.unlocked, Math.min(LEVELS.length, lv.id + 1));
+    const prev = P.best[lv.id];
+    if (!prev || this.stats.score > prev.score) P.best[lv.id] = { score: this.stats.score, time: Math.round(this.stats.time), diff: this.difficultyKey };
+    storage.set(PROGRESS_KEY, P);
+    const next = LEVELS.find((l) => l.id === lv.id + 1) || null;
+    this.menus.showVictory(this.stats, DIFFICULTY[this.difficultyKey]?.label || '', lv, next, firstClear);
+  }
+
+  // Konsol ve testler için: tüm seviyeleri aç
+  unlockAllLevels() {
+    this.progress.unlocked = LEVELS.length;
+    storage.set(PROGRESS_KEY, this.progress);
   }
 
   findInteractable(eye, fwd) {
@@ -488,24 +537,11 @@ export class Game {
     }
   }
 
-  // Konsol: n. hedefe atla (test amaçlı)
+  // Konsol: seviyenin n. hedefine atla (test amaçlı)
   debugSkipTo(n) {
-    const M = this.mission;
     this.menus.hideAll();
     this.state = 'playing';
-    const idx = clamp(n - 1, 0, M.objectives.length - 1);
-    const groups = ['outpost', 'village', 'hq'];
-    if (idx >= 1) for (const e of this.enemies.list) if (e.alive && e.group === 'outpost') e.takeDamage(999, { zone: 'torso', dir: new THREE.Vector3(0, 0, 1), source: 'cheat' });
-    if (idx >= 2) for (const a of M.aa) if (!a.destroyed) a.destroyed = true;
-    if (idx >= 2) for (const a of M.aa) M.destroyed.add(a.id);
-    if (idx >= 3) M.intel = true;
-    void groups;
-    M.objIdx = idx;
-    const cpMap = [0, 1, 2, 4, 5, 5];
-    const cp = M.data.checkpoints[cpMap[idx]] || M.data.checkpoints[0];
-    this.player.reset(cp.pos, cp.yaw);
-    if (M.current.id === 'defend') M.defendT = 0;
-    this.events.emit('objective', M.currentText());
+    this.mission.skipTo(n);
   }
 
   // --- Ana döngü ---
@@ -586,6 +622,7 @@ export class Game {
     this.camera.updateMatrixWorld();
     this.weapons.update(dt, canAct ? I : NULL_INPUT, canAct);
     this.enemies.update(dt);
+    this.allies.update(dt);
     this.grenades.update(dt);
     this.mission.update(dt);
     this.updateDebris(dt);

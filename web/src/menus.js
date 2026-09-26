@@ -1,5 +1,5 @@
-// Menü ekranları: ana menü, zorluk, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
-import { DIFFICULTY, WEAPONS, WEAPON_ORDER } from './config.js';
+// Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
+import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS } from './config.js';
 import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
@@ -12,9 +12,12 @@ export class Menus {
     this.game = game;
     this.stack = [];
     this.current = null;
+    this.pendingDiff = 'normal';
+    this.pendingLevel = 1;
     this.bind();
     this.buildControls();
     this.buildDifficulty();
+    this.buildBrief();
   }
 
   show(id, push = true) {
@@ -52,7 +55,7 @@ export class Menus {
       });
     }
     for (const b of document.querySelectorAll('.mbtn, .btn')) b.addEventListener('mouseenter', () => g.audio.uiHover());
-    click('btnPlay', () => this.show('diffScreen'));
+    click('btnPlay', () => this.showLevels());
     click('btnRange', () => g.startMode('range', 'normal'));
     click('btnSettings', () => this.openSettings());
     click('btnControls', () => this.show('controlsScreen'));
@@ -64,12 +67,16 @@ export class Menus {
     click('btnQuit', () => g.toMenu());
     click('btnRespawn', () => g.respawn());
     click('btnDeathQuit', () => g.toMenu());
-    click('btnAgain', () => g.startMode(g.mode, g.difficultyKey));
+    click('btnAgain', () => g.startMode(g.mode, g.difficultyKey, g.level.id));
+    click('btnNext', () => {
+      const next = LEVELS.find((l) => l.id === g.level.id + 1);
+      if (next) g.startMode('mission', g.difficultyKey, next.id);
+    });
     click('btnVictoryMenu', () => g.toMenu());
     click('btnDeploy', () => {
       const L = this.selLoadout;
       this.game.setLoadout(L.primary, L.secondary);
-      this.game.startMode('mission', this.pendingDiff || 'normal');
+      this.game.startMode('mission', this.pendingDiff || 'normal', this.pendingLevel);
     });
     click('btnResetSettings', () => {
       Object.assign(g.settings, DEFAULT_SETTINGS);
@@ -78,24 +85,109 @@ export class Menus {
     });
   }
 
+  // Zorluk: seviyenin kendi ayarının üstüne uygulanan temel çarpan (Asker önerilen)
   buildDifficulty() {
     const list = $('diffList');
     list.innerHTML = '';
     for (const [key, d] of Object.entries(DIFFICULTY)) {
       const b = document.createElement('button');
-      b.className = `diff${key === 'normal' ? ' sel' : ''}`;
-      b.innerHTML = `<b></b><span></span>`;
-      b.firstChild.textContent = d.label;
-      b.lastChild.textContent = d.desc;
+      b.className = `diff${key === this.pendingDiff ? ' sel' : ''}`;
+      b.dataset.key = key;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(key === this.pendingDiff));
+      const name = document.createElement('b');
+      name.textContent = d.label;
+      b.appendChild(name);
       b.addEventListener('click', () => {
         this.game.audio.init();
         this.game.audio.uiClick();
         this.pendingDiff = key;
-        this.showLoadout();
+        for (const x of list.children) {
+          x.classList.toggle('sel', x.dataset.key === key);
+          x.setAttribute('aria-checked', String(x.dataset.key === key));
+        }
+        $('diffDesc').textContent = d.desc;
       });
       b.addEventListener('mouseenter', () => this.game.audio.uiHover());
       list.appendChild(b);
     }
+    $('diffDesc').textContent = DIFFICULTY[this.pendingDiff].desc;
+  }
+
+  // Ana menüdeki seviye özeti
+  buildBrief() {
+    const box = $('menuBrief');
+    box.innerHTML = '';
+    for (const L of LEVELS) {
+      const b = document.createElement('b');
+      b.textContent = String(L.id).padStart(2, '0');
+      const sp = document.createElement('span');
+      sp.textContent = `${L.name} · ${L.tag}`;
+      box.append(b, sp);
+    }
+  }
+
+  // Seviye kartları: kilitli olanlar seçilemez; en iyi sonuç ve manga büyüklüğü görünür
+  showLevels() {
+    const g = this.game;
+    const box = $('levelList');
+    box.innerHTML = '';
+    const P = g.progress;
+    for (const L of LEVELS) {
+      const locked = L.id > P.unlocked;
+      const b = document.createElement('button');
+      b.className = 'lvl';
+      b.disabled = locked;
+      b.dataset.level = String(L.id);
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = String(L.id).padStart(2, '0');
+      const top = document.createElement('div');
+      top.className = 'top';
+      const name = document.createElement('b');
+      name.textContent = L.name;
+      const meter = document.createElement('span');
+      meter.className = 'meter';
+      meter.setAttribute('aria-label', `Zorluk ${L.id}/${LEVELS.length}`);
+      for (let i = 1; i <= LEVELS.length; i++) {
+        const seg = document.createElement('i');
+        if (i <= L.id) seg.className = 'on';
+        meter.appendChild(seg);
+      }
+      const tag = document.createElement('span');
+      tag.textContent = L.tag;
+      meter.appendChild(tag);
+      top.append(name, meter);
+      const d = document.createElement('div');
+      d.className = 'd';
+      d.textContent = L.brief;
+      const m = document.createElement('div');
+      m.className = 'm';
+      if (locked) m.textContent = `Kilitli · önce Seviye ${L.id - 1}'i bitir`;
+      else {
+        const squad = document.createElement('em');
+        squad.textContent = `${L.allies} dost asker`;
+        m.append('Manga: ', squad);
+        const best = P.best[L.id];
+        if (best) {
+          const st = document.createElement('strong');
+          st.textContent = `${best.score} puan · ${formatTime(best.time)}`;
+          m.append(' · En iyi: ', st);
+        }
+      }
+      b.append(n, top, d, m);
+      if (!locked) {
+        b.addEventListener('click', () => {
+          g.audio.init();
+          g.audio.uiClick();
+          this.pendingLevel = L.id;
+          this.showLoadout();
+        });
+        b.addEventListener('mouseenter', () => g.audio.uiHover());
+      }
+      box.appendChild(b);
+    }
+    this.show('diffScreen');
   }
 
   // Silah kartı için 0–1 arası özet değerler
@@ -113,7 +205,8 @@ export class Menus {
   showLoadout() {
     const g = this.game;
     this.selLoadout = { ...g.loadout };
-    document.getElementById('loadoutDiff').textContent = DIFFICULTY[this.pendingDiff || 'normal'].label;
+    const L = LEVELS.find((l) => l.id === this.pendingLevel) || LEVELS[0];
+    document.getElementById('loadoutDiff').textContent = `Seviye ${L.id} · ${L.name} · ${DIFFICULTY[this.pendingDiff || 'normal'].label}`;
     for (const [cat, listId] of [['primary', 'primaryList'], ['secondary', 'secondaryList']]) {
       const box = document.getElementById(listId);
       box.innerHTML = '';
@@ -284,7 +377,13 @@ export class Menus {
     this.show('deathScreen', false);
   }
 
-  showVictory(stats, diffLabel) {
+  showVictory(stats, diffLabel, level = null, next = null, firstClear = false) {
+    $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name}` : 'Tahliye başarılı · Kızılkum Vadisi';
+    $('victoryTitle').textContent = next ? 'Seviye tamamlandı' : 'Operasyon tamamlandı';
+    const un = $('victoryUnlock');
+    un.hidden = !(firstClear && next);
+    if (next) un.textContent = `Yeni seviye açıldı: Seviye ${next.id} · ${next.name} (${next.tag})`;
+    $('btnNext').hidden = !next;
     const acc = stats.shots ? Math.round((stats.hits / stats.shots) * 100) : 0;
     const items = [
       [formatTime(stats.time), 'Görev süresi'],
@@ -312,7 +411,8 @@ export class Menus {
     $('victoryRank').innerHTML = '';
     const b = document.createElement('b');
     b.textContent = `${rank}`;
-    $('victoryRank').append(document.createTextNode('Değerlendirme: '), b, document.createTextNode(` · Zorluk: ${diffLabel}. Kartal-1 istihbaratla birlikte üsse döndü.`));
+    const tail = next ? '' : ' Kartal ekibi istihbaratla birlikte üsse döndü.';
+    $('victoryRank').append(document.createTextNode('Değerlendirme: '), b, document.createTextNode(` · Zorluk: ${diffLabel}.${tail}`));
     this.stack = [];
     this.show('victoryScreen', false);
   }

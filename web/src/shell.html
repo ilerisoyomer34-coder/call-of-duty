@@ -133,6 +133,7 @@
   --olive: #8c9a64;
   --red: #e0513f;
   --cyan: #7fc6c9;
+  --blue: #6fb0ff;
   --f-display: 'Big Shoulders Stencil Display', 'Impact', 'Arial Narrow Bold', sans-serif;
   --f-ui: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif;
   --f-num: 'Share Tech Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -221,6 +222,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #radio.on { opacity: 1; }
 #radio b { color: var(--amber); font-weight: 700; letter-spacing: .05em; }
 #radio.enemy b { color: var(--red); }
+#radio.ally b { color: var(--blue); }
+.atag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 12px/1 var(--f-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--blue); text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,.6); white-space: nowrap; }
+.atag i { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--blue); filter: drop-shadow(0 1px 1px rgba(0,0,0,.8)); }
+.atag.down { color: var(--amber); }
+.atag.down i { border-top-color: var(--amber); }
 #message { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); font: 700 28px/1 var(--f-ui); letter-spacing: .22em; text-shadow: 0 2px 6px #000; opacity: 0; white-space: nowrap; }
 #message.on { animation: msg 2.6s ease-out forwards; }
 #message.warn { color: var(--red); }
@@ -262,7 +268,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .screen { position: absolute; inset: 0; display: flex; pointer-events: auto; overflow-y: auto; }
 .screen[hidden] { display: none !important; }
 #menu { background: linear-gradient(90deg, rgba(10,12,14,.92) 0%, rgba(10,12,14,.72) 38%, rgba(10,12,14,.05) 72%); }
-#menu .col { display: flex; flex-direction: column; justify-content: center; gap: 28px; padding-block: 40px; padding-inline: max(24px, 7vw) 24px; width: min(520px, 100%); box-sizing: border-box; }
+#menu .col { display: flex; flex-direction: column; justify-content: safe center; gap: 28px; padding-block: 40px; padding-inline: max(24px, 7vw) 24px; width: min(520px, 100%); box-sizing: border-box; }
 .eyebrow { font: 600 13px/1 var(--f-ui); letter-spacing: .32em; color: var(--amber); text-transform: uppercase; }
 .title { font: 900 clamp(52px, 11vw, 104px)/.86 var(--f-display); letter-spacing: .02em; margin: 10px 0 0; color: var(--sand); text-wrap: balance; }
 .sub { font: 400 15px/1.4 var(--f-num); color: var(--sand-dim); margin-top: 12px; }
@@ -273,6 +279,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .mbtn.primary { color: var(--amber); }
 .brief { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); max-width: 420px; }
 .brief b { font: 400 14px/1.3 var(--f-num); color: var(--amber); }
+@media (max-height: 640px) { #menu .brief { display: none; } }
 .panelScreen { background: rgba(10,12,14,.9); align-items: flex-start; justify-content: center; }
 .sheet { width: min(760px, 100%); box-sizing: border-box; padding-block: 40px; padding-inline: 20px; display: flex; flex-direction: column; gap: 20px; margin: auto 0; }
 .sheet h2 { font: 900 clamp(34px, 6vw, 52px)/1 var(--f-display); letter-spacing: .03em; margin: 6px 0 0; }
@@ -302,6 +309,29 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .diff b { font: 700 24px/1 var(--f-ui); letter-spacing: .1em; text-transform: uppercase; }
 .diff span { font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); }
 .diff.sel { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); }
+/* Seviye kartları: numara, ad, zorluk etiketi, özet, manga ve en iyi sonuç */
+.levels { display: flex; flex-direction: column; gap: 8px; }
+.lvl { appearance: none; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 12px 16px 13px; cursor: pointer; display: grid; grid-template-columns: 58px 1fr; gap: 2px 14px; align-items: start; font-family: var(--f-ui); }
+.lvl:hover:not(:disabled), .lvl:focus-visible { border-color: var(--amber); outline: none; }
+.lvl .n { grid-row: span 3; font: 900 44px/1 var(--f-display); color: var(--amber); letter-spacing: .02em; }
+.lvl .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.lvl b { font: 700 21px/1.1 var(--f-ui); letter-spacing: .06em; text-transform: uppercase; }
+.lvl .meter { display: inline-flex; align-items: center; gap: 3px; font: 600 11px/1 var(--f-ui); letter-spacing: .14em; color: var(--sand-dim); text-transform: uppercase; white-space: nowrap; }
+.lvl .meter i { display: block; width: 9px; height: 9px; background: rgba(231,220,196,.14); }
+.lvl .meter i.on { background: var(--amber); }
+.lvl .meter span { margin-left: 6px; }
+.lvl .d { font: 400 15px/1.35 var(--f-ui); color: var(--sand-dim); }
+.lvl .m { font: 400 13px/1.3 var(--f-num); color: var(--sand-dim); }
+.lvl .m em { font-style: normal; color: var(--blue); }
+.lvl .m strong { font-weight: 400; color: var(--olive); }
+.lvl:disabled { cursor: not-allowed; opacity: .45; }
+.lvl:disabled .n { color: var(--sand-dim); }
+.seg { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--line); width: fit-content; max-width: 100%; }
+.seg .diff { flex-direction: row; align-items: center; padding: 10px 18px; border: 0; border-right: 1px solid var(--line); }
+.seg .diff:last-child { border-right: 0; }
+.seg .diff b { font-size: 17px; }
+.seg .diff.sel { background: #1b2126; box-shadow: inset 0 -3px 0 var(--amber); color: var(--amber); }
+.tip.unlock { color: var(--olive); }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stats div { background: var(--panel-solid); padding: 14px; }
@@ -493,25 +523,23 @@ body.touch #reloadHint { top: calc(50% + 34px); }
         <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
       </div>
       <div class="menuList" id="mainList">
-        <button class="mbtn primary" id="btnPlay">Göreve başla<small>10–15 dakikalık sızma, sabotaj ve tahliye</small></button>
+        <button class="mbtn primary" id="btnPlay">Göreve başla<small>Beş seviye, kolaydan zora · mavi mangan seninle</small></button>
         <button class="mbtn" id="btnRange">Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></button>
         <button class="mbtn" id="btnSettings">Ayarlar</button>
         <button class="mbtn" id="btnControls">Kontroller</button>
         <button class="mbtn" id="btnCredits">Emeği geçenler</button>
       </div>
-      <div class="brief">
-        <b>01</b><span>Kontrol noktasını temizle</span>
-        <b>02</b><span>İki uçaksavar topunu C4 ile imha et</span>
-        <b>03</b><span>Komuta merkezinden istihbaratı al</span>
-        <b>04</b><span>İniş bölgesini helikopter gelene kadar tut</span>
-      </div>
+      <div class="brief" id="menuBrief"></div>
     </div>
   </section>
 
   <section id="diffScreen" class="screen panelScreen" hidden>
     <div class="sheet">
-      <div><div class="eyebrow">Göreve başla</div><h2>Zorluk seç</h2></div>
-      <div class="diffs" id="diffList"></div>
+      <div><div class="eyebrow">Göreve başla · Kızılkum Vadisi</div><h2>Seviye seç</h2></div>
+      <div class="levels" id="levelList"></div>
+      <h3>Zorluk</h3>
+      <div class="seg" id="diffList" role="radiogroup" aria-label="Zorluk"></div>
+      <p class="tip" id="diffDesc"></p>
       <div class="row"><button class="btn" data-back>Geri</button></div>
     </div>
   </section>
@@ -608,10 +636,11 @@ body.touch #reloadHint { top: calc(50% + 34px); }
 
   <section id="victoryScreen" class="screen panelScreen" hidden>
     <div class="sheet">
-      <div><div class="eyebrow">Tahliye başarılı · Kızılkum Vadisi</div><h2>Görev tamamlandı</h2></div>
+      <div><div class="eyebrow" id="victoryEyebrow">Tahliye başarılı · Kızılkum Vadisi</div><h2 id="victoryTitle">Görev tamamlandı</h2></div>
       <p class="tip" id="victoryRank"></p>
+      <p class="tip unlock" id="victoryUnlock" hidden></p>
       <div class="stats" id="victoryStats"></div>
-      <div class="row"><button class="btn primary" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
+      <div class="row"><button class="btn primary" id="btnNext" hidden>Sonraki seviye</button><button class="btn" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
     </div>
   </section>
 

@@ -1,6 +1,6 @@
 // El bombaları ve patlamalar: sekme fiziği, fitil, alan hasarı (görüş hattı kontrollü), sarsıntı.
 import * as THREE from 'three';
-import { GRENADE } from './config.js';
+import { GRENADE, ALLY } from './config.js';
 import { buildGrenade, buildRocket } from './models.js';
 import { clamp, rand } from './util.js';
 
@@ -161,6 +161,17 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
       // Oyuncunun kendi bombası daha az acıtır ama yine tehlikeli
       const mult = owner === 'player' ? 0.7 : game.difficulty.damageMult;
       if (f > 0.01) P.takeDamage(damage * f * mult, pos);
+    }
+  }
+  // Dost askerler: düşman patlamasından etkilenir, oyuncunun patlamasından değil (dost ateşi kapalı)
+  if (owner !== 'player') {
+    for (const a of game.allies.list) {
+      if (!a.alive) continue;
+      const c = a.chestPos(_v);
+      const d = c.distanceTo(pos);
+      if (d > radius) continue;
+      const f = Math.pow(1 - d / radius, 1.4) * (W.lineOfSight(pos, c) ? 1 : 0.2);
+      if (f > 0.01) a.takeDamage(damage * f * ALLY.damageTaken, pos);
     }
   }
   let hitAny = false;

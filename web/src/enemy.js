@@ -3,7 +3,7 @@
 // Algı: görme (açı, mesafe, görüş hattı, duruş), duyma (silah/adım), hasar.
 // Adil isabet: mesafe, oyuncu hızı, ilk atış ıskası, zorluk; saldırı jetonu sistemiyle aynı anda sınırlı sayıda düşman ateş eder.
 import * as THREE from 'three';
-import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM } from './config.js';
+import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY } from './config.js';
 import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
 import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp } from './util.js';
@@ -15,6 +15,7 @@ const _dir = new THREE.Vector3();
 const _hit = {};
 const _ray = new THREE.Raycaster();
 const UP = new THREE.Vector3(0, 1, 0);
+const FOE_PLAYER_BIAS = 1.25; // oyuncu, dosttan bu kat uzakta olsa bile hedef seçilir
 
 // Işın - dikey silindir kesişimi (oyuncu vuruş kutusu)
 function rayCylinder(o, d, cx, cz, r, y0, y1, maxT) {
@@ -113,6 +114,7 @@ export class Enemy {
     this.anim.aimPitch = 0;
     this.throwAnim = null;
     this.bloodPool = false;
+    this.foe = this.game.player;
     this.model.reset(this.pos, this.yaw);
     this.respawnT = 0;
     if (this.laser) this.laser.visible = false;
@@ -143,9 +145,10 @@ export class Enemy {
     const dealt = this.health.damage(amount);
     void dealt;
     this.model.hit(info.zone);
-    if (info.source === 'player') {
-      // Vurulan düşman ateşin nereden geldiğini bilir
-      this.lastKnown.copy(g.player.pos);
+    if (info.source === 'player' || (info.source === 'ally' && info.attacker)) {
+      // Vurulan düşman ateşin nereden geldiğini bilir ve ateş edene döner
+      this.foe = info.source === 'ally' ? info.attacker : g.player;
+      this.lastKnown.copy(this.foe.pos);
       this.lastSeen = g.time;
       if (this.aiState !== 'combat') this.enterCombat(true);
       this.awareness = 1;
@@ -244,57 +247,73 @@ export class Enemy {
     }
   }
 
+  // Görme: oyuncu ve en yakın dost asker değerlendirilir; çatışmada görünen en yakın hasım hedef olur
+  // (oyuncu biraz önceliklidir). Dostlar için görüş testi en fazla bir adayla sınırlı: maliyet sabit kalır.
   perceive(dt) {
     const g = this.game;
     const P = g.player;
     const D = g.difficulty;
-    if (!P.alive) {
-      this.visible = false;
-      return;
-    }
     const eye = this.eyePos(_v);
-    const head = P.headPos(_v2);
-    const toP = _v3.subVectors(head, eye);
-    const dist = toP.length();
     const inCombat = this.aiState === 'combat';
     const range = this.T.viewRange * D.perception * (inCombat ? 1.4 : 1);
-    let visible = false;
-    if (dist < range) {
-      const yawTo = dirToYaw(toP.x, toP.z);
-      const off = Math.abs(angleDiff(this.lookYaw, yawTo));
-      const fovHalf = (this.T.fov * DEG) / 2;
-      if (off < fovHalf || dist < 3.5 || (inCombat && dist < 30)) {
-        visible = g.world.lineOfSight(eye, head) || g.world.lineOfSight(eye, P.chestPos(_v3));
+    const fovHalf = (this.T.fov * DEG) / 2;
+    let seeP = false;
+    let distP = Infinity;
+    if (P.alive) {
+      const head = P.headPos(_v2);
+      const toP = _v3.subVectors(head, eye);
+      distP = toP.length();
+      if (distP < range) {
+        const off = Math.abs(angleDiff(this.lookYaw, dirToYaw(toP.x, toP.z)));
+        if (off < fovHalf || distP < 3.5 || (inCombat && distP < 30)) {
+          seeP = g.world.lineOfSight(eye, head) || g.world.lineOfSight(eye, P.chestPos(_v3));
+        }
       }
     }
+    const seen = g.allies.visibleTo(this, eye, range, fovHalf, inCombat);
+    let foe = null;
+    let dist = 0;
+    if (seeP && (!seen || distP <= seen.dist * FOE_PLAYER_BIAS)) {
+      foe = P;
+      dist = distP;
+    } else if (seen) {
+      foe = seen.ally;
+      dist = seen.dist;
+    }
+    if (foe && foe !== this.foe) {
+      this.foe = foe;
+      this.visibleT = 0;
+    } else if (!this.foe?.alive && P.alive) this.foe = P;
+    const visible = !!foe;
     this.visible = visible;
     if (visible) {
       this.visibleT += dt;
       if (!inCombat) {
         const df = Math.pow(clamp(1 - dist / range, 0, 1), 0.6);
         let rate = 1.5 * D.awarenessRate * (0.25 + df * 2.2);
-        if (P.crouched) rate *= 0.5;
-        const sp = P.horizSpeed;
-        if (P.sprinting) rate *= 1.8;
+        if (foe.crouched) rate *= 0.5;
+        const sp = foe.horizSpeed;
+        if (foe.sprinting) rate *= 1.8;
         else if (sp > 1) rate *= 1.25;
         else rate *= 0.7;
-        if (g.time - g.weapons.current?.lastShot < 0.5) rate *= 3; // silah ateşi göz alıcı
+        if (foe === P && g.time - (g.lastPlayerShot ?? -100) < 0.5) rate *= 3; // silah ateşi göz alıcı
+        if (foe !== P) rate *= ALLY.stealth; // manga oyuncunun arkasında, dikkat çekmemeye çalışır
         if (dist < 6) rate *= 3;
         this.awareness = Math.min(1, this.awareness + rate * dt);
         if (this.awareness > 0.35) {
-          this.lastKnown.copy(P.pos);
+          this.lastKnown.copy(foe.pos);
           if (this.aiState === 'patrol' || this.aiState === 'guard') {
             this.aiState = 'suspicious';
             this.suspT = 0;
           }
         }
         if (this.awareness >= 1) {
-          this.lastKnown.copy(P.pos);
+          this.lastKnown.copy(foe.pos);
           this.lastSeen = g.time;
           this.enterCombat();
         }
       } else {
-        this.lastKnown.copy(P.pos);
+        this.lastKnown.copy(foe.pos);
         this.lastSeen = g.time;
       }
     } else {
@@ -370,7 +389,9 @@ export class Enemy {
 
   thinkCombat(dt) {
     const g = this.game;
-    const P = g.player;
+    // Hedef yaralı dostsa oyuncuya dön
+    if (!this.foe?.alive) this.foe = g.player;
+    const P = this.foe;
     if (!P.alive) {
       if (g.time - this.lastSeen > 3) {
         this.aiState = 'search';
@@ -464,7 +485,7 @@ export class Enemy {
 
   findCover(retreat) {
     const g = this.game;
-    const P = g.player;
+    const P = this.foe || g.player;
     const target = this.lastKnown;
     const cands = g.nav.coversNear(this.pos, AI.coverSearchRadius + (retreat ? 8 : 0));
     cands.sort((a, b) => a.pos.distanceToSquared(this.pos) - b.pos.distanceToSquared(this.pos));
@@ -524,7 +545,7 @@ export class Enemy {
   // Her kare: hareket hedefi, bakış, ateş
   act(dt) {
     const g = this.game;
-    const P = g.player;
+    const P = this.foe || g.player;
     let faceYaw = null;
     let wantShoot = false;
     this.crouch = false;
@@ -755,9 +776,11 @@ export class Enemy {
       this.updateSniper(dt, wantShoot);
       return;
     }
-    const facing = Math.abs(angleDiff(this.yaw, dirToYaw(g.player.pos.x - this.pos.x, g.player.pos.z - this.pos.z))) < 0.4;
-    // Jeton yoksa yalnızca seyrek bastırma ateşi
-    const allowed = this.hasToken || Math.random() < 0.15 * dt;
+    const F = this.foe || g.player;
+    const facing = Math.abs(angleDiff(this.yaw, dirToYaw(F.pos.x - this.pos.x, F.pos.z - this.pos.z))) < 0.4;
+    // Jeton yoksa yalnızca seyrek bastırma ateşi. Jetonlar oyuncuya ateşi sınırlar; dosta ateş serbest
+    const vsAlly = F !== g.player;
+    const allowed = vsAlly || this.hasToken || Math.random() < 0.15 * dt;
     if (!wantShoot || !facing) {
       Wp.burstLeft = 0;
       return;
@@ -767,7 +790,7 @@ export class Enemy {
       if (Wp.gapT <= 0 && (allowed || this.hasToken)) {
         Wp.burstLeft = Math.round(rand(W.burst[0], W.burst[1]));
         Wp.gapT = rand(W.burstGap[0], W.burstGap[1]);
-        Wp.suppress = !this.hasToken;
+        Wp.suppress = !this.hasToken && !vsAlly;
       }
     }
     let n = 0;
@@ -784,7 +807,7 @@ export class Enemy {
   updateSniper(dt, wantShoot) {
     const g = this.game;
     const Wp = this.weapon;
-    const P = g.player;
+    const P = this.foe || g.player;
     if (!this.aimPoint) this.aimPoint = new THREE.Vector3();
     if (wantShoot && Wp.cooldown <= 0) {
       if (Wp.charge === 0) this.aimPoint.copy(P.chestPos(_v));
@@ -841,18 +864,19 @@ export class Enemy {
   shoot(suppress, forcedAim = null) {
     const g = this.game;
     const P = g.player;
+    const F = this.foe || P; // hedef: oyuncu ya da dost asker (aynı arayüz)
     const D = g.difficulty;
     const W = this.W;
     const muzzle = this.muzzlePos(_v).clone();
-    const target = forcedAim ? forcedAim.clone() : P.chestPos(_v2).clone();
+    const target = forcedAim ? forcedAim.clone() : F.chestPos(_v2).clone();
     if (!forcedAim && Math.random() < (D.aimMult < 1 ? 0.18 : 0.08)) target.y += 0.35;
     const dist = muzzle.distanceTo(target);
     const base = _dir.subVectors(target, muzzle).normalize().clone();
     // Hata açısı (derece)
     let err = this.T.aimBase * D.aimMult * (0.55 + dist / 32);
-    err *= 1 + clamp(P.horizSpeed / 4.5, 0, 1.5) * 0.9;
-    if (P.crouched) err *= 1.15;
-    if (!P.grounded) err *= 1.3;
+    err *= 1 + clamp(F.horizSpeed / 4.5, 0, 1.5) * 0.9;
+    if (F.crouched) err *= 1.15;
+    if (!F.grounded) err *= 1.3;
     const windup = Math.max(0, 1 - this.visibleT / AI.acquireWindup);
     err += AI.firstShotsMissBonus * windup * D.aimMult;
     if (suppress) err += 2.5;
@@ -861,15 +885,16 @@ export class Enemy {
     const pellets = W.pellets;
     let hitPlayer = false;
     const head = P.headPos(_v3).clone();
+    const foeHead = F === P ? head : F.headPos(new THREE.Vector3());
     for (let i = 0; i < pellets; i++) {
       const d = randomInCone(base, (err + (W.spreadDeg || 0)) * DEG, new THREE.Vector3(), 0.8);
       const wh = g.world.raycast(muzzle, d, W.range, _hit);
       const maxT = wh ? wh.dist : W.range;
-      const h = P.alive ? rayCylinder(muzzle, d, P.pos.x, P.pos.z, 0.38, P.pos.y, P.pos.y + P.state.height + 0.05, maxT) : -1;
+      const h = F.alive ? rayCylinder(muzzle, d, F.pos.x, F.pos.z, 0.38, F.pos.y, F.pos.y + F.state.height + 0.05, maxT) : -1;
       if (h >= 0) {
         hitPlayer = true;
         const fall = dist < 25 ? 1 : lerp(1, 0.6, clamp((dist - 25) / 40, 0, 1));
-        P.takeDamage(W.damage * D.damageMult * fall, this.pos);
+        F.takeDamage(W.damage * D.damageMult * fall * (F === P ? 1 : ALLY.damageTaken), this.pos);
         g.effects.impact(_v.copy(muzzle).addScaledVector(d, h), _v2.copy(d).negate(), 'flesh', 0.3);
       } else {
         const endT = maxT;
@@ -893,7 +918,7 @@ export class Enemy {
         }
       }
       if (i === 0 && (Math.random() < 0.4 || this.type === 'sniper')) {
-        const end = hitPlayer ? head.clone().add(new THREE.Vector3(rand(-0.3, 0.3), -0.3, rand(-0.3, 0.3))) : wh ? wh.point.clone() : _v.copy(muzzle).addScaledVector(d, 80).clone();
+        const end = hitPlayer ? foeHead.clone().add(new THREE.Vector3(rand(-0.3, 0.3), -0.3, rand(-0.3, 0.3))) : wh ? wh.point.clone() : _v.copy(muzzle).addScaledVector(d, 80).clone();
         g.effects.tracer(muzzle, end, 300, 0.02);
       }
     }
@@ -950,7 +975,7 @@ export class Enemy {
       // Koşarken silah göğüste taşınır; ama ateş ettiği an omuza gelir
       stance = ((this.visible || sinceShot < 1.5) && !sprinting) || sinceShot < 0.4 ? 'aim' : 'ready';
       if (this.visible) {
-        const P = g.player;
+        const P = this.foe || g.player;
         const e = this.eyePos(_v);
         const h = P.chestPos(_v2);
         aim = Math.atan2(h.y - e.y, Math.hypot(h.x - e.x, h.z - e.z));
@@ -1057,7 +1082,7 @@ export class EnemyManager {
     if (this.tokenT <= 0) {
       this.tokenT = 0.5;
       const P = this.game.player;
-      const cands = this.list.filter((e) => e.alive && e.aiState === 'combat' && e.visible && e.type !== 'sniper');
+      const cands = this.list.filter((e) => e.alive && e.aiState === 'combat' && e.visible && e.type !== 'sniper' && e.foe === P);
       cands.sort((a, b) => a.pos.distanceToSquared(P.pos) - b.pos.distanceToSquared(P.pos));
       const max = this.game.difficulty.maxAttackers;
       for (let i = 0; i < cands.length; i++) cands[i].hasToken = i < max;
@@ -1125,8 +1150,8 @@ export class EnemyManager {
     return best;
   }
 
-  // Oyuncunun mermisi bir düşmanın yakınından geçtiyse fark eder
-  bulletNearMiss(o, d, dist) {
+  // Oyuncunun (ya da dostun) mermisi bir düşmanın yakınından geçtiyse fark eder
+  bulletNearMiss(o, d, dist, shooter = this.game.player) {
     const g = this.game;
     for (const e of this.list) {
       if (!e.alive || e.aiState === 'combat' || e.dummy) continue;
@@ -1134,7 +1159,8 @@ export class EnemyManager {
       const t = _v.dot(d);
       if (t < 0 || t > dist + 2) continue;
       if (_v.lengthSq() - t * t < 6) {
-        e.lastKnown.copy(g.player.pos);
+        e.foe = shooter;
+        e.lastKnown.copy(shooter.pos);
         e.lastSeen = g.time;
         e.enterCombat();
       }

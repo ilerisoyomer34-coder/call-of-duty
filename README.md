@@ -1,6 +1,6 @@
 # Demir Şafak
 
-Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: Kızılkum Vadisi'ne şafak vakti sızıyorsun, bir kontrol noktasını temizliyorsun, iki uçaksavar topunu C4 ile havaya uçuruyorsun, komuta merkezinden istihbaratı alıyorsun ve helikopter gelene kadar iniş bölgesini tutuyorsun. Tek oturuşta 10–15 dakika sürer.
+Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: Kızılkum Vadisi'ne şafak vakti mavi mangan Kartal ekibiyle sızıyorsun, bir kontrol noktasını temizliyorsun, iki uçaksavar topunu C4 ile havaya uçuruyorsun, komuta merkezinden istihbaratı alıyorsun ve helikopter gelene kadar iniş bölgesini tutuyorsun. Beş seviye kolaydan zora sıralı; son seviye operasyonun tamamı.
 
 Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu. Düşman askerleri hazır iskeletli bir karakterdir (Mixamo "Vanguard"); dört silah oyuncunun kendi Blender dosyalarından gelir; harita, diğer modeller, dokular ve sesler kodla üretilir.
 
@@ -36,7 +36,21 @@ Masaüstünde Chrome, Edge veya Firefox önerilir. Telefonda yatay tut; dokunmat
 | Duraklat | Esc / P | Start |
 | Geliştirici konsolu | ` veya F2 | |
 
-Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timescale 0.5`, `ai`, `debug ai`, `cp 4`, `fps`.
+Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timescale 0.5`, `ai`, `debug ai`, `debug allies`, `cp 4`, `level 3`, `unlock`, `fps`.
+
+## Seviyeler
+
+Bir seviyeyi bitirince sonraki açılır. Her seviyenin zorluk ayarı, seçilen temel zorluğun (Acemi / Asker / Gazi) üstüne uygulanır: düşmanın tepki süresi, isabeti, hasarı, görüşü, aynı anda ateş edenlerin sayısı ve el bombası.
+
+| # | Seviye | Zorluk | Hedefler | Düşmanlar | Manga |
+|---|---|---|---|---|---|
+| 1 | Kontrol Noktası | Kolay | Kontrol noktasını temizle | 6 tüfekçi, yavaş ve az isabetli, bomba yok | 3 dost |
+| 2 | Uçaksavarlar | Kolay-orta | İki topu C4 ile imha et | 11: tüfekçi, hücumcu pompalılar, çatıda nöbetçi | 3 dost |
+| 3 | Komuta Merkezi | Orta | İstihbaratı al, iniş bölgesine ulaş | 10 + 5 takviye: keskin nişancı ve ağır makineli dahil | 2 dost |
+| 4 | İniş Bölgesi | Zor | Helikopter gelene kadar bölgeyi tut | 4 dalga, sonuncusunda iki ağır makineli | 3 dost |
+| 5 | Demir Şafak | Çok zor | Operasyonun tamamı | 29 + takviye + 4 dalga, kulede keskin nişancılar | 2 dost |
+
+Seviye ayarları `web/src/config.js` → `LEVELS`, dost asker ayarları → `ALLY`.
 
 ## İçerik
 
@@ -58,6 +72,7 @@ Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timesc
 - **Silah hissi:** kare hızından bağımsız atış zamanlaması, kameradan hitscan ve namludan engel doğrulaması, oyuncunun karşı hareketini hesaba katan geri tepme toparlanması, sway, bob, nefes, koşu pozu, duvara yaklaşınca geri çekme, prosedürel reload (şarjör düşer, sol el yenisini takar, boş reload'da kurma kolu çekilir), pompa ve sürgü hareketi, namlu alevi, iz mermisi, kovan, yüzeye göre çarpma efekti ve ses, vuruş işaretleri (normal / kafa / öldürme).
 - **Askerler:** iskeletli hazır model; bekleme, yürüme ve koşma klipleri hıza göre karışır, adım döngüsü gerçek hıza bağlı olduğu için ayak kaymaz. Alt gövde hareket yönüne döner, üst gövde hedefe bakar; geri geri yürüme, yan adım, çömelme (bacak IK), iki elle silah tutuşu (kol IK), nişan / hazır / rahat duruşları, şarjör değiştirme, atışta geri tepme, isabette sarsılma, ölümde diz çöküp devrilme ve elden düşen silah. Türler renk tonu ve boyla ayrışır. Vuruş bölgeleri kemiklere bağlı kutulardır (kafa, gövde, kol-bacak). Model yüklenemezse kodla üretilen yedek askerler kullanılır.
 - **Düşman yapay zekâsı:** devriye, şüphelenme, araştırma, alarm yayma, siper bulma ve siperden göz atma, yan adım, hücum eden pompalılar, bastırma ateşi yapan ağır makineliler, lazerle nişan alan keskin nişancılar, el bombası atma, düşük canda geri çekilme. Adil isabet: mesafe, hareketin, ilk atış ıskası ve zorluk hesaba katılır; aynı anda yalnızca sınırlı sayıda düşman sana ateş eder.
+- **Mavi manga (Kartal ekibi):** aynı iskeletli askerin mavi sürümü. Seni gevşek bir düzende izler; sessiz ilerlerken ateş açmaz, çatışma başlayınca ya da sen ateş edince düzen yerinin yakınında siper alıp görünen en yakın düşmana kısa seriler atar. Düşmanlar dostları da hedef alır. Vurulan dost ölmez, bir süre yaralı kalıp toparlanır. Başlarında mavi isim etiketi, mini haritada mavi nokta var; telsizden seslenirler ("Temas!", "Şarjör!", "Düştü!"). Senin mermin ve patlayıcın dostu yaralamaz, ekrana uyarı çıkar.
 - **Görev:** kontrol noktaları, telsiz anonsları, patlayıcı variller, düşen mühimmat, ikmal sandıkları, dalga savunması ve helikopterle tahliye. Zorluklar: Acemi, Asker, Gazi.
 - **Atış poligonu:** 10 / 25 / 50 / 100 m hedefler, hareketli mankenler, yüzey test duvarı, hasar sayıları.
 - **Arayüz:** pusula, mini harita (ateş eden düşmanlar görünür), hedef işaretçisi, hasar yönü, el bombası uyarısı, düşman farkındalık ikonları, ayarlar (hassasiyet, FOV, basılı tut / aç-kapa, grafik kalitesi, ses, kamera sarsıntısı, nişangah rengi, kan).
@@ -73,6 +88,7 @@ web/
     weapons.js     silah durum makinesi, hitscan, reload, el bombası, bıçak
     viewmodel.js   birinci şahıs silah ve prosedürel animasyon
     enemy.js       düşman yapay zekâsı ve yöneticisi
+    ally.js        dost manga: izleme düzeni, siper, ateş, yaralanıp toparlanma, dost ateşi
     soldier.js     asker görünümü: iskeletli model, animasyon karışımı, IK, vuruş kutuları
     assets.js      GLB ve doku yükleme (gömülü ya da yanındaki dosyadan)
     nav.js         ızgara navigasyonu, A*, siper noktaları

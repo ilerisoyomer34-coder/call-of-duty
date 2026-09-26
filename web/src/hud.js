@@ -6,6 +6,7 @@ import { WEAPONS } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
+const ALLY_TAG_RANGE = 70; // dost isim etiketinin görüldüğü en uzak mesafe (m)
 
 const MODE_LABEL = { auto: 'OTOMATİK', burst: '3\'LÜ SERİ', semi: 'TEK ATIŞ' };
 const CARD = [
@@ -35,6 +36,8 @@ export class HUD {
     this.buildCompass();
     this.markerPool = [];
     this.iconPool = [];
+    this.allyPool = [];
+    this.ffT = 0;
     this.dmgDirPool = [];
     for (let i = 0; i < 6; i++) {
       const d = document.createElement('div');
@@ -77,6 +80,12 @@ export class HUD {
     E.on('pickup', (text) => this.feed(text, false));
     E.on('interact', (target, k) => this.setInteract(target, k));
     E.on('noAmmo', () => this.message('CEPHANE YOK', 'warn'));
+    E.on('friendlyFire', () => {
+      // Dost asker vuruldu: uyarı sık sık tekrarlanmasın
+      if (this.game.time - this.ffT < 2) return;
+      this.ffT = this.game.time;
+      this.message('DOST ASKER · ATEŞ ETME', 'warn');
+    });
   }
 
   show(on) {
@@ -202,7 +211,7 @@ export class HUD {
       el.appendChild(b);
       el.appendChild(document.createTextNode(text.slice(i + 1)));
     } else el.textContent = text;
-    el.className = `on ${who === 'enemy' ? 'enemy' : ''}`;
+    el.className = `on ${who === 'enemy' ? 'enemy' : who === 'ally' ? 'ally' : ''}`;
     this.radioT = Math.max(3.5, text.length * 0.065);
   }
 
@@ -240,6 +249,13 @@ export class HUD {
 
   intro() {
     const c = this.el.intro;
+    // Seviye kartı: numara ve zorluk, ad, manga büyüklüğü
+    const L = this.game.level;
+    if (L) {
+      c.children[0].textContent = `SEVİYE ${L.id} · ${L.tag.toLocaleUpperCase('tr-TR')} · KIZILKUM VADİSİ`;
+      c.children[1].textContent = L.name.toLocaleUpperCase('tr-TR');
+      c.children[2].textContent = L.allies ? `Kartal ekibi · ${L.allies} dost asker seninle` : 'Kartal-1 · tek başına';
+    }
     c.classList.remove('on');
     void c.offsetWidth;
     c.classList.add('on');
@@ -416,6 +432,32 @@ export class HUD {
     }
     for (let i = ic; i < this.iconPool.length; i++) this.iconPool[i].hidden = true;
 
+    // Dost askerler: mavi ok ve isim (kim olduğu hemen anlaşılsın, vurulmasın); yaralıysa belirtilir
+    let at = 0;
+    for (const a of g.allies.list) {
+      const d = a.pos.distanceTo(P.pos);
+      if (d > ALLY_TAG_RANGE) continue;
+      _v.set(a.pos.x, a.pos.y + (a.crouch ? 1.75 : 2.15), a.pos.z);
+      const s = this.project(_v, {});
+      if (s.behind || s.x < 0 || s.x > width || s.y < 0 || s.y > height) continue;
+      let el = this.allyPool[at];
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'atag';
+        el.innerHTML = '<span></span><i></i>';
+        this.el.icons.appendChild(el);
+        this.allyPool.push(el);
+      }
+      at++;
+      el.hidden = false;
+      el.classList.toggle('down', a.down);
+      const txt = a.down ? `${a.name} · YARALI` : a.name;
+      if (el.firstChild.textContent !== txt) el.firstChild.textContent = txt;
+      el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
+      el.style.opacity = String(clamp(1.2 - d / ALLY_TAG_RANGE, 0.4, 1));
+    }
+    for (let i = at; i < this.allyPool.length; i++) this.allyPool[i].hidden = true;
+
     // El bombası uyarısı
     const nades = g.grenades.dangerNear(P.pos, 9);
     for (let i = 0; i < Math.max(nades.length, this.gwarnPool.length); i++) {
@@ -516,6 +558,14 @@ export class HUD {
       const mb = this.miniBake;
       const [ox, oz] = toMap(B.minx, B.minz);
       ctx.drawImage(mb.canvas, ox, oz, mb.canvas.width * (k / mb.scale), mb.canvas.height * (k / mb.scale));
+    }
+    // Dost manga mavi nokta (yaralıysa sarı)
+    for (const a of g.allies.list) {
+      const [x, z] = toMap(a.pos.x, a.pos.z);
+      ctx.fillStyle = a.down ? '#f0a33a' : '#6fb0ff';
+      ctx.beginPath();
+      ctx.arc(x, z, 4.5, 0, Math.PI * 2);
+      ctx.fill();
     }
     // Ateş eden düşmanlar kırmızı nokta (radar)
     for (const e of g.enemies.list) {

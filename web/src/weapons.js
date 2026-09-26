@@ -435,6 +435,7 @@ export class PlayerWeapons {
     if (!g.cheats.infiniteAmmo) w.mag--;
     w.shotIndex = this.time - w.lastShot > 0.35 ? 0 : w.shotIndex + 1;
     w.lastShot = this.time;
+    g.lastPlayerShot = g.time; // oyun saatinde: düşman ve dost tepkileri bununla ölçülür
     if (d.pump) {
       w.pumpT = 0;
       w.pumpSfx = false;
@@ -485,6 +486,13 @@ export class PlayerWeapons {
           if (b) g.effects.bloodSplat(b.point, b.normal, rand(0.35, 0.7));
         }
         if (g.settings.damageNumbers || g.mode === 'range') g.hud.damageNumber(res.point, dmg, res.zone === 'head');
+      } else if (res.ally) {
+        // Zırha çarpan kıvılcım, hasar yok; dost uyarır
+        g.effects.impact(res.point, _tmp.copy(_d).negate(), 'metal', 0.6);
+        if (p === 0) {
+          res.ally.onFriendlyFire();
+          g.events.emit('friendlyFire', res.ally);
+        }
       } else if (res.point) {
         g.effects.impact(res.point, res.normal, res.surface, pellets > 1 ? 0.4 : 1);
         if (p % 3 === 0) g.audio.impact(res.surface, res.point);
@@ -579,11 +587,18 @@ export class PlayerWeapons {
   // Kameradan ışın; düşman, dünya ve namlu engeli kontrolü.
   trace(o, d, range, muzzle) {
     const g = this.game;
-    const r = { point: null, normal: null, surface: 'concrete', dist: range, enemy: null, zone: null, collider: null };
+    const r = { point: null, normal: null, surface: 'concrete', dist: range, enemy: null, ally: null, zone: null, collider: null };
     const wh = g.world.raycast(o, d, range, _hit);
     let maxD = wh ? wh.dist : range;
     const eh = g.enemies.raycast(o, d, maxD);
-    if (eh) {
+    // Dost asker mermiyi durdurur ama yaralanmaz (dost ateşi kapalı)
+    const ah = g.allies.raycast(o, d, eh ? eh.dist : maxD);
+    if (ah) {
+      r.ally = ah.ally;
+      r.point = ah.point;
+      r.dist = ah.dist;
+      maxD = ah.dist;
+    } else if (eh) {
       r.enemy = eh.enemy;
       r.zone = eh.zone;
       r.point = eh.point;
@@ -604,6 +619,7 @@ export class PlayerWeapons {
       const block = g.world.raycast(muzzle, _tmp, len - 0.15, _hit2);
       if (block) {
         r.enemy = null;
+        r.ally = null;
         r.zone = null;
         r.point = block.point.clone();
         r.normal = block.normal.clone();

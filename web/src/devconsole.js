@@ -1,6 +1,6 @@
 // Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F2 ile açılır.
 import * as THREE from 'three';
-import { WEAPON_ORDER } from './config.js';
+import { WEAPON_ORDER, LEVELS } from './config.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -11,7 +11,10 @@ const HELP = `Komutlar:
   timescale <x>       zaman ölçeği (0.1–3)
   ai                  yapay zekâyı dondur/çöz
   debug ai            düşman durumlarını konsola yaz
-  cp <n>              n. hedefe atla (görev modunda)
+  cp <n>              seviyenin n. hedefine atla
+  level <n>           n. seviyeyi başlat (kilidi de açar)
+  unlock              tüm seviyelerin kilidini aç
+  debug allies        dost asker durumlarını yaz
   fps                 FPS göstergesi
   clear               konsolu temizle`;
 
@@ -118,13 +121,35 @@ export class DevConsole {
         C.aiOff = !C.aiOff;
         this.print(`Yapay zekâ: ${C.aiOff ? 'DONDURULDU' : 'AKTİF'}`);
         break;
+      case 'unlock':
+        g.unlockAllLevels();
+        this.print('Tüm seviyeler açıldı.');
+        break;
+      case 'level': {
+        const n = parseInt(args[0], 10);
+        const L = LEVELS.find((l) => l.id === n);
+        if (!L) {
+          this.print(`Seviye 1–${LEVELS.length} arasında olmalı.`);
+          break;
+        }
+        g.progress.unlocked = Math.max(g.progress.unlocked, n);
+        this.toggle();
+        g.startMode('mission', g.difficultyKey, n);
+        break;
+      }
       case 'debug':
+        if (args[0] === 'allies') {
+          for (const a of g.allies.list) {
+            this.print(`${a.name} can=${Math.round(a.health.hp)} yaralı=${a.down} hedef=${a.target?.id || '-'} görüyor=${a.targetVisible} mesafe=${a.pos.distanceTo(g.player.pos).toFixed(1)}m`);
+          }
+          break;
+        }
         if (args[0] === 'ai') {
           for (const e of g.enemies.list) {
             if (!e.alive) continue;
             this.print(`${e.id} ${e.type} durum=${e.aiState} farkındalık=${e.awareness.toFixed(2)} görüyor=${e.visible} mesafe=${e.pos.distanceTo(g.player.pos).toFixed(1)}m`);
           }
-        } else this.print('Kullanım: debug ai');
+        } else this.print('Kullanım: debug ai | debug allies');
         break;
       case 'cp': {
         const n = parseInt(args[0], 10);

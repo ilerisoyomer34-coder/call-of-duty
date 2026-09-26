@@ -23,4 +23,7 @@
 - Silah adları kurgusal kalmalı; gerçek marka/logo yok. Harici asset eklenirse lisansı `CREDITS.md`, `SourceAssets/.../asset_info.json` ve menüdeki "Emeği geçenler" ekranına yazılmalı.
 - İçe aktarılan silahlarda kapalı nişangah gövdeleri `optic` parçası yapılır; nişan alırken gizlenip yerine açık tüp çizilir (`adsRing`).
 - Asker görünümü `soldier.js`'te: düşman yapay zekâsı yalnızca duruş/hız/nişan bilgisini verir (`animate(dt, st)`), kemiklere doğrudan dokunmaz. Model yüklenemezse `BlockSoldier` yedeği aynı arayüzle çalışır.
+- Seviyeler `config.js` → `LEVELS` (kolaydan zora). Görev hedefleri `mission.js` → `objectiveDefs()` tablosundan seçilir; yeni seviye yeni kod değil, yeni tablo satırıdır. İlerleme `demirsafak.progress.v1` anahtarında.
+- Dost askerler (`ally.js`) düşmanın gördüğü hedef arayüzünü (pos, alive, headPos, chestPos, takeDamage…) oyuncuyla aynı biçimde sunar; düşman `foe` alanında oyuncuyu ya da bir dostu tutar. Oyuncunun mermisi ve patlayıcısı dostu yaralamaz.
+- Testler: `SMOKE_ONLY=levels,range npm test` gibi yalnızca bazı bölümler koşturulabilir.
 - Açılış ve harita yükleme `window.__boot` (shell.html'deki bekçi) üzerinden aşama gösterir; hata yükleme ekranına yazılır, sessizce asılı kalmamalı.

@@ -16,6 +16,9 @@ const THREE_BODY = readFileSync(join(root, 'node_modules/three/build/three.modul
 const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png' };
 
 const errors = [];
+// SMOKE_ONLY=levels,range gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için)
+const only = process.env.SMOKE_ONLY;
+const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;
 function check(cond, msg) {
@@ -34,13 +37,16 @@ const browser = await chromium.launch({
 async function openPage(kind, quality = 'low', opts = {}) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   // Yazılımsal GPU'da akış testleri düşük kalitede koşar; görsel kontrol için 'high'
-  await page.addInitScript((q) => {
+  // Akış testleri tam operasyonu (Seviye 5) kullanır; seviye testi sıfırdan (yalnızca Seviye 1 açık) başlar
+  const unlocked = opts.unlocked ?? 5;
+  await page.addInitScript(([q, u]) => {
     try {
       localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: q }));
+      localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: u, best: {} }));
     } catch {
       /* depolama yok */
     }
-  }, quality);
+  }, [quality, unlocked]);
   page.on('pageerror', (e) => errors.push(`[${kind}] pageerror: ${e.message}`));
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`[${kind}] console: ${m.text()}`);
@@ -83,13 +89,15 @@ async function waitGame(page, sec) {
 }
 
 // ---------------- Bağımsız sürüm: görev ----------------
+if (run('visual')) {
 console.log('Görsel kontrol (yüksek kalite)');
-{
+
   const page = await openPage('standalone', 'high');
   await sleep(1500);
   await page.screenshot({ path: join(shots, '00-menu-high.png') });
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#levelList .lvl:nth-child(5)');
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   await page.evaluate(() => {
@@ -115,8 +123,9 @@ console.log('Görsel kontrol (yüksek kalite)');
   await page.close();
 }
 
+if (run('mission')) {
 console.log('Bağımsız sürüm (dist/index.html)');
-{
+
   const page = await openPage('standalone');
   await sleep(1500);
   await page.screenshot({ path: join(shots, '01-menu.png') });
@@ -124,8 +133,10 @@ console.log('Bağımsız sürüm (dist/index.html)');
 
   await page.click('#btnPlay');
   await sleep(200);
-  check(await page.isVisible('#diffScreen'), 'Zorluk ekranı görünüyor');
+  check(await page.isVisible('#diffScreen'), 'Seviye ekranı görünüyor');
+  check((await page.$$('#levelList .lvl')).length === 5, 'Beş seviye listelendi');
   await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#levelList .lvl:nth-child(5)');
   check(await page.isVisible('#loadoutScreen'), 'Teçhizat ekranı açıldı');
   check((await page.$$('#primaryList .gun')).length === 6 && (await page.$$('#secondaryList .gun')).length === 3, 'Teçhizatta 6 ana + 3 yan silah');
   await page.screenshot({ path: join(shots, '01b-loadout.png') });
@@ -225,14 +236,14 @@ console.log('Bağımsız sürüm (dist/index.html)');
   // Savunma: helikopteri hızlandır
   await page.evaluate(() => {
     const g = window.__game;
-    g.mission.defendT = g.mission.data.defendTime - 21;
+    g.mission.defendT = g.mission.defendTime - 21;
   });
   await waitGame(page, 0.5);
   check(await page.evaluate(() => !!window.__game.mission.heli), 'Helikopter geldi');
   await page.evaluate(() => {
     const g = window.__game;
     g.mission.heli.t = 19.9;
-    g.mission.defendT = g.mission.data.defendTime + 1;
+    g.mission.defendT = g.mission.defendTime + 1;
   });
   await waitGame(page, 0.4);
   await page.evaluate(() => {
@@ -263,12 +274,106 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.close();
 }
 
+// ---------------- Seviyeler ve dost manga ----------------
+if (run('levels')) {
+console.log('Seviyeler ve dost manga');
+
+  const page = await openPage('standalone', 'low', { unlocked: 1 });
+  await page.click('#btnPlay');
+  await sleep(200);
+  const locks = await page.evaluate(() => [...document.querySelectorAll('#levelList .lvl')].map((b) => b.disabled));
+  check(locks[0] === false && locks.slice(1).every(Boolean), `Yalnızca Seviye 1 açık (${locks.map((l) => (l ? 'kilitli' : 'açık')).join(', ')})`);
+  await page.screenshot({ path: join(shots, '01c-levels.png') });
+  await page.click('#levelList .lvl:nth-child(1)');
+  await page.click('#btnDeploy');
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
+  await page.evaluate(() => {
+    window.__game.input.lockFailed = true;
+    window.__game.cheats.god = true;
+  });
+  const s1 = await page.evaluate(() => {
+    const g = window.__game;
+    return { level: g.level.id, allies: g.allies.list.length, enemies: g.enemies.list.length, skinned: g.allies.list.every((a) => !!a.model.bones) };
+  });
+  check(s1.level === 1 && s1.allies === 3 && s1.enemies === 6, `Seviye 1: 3 dost, 6 düşman (${s1.allies}/${s1.enemies})`);
+  check(s1.skinned, 'Dostlar aynı iskeletli modelle geldi');
+  // Dostlar oyuncuyu izler
+  await page.keyboard.down('KeyW');
+  await waitGame(page, 2.5);
+  await page.keyboard.up('KeyW');
+  await waitGame(page, 2);
+  const follow = await page.evaluate(() => {
+    const g = window.__game;
+    return Math.max(...g.allies.list.map((a) => a.pos.distanceTo(g.player.pos)));
+  });
+  check(follow < 9, `Dostlar oyuncuyu izledi (en uzak ${follow.toFixed(1)} m)`);
+  // Arkaya dön: mavi isim etiketleri görünsün; bir dosta ateş et, yaralanmamalı
+  const aimAtAlly = () =>
+    page.evaluate(() => {
+      const g = window.__game;
+      const a = g.allies.list[0];
+      const P = g.player;
+      P.yaw = Math.atan2(-(a.pos.x - P.pos.x), -(a.pos.z - P.pos.z));
+      const o = P.headPos();
+      const t = a.chestPos();
+      P.pitch = Math.atan2(t.y - o.y, Math.hypot(t.x - o.x, t.z - o.z));
+      return a.health.hp;
+    });
+  await aimAtAlly();
+  await waitGame(page, 0.4);
+  await page.waitForFunction(() => window.__game.weapons.state === 'idle', null, { timeout: 30000 });
+  const hpBefore = await aimAtAlly();
+  check(await page.evaluate(() => [...document.querySelectorAll('.atag')].some((e) => !e.hidden && /KARTAL|Kartal/.test(e.textContent))), 'Dostların üstünde mavi isim etiketi');
+  await page.screenshot({ path: join(shots, '09-allies.png') });
+  await aimAtAlly();
+  await page.mouse.down();
+  await waitGame(page, 0.05);
+  await page.mouse.up();
+  await waitGame(page, 0.3);
+  const ff = await page.evaluate(() => ({ hp: window.__game.allies.list[0].health.hp, msg: document.getElementById('message').textContent }));
+  check(ff.hp === hpBefore && /DOST/.test(ff.msg), `Dost ateşi: dost yaralanmadı, uyarı çıktı ("${ff.msg}")`);
+  // Çatışma: dostlar düşmana ateş eder
+  await page.evaluate(() => {
+    const g = window.__game;
+    const p = new g.player.pos.constructor(0, 0, 84);
+    g.player.reset(p, 0);
+    g.allies.regroup(p, 0);
+    for (const e of g.enemies.list) {
+      e.lastKnown.copy(p);
+      e.lastSeen = g.time;
+      e.enterCombat();
+    }
+  });
+  await waitGame(page, 7);
+  const fight = await page.evaluate(() => {
+    const g = window.__game;
+    return { shots: g.allies.shots, hurt: g.enemies.list.filter((e) => !e.alive || e.health.hp < e.health.max).length, targetedAlly: g.enemies.list.some((e) => e.foe && e.foe !== g.player) };
+  });
+  check(fight.shots > 0, `Dostlar düşmana ateş etti (${fight.shots} mermi, ${fight.hurt} düşman yaralı/etkisiz)`);
+  await page.screenshot({ path: join(shots, '09b-squad-fight.png') });
+  // Seviyeyi bitir: sonraki seviye açılır
+  await page.evaluate(() => window.__game.enemies.killAll());
+  await page.waitForFunction(() => window.__game.state === 'victory', null, { timeout: 60000 }).catch(() => {});
+  const v = await page.evaluate(() => ({ state: window.__game.state, unlocked: window.__game.progress.unlocked, next: !document.getElementById('btnNext').hidden, title: document.getElementById('victoryTitle').textContent }));
+  check(v.state === 'victory' && v.unlocked === 2 && v.next, `Seviye 1 bitti, Seviye 2 açıldı (${v.title})`);
+  await page.screenshot({ path: join(shots, '09c-level-clear.png') });
+  await page.click('#btnNext');
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
+  const s2 = await page.evaluate(() => ({ level: window.__game.level.id, allies: window.__game.allies.list.length, obj: window.__game.mission.current.id }));
+  check(s2.level === 2 && s2.allies === 3 && s2.obj === 'aa', `Sonraki seviye: Seviye 2 uçaksavar hedefiyle başladı`);
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+}
+
 // ---------------- Etkileşimler: pompalı, C4, istihbarat, ikmal ----------------
+if (run('interact')) {
 console.log('Etkileşimler');
-{
+
   const page = await openPage('standalone');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#levelList .lvl:nth-child(5)');
   await page.click('#primaryList .gun[data-id="mar556"]');
   await page.click('#secondaryList .gun[data-id="d50"]');
   await page.click('#btnDeploy');
@@ -339,8 +444,9 @@ console.log('Etkileşimler');
 }
 
 // ---------------- Atış poligonu ----------------
+if (run('range')) {
 console.log('Atış poligonu');
-{
+
   const page = await openPage('standalone');
   await page.click('#btnRange');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
@@ -459,8 +565,9 @@ console.log('Atış poligonu');
 }
 
 // ---------------- Artifact sürümü ----------------
+if (run('artifact')) {
 console.log('Artifact sürümü (dist/artifact.html)');
-{
+
   const page = await openPage('artifact');
   await sleep(800);
   check((await state(page)) === 'menu', 'CDN three.js ile menü açıldı');
@@ -470,13 +577,13 @@ console.log('Artifact sürümü (dist/artifact.html)');
   check(await page.evaluate(() => window.__game.enemies.list.length > 0 && window.__game.enemies.list.every((e) => !!e.model.bones)), 'Asker modeli yan dosyadan yüklendi (iskeletli)');
   await page.close();
 }
-{
+if (run('artifact')) {
   // jsDelivr yanıt vermezse unpkg'den açılmalı
   const page = await openPage('artifact', 'low', { cdnFail: ['jsdelivr'] });
   check((await state(page)) === 'menu', 'jsDelivr kapalıyken unpkg yedeğiyle açıldı');
   await page.close();
 }
-{
+if (run('artifact')) {
   // İki CDN de yoksa yükleme ekranı nedenini yazmalı (sonsuza dek asılı kalmamalı)
   const before = errors.length;
   const page = await openPage('artifact', 'low', { cdnFail: ['jsdelivr', 'unpkg'], noWait: true });
@@ -490,8 +597,9 @@ console.log('Artifact sürümü (dist/artifact.html)');
 }
 
 // Dokunmatik düzen (telefon)
+if (run('mobile')) {
 console.log('Telefon görünümü');
-{
+
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`[mobile] pageerror: ${e.message}`));

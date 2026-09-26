@@ -238,7 +238,9 @@ function lookMaterials(type) {
       m.roughness = 0.22;
       m.metalness = 0.65;
     } else {
-      m.color.set(spec.tint);
+      if (Array.isArray(spec.tint)) m.color.setRGB(spec.tint[0], spec.tint[1], spec.tint[2]);
+      else m.color.set(spec.tint);
+      if (spec.glow) m.emissive.set(spec.glow);
       m.roughness = 0.8;
       m.metalness = 0.08;
     }

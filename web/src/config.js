@@ -545,7 +545,101 @@ export const SOLDIER_LOOKS = {
   heavy: { tint: 0x6d7073, visor: 0x3a0d08 },
   sniper: { tint: 0xe2d2ae, visor: 0x1a2a2a },
   dummy: { tint: 0xff9a4d, visor: 0x222222 },
+  // Dost manga: belirgin mavi. Doku ten rengi olduğundan çarpan 1'in üstüne çıkar (mavi kanal güçlendirilir),
+  // hafif mavi ışıma gölgede de rengi korur
+  ally: { tint: [0.5, 0.85, 1.95], visor: 0x0c2a55, glow: 0x0a1c3c },
 };
+
+// Dost asker (oyuncunun mangası). Kalıcı ölmez: yaralanınca bir süre yerde kalıp toparlanır,
+// böylece seviye dengesi "dostlar öldü, seviye imkânsızlaştı" durumuna düşmez.
+export const ALLY = {
+  names: ['Kartal-2', 'Kartal-3', 'Kartal-4'],
+  hp: 140,
+  regenDelay: 6, // hasar almadan bu kadar süre geçince can dolmaya başlar (s)
+  regenRate: 18, // can / s
+  downTime: 12, // yaralı kalma süresi (s)
+  reviveHp: 0.55, // toparlanınca canın oranı
+  damageTaken: 0.6, // düşman mermisinin dosta etkisi (oyuncuya göre)
+  walk: 2.2,
+  run: 4.6,
+  viewRange: 60,
+  thinkInterval: 0.15,
+  loseTargetTime: 2.5,
+  reaction: 0.45, // hedefi gördükten sonra ilk atışa kadar (s)
+  aimDeg: 2.2, // temel isabet hatası (derece)
+  damage: 17,
+  zones: { head: 2.2, torso: 1, limb: 0.75 },
+  rpm: 560,
+  burst: [3, 5],
+  burstGap: [0.45, 0.9],
+  magSize: 30,
+  reload: 2.5,
+  range: 120,
+  noise: 55, // silah sesi duyulma yarıçapı (m)
+  fireFollow: 4, // oyuncu ateş ettikten sonra bu süre manga da serbestçe ateş eder (s)
+  // Oyuncuya göre düzen yerleri: [sağa (m), geriye (m)]
+  slots: [[-2.4, 2.4], [2.6, 2.8], [-0.4, 4.6]],
+  teleportDist: 45, // oyuncudan bu kadar geride kalan dost, görünmeden yanına alınır
+  stuckCheck: 0.8, // takılma denetimi aralığı (s)
+  stuckMove: 0.3, // bu sürede bundan az ilerleyen dost takılmış sayılır (m)
+  fireLaneDeg: 12, // oyuncunun nişan hattındaki dost kenara çekilir
+  colors: { uniform: 0x3d5a8a, vest: 0x243650, helmet: 0x2f4b78, skin: 0xa77b5b, band: 0x4aa3ff },
+};
+
+// Seviyeler (kolaydan zora). Her seviye aynı Kızılkum haritasının bir bölümünü kullanır; son seviye
+// operasyonun tamamıdır. tuning: seçilen zorluğun (Acemi/Asker/Gazi) üstüne uygulanan çarpanlar.
+//   reaction ↑ = düşman geç tepki verir, aim ↑ = daha çok ıskalar, damage = mermi hasarı,
+//   perception/awareness = görme mesafesi ve fark etme hızı, attackers = aynı anda ateş eden sayısına ek
+// enemies: hangi gruplar doğar; exclude: bu türler doğmaz; hardTypes: kuledeki tüfekçiler keskin nişancı olur
+export const LEVELS = [
+  {
+    id: 1, name: 'Kontrol Noktası', tag: 'Kolay',
+    brief: 'Kuzeydeki kontrol noktasını mangayla birlikte temizle. Yavaş tepki veren, az isabet ettiren muhafızlar.',
+    start: 0, objectives: ['outpost'], allies: 3, allyDamage: 1.0,
+    radioIntro: 'Kızılkum Vadisi\'ne hoş geldiniz. Kartal-1, mangan arkanda: üç tüfekçi.',
+    outro: 'Kontrol noktası temiz. Güzel iş Kartal ekibi, köyün kuzeyinde mevzilenin.',
+    enemies: { groups: ['outpost'], exclude: ['shotgunner'] },
+    tuning: { reaction: 1.45, aim: 1.55, damage: 0.6, perception: 0.85, awareness: 0.75, attackers: -1, grenades: false },
+  },
+  {
+    id: 2, name: 'Uçaksavarlar', tag: 'Kolay-orta',
+    brief: 'Köydeki iki uçaksavar topunu C4 ile imha et. Pompalılar hücum eder, çatıda nöbetçi var.',
+    start: 1, objectives: ['aa'], allies: 3, allyDamage: 0.9,
+    radioIntro: 'Kontrol noktası bizde. Sıradaki iş köyde.',
+    outro: 'İki top da sustu, gökyüzü bizim! Hava desteği yolda.',
+    enemies: { groups: ['village'], exclude: ['heavy'] },
+    tuning: { reaction: 1.2, aim: 1.25, damage: 0.8, perception: 0.95, awareness: 0.9, attackers: 0, grenades: false },
+  },
+  {
+    id: 3, name: 'Komuta Merkezi', tag: 'Orta',
+    brief: 'Komuta merkezinden istihbaratı al, alarmla gelen takviyeyi yarıp iniş bölgesine ulaş. Kulede keskin nişancı.',
+    start: 6, objectives: ['intel', 'lz'], allies: 2, allyDamage: 0.85,
+    radioIntro: 'Köyün güneyindesiniz. Komuta merkezi hemen ileride.',
+    outro: 'İstihbarat güvende. İniş bölgesini tutmaya hazırlanın.',
+    enemies: { groups: ['hq'], exclude: [], reinforcements: true },
+    tuning: { reaction: 1.0, aim: 1.0, damage: 1.0, perception: 1.0, awareness: 1.0, attackers: 0, grenades: true },
+  },
+  {
+    id: 4, name: 'İniş Bölgesi', tag: 'Zor',
+    brief: 'Helikopter gelene kadar iniş bölgesini tut. Dört dalga, dört yönden; sonuncusunda ağır makineliler.',
+    start: 5, objectives: ['defend', 'board'], allies: 3, allyDamage: 0.85,
+    radioIntro: 'İniş bölgesindesiniz. Helikopter gelene kadar dayanın.',
+    outro: 'Tahliye tamam.',
+    enemies: { groups: [], exclude: [], extraWave: true },
+    defendTime: 115,
+    tuning: { reaction: 0.9, aim: 0.92, damage: 1.1, perception: 1.05, awareness: 1.1, attackers: 1, grenades: true },
+  },
+  {
+    id: 5, name: 'Demir Şafak', tag: 'Çok zor',
+    brief: 'Operasyonun tamamı tek seferde: kontrol noktası, uçaksavarlar, istihbarat ve tahliye. Keskin düşmanlar, iki kişilik manga.',
+    start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 2, allyDamage: 0.75,
+    radioIntro: 'Bu kez her şey tek seferde. Şafak sökmeden işini bitirmen gerek.',
+    outro: 'Tahliye tamam.',
+    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true },
+    defendTime: 115,
+    tuning: { reaction: 0.82, aim: 0.85, damage: 1.2, perception: 1.1, awareness: 1.2, attackers: 1, grenades: true },
+  },
+];
 
 // Vuruş kutuları (kemiğe bağlı, görünmez; bağlanma pozunda ölçüldü). Gövde/kafa kutuları kemik boyunca
 // "along" metre ileride ve "size" boyutunda; uzuv kutuları iki eklem arasını "width" kalınlıkta kaplar.
