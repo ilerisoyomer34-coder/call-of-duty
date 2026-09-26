@@ -1,7 +1,9 @@
 // Derleme: src/ modüllerini tek dosyalık oyuna paketler.
 //  dist/index.html    → bağımsız (three.js ve tüm modeller gömülü, çevrimdışı çift tıkla açılır)
 //  dist/artifact.html → claude.ai Artifact sürümü: three.js CDN'den (jsDelivr, olmazsa unpkg),
-//                       modeller ve dokular sayfanın yanında yayımlanan dosyalardan (assets/...) okunur
+//                       modeller ve dokular sayfanın yanında yayımlanan dosyalardan (assets/...) okunur.
+//                       Artifact .glb sunmadığı için GLB'ler base64 metin (.glb.txt) olarak yayımlanır;
+//                       bunlar dist/artifact-assets/ altına üretilir (depoya girmez, her derlemede yenilenir)
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -16,6 +18,8 @@ export const THREE_CDNS = [
 // three'nin kendi window.__THREE__ değişkeniyle çakışmasın diye ayrı ad
 const THREE_GLOBAL = '__DS_THREE';
 const ASSET_EXT = /\.(glb|jpg|jpeg|png)$/i;
+const AS_TEXT = /\.glb$/i; // Artifact'ın sunmadığı ikili türler
+const publishedPath = (p) => (AS_TEXT.test(p) ? `${p}.txt` : p);
 
 // assets/ altındaki tüm model ve dokular (yol: 'assets/weapons/mar556.glb' gibi)
 export function listAssets() {
@@ -40,7 +44,7 @@ function assetsPlugin(mode) {
       b.onResolve({ filter: /^virtual:game-assets$/ }, () => ({ path: 'game-assets', namespace: 'assets' }));
       b.onLoad({ filter: /.*/, namespace: 'assets' }, () => {
         const files = {};
-        for (const p of listAssets()) files[p] = mode === 'embed' ? readFileSync(join(root, p)).toString('base64') : p;
+        for (const p of listAssets()) files[p] = mode === 'embed' ? readFileSync(join(root, p)).toString('base64') : publishedPath(p);
         return { contents: `export default ${JSON.stringify({ mode, files })};`, loader: 'js' };
       });
     },
@@ -119,10 +123,20 @@ const light = artifactLoader(await bundle('artifact'));
 const artifactHtml = shell.replace('<!--SCRIPT-->', () => `<script type="module">${light}</script>`);
 writeFileSync(join(root, 'dist/artifact.html'), artifactHtml);
 // Artifact yayınında sayfanın yanına konacak dosyalar (yayımlanan yol → kaynak yol, depo köküne göre)
-const publishFiles = Object.fromEntries(listAssets().map((p) => [p, `web/${p}`]));
+const publishFiles = {};
+for (const p of listAssets()) {
+  const pub = publishedPath(p);
+  if (pub === p) publishFiles[pub] = `web/${p}`;
+  else {
+    const out = join(root, 'dist/artifact-assets', pub);
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, readFileSync(join(root, p)).toString('base64'));
+    publishFiles[pub] = `web/dist/artifact-assets/${pub}`;
+  }
+}
 writeFileSync(join(root, 'dist/artifact-files.json'), JSON.stringify(publishFiles, null, 2) + '\n');
 
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
-const assetKb = listAssets().reduce((n, p) => n + statSync(join(root, p)).size, 0) / 1024;
+const assetKb = Object.values(publishFiles).reduce((n, p) => n + statSync(join(root, '..', p)).size, 0) / 1024;
 console.log(`dist/index.html     ${kb(standalone)}  (three@${THREE_VERSION} ve modeller gömülü)`);
 console.log(`dist/artifact.html  ${kb(artifactHtml)} + ${assetKb.toFixed(0)} KB ayrı dosya (three CDN)`);

@@ -12,7 +12,7 @@
 - Kaynak değiştiyse `dist/` yeniden derlenip commit'lenmeli.
 - Blender modelleri: `python Tools/blender/export_weapon.py <mg43|mar556|m82|d50> --render` (Python 3.11 + `pip install bpy==5.0.1`). Çıktılar: `web/assets/weapons/*.glb`, `web/src/weaponAssets.json`, `Docs/import_reports/`.
 - Asker karakteri: `cd web && node tools/prepare-character.mjs soldier` (kaynak `SourceAssets/Characters/soldier_vanguard/original/Soldier.glb`). Çıktılar: `web/assets/characters/`, `web/src/characterAssets.json`.
-- `web/assets/**` bağımsız sürümde base64 gömülür; Artifact sürümünde sayfanın yanında ayrı dosya olarak yayımlanır (`dist/artifact-files.json` yayımlanacak yol → kaynak eşlemesini verir; Artifact `files` parametresine bu verilir). three.js Artifact'ta jsDelivr'dan, olmazsa unpkg'den gelir.
+- `web/assets/**` bağımsız sürümde base64 gömülür; Artifact sürümünde sayfanın yanında ayrı dosya olarak yayımlanır. Artifact .glb sunmadığı için GLB'ler `dist/artifact-assets/` altına base64 `.glb.txt` olarak üretilir (depoya girmez). `dist/artifact-files.json` yayımlanacak yol → kaynak eşlemesini verir (depo köküne göre); Artifact `files` parametresine bu verilir. three.js Artifact'ta jsDelivr'dan, olmazsa unpkg'den gelir.
 
 ## Kurallar
 - Kod içi isimler İngilizce, yorumlar Türkçe ve "neden"i anlatır.

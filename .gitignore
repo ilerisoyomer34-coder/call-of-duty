@@ -16,3 +16,4 @@ DerivedDataCache/
 
 # Gizli bilgiler
 .env
+web/dist/artifact-assets/

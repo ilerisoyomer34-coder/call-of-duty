@@ -60,8 +60,11 @@ async function openPage(kind, quality = 'low', opts = {}) {
     await page.route('https://artifact.test/**', (r) => {
       const path = new URL(r.request().url()).pathname;
       if (path === '/') return r.fulfill({ status: 200, contentType: 'text/html', body: `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>` });
-      const file = join(root, decodeURIComponent(path));
-      if (path.startsWith('/assets/') && existsSync(file)) return r.fulfill({ status: 200, contentType: MIME[path.slice(path.lastIndexOf('.'))] || 'application/octet-stream', body: readFileSync(file) });
+      // Yayındaki gibi: GLB'ler dist/artifact-assets altındaki base64 .txt, dokular web/assets'ten
+      const rel = decodeURIComponent(path);
+      const file = [join(root, 'dist/artifact-assets', rel), join(root, rel)].find((f) => existsSync(f));
+      const ext = path.slice(path.lastIndexOf('.'));
+      if (path.startsWith('/assets/') && file) return r.fulfill({ status: 200, contentType: ext === '.txt' ? 'text/plain' : MIME[ext] || 'application/octet-stream', body: readFileSync(file) });
       return r.fulfill({ status: 404, body: 'yok' });
     });
     await page.goto('https://artifact.test/');

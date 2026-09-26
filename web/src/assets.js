@@ -32,7 +32,8 @@ async function readBinary(path) {
   try {
     const res = await fetch(src, ctl ? { signal: ctl.signal } : undefined);
     if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
-    return await res.arrayBuffer();
+    // Artifact .glb sunmaz: GLB'ler base64 metin olarak (.glb.txt) yayımlanır
+    return src.endsWith('.txt') ? decodeBase64((await res.text()).trim()) : await res.arrayBuffer();
   } finally {
     clearTimeout(timer);
   }
