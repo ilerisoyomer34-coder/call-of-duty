@@ -333,12 +333,19 @@ console.log('Seviyeler ve dost manga');
   const hpBefore = await aimAtAlly();
   check(await page.evaluate(() => [...document.querySelectorAll('.atag')].some((e) => !e.hidden && /KARTAL|Kartal/.test(e.textContent))), 'Dostların üstünde mavi isim etiketi');
   await page.screenshot({ path: join(shots, '09-allies.png') });
-  await aimAtAlly();
-  await page.mouse.down();
-  await waitGame(page, 0.05);
-  await page.mouse.up();
-  await waitGame(page, 0.3);
-  const ff = await page.evaluate(() => ({ hp: window.__game.allies.list[0].health.hp, msg: document.getElementById('message').textContent }));
+  // Dost yürürken tek mermi ıskalayabilir: dost dursun, en çok üç deneme
+  await page.evaluate(() => window.__game.allies.list[0].vel.set(0, 0, 0));
+  let ff = null;
+  for (let k = 0; k < 3; k++) {
+    await aimAtAlly();
+    await page.mouse.down();
+    await waitGame(page, 0.05);
+    await page.mouse.up();
+    await waitGame(page, 0.3);
+    ff = await page.evaluate(() => ({ hp: window.__game.allies.list[0].health.hp, msg: document.getElementById('message').textContent }));
+    if (/DOST/.test(ff.msg)) break;
+    await page.waitForFunction(() => window.__game.weapons.state === 'idle', null, { timeout: 30000 });
+  }
   check(ff.hp === hpBefore && /DOST/.test(ff.msg), `Dost ateşi: dost yaralanmadı, uyarı çıktı ("${ff.msg}")`);
   // Çatışma: dostlar düşmana ateş eder
   await page.evaluate(() => {
