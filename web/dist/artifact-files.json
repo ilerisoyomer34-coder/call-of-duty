@@ -1,0 +1,9 @@
+{
+  "assets/characters/soldier.glb": "web/assets/characters/soldier.glb",
+  "assets/characters/soldier_diffuse.jpg": "web/assets/characters/soldier_diffuse.jpg",
+  "assets/characters/soldier_normal.jpg": "web/assets/characters/soldier_normal.jpg",
+  "assets/weapons/d50.glb": "web/assets/weapons/d50.glb",
+  "assets/weapons/m82.glb": "web/assets/weapons/m82.glb",
+  "assets/weapons/mar556.glb": "web/assets/weapons/mar556.glb",
+  "assets/weapons/mg43.glb": "web/assets/weapons/mg43.glb"
+}

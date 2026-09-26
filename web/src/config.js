@@ -499,6 +499,73 @@ export const ENEMY_TYPES = {
   },
 };
 
+// İskeletli asker (hazır model + prosedürel katmanlar). Değerler Soldier.glb klipleri ölçülerek bulundu:
+// yürüyüşte yerdeki ayak 1,65 m/s, koşuda 4,2 m/s geri kayıyor → bir tam adım döngüsü 1,70 / 2,94 m.
+export const SOLDIER_ANIM = {
+  walkStride: 1.7, // m / döngü
+  runStride: 2.94,
+  runBlend: [1.9, 3.6], // bu hız aralığında yürüyüşten koşuya geçilir (m/s)
+  moveBlend: [0.12, 0.7], // durmaktan yürümeye
+  hipTurnMax: 70 * Math.PI / 180, // alt gövde bu kadar dönebilir; kalanını üst gövde tamamlar
+  turnStep: 0.35, // yerinde dönerken bacakların attığı adım (m / rad): dönüş hızı adım hızına çevrilir
+  turnStepMax: 1.1, // yerinde dönüş adımının üst sınırı (m/s)
+  backwardEnter: 115 * Math.PI / 180, // hareket bakıştan bu kadar saparsa geri geri yürür
+  backwardExit: 75 * Math.PI / 180,
+  crouchDrop: 0.42, // çömelirken kalçanın inişi (m)
+  aimSpeed: 7, // nişan duruşuna geçiş hızı
+  spinePitchShare: 0.45, // nişan eğiminin gövdeye düşen payı (kalanı kollar ve silah)
+  recoilKick: 0.045, // atışta silahın omuza geri tepmesi (m)
+  recoilPitch: 2.5, // geri tepmede namlunun kalkması (rad / m)
+  aimHeadTilt: 0.14, // nişanda baş dipçiğe eğilir (rad)
+  reloadTilt: { pitch: -0.4, roll: 0.55, yaw: 0.2 }, // şarjör değişiminde silahın yatışı (rad)
+  runCarry: { yaw: 0.55, pitch: 0.35, side: -0.1 }, // koşarken silah göğse çaprazlanır (rad, m)
+  throwTime: 0.8, // el bombası atma hareketi (s)
+  throwRelease: 0.42, // bomba bu anda elden çıkar (kol öne savrulurken)
+  aimBlade: 0.4, // nişanda gövde sağa döner (rad): sol omuz öne gelir, destek eli kundağa yetişir
+  // Kavrama: parmak eklemlerinin bükülmesi (rad). Sağ işaret parmağı tetikte, daha düz
+  gripCurl: {
+    Right: { Index: [0.45, 0.5, 0.3], Middle: [1.15, 1.3, 0.8], Ring: [1.2, 1.3, 0.8], Pinky: [1.25, 1.2, 0.8] },
+    Left: { Index: [0.8, 0.9, 0.5], Middle: [0.9, 1.0, 0.6], Ring: [0.95, 1.0, 0.6], Pinky: [1.0, 1.0, 0.6] },
+  },
+  lodNear: 18, // bu mesafeden uzakta animasyon seyrek güncellenir (m)
+  lodFar: 50,
+  lodRates: [1 / 20, 1 / 10], // yakın-orta / uzak güncelleme aralığı (s)
+  // Silah duruşları (omuz eklemine göre, gövde uzayında): stok konumu ve silah açıları
+  stances: {
+    aim: { stock: [-0.09, -0.03, 0.0], pitch: 0, yaw: 0.02, roll: 0 },
+    ready: { stock: [-0.07, -0.13, -0.02], pitch: -0.62, yaw: 0.42, roll: 0.25 },
+    relaxed: { stock: [-0.06, -0.19, -0.04], pitch: -0.95, yaw: 0.62, roll: 0.35 },
+  },
+};
+
+// Düşman türlerine göre görünüm: dokuyu renkle çarparak birlik farkı, ağır makineli daha iri
+export const SOLDIER_LOOKS = {
+  rifleman: { tint: 0xffffff, visor: 0x1a1d20 },
+  shotgunner: { tint: 0xa9b38c, visor: 0x14181a },
+  heavy: { tint: 0x6d7073, visor: 0x3a0d08 },
+  sniper: { tint: 0xe2d2ae, visor: 0x1a2a2a },
+  dummy: { tint: 0xff9a4d, visor: 0x222222 },
+};
+
+// Vuruş kutuları (kemiğe bağlı, görünmez; bağlanma pozunda ölçüldü). Gövde/kafa kutuları kemik boyunca
+// "along" metre ileride ve "size" boyutunda; uzuv kutuları iki eklem arasını "width" kalınlıkta kaplar.
+export const SOLDIER_HITBOXES = [
+  { bone: 'Head', size: [0.25, 0.28, 0.29], along: 0.13, zone: 'head' },
+  { bone: 'Neck', size: [0.13, 0.08, 0.13], along: 0.02, zone: 'head' },
+  { bone: 'Spine2', size: [0.46, 0.22, 0.3], along: 0.09, zone: 'torso' },
+  { bone: 'Spine1', size: [0.38, 0.13, 0.27], along: 0.06, zone: 'torso' },
+  { bone: 'Spine', size: [0.36, 0.13, 0.26], along: 0.06, zone: 'torso' },
+  { bone: 'Hips', size: [0.38, 0.2, 0.27], along: 0.02, zone: 'torso' },
+  { bone: 'LeftArm', to: 'LeftForeArm', width: 0.14, zone: 'limb' },
+  { bone: 'RightArm', to: 'RightForeArm', width: 0.14, zone: 'limb' },
+  { bone: 'LeftForeArm', to: 'LeftHand', width: 0.12, zone: 'limb' },
+  { bone: 'RightForeArm', to: 'RightHand', width: 0.12, zone: 'limb' },
+  { bone: 'LeftUpLeg', to: 'LeftLeg', width: 0.2, zone: 'limb' },
+  { bone: 'RightUpLeg', to: 'RightLeg', width: 0.2, zone: 'limb' },
+  { bone: 'LeftLeg', to: 'LeftFoot', width: 0.16, zone: 'limb' },
+  { bone: 'RightLeg', to: 'RightFoot', width: 0.16, zone: 'limb' },
+];
+
 // Zorluk ayarları (DA_Difficulty karşılığı).
 export const DIFFICULTY = {
   easy: {

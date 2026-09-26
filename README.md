@@ -2,7 +2,7 @@
 
 Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: Kızılkum Vadisi'ne şafak vakti sızıyorsun, bir kontrol noktasını temizliyorsun, iki uçaksavar topunu C4 ile havaya uçuruyorsun, komuta merkezinden istihbaratı alıyorsun ve helikopter gelene kadar iniş bölgesini tutuyorsun. Tek oturuşta 10–15 dakika sürer.
 
-Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu; modellerin, dokuların ve seslerin tamamı kodla üretiliyor, dışarıdan asset yok.
+Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu. Düşman askerleri hazır iskeletli bir karakterdir (Mixamo "Vanguard"); dört silah oyuncunun kendi Blender dosyalarından gelir; harita, diğer modeller, dokular ve sesler kodla üretilir.
 
 ## Nasıl oynanır
 
@@ -56,6 +56,7 @@ Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timesc
 
 - **Teçhizat:** görevden önce ana ve yan silahı seçersin. Haritada yedi silah daha var; yerdekini F ile alınca aynı türdeki silahının yerine geçer, bıraktığın yere düşer.
 - **Silah hissi:** kare hızından bağımsız atış zamanlaması, kameradan hitscan ve namludan engel doğrulaması, oyuncunun karşı hareketini hesaba katan geri tepme toparlanması, sway, bob, nefes, koşu pozu, duvara yaklaşınca geri çekme, prosedürel reload (şarjör düşer, sol el yenisini takar, boş reload'da kurma kolu çekilir), pompa ve sürgü hareketi, namlu alevi, iz mermisi, kovan, yüzeye göre çarpma efekti ve ses, vuruş işaretleri (normal / kafa / öldürme).
+- **Askerler:** iskeletli hazır model; bekleme, yürüme ve koşma klipleri hıza göre karışır, adım döngüsü gerçek hıza bağlı olduğu için ayak kaymaz. Alt gövde hareket yönüne döner, üst gövde hedefe bakar; geri geri yürüme, yan adım, çömelme (bacak IK), iki elle silah tutuşu (kol IK), nişan / hazır / rahat duruşları, şarjör değiştirme, atışta geri tepme, isabette sarsılma, ölümde diz çöküp devrilme ve elden düşen silah. Türler renk tonu ve boyla ayrışır. Vuruş bölgeleri kemiklere bağlı kutulardır (kafa, gövde, kol-bacak). Model yüklenemezse kodla üretilen yedek askerler kullanılır.
 - **Düşman yapay zekâsı:** devriye, şüphelenme, araştırma, alarm yayma, siper bulma ve siperden göz atma, yan adım, hücum eden pompalılar, bastırma ateşi yapan ağır makineliler, lazerle nişan alan keskin nişancılar, el bombası atma, düşük canda geri çekilme. Adil isabet: mesafe, hareketin, ilk atış ıskası ve zorluk hesaba katılır; aynı anda yalnızca sınırlı sayıda düşman sana ateş eder.
 - **Görev:** kontrol noktaları, telsiz anonsları, patlayıcı variller, düşen mühimmat, ikmal sandıkları, dalga savunması ve helikopterle tahliye. Zorluklar: Acemi, Asker, Gazi.
 - **Atış poligonu:** 10 / 25 / 50 / 100 m hedefler, hareketli mankenler, yüzey test duvarı, hasar sayıları.
@@ -72,6 +73,8 @@ web/
     weapons.js     silah durum makinesi, hitscan, reload, el bombası, bıçak
     viewmodel.js   birinci şahıs silah ve prosedürel animasyon
     enemy.js       düşman yapay zekâsı ve yöneticisi
+    soldier.js     asker görünümü: iskeletli model, animasyon karışımı, IK, vuruş kutuları
+    assets.js      GLB ve doku yükleme (gömülü ya da yanındaki dosyadan)
     nav.js         ızgara navigasyonu, A*, siper noktaları
     world.js       çarpışma dünyası, ışın testi, geometri birleştirme
     level.js       harita ve atış poligonu
@@ -80,11 +83,14 @@ web/
     audio.js       Web Audio ile sentezlenen tüm sesler
     hud.js         HUD, menus.js menüler, devconsole.js konsol
     shell.html     sayfa iskeleti ve arayüz stilleri
+  assets/        silah GLB'leri, asker GLB'si ve dokuları
   tools/build.mjs  tek dosyaya paketleme
+  tools/prepare-character.mjs  hazır karakteri oyuna hazırlama (UV/klip ayıklama, dokuları ayırma)
   tools/smoke-test.mjs  otomatik oynanış testi
 Docs/MASTER_PROMPT.md  Unreal Engine 5 ana planı
 Docs/import_reports/   her içe aktarılan model için rapor ve önizleme
 SourceAssets/Weapons/  özgün .blend dosyaları ve asset_info.json (lisans kaydı)
+SourceAssets/Characters/  özgün karakter dosyası ve asset_info.json
 Tools/blender/         model inceleme ve oyuna dönüştürme betikleri
 ```
 
@@ -95,3 +101,10 @@ Tools/blender/         model inceleme ve oyuna dönüştürme betikleri
 3. `Tools/blender/weapon_rig_map.json` içine eksen, sağ el noktası, namlu/nişan/sol el noktalarını ve animasyonlu parça adlarını ekle.
 4. `python Tools/blender/export_weapon.py <ad> --render` (bpy kurulu Python ile) → `web/assets/weapons/<ad>.glb`, `web/src/weaponAssets.json` ve `Docs/import_reports/<ad>.md`.
 5. `web/src/config.js` içinde silah verisine `model: 'glb'` ekle, `npm run build`.
+
+## Hazır karakter ekleme
+
+1. Kaynak dosyayı `SourceAssets/Characters/<ad>/original/` altına koy, yanına lisansıyla `asset_info.json` yaz.
+2. `web/tools/prepare-character.mjs` içindeki `SOURCES` tablosuna bir satır ekle (klip ve doku adları).
+3. `cd web && node tools/prepare-character.mjs <ad>` → `web/assets/characters/<ad>.glb`, dokular ve `web/src/characterAssets.json`.
+4. Klip adları `Idle`, `Walk`, `Run`, kemikler Mixamo adlandırmasında olmalı (`Hips`, `Spine2`, `RightArm`…). Adım boyları `config.js` → `SOLDIER_ANIM`'de.

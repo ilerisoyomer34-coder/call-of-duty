@@ -16,9 +16,10 @@ import { Mission } from './mission.js';
 import { HUD } from './hud.js';
 import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
+import { preloadSoldier } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS } from './config.js';
-import { storage } from './util.js';
+import { storage, warnOnce } from './util.js';
 import { Emitter, clamp, rand } from './util.js';
 
 const SKY_VERT = /* glsl */ `
@@ -51,6 +52,37 @@ void main() {
 }`;
 
 const LOADOUT_KEY = 'demirsafak.loadout.v1';
+const CHARACTER_TIMEOUT_MS = 25000; // asker modeli bu sürede inmezse basit askerle açılır
+const PRECOMPILE_TIMEOUT_MS = 8000; // paralel derleme desteklenmiyorsa bu süreden sonra beklemeden devam
+const FRAME_ERROR_LIMIT = 90; // art arda bu kadar karede hata olursa oyuncuya gösterilir
+const HOT_READY_FALLBACK_MS = 2500;
+
+// Yükleme ekranı (shell.html'deki açılış bekçisi). Bekçi yoksa (ör. eski kabuk) en azından ekranı aç/kapa.
+function loadingScreen() {
+  if (window.__boot) return window.__boot;
+  const el = document.getElementById('loading');
+  return {
+    show() { el.hidden = false; },
+    step() {},
+    hide() { el.hidden = true; },
+    ready() { el.hidden = true; },
+    fail(title, err) { console.error(title, err); },
+  };
+}
+
+// Aşama metninin ekrana çizilmesi için bir kare bekle; sekme görünmüyorsa (rAF durur) zamanlayıcıyla devam et
+function nextPaint() {
+  return new Promise((resolve) => {
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      setTimeout(resolve, 0);
+    };
+    requestAnimationFrame(go);
+    setTimeout(go, 150);
+  });
+}
 function loadLoadout() {
   const s = storage.get(LOADOUT_KEY, null);
   const ok = s && WEAPONS[s.primary]?.category === 'primary' && WEAPONS[s.secondary]?.category === 'secondary';
@@ -115,6 +147,30 @@ export class Game {
     if (this.isTouch) this.enableTouch();
     this.applySettings();
     this.resize();
+  }
+
+  // Hazır asker modeli: gelmezse (dosya yok, ağ hatası, zaman aşımı) prosedürel askerle devam edilir
+  async loadCharacters() {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('zaman aşımı')), CHARACTER_TIMEOUT_MS));
+    try {
+      await Promise.race([preloadSoldier(), timeout]);
+    } catch (err) {
+      warnOnce('soldier-model', `Asker modeli yüklenemedi, basit asker kullanılıyor (${err.message})`);
+    }
+  }
+
+  // Gölgelendiricileri yükleme ekranı açıkken derle: ilk karede telefonda saniyelerce donma olmasın.
+  // KHR_parallel_shader_compile yoksa derleme yine olur ama zaman aşımı sonsuz beklemeyi önler.
+  async precompile() {
+    const r = this.renderer;
+    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+    try {
+      this.camera.updateMatrixWorld();
+      await Promise.race([r.compileAsync(this.scene, this.camera), wait(PRECOMPILE_TIMEOUT_MS)]);
+      if (this.mode !== 'menu') await Promise.race([r.compileAsync(this.viewmodel.scene, this.viewmodel.camera), wait(PRECOMPILE_TIMEOUT_MS / 2)]);
+    } catch (err) {
+      warnOnce('precompile', `Gölgelendirici ön derlemesi atlandı (${err.message})`);
+    }
   }
 
   // Silahların metal yüzeyleri için şafak gökyüzünden ortam yansıma haritası
@@ -258,7 +314,6 @@ export class Game {
     this.buildMenuWorld();
     this.menus.show('menu', false);
     this.menus.stack = [];
-    document.getElementById('loading').hidden = true;
   }
 
   buildMenuWorld() {
@@ -282,23 +337,37 @@ export class Game {
     this.audio.init();
     this.audio.stopMenuMusic();
     this.menus.hideAll();
-    const loading = document.getElementById('loading');
-    loading.hidden = false;
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
-    this.mode = mode;
-    this.difficultyKey = diffKey;
-    this.difficulty = DIFFICULTY[diffKey] || DIFFICULTY.normal;
-    this.stats = this.freshStats();
-    this.cheats.god = false;
-    this.buildScene(mode);
-    this.mission.build();
-    this.weapons.reset(this.mission.defaultLoadout());
-    this.mission.saveCheckpoint(0);
-    this.hud.bakeMinimap();
+    const L = loadingScreen();
+    L.show('HARİTA İNŞA EDİLİYOR');
+    this.state = 'loading';
+    try {
+      L.step('Harita ve düşmanlar yerleştiriliyor', 0.25);
+      await nextPaint();
+      this.mode = mode;
+      this.difficultyKey = diffKey;
+      this.difficulty = DIFFICULTY[diffKey] || DIFFICULTY.normal;
+      this.stats = this.freshStats();
+      this.cheats.god = false;
+      this.buildScene(mode);
+      this.mission.build();
+      L.step('Teçhizat hazırlanıyor', 0.6);
+      await nextPaint();
+      this.weapons.reset(this.mission.defaultLoadout());
+      this.mission.saveCheckpoint(0);
+      this.hud.bakeMinimap();
+      this.player.applyCamera(this.camera, 0);
+      L.step('Gölgelendiriciler derleniyor', 0.8);
+      await nextPaint();
+      await this.precompile();
+    } catch (err) {
+      // Yarım kalmış sahne oynatılmaz; oyuncu menüye dönüp yeniden deneyebilir
+      L.fail('Harita açılamadı', err, 'Ana menüye dönüp yeniden dene. Sorun sürerse düşük grafikle açmayı dene.', true);
+      return;
+    }
     this.hud.show(true);
     this.hud.setHealth(this.player.health.hp, this.player.health.max);
     this.events.emit('interact', null, 0);
-    loading.hidden = true;
+    L.hide();
     this.state = 'playing';
     this.input.enabled = true;
     this.input.enableTouch(this.isTouch);
@@ -466,9 +535,17 @@ export class Game {
         default:
           break;
       }
+      this.errorStreak = 0;
     } catch (err) {
       console.error(err);
       this.lastError = err;
+      // Her karede tekrarlayan hata oyunu dondurur: sessiz kalmak yerine ekrana yaz
+      this.errorStreak = (this.errorStreak || 0) + 1;
+      if (this.errorStreak === FRAME_ERROR_LIMIT) {
+        this.state = 'error';
+        this.input.exitLock();
+        loadingScreen().fail('Oyun döngüsü durdu', err, 'Ana menüye dönüp yeniden dene.', true);
+      }
     }
     I.endFrame();
   }
@@ -561,10 +638,40 @@ const NULL_INPUT = {
   touch: { active: false, sprint: false },
 };
 
-function boot() {
-  const game = new Game();
+async function boot() {
+  const L = loadingScreen();
+  L.step('Grafik sistemi başlatılıyor', 0.15);
+  await nextPaint();
+  let game;
+  try {
+    game = new Game();
+  } catch (err) {
+    const webgl = /webgl|context/i.test(String(err && err.message));
+    L.fail(
+      webgl ? '3B grafik açılamadı' : 'Oyun başlatılamadı',
+      err,
+      webgl
+        ? 'Tarayıcı WebGL grafik bağlamı oluşturamadı. Donanım hızlandırmayı açıp, açık oyun sekmelerini kapatıp yeniden dene.'
+        : null
+    );
+    return;
+  }
   window.__game = game;
-  game.showMenu();
+  try {
+    L.step('Asker modelleri yükleniyor', 0.4);
+    await nextPaint();
+    await game.loadCharacters();
+    L.step('Harita inşa ediliyor', 0.6);
+    await nextPaint();
+    game.showMenu();
+    L.step('Gölgelendiriciler derleniyor', 0.85);
+    await nextPaint();
+    await game.precompile();
+  } catch (err) {
+    L.fail('Oyun başlatılamadı', err);
+    return;
+  }
+  L.ready();
   requestAnimationFrame((t) => game.frame(t));
   // İlk tıklamada menü müziği
   const startAudio = () => {
@@ -579,6 +686,16 @@ function boot() {
   void saveSettings;
 }
 
+// Artifact çalışma ortamı sıcak yeniden yükleme için hot.ready sunar; geri çağrı gelmezse
+// oyun yine de açılsın diye kısa bir süre sonra kendimiz başlatırız (bir kez).
+let started = false;
+function start() {
+  if (started) return;
+  started = true;
+  boot();
+}
 const hot = typeof window !== 'undefined' ? window.claude?.hot : null;
-if (hot?.ready) hot.ready(() => boot());
-else boot();
+if (hot?.ready) {
+  hot.ready(start);
+  setTimeout(start, HOT_READY_FALLBACK_MS);
+} else start();

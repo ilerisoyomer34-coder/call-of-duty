@@ -10,7 +10,9 @@
 - `npm run build` → `dist/index.html` (çevrimdışı, three gömülü) ve `dist/artifact.html` (three CDN'den)
 - `npm test` → derler, başsız Chromium'da menü/görev/poligon/telefon akışlarını dener; ekran görüntüleri `web/tools/shots/`
 - Kaynak değiştiyse `dist/` yeniden derlenip commit'lenmeli.
-- Blender modelleri: `python Tools/blender/export_weapon.py <mg43|mar556|m82|d50> --render` (Python 3.11 + `pip install bpy==5.0.1`). Çıktılar: `web/assets/weapons/*.glb`, `web/src/weaponAssets.json`, `Docs/import_reports/`. GLB'ler derlemede base64 olarak gömülür.
+- Blender modelleri: `python Tools/blender/export_weapon.py <mg43|mar556|m82|d50> --render` (Python 3.11 + `pip install bpy==5.0.1`). Çıktılar: `web/assets/weapons/*.glb`, `web/src/weaponAssets.json`, `Docs/import_reports/`.
+- Asker karakteri: `cd web && node tools/prepare-character.mjs soldier` (kaynak `SourceAssets/Characters/soldier_vanguard/original/Soldier.glb`). Çıktılar: `web/assets/characters/`, `web/src/characterAssets.json`.
+- `web/assets/**` bağımsız sürümde base64 gömülür; Artifact sürümünde sayfanın yanında ayrı dosya olarak yayımlanır (`dist/artifact-files.json` yayımlanacak yol → kaynak eşlemesini verir; Artifact `files` parametresine bu verilir). three.js Artifact'ta jsDelivr'dan, olmazsa unpkg'den gelir.
 
 ## Kurallar
 - Kod içi isimler İngilizce, yorumlar Türkçe ve "neden"i anlatır.
@@ -20,3 +22,5 @@
 - Işık sayısı sabit kalmalı (efekt ışık havuzu); değişirse shader'lar yeniden derlenir.
 - Silah adları kurgusal kalmalı; gerçek marka/logo yok. Harici asset eklenirse lisansı `CREDITS.md`, `SourceAssets/.../asset_info.json` ve menüdeki "Emeği geçenler" ekranına yazılmalı.
 - İçe aktarılan silahlarda kapalı nişangah gövdeleri `optic` parçası yapılır; nişan alırken gizlenip yerine açık tüp çizilir (`adsRing`).
+- Asker görünümü `soldier.js`'te: düşman yapay zekâsı yalnızca duruş/hız/nişan bilgisini verir (`animate(dt, st)`), kemiklere doğrudan dokunmaz. Model yüklenemezse `BlockSoldier` yedeği aynı arayüzle çalışır.
+- Açılış ve harita yükleme `window.__boot` (shell.html'deki bekçi) üzerinden aşama gösterir; hata yükleme ekranına yazılır, sessizce asılı kalmamalı.

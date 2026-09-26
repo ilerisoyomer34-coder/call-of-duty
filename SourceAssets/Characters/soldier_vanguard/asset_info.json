@@ -1,0 +1,15 @@
+{
+  "title": "Vanguard asker karakteri (Idle / Walk / Run animasyonlu)",
+  "author": "Mixamo (Adobe)",
+  "author_url": "https://www.mixamo.com/",
+  "source_url": "https://github.com/mrdoob/three.js/blob/dev/examples/models/gltf/Soldier.glb",
+  "license": "Adobe Mixamo kullanım koşulları — kişisel ve ticari projelerde telifsiz kullanım; karakter ve animasyonlar tek başına ham dosya olarak satılamaz / dağıtılamaz. Ticari sürümden önce doğrulanmalı.",
+  "download_date": "2026-09-26",
+  "format": "glTF Binary (.glb) + gömülü 2 JPEG doku (1024 px renk ve normal)",
+  "category": "Characters",
+  "intended_use": "Düşman askerleri (tüfekçi, saldırgan, ağır makineli, keskin nişancı, poligon mankeni); türler renk tonu ve ölçekle ayrışır",
+  "original_file": "Soldier.glb",
+  "sha256": "dfb230fc1f942f259dd00281a1186953ad602fc5d69067ce63e24b2aa439736b",
+  "modifications": "web/tools/prepare-character.mjs: kullanılmayan 6 UV kanalı ve T-poz klibi atıldı, anahtar kareler ayıklandı, kemik adlarından 'mixamorig:' öneki silindi, dokular ayrı JPEG yapıldı (2,2 MB → 1,4 MB). Oyun içinde silah tutuşu (IK), nişan, çömelme, geri yürüme, ölüm ve vuruş kutuları kodla eklendi.",
+  "notes": "three.js örneği modeli 'model from mixamo.com' olarak anar. Depo herkese açıksa ham GLB'nin depoda durması Mixamo'nun yeniden dağıtım kısıtıyla çelişebilir; ticari sürüm için karakter kendi Adobe hesabıyla Mixamo'dan indirilmeli ya da CC0 bir modelle değiştirilmeli."
+}

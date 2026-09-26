@@ -2,7 +2,7 @@
 // sürer, hata olup olmadığını denetler ve ekran görüntüleri alır (tools/shots/).
 // Kullanım: npm test   (önce derler)
 import { chromium } from 'playwright';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -11,6 +11,9 @@ const shots = join(root, 'tools/shots');
 mkdirSync(shots, { recursive: true });
 const THREE_VERSION = JSON.parse(readFileSync(join(root, 'node_modules/three/package.json'), 'utf8')).version;
 const THREE_CDN = `https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/build/three.module.min.js`;
+const THREE_CDN2 = `https://unpkg.com/three@${THREE_VERSION}/build/three.module.min.js`;
+const THREE_BODY = readFileSync(join(root, 'node_modules/three/build/three.module.min.js'), 'utf8');
+const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png' };
 
 const errors = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,7 +30,8 @@ const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
 });
 
-async function openPage(kind, quality = 'low') {
+// opts.cdnFail: ['jsdelivr', 'unpkg'] → o CDN yanıt vermez (yedek yolu ve hata ekranı denenir)
+async function openPage(kind, quality = 'low', opts = {}) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   // Yazılımsal GPU'da akış testleri düşük kalitede koşar; görsel kontrol için 'high'
   await page.addInitScript((q) => {
@@ -43,16 +47,28 @@ async function openPage(kind, quality = 'low') {
   });
   // Dış kaynaklar (Google Fonts) test ortamında engelli olabilir
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
-  await page.route(THREE_CDN, (r) =>
-    r.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(join(root, 'node_modules/three/build/three.module.min.js'), 'utf8') })
-  );
+  const fail = opts.cdnFail || [];
+  const serveThree = (name) => (r) =>
+    fail.includes(name)
+      ? r.abort('connectionrefused')
+      : r.fulfill({ status: 200, contentType: 'text/javascript', headers: { 'access-control-allow-origin': '*' }, body: THREE_BODY });
+  await page.route(THREE_CDN, serveThree('jsdelivr'));
+  await page.route(THREE_CDN2, serveThree('unpkg'));
   if (kind === 'artifact') {
+    // Artifact gibi: sayfa bir https kökeninde, modeller ve dokular yanındaki assets/ dosyalarından
     const html = readFileSync(join(root, 'dist/artifact.html'), 'utf8');
-    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`);
+    await page.route('https://artifact.test/**', (r) => {
+      const path = new URL(r.request().url()).pathname;
+      if (path === '/') return r.fulfill({ status: 200, contentType: 'text/html', body: `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>` });
+      const file = join(root, decodeURIComponent(path));
+      if (path.startsWith('/assets/') && existsSync(file)) return r.fulfill({ status: 200, contentType: MIME[path.slice(path.lastIndexOf('.'))] || 'application/octet-stream', body: readFileSync(file) });
+      return r.fulfill({ status: 404, body: 'yok' });
+    });
+    await page.goto('https://artifact.test/');
   } else {
     await page.goto(pathToFileURL(join(root, 'dist/index.html')).href);
   }
-  await page.waitForFunction(() => window.__game && window.__game.state === 'menu', null, { timeout: 30000 });
+  if (!opts.noWait) await page.waitForFunction(() => window.__game && window.__game.state === 'menu', null, { timeout: 60000 });
   return page;
 }
 
@@ -81,6 +97,18 @@ console.log('Görsel kontrol (yüksek kalite)');
   await waitGame(page, 0.6);
   await page.screenshot({ path: join(shots, '00-village-high.png') });
   check((await page.evaluate(() => window.__game.player.pitch)) === 0, 'Kilitlenmede kamera sıçramadı');
+  // Yakın çekim: en yakın düşmanın 4 m önüne geç, yapay zekâ kapalı (asker modeli ve duruşu)
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.cheats.aiOff = true;
+    const e = g.enemies.list.find((x) => x.alive && x.type === 'rifleman');
+    const f = { x: -Math.sin(e.yaw), z: -Math.cos(e.yaw) };
+    const p = new g.player.pos.constructor(e.pos.x + f.x * 4, e.pos.y, e.pos.z + f.z * 4);
+    g.player.reset(p, Math.atan2(-(e.pos.x - p.x), -(e.pos.z - p.z)));
+    g.player.pitch = -0.06;
+  });
+  await waitGame(page, 0.5);
+  await page.screenshot({ path: join(shots, '00-soldier-high.png') });
   await page.close();
 }
 
@@ -101,6 +129,8 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   check(true, 'Görev başladı');
+  check(await page.evaluate(() => document.getElementById('loading').hidden), 'Harita yükleme ekranı kapandı');
+  check(await page.evaluate(() => window.__game.enemies.list.every((e) => !!e.model.bones && e.model.meshes.length > 10)), 'Düşmanlar iskeletli hazır modelle (vuruş kutuları bağlı)');
   await page.evaluate(() => {
     window.__game.input.lockFailed = true;
   });
@@ -317,7 +347,7 @@ console.log('Atış poligonu');
     const g = window.__game;
     const d = g.enemies.list[1];
     const o = g.camera.position.clone();
-    const target = d.model.head.getWorldPosition(new o.constructor());
+    const target = (d.model.bones?.Head || d.model.head).getWorldPosition(new o.constructor());
     target.y += 0.12;
     g.player.yaw = Math.atan2(-(target.x - o.x), -(target.z - o.z));
     const flat = Math.hypot(target.x - o.x, target.z - o.z);
@@ -431,6 +461,28 @@ console.log('Artifact sürümü (dist/artifact.html)');
   const page = await openPage('artifact');
   await sleep(800);
   check((await state(page)) === 'menu', 'CDN three.js ile menü açıldı');
+  check(await page.evaluate(() => document.getElementById('loading').hidden), 'Yükleme ekranı kapandı');
+  await page.evaluate(() => window.__game.startMode('range', 'normal'));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  check(await page.evaluate(() => window.__game.enemies.list.length > 0 && window.__game.enemies.list.every((e) => !!e.model.bones)), 'Asker modeli yan dosyadan yüklendi (iskeletli)');
+  await page.close();
+}
+{
+  // jsDelivr yanıt vermezse unpkg'den açılmalı
+  const page = await openPage('artifact', 'low', { cdnFail: ['jsdelivr'] });
+  check((await state(page)) === 'menu', 'jsDelivr kapalıyken unpkg yedeğiyle açıldı');
+  await page.close();
+}
+{
+  // İki CDN de yoksa yükleme ekranı nedenini yazmalı (sonsuza dek asılı kalmamalı)
+  const before = errors.length;
+  const page = await openPage('artifact', 'low', { cdnFail: ['jsdelivr', 'unpkg'], noWait: true });
+  await page.waitForSelector('#ldErr:not([hidden])', { timeout: 30000 });
+  const msg = await page.textContent('#ldErrTitle');
+  check(/indirilemedi/.test(msg), `Grafik kütüphanesi inmezse hata ekranı çıktı ("${msg}")`);
+  check(await page.isVisible('#ldRetry'), 'Hata ekranında "Tekrar dene" düğmesi var');
+  await page.screenshot({ path: join(shots, '10-load-error.png') });
+  errors.length = before; // bu sayfadaki beklenen hatalar sayılmaz
   await page.close();
 }
 

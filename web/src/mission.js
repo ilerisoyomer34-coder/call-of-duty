@@ -393,12 +393,13 @@ export class Mission {
     const keep = [];
     for (const e of g.enemies.list) {
       if (!C.spawnedIds.has(e.id)) {
-        e.model.root.removeFromParent();
-        if (e.model.helmet.parent) e.model.helmet.removeFromParent();
+        e.model.dispose();
+        if (e.laser) e.laser.removeFromParent();
+        if (e.glint) e.glint.removeFromParent();
         continue;
       }
       if (C.dead.has(e.id)) {
-        e.model.root.visible = false;
+        e.model.hide();
       } else e.reset();
       keep.push(e);
     }

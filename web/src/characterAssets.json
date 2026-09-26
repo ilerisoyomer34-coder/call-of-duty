@@ -1,0 +1,22 @@
+{
+  "soldier": {
+    "file": "assets/characters/soldier.glb",
+    "materials": {
+      "Vanguard_VisorMat": {
+        "map": "assets/characters/soldier_diffuse.jpg",
+        "normalMap": "assets/characters/soldier_normal.jpg"
+      },
+      "VanguardBodyMat": {
+        "map": "assets/characters/soldier_diffuse.jpg",
+        "normalMap": "assets/characters/soldier_normal.jpg"
+      }
+    },
+    "clips": [
+      "Idle",
+      "Run",
+      "Walk"
+    ],
+    "tris": 11376,
+    "bytes": 1360706
+  }
+}

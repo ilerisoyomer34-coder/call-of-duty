@@ -25,7 +25,10 @@ export const DEFAULT_SETTINGS = {
 
 export function loadSettings() {
   const saved = storage.get(KEY, {});
-  return { ...DEFAULT_SETTINGS, ...(saved && typeof saved === 'object' ? saved : {}) };
+  const s = { ...DEFAULT_SETTINGS, ...(saved && typeof saved === 'object' ? saved : {}) };
+  // Yükleme ekranındaki "Düşük grafikle aç" düğmesi: depolama kapalıysa pencere adıyla gelir
+  if (typeof window !== 'undefined' && window.name === 'demirsafak-low') s.quality = 'low';
+  return s;
 }
 
 export function saveSettings(s) {

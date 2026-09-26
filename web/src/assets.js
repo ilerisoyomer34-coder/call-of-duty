@@ -1,14 +1,19 @@
-// Blender'dan dışa aktarılan silah modelleri (GLB). Derlemede base64 olarak gömülür
-// (tek dosyalık oyun çevrimdışı çalışsın diye); yüklenemezse prosedürel model yerinde kalır.
+// Harici modeller ve dokular: Blender'dan dışa aktarılan silahlar ve asset kütüphanesinden gelen
+// iskeletli asker. Bağımsız sürümde base64 olarak pakete gömülür (tek dosya, çevrimdışı);
+// Artifact sürümünde sayfanın yanında yayımlanan dosyalardan okunur. Yüklenemezse prosedürel
+// model yerinde kalır, oyun açılmaya devam eder.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import WEAPON_ASSETS from './weaponAssets.json';
-import GLB_DATA from 'virtual:weapon-glbs';
+import CHARACTER_ASSETS from './characterAssets.json';
+import GAME_ASSETS from 'virtual:game-assets';
 import { warnOnce } from './util.js';
 
-export { WEAPON_ASSETS };
+export { WEAPON_ASSETS, CHARACTER_ASSETS };
 const cache = new Map();
 const loader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
+const FETCH_TIMEOUT_MS = 20000;
 
 function decodeBase64(b64) {
   const bin = atob(b64);
@@ -17,8 +22,43 @@ function decodeBase64(b64) {
   return out.buffer;
 }
 
+// path: 'assets/weapons/mar556.glb' gibi → ArrayBuffer
+async function readBinary(path) {
+  const src = GAME_ASSETS.files[path];
+  if (!src) throw new Error(`${path} pakette yok`);
+  if (GAME_ASSETS.mode === 'embed') return decodeBase64(src);
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = setTimeout(() => ctl?.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(src, ctl ? { signal: ctl.signal } : undefined);
+    if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+    return await res.arrayBuffer();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function parseGltf(buffer) {
+  return new Promise((resolve, reject) => loader.parse(buffer, '', resolve, reject));
+}
+
+// Doku <img> ile yüklenir (blob/fetch gerektirmez): gömülüde data: adresi, Artifact'ta göreli dosya
+export function loadTexture(path, { srgb = true, flipY = false } = {}) {
+  const src = GAME_ASSETS.files[path];
+  if (!src) return Promise.reject(new Error(`${path} pakette yok`));
+  const mime = /\.png$/i.test(path) ? 'image/png' : 'image/jpeg';
+  const url = GAME_ASSETS.mode === 'embed' ? `data:${mime};base64,${src}` : src;
+  return textureLoader.loadAsync(url).then((t) => {
+    t.flipY = flipY; // glTF UV'leri üstten başlar
+    t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.anisotropy = 4;
+    t.needsUpdate = true;
+    return t;
+  });
+}
+
 // Malzeme düzeltmeleri: cam/lens saydam olsun, dürbün içinden görülebilsin
-function prepare(scene) {
+function prepareWeapon(scene) {
   scene.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = false;
@@ -43,18 +83,13 @@ function prepare(scene) {
 
 // assetId → Promise<THREE.Group> (her çağrıda bağımsız kopya)
 export function loadWeaponAsset(assetId) {
-  if (!cache.has(assetId)) {
-    const b64 = GLB_DATA[assetId];
-    const p = new Promise((resolve, reject) => {
-      if (!b64) {
-        reject(new Error(`${assetId}.glb bulunamadı`));
-        return;
-      }
-      loader.parse(decodeBase64(b64), '', (gltf) => resolve(prepare(gltf.scene)), reject);
-    });
-    cache.set(assetId, p);
+  const key = `weapon:${assetId}`;
+  if (!cache.has(key)) {
+    const entry = WEAPON_ASSETS[assetId];
+    const p = entry ? readBinary(entry.file).then(parseGltf).then((g) => prepareWeapon(g.scene)) : Promise.reject(new Error(`${assetId} kaydı yok`));
+    cache.set(key, p);
   }
-  return cache.get(assetId).then((scene) => scene.clone(true));
+  return cache.get(key).then((scene) => scene.clone(true));
 }
 
 export function assetIdFor(weaponData) {
@@ -83,4 +118,46 @@ export function preloadWeapons(weapons, onLoaded) {
       .then((scene) => onLoaded(d.id, scene))
       .catch((e) => warnOnce(`glb-${id}`, `${d.name}: model yüklenemedi, yedek model kullanılıyor (${e.message})`));
   }
+}
+
+// İskeletli karakter: { scene, animations } şablonu (kopyalamak için SkeletonUtils.clone kullanılır).
+// Dokular malzeme adına göre characterAssets.json'dan bağlanır; doku inmezse model dokusuz kalır.
+export function loadCharacterAsset(id) {
+  const key = `character:${id}`;
+  if (!cache.has(key)) {
+    const entry = CHARACTER_ASSETS[id];
+    const p = (async () => {
+      if (!entry) throw new Error(`${id} kaydı yok`);
+      const gltf = await parseGltf(await readBinary(entry.file));
+      const texCache = new Map();
+      const tex = (path, srgb) => {
+        if (!path) return Promise.resolve(null);
+        const k = `${path}|${srgb}`;
+        if (!texCache.has(k))
+          texCache.set(k, loadTexture(path, { srgb }).catch((e) => (warnOnce(`tex-${path}`, `${path} yüklenemedi (${e.message})`), null)));
+        return texCache.get(k);
+      };
+      const jobs = [];
+      gltf.scene.traverse((o) => {
+        if (!o.isMesh) return;
+        const m = o.material;
+        const spec = entry.materials[m.name];
+        if (!spec) return;
+        jobs.push(
+          Promise.all([tex(spec.map, true), tex(spec.normalMap, false)]).then(([map, normalMap]) => {
+            if (map) {
+              m.map = map;
+              m.color.setRGB(1, 1, 1);
+            }
+            if (normalMap) m.normalMap = normalMap;
+            m.needsUpdate = true;
+          })
+        );
+      });
+      await Promise.all(jobs);
+      return { scene: gltf.scene, animations: gltf.animations };
+    })();
+    cache.set(key, p);
+  }
+  return cache.get(key);
 }

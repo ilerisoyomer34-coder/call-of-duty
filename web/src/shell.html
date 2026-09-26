@@ -2,7 +2,122 @@
 <meta name="description" content="Tarayıcıda oynanan birinci şahıs taktiksel savaş oyunu.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<script>
+// Açılış bekçisi. Modül betiğinden önce ve ondan bağımsız çalışır: yükleme aşamalarını gösterir,
+// grafik kütüphanesi inemezse ya da açılışta bir hata olursa oyuncuya ne olduğunu yazar ve
+// yeniden deneme düğmeleri sunar. Böylece yükleme ekranı sessizce sonsuza dek asılı kalmaz.
+(function () {
+  // Büyük harf dönüşümü Türkçe kurallarla yapılsın (i → İ); Artifact iskeletinde dil belirtilmez
+  try { document.documentElement.lang = 'tr'; } catch (e) { /* yok */ }
+  // Yazı tipi sayfası betikle eklenir: ayrıştırıcının eklediği stil sayfası, bağlantı yavaş ya da
+  // engelliyse kendinden sonraki tüm betikleri (oyunun kendisi dahil) bekletir.
+  try {
+    var l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap';
+    (document.head || document.documentElement).appendChild(l);
+  } catch (e) { /* yazı tipi yoksa yedek yazı tipleri kullanılır */ }
+
+  var SLOW_MS = 20000;
+  var B = { done: false, failed: false, busy: true, last: '' };
+  var slowTimer = 0;
+  function el(id) { return document.getElementById(id); }
+  function text(id, v) { var e = el(id); if (e) e.textContent = v; }
+  function describe(err) {
+    if (!err) return '';
+    if (typeof err === 'string') return err;
+    var m = (err.name && err.name !== 'Error' ? err.name + ': ' : '') + (err.message || String(err));
+    if (err.stack) m += '\n' + String(err.stack).split('\n').slice(1, 4).join('\n');
+    return m;
+  }
+  function armSlow() {
+    clearTimeout(slowTimer);
+    slowTimer = setTimeout(function () {
+      if (!B.busy || B.failed) return;
+      // Sert hata değil: yükleme sürerken seçenek sun
+      showErr('Beklenenden uzun sürüyor', 'Son adım: ' + B.last + '. Bağlantın ya da cihazın yavaşsa biraz daha bekle; olmazsa yeniden dene veya düşük grafikle aç.', '', false);
+    }, SLOW_MS);
+  }
+  function showErr(title, msg, detail, canMenu) {
+    var box = el('ldErr');
+    if (!box) return;
+    text('ldErrTitle', title);
+    text('ldErrText', msg);
+    text('ldErrCode', detail || '');
+    var mb = el('ldMenu');
+    if (mb) mb.hidden = !canMenu;
+    box.hidden = false;
+  }
+  B.show = function (title) {
+    var L = el('loading');
+    if (!L) return;
+    B.busy = true;
+    B.failed = false;
+    L.className = '';
+    L.hidden = false;
+    text('ldTitle', title || 'HAZIRLANIYOR');
+    var box = el('ldErr');
+    if (box) box.hidden = true;
+    armSlow();
+  };
+  B.step = function (msg, p) {
+    B.last = msg;
+    text('ldStage', msg + '…');
+    var bar = el('ldBar');
+    if (bar && p != null) bar.style.width = Math.round(Math.max(0.04, Math.min(1, p)) * 100) + '%';
+    armSlow();
+  };
+  B.hide = function () {
+    clearTimeout(slowTimer);
+    B.busy = false;
+    var L = el('loading');
+    if (L) L.hidden = true;
+  };
+  B.ready = function () {
+    B.done = true;
+    B.hide();
+  };
+  // title: kısa başlık, err: yakalanan hata, hint: oyuncuya ne yapacağı, canMenu: menüye dönüş mümkün mü
+  B.fail = function (title, err, hint, canMenu) {
+    clearTimeout(slowTimer);
+    B.failed = true;
+    B.busy = true;
+    var L = el('loading');
+    if (L) {
+      L.hidden = false;
+      L.className = 'failed';
+    }
+    text('ldStage', 'Durduğu adım: ' + (B.last || 'başlangıç'));
+    showErr(title, hint || 'Sayfayı yeniden dene. Sorun sürerse düşük grafikle açmayı dene.', describe(err), !!canMenu);
+    try { console.error('[DemirSafak]', title, err); } catch (e) { /* konsol yok */ }
+  };
+  function onError(err) {
+    if (B.busy && !B.failed) B.fail('Oyun başlatılamadı', err, null, B.done);
+  }
+  window.addEventListener('error', function (e) { onError(e.error || e.message); });
+  window.addEventListener('unhandledrejection', function (e) { onError(e.reason); });
+  document.addEventListener('click', function (e) {
+    var id = e.target && e.target.id;
+    if (id === 'ldRetry') location.reload();
+    else if (id === 'ldLow') {
+      // Depolama kapalıysa pencere adı yeniden yüklemeden sonra da kalır
+      try {
+        var k = 'demirsafak.settings.v1';
+        var s = JSON.parse(localStorage.getItem(k) || '{}') || {};
+        s.quality = 'low';
+        localStorage.setItem(k, JSON.stringify(s));
+      } catch (err) { /* depolama yok */ }
+      try { window.name = 'demirsafak-low'; } catch (err) { /* yok */ }
+      location.reload();
+    } else if (id === 'ldMenu' && window.__game) {
+      B.hide();
+      window.__game.toMenu();
+    }
+  });
+  window.__boot = B;
+  armSlow();
+})();
+</script>
 <style>
 :root {
   color-scheme: dark;
@@ -198,8 +313,20 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .credits p b { color: var(--sand); font-weight: 600; }
 #deathScreen, #pauseScreen, #victoryScreen { background: rgba(10,12,14,.78); }
 #deathScreen { background: radial-gradient(ellipse at center, rgba(60,6,4,.55), rgba(10,12,14,.9)); }
-#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ink); font: 600 16px/1 var(--f-ui); letter-spacing: .3em; color: var(--sand-dim); pointer-events: auto; }
+#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ink); pointer-events: auto; padding: 24px; box-sizing: border-box; overflow-y: auto; }
 #loading[hidden] { display: none; }
+#loading .ld { width: min(460px, 100%); display: flex; flex-direction: column; gap: 12px; }
+#loading .ld-k { font: 600 12px/1 var(--f-ui); letter-spacing: .32em; color: var(--amber); text-transform: uppercase; }
+#loading .ld-t { font: 600 16px/1.2 var(--f-ui); letter-spacing: .3em; color: var(--sand); }
+#loading .ld-bar { height: 3px; background: rgba(231,220,196,.14); overflow: hidden; }
+#loading .ld-bar i { display: block; height: 100%; width: 4%; background: var(--amber); transition: width .25s ease-out; }
+#loading .ld-s { font: 400 14px/1.35 var(--f-num); color: var(--sand-dim); min-height: 2.7em; }
+#loading .ld-err { display: flex; flex-direction: column; gap: 10px; border-left: 3px solid var(--red); padding: 4px 0 4px 14px; }
+#loading .ld-err[hidden] { display: none; }
+#loading .ld-err b { font: 700 18px/1.2 var(--f-ui); letter-spacing: .08em; color: var(--red); text-transform: uppercase; }
+#loading .ld-err p { margin: 0; font: 400 16px/1.4 var(--f-ui); color: var(--sand); }
+#loading .ld-err code { font: 400 12px/1.4 var(--f-num); color: var(--sand-dim); word-break: break-word; white-space: pre-wrap; max-height: 8em; overflow-y: auto; }
+#loading.failed .ld-bar i { background: var(--red); }
 #clickToPlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10,12,14,.55); pointer-events: auto; cursor: pointer; }
 #clickToPlay[hidden] { display: none; }
 #clickToPlay div { font: 700 20px/1.3 var(--f-ui); letter-spacing: .2em; text-align: center; padding: 18px 24px; border: 1px solid var(--line); background: var(--panel); }
@@ -449,7 +576,8 @@ body.touch #reloadHint { top: calc(50% + 34px); }
     <div class="sheet credits">
       <div><div class="eyebrow">Emeği geçenler</div><h2>Demir Şafak</h2></div>
       <p><b>Tasarım ve kod:</b> Unreal Engine 5 shooter master planının tarayıcı için dikey kesiti. Silah hissi, yapay zekâ ve görev akışı aynı mimariyle kuruldu.</p>
-      <p><b>Modeller, dokular, sesler:</b> Tamamı kod ile prosedürel olarak üretildi. Harici model, doku veya ses dosyası kullanılmadı; lisans yükümlülüğü yoktur.</p>
+      <p><b>Düşman askerleri:</b> Mixamo (Adobe) "Vanguard" karakteri ve bekleme, yürüme, koşma animasyonları; three.js örnek deposundaki Soldier.glb dosyasından alındı. Adobe Mixamo kullanım koşullarıyla oyun içinde kullanılır. Nişan, silah tutuşu, çömelme ve ölüm hareketleri kodla eklendi.</p>
+      <p><b>Harita, diğer modeller, dokular, sesler:</b> Kod ile prosedürel olarak üretildi.</p>
       <p><b>Blender silah modelleri:</b> MAR-556, MG-43, MR-82 Marret ve D-50 Kartal oyuncunun kendi Blender dosyalarından (mar_556_1, mg_43_1, marret_m82, golden_dessert_eagle_1) içe aktarıldı ve tarayıcı için sadeleştirildi.</p>
       <p><b>Silah adları:</b> Oyundaki tüm silah adları kurgusaldır; gerçek marka veya logo içermez.</p>
       <p><b>Motor:</b> three.js (MIT lisansı) · Yazı tipleri: Big Shoulders Stencil, Barlow Condensed, Share Tech Mono (SIL Open Font License).</p>
@@ -489,6 +617,23 @@ body.touch #reloadHint { top: calc(50% + 34px); }
 
   <div id="console" hidden><div id="consoleLog"></div><input id="consoleInput" autocomplete="off" spellcheck="false" aria-label="Konsol komutu"></div>
   <div id="rotateHint">Oynamak için telefonunu yatay çevir</div>
-  <div id="loading">HARİTA İNŞA EDİLİYOR</div>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="ld">
+      <div class="ld-k">Demir Şafak</div>
+      <div class="ld-t" id="ldTitle">HAZIRLANIYOR</div>
+      <div class="ld-bar"><i id="ldBar"></i></div>
+      <div class="ld-s" id="ldStage">Oyun dosyaları açılıyor…</div>
+      <div class="ld-err" id="ldErr" hidden>
+        <b id="ldErrTitle">Oyun açılamadı</b>
+        <p id="ldErrText"></p>
+        <code id="ldErrCode"></code>
+        <div class="row">
+          <button class="btn primary" id="ldRetry" type="button">Tekrar dene</button>
+          <button class="btn" id="ldLow" type="button">Düşük grafikle aç</button>
+          <button class="btn" id="ldMenu" type="button" hidden>Ana menüye dön</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 <!--SCRIPT-->

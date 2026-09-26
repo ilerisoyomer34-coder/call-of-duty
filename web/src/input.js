@@ -238,7 +238,15 @@ export class Input {
 
   // --- Gamepad (standart eşleme) ---
   pollGamepad(dt, sens) {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    // Gömülü sayfalarda izin politikası gamepad'i kapatabilir; getGamepads o zaman her karede hata fırlatır
+    let pads = [];
+    if (!this.gamepadBlocked && navigator.getGamepads) {
+      try {
+        pads = navigator.getGamepads();
+      } catch {
+        this.gamepadBlocked = true;
+      }
+    }
     const gp = pads && [...pads].find((p) => p && p.connected);
     if (!gp) {
       this.gamepad.connected = false;

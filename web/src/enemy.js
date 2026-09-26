@@ -3,10 +3,10 @@
 // Algı: görme (açı, mesafe, görüş hattı, duruş), duyma (silah/adım), hasar.
 // Adil isabet: mesafe, oyuncu hızı, ilk atış ıskası, zorluk; saldırı jetonu sistemiyle aynı anda sınırlı sayıda düşman ateş eder.
 import * as THREE from 'three';
-import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE } from './config.js';
-import { buildSoldier } from './models.js';
+import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM } from './config.js';
+import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
-import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp, Spring } from './util.js';
+import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp } from './util.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -48,7 +48,7 @@ export class Enemy {
     if (this.dummy) T.colors = { uniform: 0xc86b2a, vest: 0x8a4a1c, helmet: 0xd9a126, skin: 0xb08a6a, band: 0xffffff };
     this.T = T;
     this.group = spec.group || null;
-    this.model = buildSoldier(this.type, T.colors);
+    this.model = createSoldier(this.type, T.colors);
     game.scene.add(this.model.root);
     this.pos = new THREE.Vector3().copy(spec.pos);
     this.vel = new THREE.Vector3();
@@ -58,7 +58,7 @@ export class Enemy {
     this.W = W;
     this.health = new Health(T.hp, this.type === 'heavy' ? 80 : 0);
     this.weapon = { mag: W.magSize, cooldown: 0, burstLeft: 0, gapT: rand(0.2, 0.6), reloadT: 0, charge: 0 };
-    this.anim = { phase: Math.random() * 6, crouchT: 0, aimPitch: 0, flinch: new Spring(160, 12), twist: new Spring(160, 12), deathT: 0, fallDir: 1, fallSide: 0 };
+    this.anim = { aimPitch: 0, deathT: 0, fallDir: 1, fallSide: 0 };
     this.reset();
     if (this.type === 'sniper') this.createLaser();
   }
@@ -110,18 +110,10 @@ export class Enemy {
     this.weapon.burstLeft = 0;
     this.weapon.charge = 0;
     this.anim.deathT = 0;
-    const m = this.model;
-    m.root.visible = true;
-    m.root.rotation.set(0, this.yaw, 0, 'YXZ');
-    m.root.position.copy(this.pos);
-    m.pelvis.position.y = 0.95;
-    m.spine.rotation.set(0, 0, 0);
-    if (m.helmet.parent !== m.head) {
-      m.helmet.removeFromParent();
-      m.head.add(m.helmet);
-      m.helmet.position.set(0, 0.2, 0);
-      m.helmet.rotation.set(0, 0, 0);
-    }
+    this.anim.aimPitch = 0;
+    this.throwAnim = null;
+    this.bloodPool = false;
+    this.model.reset(this.pos, this.yaw);
     this.respawnT = 0;
     if (this.laser) this.laser.visible = false;
     if (this.glint) this.glint.visible = false;
@@ -141,8 +133,7 @@ export class Enemy {
   }
 
   muzzlePos(out = new THREE.Vector3()) {
-    out.copy(this.model.muzzleLocal);
-    return this.model.spine.localToWorld(out);
+    return this.model.muzzleWorld(out);
   }
 
   // --- Hasar ---
@@ -151,8 +142,7 @@ export class Enemy {
     const g = this.game;
     const dealt = this.health.damage(amount);
     void dealt;
-    this.anim.flinch.impulse(info.zone === 'head' ? 3.5 : 2.2);
-    this.anim.twist.impulse(rand(-2.5, 2.5));
+    this.model.hit(info.zone);
     if (info.source === 'player') {
       // Vurulan düşman ateşin nereden geldiğini bilir
       this.lastKnown.copy(g.player.pos);
@@ -175,6 +165,7 @@ export class Enemy {
     this.dead = true;
     this.aiState = 'dead';
     this.anim.deathT = 0;
+    this.throwAnim = null; // yarım kalan atış: bomba çıkmaz
     this.hasToken = false;
     if (this.cover) this.cover.taken = null;
     this.cover = null;
@@ -186,17 +177,8 @@ export class Enemy {
     this.anim.fallDir = d.dot(back) >= 0 ? 1 : -1;
     this.anim.fallSide = rand(-0.35, 0.35);
     this.vel.set((info.dir?.x || 0) * 1.5, 0, (info.dir?.z || 0) * 1.5);
-    // Kafa vuruşunda kask fırlar
-    if (info.zone === 'head' && info.source === 'player' && !this.dummy) {
-      const m = this.model;
-      m.helmet.updateMatrixWorld();
-      const wp = new THREE.Vector3();
-      m.helmet.getWorldPosition(wp);
-      m.helmet.removeFromParent();
-      g.scene.add(m.helmet);
-      m.helmet.position.copy(wp);
-      g.addDebris(m.helmet, new THREE.Vector3((d.x || 0) * 3 + rand(-1, 1), rand(2.5, 4), (d.z || 0) * 3 + rand(-1, 1)), 0.12);
-    }
+    // Görünüm: iskeletli askerde silah elden düşer, kutu askerde kafa vuruşunda kask fırlar
+    this.model.die({ ...info, dir: d }, g);
     if (!this.dummy) g.onEnemyKilled(this, info);
     else {
       this.respawnT = 3;
@@ -239,6 +221,7 @@ export class Enemy {
         this.think(tdt);
       }
       this.act(dt);
+      this.updateThrow(dt);
     } else if (this.dummy && this.spec.patrol) {
       this.patrolMove(dt, false);
     } else {
@@ -247,7 +230,7 @@ export class Enemy {
       this.vel.z = 0;
     }
     this.moveBody(dt);
-    if (distToPlayer < 110) this.animate(dt);
+    if (distToPlayer < 110) this.animate(dt, distToPlayer);
     this.alertIconT = Math.max(0, this.alertIconT - dt);
     if (this.alertT > 0) {
       this.alertT -= dt;
@@ -921,10 +904,28 @@ export class Enemy {
       g.effects.flashLight(muzzle, 0xffb060, 18, 6, 0.05);
     }
     this.lastFired = g.time;
-    this.anim.flinch.impulse(this.type === 'sniper' ? 1.5 : 0.35);
+    this.model.fire(this.type === 'sniper' ? 1.5 : 1);
   }
 
+  // Atış hareketi başlar; bomba kol öne savrulduğunda (releaseGrenade) çıkar
   throwGrenade(target) {
+    if (this.throwAnim) return;
+    this.throwAnim = { t: 0, target: target.clone(), released: false };
+    this.game.events.emit('radio', `${this.T.name}: El bombası!`, 'enemy');
+  }
+
+  updateThrow(dt) {
+    const T = this.throwAnim;
+    if (!T) return;
+    T.t += dt;
+    if (!T.released && T.t >= SOLDIER_ANIM.throwRelease) {
+      T.released = true;
+      this.releaseGrenade(T.target);
+    }
+    if (T.t >= SOLDIER_ANIM.throwTime) this.throwAnim = null;
+  }
+
+  releaseGrenade(target) {
     const g = this.game;
     const from = this.eyePos(new THREE.Vector3());
     from.y += 0.2;
@@ -934,47 +935,44 @@ export class Enemy {
     const grav = 15;
     const vel = new THREE.Vector3((tgt.x - from.x) / t, (tgt.y - from.y) / t + 0.5 * grav * t, (tgt.z - from.z) / t);
     g.grenades.spawn(from, vel, rand(2.6, 3.4), 'enemy');
-    g.events.emit('radio', `${this.T.name}: El bombası!`, 'enemy');
   }
 
   // --- Animasyon ---
-  animate(dt) {
-    const m = this.model;
+  // Yapay zekâ durumunu görünüm katmanının anlayacağı duruşa çevirir (nişan / hazır / rahat)
+  animate(dt, dist) {
+    const g = this.game;
     const A = this.anim;
-    const sp = Math.hypot(this.vel.x, this.vel.z);
-    A.crouchT = damp(A.crouchT, this.crouch ? 1 : 0, 8, dt);
-    A.phase += sp * dt * 3.1;
-    const amp = clamp(sp / 4.5, 0, 1) * 0.75 * (1 - A.crouchT * 0.6);
-    const s = Math.sin(A.phase);
-    m.legL.thigh.rotation.x = s * amp + A.crouchT * 1.25;
-    m.legR.thigh.rotation.x = -s * amp + A.crouchT * 0.6;
-    m.legL.shin.rotation.x = -Math.max(0, Math.sin(A.phase + 1.2)) * amp * 1.4 - A.crouchT * 1.9;
-    m.legR.shin.rotation.x = -Math.max(0, Math.sin(A.phase + 1.2 + Math.PI)) * amp * 1.4 - A.crouchT * 1.3;
-    m.legR.thigh.position.z = A.crouchT * 0.1;
-    m.pelvis.position.y = 0.95 - A.crouchT * 0.4 + Math.abs(Math.cos(A.phase)) * 0.035 * amp;
-    // Nişan eğimi: hedefe (ya da ileri) bak
     let aim = 0;
-    if (this.aiState === 'combat' && this.visible) {
-      const P = this.game.player;
-      const e = this.eyePos(_v);
-      const h = P.chestPos(_v2);
-      aim = Math.atan2(h.y - e.y, Math.hypot(h.x - e.x, h.z - e.z));
-    } else if (this.aiState === 'patrol' || this.aiState === 'guard') aim = -0.35; // silah aşağıda
+    let stance = 'relaxed';
+    if (this.aiState === 'combat') {
+      const sinceShot = g.time - this.lastFired;
+      const sprinting = this.run && Math.hypot(this.vel.x, this.vel.z) > 3;
+      // Koşarken silah göğüste taşınır; ama ateş ettiği an omuza gelir
+      stance = ((this.visible || sinceShot < 1.5) && !sprinting) || sinceShot < 0.4 ? 'aim' : 'ready';
+      if (this.visible) {
+        const P = g.player;
+        const e = this.eyePos(_v);
+        const h = P.chestPos(_v2);
+        aim = Math.atan2(h.y - e.y, Math.hypot(h.x - e.x, h.z - e.z));
+      }
+    } else if (this.aiState !== 'patrol' && this.aiState !== 'guard') stance = 'ready';
+    if (this.dummy || this.throwAnim) stance = 'ready';
     A.aimPitch = damp(A.aimPitch, clamp(aim, -0.7, 0.7), 8, dt);
-    const fl = A.flinch.update(dt);
-    const tw = A.twist.update(dt);
-    m.spine.rotation.x = A.aimPitch + fl * 0.12 + A.crouchT * 0.12;
-    m.spine.rotation.y = tw * 0.08 + Math.sin(A.phase) * amp * 0.08;
-    m.spine.rotation.z = 0;
-    m.head.rotation.x = -fl * 0.05;
-    m.root.position.copy(this.pos);
-    m.root.rotation.set(0, this.yaw, 0, 'YXZ');
-    m.root.updateMatrixWorld(true);
+    const W = this.weapon;
+    ANIM_STATE.pos = this.pos;
+    ANIM_STATE.yaw = this.yaw;
+    ANIM_STATE.vel = this.vel;
+    ANIM_STATE.crouch = this.crouch;
+    ANIM_STATE.aimPitch = A.aimPitch;
+    ANIM_STATE.stance = stance;
+    ANIM_STATE.reload = W.reloadT > 0 ? 1 - W.reloadT / this.W.reload : -1;
+    ANIM_STATE.dist = dist;
+    ANIM_STATE.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
+    this.model.animate(dt, ANIM_STATE);
   }
 
   updateDeath(dt) {
     const g = this.game;
-    const m = this.model;
     const A = this.anim;
     if (A.deathT > 3 && this.dummy && this.respawnT > 0) {
       this.respawnT -= dt;
@@ -983,24 +981,13 @@ export class Enemy {
     }
     if (A.deathT > 2.5) return;
     A.deathT += dt;
-    const k = clamp(A.deathT / 0.75, 0, 1);
-    const kk = k * k;
-    // Önce dizler çöker, sonra gövde devrilir
-    const buckle = clamp(A.deathT / 0.25, 0, 1);
-    m.pelvis.position.y = 0.95 - buckle * 0.35 + kk * 0.1;
-    m.legL.thigh.rotation.x = buckle * 0.9 - kk * 0.6;
-    m.legR.thigh.rotation.x = buckle * 0.5 - kk * 0.4;
-    m.legL.shin.rotation.x = -buckle * 1.3 + kk * 1.1;
-    m.legR.shin.rotation.x = -buckle * 1.0 + kk * 0.9;
-    m.spine.rotation.x = -0.3 * buckle * A.fallDir;
-    m.root.rotation.set(A.fallDir * kk * 1.45, this.yaw, A.fallSide * kk, 'YXZ');
     if (A.deathT < 0.8) {
       this.pos.x += this.vel.x * dt;
       this.pos.z += this.vel.z * dt;
       this.vel.multiplyScalar(Math.max(0, 1 - 4 * dt));
     }
-    m.root.position.set(this.pos.x, this.pos.y - kk * 0.25, this.pos.z);
-    if (k >= 1 && !this.bloodPool) {
+    this.model.updateDeath(dt, A, this.pos, this.yaw);
+    if (A.deathT >= 0.75 && !this.bloodPool) {
       this.bloodPool = true;
       if (g.settings.blood && !this.dummy) {
         _v.set(this.pos.x - Math.sin(this.yaw) * A.fallDir * 0.9, this.pos.y + 0.02, this.pos.z - Math.cos(this.yaw) * A.fallDir * 0.9);
@@ -1009,6 +996,9 @@ export class Enemy {
     }
   }
 }
+
+// Görünüm katmanına her karede aktarılan durum (bellek ayırmamak için tek nesne)
+const ANIM_STATE = { pos: null, yaw: 0, vel: null, crouch: false, aimPitch: 0, stance: 'relaxed', reload: -1, throw: -1, dist: 0 };
 
 // Düşman yöneticisi: listeler, ışın testi, gürültü ve alarm yayılımı, saldırı jetonları.
 export class EnemyManager {
@@ -1028,8 +1018,7 @@ export class EnemyManager {
 
   clear() {
     for (const e of this.list) {
-      e.model.root.removeFromParent();
-      if (e.model.helmet.parent) e.model.helmet.removeFromParent();
+      e.model.dispose();
       if (e.laser) e.laser.removeFromParent();
       if (e.glint) e.glint.removeFromParent();
     }

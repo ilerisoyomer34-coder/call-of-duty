@@ -332,43 +332,90 @@ export function buildWeapon(id) {
   return buildRifle();
 }
 
-// Düşman silahları (tek mesh'e birleştirilir).
+// Düşman silahları (tek mesh'e birleştirilir). Yerel eksen: köken kabza üstü, namlu -Z.
+// Kurgusal, modern çizgili: siyah polimer gövde, koyu metal namlu.
 export function buildEnemyGun(kind) {
   const g = new THREE.Group();
-  const blk = mat(0x1d1e1f, 0.6, 0.4);
-  const wood = mat(0x5a4230, 0.8, 0.05);
-  const olive = mat(0x3f4432, 0.8, 0.1);
+  const blk = mat(0x1b1c1e, 0.55, 0.35);
+  const metal = mat(0x2f3235, 0.4, 0.7);
+  const tan = mat(0x7d6a4e, 0.8, 0.05);
+  const olive = mat(0x3d4231, 0.8, 0.1);
+  const glass = mat(0x223a3a, 0.15, 0.6);
+  const grip = () => B(g, 0.03, 0.1, 0.045, blk, 0, -0.06, 0.03, -0.32);
   if (kind === 'shotgun') {
-    B(g, 0.05, 0.07, 0.24, blk, 0, 0.03, -0.08);
-    cylZ(g, 0.014, 0.5, blk, 0, 0.05, -0.44, 6);
-    B(g, 0.05, 0.05, 0.16, olive, 0, 0.015, -0.33);
-    B(g, 0.045, 0.08, 0.25, olive, 0, 0.015, 0.19);
-    B(g, 0.03, 0.09, 0.04, olive, 0, -0.05, 0.02, -0.3);
+    // Pompalı: uzun namlu, altında şarjör tüpü ve pompa
+    B(g, 0.052, 0.075, 0.26, blk, 0, 0.03, -0.07);
+    cylZ(g, 0.013, 0.56, metal, 0, 0.052, -0.47, 8);
+    cylZ(g, 0.012, 0.44, blk, 0, 0.018, -0.41, 8);
+    B(g, 0.056, 0.05, 0.17, olive, 0, 0.016, -0.37);
+    for (let i = 0; i < 4; i++) B(g, 0.058, 0.006, 0.012, blk, 0, 0.016, -0.31 - i * 0.035);
+    B(g, 0.01, 0.012, 0.012, metal, 0, 0.066, -0.74); // arpacık
+    grip();
+    B(g, 0.046, 0.085, 0.24, olive, 0, 0.005, 0.17, 0.08);
+    B(g, 0.05, 0.1, 0.025, blk, 0, -0.005, 0.295, 0.08);
   } else if (kind === 'lmg') {
-    B(g, 0.07, 0.09, 0.42, blk, 0, 0.04, -0.12);
-    cylZ(g, 0.018, 0.5, blk, 0, 0.05, -0.55, 6);
-    B(g, 0.1, 0.1, 0.12, olive, -0.06, -0.03, -0.12);
-    B(g, 0.05, 0.09, 0.2, blk, 0, 0.02, 0.2);
-    B(g, 0.03, 0.09, 0.04, blk, 0, -0.05, 0.02, -0.3);
-    B(g, 0.012, 0.18, 0.012, blk, 0.04, -0.05, -0.62, 0.5, 0, 0.3);
-    B(g, 0.012, 0.18, 0.012, blk, -0.04, -0.05, -0.62, 0.5, 0, -0.3);
+    // Hafif makineli: kalın gövde, delikli namlu ceketi, yan kutu şarjör, taşıma sapı, katlı iki ayak
+    B(g, 0.075, 0.1, 0.44, blk, 0, 0.04, -0.12);
+    B(g, 0.068, 0.068, 0.24, metal, 0, 0.045, -0.44);
+    for (let i = 0; i < 5; i++) B(g, 0.07, 0.02, 0.016, blk, 0, 0.045, -0.35 - i * 0.045);
+    cylZ(g, 0.016, 0.3, metal, 0, 0.045, -0.7, 8);
+    cylZ(g, 0.022, 0.06, blk, 0, 0.045, -0.86, 8);
+    B(g, 0.1, 0.12, 0.14, olive, -0.075, -0.035, -0.11);
+    B(g, 0.02, 0.05, 0.16, blk, 0, 0.12, -0.14); // taşıma sapı ayağı
+    B(g, 0.02, 0.012, 0.2, blk, 0, 0.15, -0.14);
+    grip();
+    B(g, 0.05, 0.1, 0.24, blk, 0, 0.02, 0.19);
+    B(g, 0.054, 0.12, 0.025, blk, 0, 0.01, 0.315);
+    B(g, 0.012, 0.012, 0.22, metal, 0.03, 0.01, -0.62, 0.12, 0, 0);
+    B(g, 0.012, 0.012, 0.22, metal, -0.03, 0.01, -0.62, 0.12, 0, 0);
   } else if (kind === 'sniper') {
-    B(g, 0.05, 0.07, 0.36, blk, 0, 0.03, -0.1);
-    cylZ(g, 0.012, 0.6, blk, 0, 0.04, -0.58, 6);
-    cylZ(g, 0.025, 0.3, blk, 0, 0.11, -0.1, 8);
-    B(g, 0.05, 0.1, 0.3, wood, 0, 0.0, 0.2);
-    B(g, 0.03, 0.09, 0.04, wood, 0, -0.05, 0.02, -0.3);
+    // Keskin nişancı: uzun ağır namlu, büyük dürbün, başparmak delikli dipçik, iki ayak
+    B(g, 0.052, 0.075, 0.38, blk, 0, 0.03, -0.1);
+    B(g, 0.06, 0.06, 0.26, tan, 0, 0.03, -0.4);
+    cylZ(g, 0.013, 0.62, metal, 0, 0.045, -0.72, 8);
+    cylZ(g, 0.02, 0.07, blk, 0, 0.045, -1.04, 8);
+    cylZ(g, 0.021, 0.3, blk, 0, 0.12, -0.1, 10);
+    cylZ(g, 0.032, 0.07, blk, 0, 0.12, -0.29, 12);
+    cylZ(g, 0.027, 0.05, blk, 0, 0.12, 0.07, 10);
+    B(g, 0.05, 0.004, 0.004, glass, 0, 0.12, -0.326);
+    B(g, 0.03, 0.05, 0.03, blk, 0, 0.085, -0.02);
+    B(g, 0.03, 0.05, 0.03, blk, 0, 0.085, -0.17);
+    B(g, 0.025, 0.1, 0.06, blk, 0, -0.07, -0.13); // şarjör
+    grip();
+    B(g, 0.05, 0.13, 0.3, tan, 0, -0.005, 0.2);
+    B(g, 0.055, 0.14, 0.025, blk, 0, -0.01, 0.36);
+    B(g, 0.012, 0.012, 0.24, metal, 0.03, 0.0, -0.66, 0.1, 0, 0);
+    B(g, 0.012, 0.012, 0.24, metal, -0.03, 0.0, -0.66, 0.1, 0, 0);
   } else {
-    // AK tarzı piyade tüfeği (kurgusal)
-    B(g, 0.05, 0.075, 0.36, blk, 0, 0.035, -0.1);
-    cylZ(g, 0.011, 0.36, blk, 0, 0.05, -0.5, 6);
-    B(g, 0.055, 0.055, 0.22, wood, 0, 0.03, -0.35);
-    B(g, 0.03, 0.17, 0.06, blk, 0, -0.08, -0.13, 0.35);
-    B(g, 0.045, 0.085, 0.24, wood, 0, 0.0, 0.2);
-    B(g, 0.03, 0.09, 0.04, wood, 0, -0.05, 0.02, -0.3);
+    // Piyade tüfeği: üst/alt gövde, kavisli şarjör, raylı el kundağı, katlanır dipçik, red dot
+    B(g, 0.052, 0.062, 0.3, blk, 0, 0.036, -0.08);
+    B(g, 0.046, 0.046, 0.18, blk, 0, -0.01, -0.06);
+    B(g, 0.03, 0.09, 0.07, tan, 0, -0.078, -0.12, 0.12);
+    B(g, 0.03, 0.08, 0.066, tan, 0, -0.155, -0.105, 0.35);
+    grip();
+    cylZ(g, 0.015, 0.14, blk, 0, 0.032, 0.12, 8);
+    B(g, 0.044, 0.075, 0.15, tan, 0, 0.012, 0.22);
+    B(g, 0.05, 0.11, 0.024, blk, 0, 0.0, 0.3);
+    B(g, 0.056, 0.056, 0.3, blk, 0, 0.036, -0.38);
+    for (let i = 0; i < 6; i++) B(g, 0.058, 0.008, 0.016, metal, 0, 0.066, -0.27 - i * 0.045);
+    cylZ(g, 0.01, 0.17, metal, 0, 0.036, -0.6, 8);
+    cylZ(g, 0.016, 0.05, blk, 0, 0.036, -0.7, 8);
+    B(g, 0.028, 0.06, 0.035, tan, 0, -0.02, -0.44, 0.15); // ön tutamak
+    B(g, 0.032, 0.03, 0.06, blk, 0, 0.083, -0.07);
+    cylZ(g, 0.018, 0.05, blk, 0, 0.11, -0.07, 10);
+    B(g, 0.03, 0.004, 0.004, glass, 0, 0.11, -0.096);
   }
   return g;
 }
+
+// Düşman silahında el ve namlu noktaları (silah uzayında). grip/fore: bilek hedefleri (IK),
+// stock: dipçik ucu (omuza dayanır), magWell: şarjör yuvası (şarjör değiştirirken sol el buraya gider)
+export const ENEMY_GUN_POINTS = {
+  rifle: { muzzle: [0, 0.036, -0.73], grip: [0.025, -0.035, 0.1], fore: [-0.035, -0.06, -0.26], magWell: [-0.03, -0.09, -0.1], stock: 0.31 },
+  shotgun: { muzzle: [0, 0.052, -0.76], grip: [0.025, -0.035, 0.1], fore: [-0.04, -0.05, -0.26], magWell: [-0.03, -0.03, -0.1], stock: 0.31 },
+  lmg: { muzzle: [0, 0.045, -0.89], grip: [0.025, -0.035, 0.1], fore: [-0.05, -0.05, -0.28], magWell: [-0.1, -0.05, -0.1], stock: 0.33 },
+  sniper: { muzzle: [0, 0.045, -1.08], grip: [0.025, -0.035, 0.1], fore: [-0.04, -0.05, -0.28], magWell: [-0.03, -0.1, -0.12], stock: 0.37 },
+};
 
 // --- Birinci şahıs kollar ---
 export function buildArms() {
@@ -531,7 +578,7 @@ export function buildSoldier(type, colors) {
   if (C.scale) root.scale.setScalar(C.scale);
   return { root, pelvis, spine, head, helmet, legL, legR, meshes: bodyMeshes, muzzleLocal };
 }
-const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle' };
+export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle' };
 
 // --- Görev nesneleri ---
 export function buildAAGun() {
