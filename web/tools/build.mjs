@@ -4,8 +4,11 @@
 //                       modeller ve dokular sayfanın yanında yayımlanan dosyalardan (assets/...) okunur.
 //                       Artifact .glb sunmadığı için GLB'ler base64 metin (.glb.txt) olarak yayımlanır;
 //                       bunlar dist/artifact-assets/ altına üretilir (depoya girmez, her derlemede yenilenir)
+//  dist/pwa/          → yüklenebilir web uygulaması (GitHub Pages'te yayımlanır): three.js paketin içinde,
+//                       modeller gerçek dosya, manifest + simgeler + hizmet çalışanı (ilk açılıştan sonra çevrimdışı)
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync, rmSync, copyFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -36,15 +39,15 @@ export function listAssets() {
 }
 
 // virtual:game-assets → { mode, files }. 'embed': base64 içerik (tek dosya, çevrimdışı);
-// 'url': göreli adres (Artifact'ta sayfayla birlikte yayımlanan dosyalar)
-function assetsPlugin(mode) {
+// 'url': göreli adres (Artifact'ta ve PWA'da sayfanın yanındaki dosyalar); urlOf yayımlanan adı verir
+function assetsPlugin(mode, urlOf = publishedPath) {
   return {
     name: 'game-assets',
     setup(b) {
       b.onResolve({ filter: /^virtual:game-assets$/ }, () => ({ path: 'game-assets', namespace: 'assets' }));
       b.onLoad({ filter: /.*/, namespace: 'assets' }, () => {
         const files = {};
-        for (const p of listAssets()) files[p] = mode === 'embed' ? readFileSync(join(root, p)).toString('base64') : publishedPath(p);
+        for (const p of listAssets()) files[p] = mode === 'embed' ? readFileSync(join(root, p)).toString('base64') : urlOf(p);
         return { contents: `export default ${JSON.stringify({ mode, files })};`, loader: 'js' };
       });
     },
@@ -66,9 +69,10 @@ async function threeGlobalPlugin() {
   };
 }
 
+// kind: 'standalone' (her şey gömülü), 'artifact' (three dışarıdan, GLB'ler .txt), 'pwa' (three içeride, dosyalar olduğu gibi)
 async function bundle(kind) {
   const artifact = kind === 'artifact';
-  const plugins = [assetsPlugin(artifact ? 'url' : 'embed')];
+  const plugins = [kind === 'standalone' ? assetsPlugin('embed') : assetsPlugin('url', artifact ? publishedPath : (p) => p)];
   if (artifact) plugins.push(await threeGlobalPlugin());
   const r = await build({
     entryPoints: [join(root, 'src/main.js')],
@@ -105,18 +109,20 @@ const bodyPart = shell.slice(split);
 
 mkdirSync(join(root, 'dist'), { recursive: true });
 
-const full = await bundle('standalone');
-const standalone = `<!doctype html>
+// Tam sayfa (bağımsız ve PWA sürümü); extraHead <head>'e eklenir
+const page = (code, extraHead = '') => `<!doctype html>
 <html lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-${headPart}</head>
+${extraHead}${headPart}</head>
 <body>
-${bodyPart.replace('<!--SCRIPT-->', () => `<script type="module">${full}</script>`)}
+${bodyPart.replace('<!--SCRIPT-->', () => `<script type="module">${code}</script>`)}
 </body>
 </html>
 `;
+
+const standalone = page(await bundle('standalone'));
 writeFileSync(join(root, 'dist/index.html'), standalone);
 
 const light = artifactLoader(await bundle('artifact'));
@@ -136,7 +142,70 @@ for (const p of listAssets()) {
 }
 writeFileSync(join(root, 'dist/artifact-files.json'), JSON.stringify(publishFiles, null, 2) + '\n');
 
+// PWA: dist/pwa/ her derlemede sıfırdan kurulur (silinen model eski kopyasıyla kalmasın)
+const PWA = {
+  name: 'Demir Şafak',
+  description: 'Tarayıcıda oynanan birinci şahıs taktiksel savaş oyunu.',
+  color: '#0d1013', // shell.html → --ink
+  icons: ['icon-192.png', 'icon-512.png', 'maskable-512.png', 'apple-touch-icon.png', 'favicon-32.png'],
+};
+const pwaDir = join(root, 'dist/pwa');
+rmSync(pwaDir, { recursive: true, force: true });
+mkdirSync(pwaDir, { recursive: true });
+const pwaHead = `<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="${PWA.color}">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="${PWA.name}">
+`;
+const pwaHtml = page(await bundle('pwa'), pwaHead);
+writeFileSync(join(pwaDir, 'index.html'), pwaHtml);
+for (const p of listAssets()) {
+  mkdirSync(dirname(join(pwaDir, p)), { recursive: true });
+  copyFileSync(join(root, p), join(pwaDir, p));
+}
+mkdirSync(join(pwaDir, 'icons'), { recursive: true });
+for (const f of PWA.icons) copyFileSync(join(root, 'src/pwa/icons', f), join(pwaDir, 'icons', f));
+// start_url/scope/id göreli: site hangi alt yolda yayımlanırsa (ör. /call-of-duty/web/dist/pwa/) orası olur
+const manifest = {
+  id: './',
+  name: PWA.name,
+  short_name: PWA.name,
+  description: PWA.description,
+  lang: 'tr',
+  dir: 'ltr',
+  start_url: './',
+  scope: './',
+  display: 'fullscreen',
+  orientation: 'landscape',
+  background_color: PWA.color,
+  theme_color: PWA.color,
+  categories: ['games'],
+  icons: [
+    { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: 'icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+};
+writeFileSync(join(pwaDir, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
+// Hizmet çalışanı: önbelleğe alınacak her dosya ve içerik özetinden sürüm (değişince güncelleme iner)
+const pwaFiles = ['index.html', 'manifest.webmanifest', ...PWA.icons.map((f) => `icons/${f}`), ...listAssets()];
+const hash = createHash('sha256');
+for (const f of pwaFiles) hash.update(f).update(readFileSync(join(pwaDir, f)));
+const pwaVersion = hash.digest('hex').slice(0, 12);
+const sw = readFileSync(join(root, 'src/pwa/sw.js'), 'utf8')
+  .replace("'__VERSION__'", () => JSON.stringify(pwaVersion))
+  .replace('= __FILES__;', () => `= ${JSON.stringify(pwaFiles)};`);
+if (/'__VERSION__'|= __FILES__;/.test(sw)) throw new Error('sw.js şablonundaki yer tutucular değiştirilemedi');
+writeFileSync(join(pwaDir, 'sw.js'), sw);
+const pwaBytes = pwaFiles.reduce((n, f) => n + statSync(join(pwaDir, f)).size, 0);
+
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
 const assetKb = Object.values(publishFiles).reduce((n, p) => n + statSync(join(root, '..', p)).size, 0) / 1024;
 console.log(`dist/index.html     ${kb(standalone)}  (three@${THREE_VERSION} ve modeller gömülü)`);
 console.log(`dist/artifact.html  ${kb(artifactHtml)} + ${assetKb.toFixed(0)} KB ayrı dosya (three CDN)`);
+console.log(`dist/pwa/           ${kb(pwaHtml)} sayfa, ${pwaFiles.length} dosya ${(pwaBytes / 1048576).toFixed(1)} MB önbellekte (sürüm ${pwaVersion})`);

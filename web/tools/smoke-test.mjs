@@ -2,8 +2,9 @@
 // sürer, hata olup olmadığını denetler ve ekran görüntüleri alır (tools/shots/).
 // Kullanım: npm test   (önce derler)
 import { chromium } from 'playwright';
-import { readFileSync, mkdirSync, existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { dirname, join, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, mission, levels, interact, maps, range, artifact, mobile
+// Bölümler: visual, mission, levels, interact, maps, range, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1093,6 +1094,7 @@ console.log('Artifact sürümü (dist/artifact.html)');
     return n;
   });
   check(wt > 0, `Sketchfab silahı ve dokuları yan dosyalardan yüklendi (KT-9, ${wt} dokulu parça)`);
+  check(await page.evaluate(async () => window.__game.pwa === null && (await navigator.serviceWorker.getRegistrations()).length === 0), 'Artifact sürümü hizmet çalışanı kaydetmiyor (PWA yalnız dist/pwa)');
   await page.close();
 }
 if (run('artifact')) {
@@ -1135,6 +1137,146 @@ console.log('Telefon görünümü');
   check(pr.canvas === 2 && pr.world < pr.canvas && pr.rt, `Telefonda eller/silah tam çözünürlükte (${pr.canvas}×), dünya ölçekli (${pr.world.toFixed(2)}×, ${pr.q})`);
   await page.screenshot({ path: join(shots, '12-mobile-play.png') });
   await ctx.close();
+}
+
+// ---------------- PWA sürümü (dist/pwa, GitHub Pages) ----------------
+if (run('pwa')) {
+console.log('PWA sürümü (dist/pwa)');
+
+  // GitHub Pages gibi: depo kökü bir alt yolda sunulur, oyun …/call-of-duty/web/dist/pwa/ altında.
+  // sw.js'e eklenen bayt (swExtra) tarayıcıya yeni sürüm gibi görünür (güncelleme akışı denemesi)
+  const repo = join(root, '..');
+  const BASE = '/call-of-duty/';
+  const swFile = join(root, 'dist/pwa/sw.js');
+  let swExtra = '';
+  const PMIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json', ...MIME };
+  const server = createServer((req, res) => {
+    const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    let file = path.startsWith(BASE) ? join(repo, path.slice(BASE.length)) : '';
+    if (file && path.endsWith('/')) file = join(file, 'index.html');
+    if (!file || !file.startsWith(repo) || !existsSync(file) || statSync(file).isDirectory()) {
+      res.writeHead(404);
+      return res.end('yok');
+    }
+    let body = readFileSync(file);
+    if (file === swFile && swExtra) body = Buffer.concat([body, Buffer.from(swExtra)]);
+    res.writeHead(200, { 'content-type': PMIME[extname(file)] || 'application/octet-stream', 'cache-control': 'max-age=600' });
+    res.end(body);
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const swList = JSON.parse(readFileSync(swFile, 'utf8').match(/const FILES = (\[.*?\]);/)[1]);
+
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`[pwa] pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`[pwa] console: ${m.text()}`);
+  });
+  const menuReady = () => page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
+
+  // Depo kökündeki giriş sayfası oyuna yönlendirir
+  await page.goto(`${origin}${BASE}`);
+  await page.waitForURL(/\/web\/dist\/pwa\/$/, { timeout: 15000 }).catch(() => {});
+  check(page.url() === `${origin}${BASE}web/dist/pwa/`, `Depo kökü oyuna yönlendiriyor (${page.url().replace(origin, '')})`);
+  await menuReady();
+
+  const man = await page.evaluate(async () => {
+    const href = document.querySelector('link[rel="manifest"]').href;
+    const m = await (await fetch(href)).json();
+    const sizes = [];
+    for (const i of m.icons) {
+      const img = new Image();
+      img.src = new URL(i.src, href).href;
+      await img.decode().catch(() => {});
+      sizes.push({ want: i.sizes, got: `${img.naturalWidth}x${img.naturalHeight}`, purpose: i.purpose });
+    }
+    return { name: m.name, display: m.display, orientation: m.orientation, start: new URL(m.start_url, href).pathname, lang: m.lang, sizes };
+  });
+  check(man.name === 'Demir Şafak' && man.display === 'fullscreen' && man.orientation === 'landscape' && man.lang === 'tr', `Manifest: ${man.name}, ${man.display}, ${man.orientation}`);
+  check(man.start === `${BASE}web/dist/pwa/`, `Başlangıç adresi alt yolda (${man.start})`);
+  check(man.sizes.length >= 3 && man.sizes.every((s) => s.want === s.got) && man.sizes.some((s) => s.purpose === 'maskable'), `Simgeler doğru boyutta (${man.sizes.map((s) => `${s.got} ${s.purpose}`).join(', ')})`);
+
+  // Hizmet çalışanı: açılış bitince kaydolur, tüm oyun dosyalarını önbelleğe alır ve sayfayı devralır
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 90000 });
+  const sw = await page.evaluate(async () => {
+    const keys = (await caches.keys()).filter((k) => k.startsWith('demirsafak-') && !k.endsWith('-fonts'));
+    const n = keys.length ? (await (await caches.open(keys[0])).keys()).length : 0;
+    const glb = performance.getEntriesByType('resource').filter((e) => /assets\/.*\.glb$/.test(e.name)).length;
+    return { keys, n, glb, status: document.getElementById('pwaStatusText').textContent, state: window.__game.pwa?.state };
+  });
+  check(sw.keys.length === 1 && sw.n === swList.length, `Hizmet çalışanı ${sw.n}/${swList.length} dosyayı önbelleğe aldı (${sw.keys[0] || 'önbellek yok'})`);
+  check(sw.glb >= 8, `Modeller gömülü değil, dosyadan indi (${sw.glb} GLB isteği)`);
+  check(sw.state === 'ready' && /Çevrimdışı/.test(sw.status), `Menüde durum satırı: "${sw.status}"`);
+  const cdp = await ctx.newCDPSession(page);
+  const inst = await cdp.send('Page.getInstallabilityErrors').catch((e) => ({ installabilityErrors: [{ errorId: e.message }] }));
+  check(inst.installabilityErrors.length === 0, `Tarayıcıya göre yüklenebilir${inst.installabilityErrors.length ? ` (${inst.installabilityErrors.map((e) => e.errorId).join(', ')})` : ''}`);
+
+  // Yükleme düğmesi: tarayıcının yükleme istemi gelince görünür, basınca istemi açar
+  check(!(await page.isVisible('#btnInstall')), 'Yükleme istemi yokken "Uygulama olarak yükle" gizli');
+  await page.evaluate(() => {
+    const e = new Event('beforeinstallprompt', { cancelable: true });
+    window.__prompted = 0;
+    e.prompt = () => {
+      window.__prompted++;
+      return Promise.resolve();
+    };
+    e.userChoice = Promise.resolve({ outcome: 'accepted' });
+    window.dispatchEvent(e);
+  });
+  check(await page.isVisible('#btnInstall'), 'Yükleme istemi gelince "Uygulama olarak yükle" göründü');
+  await sleep(400);
+  await page.screenshot({ path: join(shots, '13-pwa-menu.png') });
+  await page.tap('#btnInstall');
+  await page.waitForFunction(() => window.__prompted === 1, null, { timeout: 5000 }).catch(() => {});
+  await sleep(200);
+  check((await page.evaluate(() => window.__prompted)) === 1 && !(await page.isVisible('#btnInstall')), 'Düğme yükleme istemini açtı, kabulden sonra gizlendi');
+
+  // Çevrimdışı: ağ kesikken sayfa önbellekten açılır, modeller ve dokular yine yüklenir
+  await ctx.setOffline(true);
+  await page.reload();
+  await menuReady();
+  const off = await page.evaluate(() => ({ status: document.getElementById('pwaStatusText').textContent, heli: !!window.__game.mission.heliSpare?.prop }));
+  check(/Çevrimdışısın/.test(off.status) && off.heli, `Çevrimdışı açıldı: menü, helikopter modeli, "${off.status}"`);
+  await page.evaluate(() => window.__game.startMode('range', 'normal'));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__game.viewmodel.models.kt9?.glb, null, { timeout: 60000 }).catch(() => {});
+  const offW = await page.evaluate(() => {
+    let n = 0;
+    window.__game.viewmodel.models.kt9?.root.traverse((o) => {
+      if (o.isMesh && o.material.map?.image) n++;
+    });
+    return { n, soldiers: window.__game.enemies.list.length > 0 && window.__game.enemies.list.every((e) => !!e.model.bones) };
+  });
+  check(offW.n > 0 && offW.soldiers, `Çevrimdışı poligon: asker modeli ve Sketchfab silah dokuları önbellekten (${offW.n} dokulu parça)`);
+  await page.evaluate(() => window.__game.toMenu());
+  await menuReady();
+
+  // Güncelleme: sunucuda yeni sw.js → "Yeni sürüm hazır · Güncelle" → basınca sayfa yeni sürümle açılır
+  await ctx.setOffline(false);
+  swExtra = `\n// deneme ${Date.now()}\n`;
+  await page.evaluate(() => window.__game.pwa.registration.update());
+  await page.waitForSelector('#btnPwaUpdate:not([hidden])', { timeout: 90000 }).catch(() => {});
+  const upd = await page.evaluate(() => ({ state: window.__game.pwa.state, text: document.getElementById('pwaStatusText').textContent }));
+  check(upd.state === 'update', `Yeni sürüm bildirildi ("${upd.text}")`);
+  await page.evaluate(() => (window.__oldPage = true));
+  const nav = page.waitForEvent('framenavigated', { timeout: 60000 }).catch(() => null);
+  await page.click('#btnPwaUpdate').catch(() => {});
+  await nav;
+  await menuReady();
+  const after = await page.evaluate(async () => ({ old: !!window.__oldPage, waiting: !!(await navigator.serviceWorker.getRegistration())?.waiting, state: window.__game.pwa.state }));
+  check(!after.old && !after.waiting && after.state === 'ready', `"Güncelle" sayfayı yeni sürümle yeniden açtı (${after.state})`);
+
+  await ctx.close();
+  server.close();
 }
 
 await browser.close();

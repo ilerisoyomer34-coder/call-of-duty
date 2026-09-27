@@ -23,6 +23,7 @@ import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment } from './models.js';
 import { storage, warnOnce } from './util.js';
+import { setupPwa } from './pwa.js';
 import { Emitter, clamp, rand } from './util.js';
 
 const SKY_VERT = /* glsl */ `
@@ -871,6 +872,8 @@ const NULL_INPUT = {
 
 async function boot() {
   const L = loadingScreen();
+  // PWA sürümünde yükleme düğmesi ve güncelleme satırı (diğer sürümlerde null)
+  const pwa = setupPwa();
   L.step('Grafik sistemi başlatılıyor', 0.15);
   await nextPaint();
   let game;
@@ -888,6 +891,7 @@ async function boot() {
     return;
   }
   window.__game = game;
+  game.pwa = pwa;
   try {
     L.step('Asker modelleri yükleniyor', 0.4);
     await nextPaint();
@@ -906,6 +910,7 @@ async function boot() {
     return;
   }
   L.ready();
+  pwa?.register();
   requestAnimationFrame((t) => game.frame(t));
   // İlk tıklamada menü müziği
   const startAudio = () => {

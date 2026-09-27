@@ -1094,8 +1094,14 @@ export const RENDER = {
   maxPixelRatio: 2, // tuvalin (eller + silah) en yüksek piksel oranı
   worldPixelRatio: { high: 2, medium: 1.5, low: 1 }, // dünyanın en yüksek piksel oranı (masaüstü)
   touchWorldPixelRatio: { high: 1.5, medium: 1.15, low: 0.85 }, // dokunmatik cihazlarda
-  msaa: { high: 4, medium: 4, low: 2 },
-  anisotropy: { high: 16, medium: 8, low: 4 }, // doku süzme üst sınırı (cihazın izin verdiğiyle sınırlı) // dünya hedefinin kenar yumuşatma örnek sayısı
+  msaa: { high: 4, medium: 4, low: 2 }, // dünya hedefinin kenar yumuşatma örnek sayısı
+  anisotropy: { high: 16, medium: 8, low: 4 }, // doku süzme üst sınırı (cihazın izin verdiğiyle sınırlı)
+};
+
+// Yüklenebilir uygulama (PWA, dist/pwa): hizmet çalışanı ve menüdeki yükleme/güncelleme satırı
+export const PWA = {
+  swUrl: 'sw.js', // sayfaya göre; kapsamı bulunduğu klasör
+  updateCheckMin: 30, // uygulama açık dururken yeni sürüm denetimi en sık bu kadar dakikada bir
 };
 
 // Zorluk ayarları (DA_Difficulty karşılığı).

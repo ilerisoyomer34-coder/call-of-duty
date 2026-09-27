@@ -6,17 +6,36 @@ Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcı
 
 ## Nasıl oynanır
 
-- **Hemen oyna:** `web/dist/index.html` dosyasını indirip tarayıcıda çift tıklayarak aç. İnternet gerekmez (three.js dosyanın içinde).
+- **Tarayıcıda oyna (GitHub Pages):** https://ilerisoyomer34-coder.github.io/call-of-duty/
+- **Telefona ya da bilgisayara uygulama olarak yükle (PWA):** adresi aç, menüde **Uygulama olarak yükle**'ye bas.
+  - Android'de Chrome menüsündeki "Uygulamayı yükle" de olur.
+  - iPhone/iPad'de Safari'nin Paylaş menüsünden **Ana Ekrana Ekle**'yi seç.
+  - Uygulama tam ekran ve yatay açılır.
+  - İlk açılışta oyunun tüm dosyaları (~13 MB) cihaza kaydedilir, sonra internetsiz de oynanır.
+  - Yeni sürüm yayımlanınca menüde "Yeni sürüm hazır · Güncelle" çıkar.
+- **Tek dosya:** `web/dist/index.html` dosyasını indirip tarayıcıda çift tıklayarak aç. İnternet gerekmez (three.js dosyanın içinde).
 - **Kaynaktan derle:**
   ```bash
   cd web
   npm install
-  npm run build     # dist/index.html ve dist/artifact.html üretir
+  npm run build     # dist/index.html, dist/artifact.html ve dist/pwa/ üretir
   npm run serve     # http://localhost:8080
   npm test          # başsız Chromium'da duman testi + ekran görüntüleri
   ```
 
 Masaüstünde Chrome, Edge veya Firefox önerilir. Telefonda yatay tut; dokunmatik kontroller otomatik açılır.
+
+### GitHub Pages yayını
+
+Site depo kökünden yayımlanır. Kökteki `index.html` oyunun PWA sürümüne, yani `web/dist/pwa/` klasörüne yönlendirir. `.nojekyll` dosyası Jekyll derlemesini kapatır.
+
+Yayın bir kez şöyle açılır:
+
+1. Depoda **Settings → Pages** sayfasına git.
+2. **Build and deployment → Source** olarak **Deploy from a branch** seç.
+3. Dal olarak `claude/war-game-design-yzxvv6` (ya da birleştirildiyse `main`), klasör olarak `/ (root)` seç ve **Save**'e bas.
+
+Sonra her push'ta site 1–3 dakika içinde kendiliğinden yenilenir. `web/dist/pwa/` derleme çıktısı olduğu için kaynak değişince `npm run build` koşturulup commit'lenmelidir.
 
 ## Kontroller
 
@@ -117,9 +136,12 @@ web/
     effects.js     parçacık, iz, kovan, çıkartma, patlama
     audio.js       Web Audio ile sentezlenen tüm sesler
     hud.js         HUD, menus.js menüler, devconsole.js konsol
+    pwa.js         yüklenebilir uygulama: hizmet çalışanı kaydı, yükleme düğmesi, güncelleme satırı
+    pwa/           hizmet çalışanı şablonu (sw.js), simge çizimi (icon.svg) ve PNG simgeler
     shell.html     sayfa iskeleti ve arayüz stilleri
   assets/        silah GLB'leri, asker GLB'si ve dokuları, hazır araç modelleri (props/)
-  tools/build.mjs  tek dosyaya paketleme
+  tools/build.mjs  paketleme: tek dosya (dist/index.html), Artifact ve PWA (dist/pwa/)
+  tools/make-icons.mjs  PWA simgelerini icon.svg'den üretme
   tools/prepare-character.mjs  hazır karakteri oyuna hazırlama (UV/klip ayıklama, dokuları ayırma)
   tools/prepare-prop.mjs  hazır araç modelini (Sketchfab) sadeleştirme, parça adlandırma, lisans kaydı
   tools/prepare-weapon-glb.mjs  Sketchfab silahını oyunun silah düzenine çevirme (weapon-glb-map.json)
