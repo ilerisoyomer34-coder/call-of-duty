@@ -1143,18 +1143,18 @@ console.log('Telefon görünümü');
 if (run('pwa')) {
 console.log('PWA sürümü (dist/pwa)');
 
-  // GitHub Pages gibi: depo kökü bir alt yolda sunulur, oyun …/call-of-duty/web/dist/pwa/ altında.
+  // GitHub Pages gibi: gh-pages dalının kökü (dist/pwa) depo adının alt yolunda sunulur (…/call-of-duty/).
   // sw.js'e eklenen bayt (swExtra) tarayıcıya yeni sürüm gibi görünür (güncelleme akışı denemesi)
-  const repo = join(root, '..');
+  const site = join(root, 'dist/pwa');
   const BASE = '/call-of-duty/';
-  const swFile = join(root, 'dist/pwa/sw.js');
+  const swFile = join(site, 'sw.js');
   let swExtra = '';
   const PMIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json', ...MIME };
   const server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-    let file = path.startsWith(BASE) ? join(repo, path.slice(BASE.length)) : '';
+    let file = path.startsWith(BASE) ? join(site, path.slice(BASE.length)) : '';
     if (file && path.endsWith('/')) file = join(file, 'index.html');
-    if (!file || !file.startsWith(repo) || !existsSync(file) || statSync(file).isDirectory()) {
+    if (!file || !file.startsWith(site) || !existsSync(file) || statSync(file).isDirectory()) {
       res.writeHead(404);
       return res.end('yok');
     }
@@ -1183,10 +1183,9 @@ console.log('PWA sürümü (dist/pwa)');
   });
   const menuReady = () => page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
 
-  // Depo kökündeki giriş sayfası oyuna yönlendirir
+  // gh-pages kökü: Jekyll kapalı, oyun doğrudan sitenin kökünde açılır
+  check(existsSync(join(site, '.nojekyll')) && !swList.includes('.nojekyll'), 'dist/pwa/.nojekyll var (Pages dosyaları olduğu gibi sunar), önbellek listesinde değil');
   await page.goto(`${origin}${BASE}`);
-  await page.waitForURL(/\/web\/dist\/pwa\/$/, { timeout: 15000 }).catch(() => {});
-  check(page.url() === `${origin}${BASE}web/dist/pwa/`, `Depo kökü oyuna yönlendiriyor (${page.url().replace(origin, '')})`);
   await menuReady();
 
   const man = await page.evaluate(async () => {
@@ -1202,7 +1201,7 @@ console.log('PWA sürümü (dist/pwa)');
     return { name: m.name, display: m.display, orientation: m.orientation, start: new URL(m.start_url, href).pathname, lang: m.lang, sizes };
   });
   check(man.name === 'Demir Şafak' && man.display === 'fullscreen' && man.orientation === 'landscape' && man.lang === 'tr', `Manifest: ${man.name}, ${man.display}, ${man.orientation}`);
-  check(man.start === `${BASE}web/dist/pwa/`, `Başlangıç adresi alt yolda (${man.start})`);
+  check(man.start === BASE, `Başlangıç adresi sitenin kökü (${man.start})`);
   check(man.sizes.length >= 3 && man.sizes.every((s) => s.want === s.got) && man.sizes.some((s) => s.purpose === 'maskable'), `Simgeler doğru boyutta (${man.sizes.map((s) => `${s.got} ${s.purpose}`).join(', ')})`);
 
   // Hizmet çalışanı: açılış bitince kaydolur, tüm oyun dosyalarını önbelleğe alır ve sayfayı devralır

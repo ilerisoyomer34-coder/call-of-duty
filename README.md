@@ -27,15 +27,11 @@ Masaüstünde Chrome, Edge veya Firefox önerilir. Telefonda yatay tut; dokunmat
 
 ### GitHub Pages yayını
 
-Site depo kökünden yayımlanır. Kökteki `index.html` oyunun PWA sürümüne, yani `web/dist/pwa/` klasörüne yönlendirir. `.nojekyll` dosyası Jekyll derlemesini kapatır.
+Site `gh-pages` dalından yayımlanır. Bu dalın kökü `web/dist/pwa/` klasörünün kopyasıdır: oyun ve `.nojekyll`. Dal yalnız yayın içindir, elle düzenlenmez; her yayında tek commit'lik bir anlık görüntüyle üzerine yazılır.
 
-Yayın bir kez şöyle açılır:
-
-1. Depoda **Settings → Pages** sayfasına git.
-2. **Build and deployment → Source** olarak **Deploy from a branch** seç.
-3. Dal olarak `claude/war-game-design-yzxvv6` (ya da birleştirildiyse `main`), klasör olarak `/ (root)` seç ve **Save**'e bas.
-
-Sonra her push'ta site 1–3 dakika içinde kendiliğinden yenilenir. `web/dist/pwa/` derleme çıktısı olduğu için kaynak değişince `npm run build` koşturulup commit'lenmelidir.
+- **Kendiliğinden:** `.github/workflows/pages.yml`, `main` ya da çalışma dalında `web/dist/pwa/` değişince dalı günceller. `dist/` derleme çıktısıdır: kaynak değişince `npm run build` koşturulup commit'lenir.
+- **Elle:** `cd web && npm run deploy:pages`. Commit'lenmiş `dist/pwa/` klasörünü `gh-pages` dalına gönderir.
+- **Pages kapalıysa (404):** depoda **Settings → Pages** sayfasında **Deploy from a branch** seç, dal olarak `gh-pages`, klasör olarak `/ (root)` seç ve **Save**'e bas. GitHub mobil uygulamasında bu ayar yok, tarayıcıdan açılmalı.
 
 ## Kontroller
 
@@ -142,6 +138,7 @@ web/
   assets/        silah GLB'leri, asker GLB'si ve dokuları, hazır araç modelleri (props/)
   tools/build.mjs  paketleme: tek dosya (dist/index.html), Artifact ve PWA (dist/pwa/)
   tools/make-icons.mjs  PWA simgelerini icon.svg'den üretme
+  tools/deploy-pages.mjs  dist/pwa/'yı gh-pages dalına yayımlama (GitHub Pages)
   tools/prepare-character.mjs  hazır karakteri oyuna hazırlama (UV/klip ayıklama, dokuları ayırma)
   tools/prepare-prop.mjs  hazır araç modelini (Sketchfab) sadeleştirme, parça adlandırma, lisans kaydı
   tools/prepare-weapon-glb.mjs  Sketchfab silahını oyunun silah düzenine çevirme (weapon-glb-map.json)
@@ -152,6 +149,7 @@ SourceAssets/Weapons/  özgün .blend dosyaları ve asset_info.json (lisans kayd
 SourceAssets/Characters/  özgün karakter dosyası ve asset_info.json
 SourceAssets/Sketchfab/   Sketchfab'den gelen özgün modeller ve asset_info.json (lisans kaydı)
 Tools/blender/         model inceleme ve oyuna dönüştürme betikleri
+.github/workflows/pages.yml  dist/pwa/ değişince gh-pages dalını günceller
 ```
 
 ## Blender modeli ekleme

@@ -3,7 +3,7 @@
 ## Durum
 - `web/` altında oynanabilir tarayıcı dikey kesiti var (three.js, tek dosyaya paketlenir): 6 seviye, 5 harita (Kızılkum, Liman, Yıkık Şehir, Karlı Geçit, Gece Rafinerisi), ağır makineli mevziler, nişancılı uçaksavarlar, tanklar, rütbesi seviyeyle artan mavi manga. Her seviye helikopterle tahliye + kalkış sahnesiyle biter, sonraki bölüm geri sayımla kendiliğinden açılır.
 - Tahliye helikopteri ve dört silah (K8 Bozkurt, KR-4 Atmaca, MK-4 Doğan, KT-9 Kaplan) Sketchfab'den hazır model (CC BY 4.0; kullanıcı oturuma yükledi). Diğer Sketchfab modelleri (askerler ve silahlar dışındaki her şey) planlandı ama ortamın ağ izni `api.sketchfab.com`'u reddediyor ve `SKETCHFAB_API_TOKEN` tanımlı değil; kullanıcı GLB'yi sohbete yükleyebilir (`/root/.claude/uploads/...`). Erişim açılınca: `tools/sketchfab.mjs` (yalnız CC0/CC-BY, indirilebilir), `tools/prepare-prop.mjs`, görsel yer tutucu (`World.prop`, çarpıştırıcılar kutu kalır). Plan: `Docs/SKETCHFAB_PLAN.md`.
-- Oyun GitHub Pages'te yüklenebilir uygulama (PWA) olarak yayımlanır: https://ilerisoyomer34-coder.github.io/call-of-duty/ → `web/dist/pwa/`. Ayrıntı aşağıda "PWA" maddesinde.
+- Oyun GitHub Pages'te yüklenebilir uygulama (PWA) olarak yayımlanır: https://ilerisoyomer34-coder.github.io/call-of-duty/. Kaynak `gh-pages` dalı, yani `web/dist/pwa/` kopyası. Ayrıntı aşağıda "PWA" maddesinde.
 - Unreal Engine 5 sürümü henüz başlamadı. Ana plan: `Docs/MASTER_PROMPT.md` (Faz 0'dan başlanacak; UE5, Visual Studio ve Windows makine gerekir).
 - Web sürümündeki ayar değerleri (`web/src/config.js`) UE5'teki Data Asset'lere taşınacak referans değerlerdir.
 
@@ -13,6 +13,7 @@
   - `dist/index.html`: çevrimdışı, three gömülü.
   - `dist/artifact.html`: three CDN'den.
   - `dist/pwa/`: yüklenebilir uygulama. İçinde three paketli, modeller gerçek dosya; `manifest.webmanifest`, `icons/` ve `sw.js` var.
+- Yayın (GitHub Pages): `npm run deploy:pages` commit'lenmiş `dist/pwa/`'yı `gh-pages` dalına gönderir. Aynı iş push'ta `.github/workflows/pages.yml` ile kendiliğinden de yapılır.
 - PWA simgeleri: `node tools/make-icons.mjs`. `src/pwa/icon.svg` dosyasından `src/pwa/icons/*.png` üretir; çıktılar commit'lenir, derleme bu dosyaları yalnız kopyalar.
 - `npm test` → derler, başsız Chromium'da menü/görev/poligon/telefon akışlarını dener; ekran görüntüleri `web/tools/shots/`
 - Kaynak değiştiyse `dist/` yeniden derlenip commit'lenmeli.
@@ -43,11 +44,16 @@
 - Çizim: dünya `worldRT`'ye (ölçekli, MSAA, HalfFloat) çizilir, tam ekran dörtgenle ton eşlenip tuvale aktarılır; eller/silah tuvale tam DPR'de çizilir (`RENDER`, `renderScale` ayarı). Ön derleme `worldRT` bağlıyken yapılır ki gölgelendirici sürümleri eşleşsin.
 - Manga kademesi `config.js` → `ALLY_TIERS` (seviyenin `allyTier`'ı): değerler ve açık taktikler; taktik kodu `ally.js`. Manganın el bombası oyuncuyu ve dostları yaralamaz.
 - Dost askerler (`ally.js`) düşmanın gördüğü hedef arayüzünü (pos, alive, headPos, chestPos, takeDamage…) oyuncuyla aynı biçimde sunar; düşman `foe` alanında oyuncuyu ya da bir dostu tutar. Oyuncunun mermisi ve patlayıcısı dostu yaralamaz.
-- Testler: `SMOKE_ONLY=levels,maps npm test` gibi yalnızca bazı bölümler koşturulabilir (visual, mission, levels, interact, maps, range, artifact, mobile, pwa). `maps` bölümü her seviyede hedeflere ve tahliye noktalarına yol, düşman/tank yerleşimini, mevzi, uçaksavar nişancısı ve tank davranışını, uzaktaki askerin donmadığını ve manga kademelerini dener; `levels` tahliye → kalkış → geri sayımla sonraki bölümü; `mobile` eller/silah ile dünya çözünürlüğünü; `pwa` yerel sunucuda (Pages gibi alt yol) manifest, yüklenebilirlik, önbellek, çevrimdışı açılış, yükleme düğmesi ve güncelleme akışını. Yazılımsal GPU'da oyun saati yavaş ilerler; ölçümleri kare beklemeden doğrudan çağrıyla yap.
+- Testler: `SMOKE_ONLY=levels,maps npm test` gibi yalnızca bazı bölümler koşturulabilir (visual, mission, levels, interact, maps, range, artifact, mobile, pwa). `maps` bölümü her seviyede hedeflere ve tahliye noktalarına yol, düşman/tank yerleşimini, mevzi, uçaksavar nişancısı ve tank davranışını, uzaktaki askerin donmadığını ve manga kademelerini dener; `levels` tahliye → kalkış → geri sayımla sonraki bölümü; `mobile` eller/silah ile dünya çözünürlüğünü; `pwa` yerel sunucuda (gh-pages düzeni, `/call-of-duty/` alt yolu) manifest, yüklenebilirlik, önbellek, çevrimdışı açılış, yükleme düğmesi ve güncelleme akışını. Yazılımsal GPU'da oyun saati yavaş ilerler; ölçümleri kare beklemeden doğrudan çağrıyla yap.
 - **PWA (`dist/pwa/`):**
-  - GitHub Pages depo kökünden, çalışma dalından yayımlanır: https://ilerisoyomer34-coder.github.io/call-of-duty/
-    - Kökteki `index.html` → `web/dist/pwa/` yönlendirmesi. `.nojekyll` Jekyll'i kapatır.
-    - Pages ayarı kullanıcıdadır: Settings → Pages → Deploy from a branch.
+  - GitHub Pages `gh-pages` dalından yayımlanır: https://ilerisoyomer34-coder.github.io/call-of-duty/
+    - Dalın kökü `dist/pwa/`. Derleme içine `.nojekyll` yazar, bu dosya önbelleğe girmez.
+    - Dal yalnız yayın içindir, elle düzenlenmez. Her yayın tek commit'lik bir anlık görüntüdür ve zorla gönderilir.
+    - Güncelleme iki yoldan yapılır:
+      - `.github/workflows/pages.yml`: `main` ya da çalışma dalında `web/dist/pwa/**` değişince çalışır.
+      - Elle: `cd web && npm run deploy:pages` (`tools/deploy-pages.mjs`). Commit'lenmemiş `dist/pwa` varsa durur.
+    - Pages kapalıysa (404) ayar kullanıcıdadır: Settings → Pages → Deploy from a branch → `gh-pages` / `(root)`.
+    - Buradan github.io'ya erişilemez; yayın GitHub MCP ile doğrulanır ("pages build and deployment" koşusu, `has_pages`).
   - Hizmet çalışanı şablonu: `src/pwa/sw.js`.
     - Derleme, dosya listesini ve içerik özetinden sürümü içine yazar.
     - Önce önbellek kullanılır. Kurulum `cache: 'no-cache'` ile yapılır.

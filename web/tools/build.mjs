@@ -4,7 +4,7 @@
 //                       modeller ve dokular sayfanın yanında yayımlanan dosyalardan (assets/...) okunur.
 //                       Artifact .glb sunmadığı için GLB'ler base64 metin (.glb.txt) olarak yayımlanır;
 //                       bunlar dist/artifact-assets/ altına üretilir (depoya girmez, her derlemede yenilenir)
-//  dist/pwa/          → yüklenebilir web uygulaması (GitHub Pages'te yayımlanır): three.js paketin içinde,
+//  dist/pwa/          → yüklenebilir web uygulaması (gh-pages dalına yayımlanır, tools/deploy-pages.mjs): three.js paketin içinde,
 //                       modeller gerçek dosya, manifest + simgeler + hizmet çalışanı (ilk açılıştan sonra çevrimdışı)
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
@@ -152,6 +152,8 @@ const PWA = {
 const pwaDir = join(root, 'dist/pwa');
 rmSync(pwaDir, { recursive: true, force: true });
 mkdirSync(pwaDir, { recursive: true });
+// gh-pages dalının kökü bu klasördür: Jekyll çalışmasın (dosyalar olduğu gibi sunulsun). Önbelleğe girmez.
+writeFileSync(join(pwaDir, '.nojekyll'), '');
 const pwaHead = `<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="${PWA.color}">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
