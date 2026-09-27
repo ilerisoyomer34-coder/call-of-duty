@@ -2,7 +2,7 @@
 
 ## Durum
 - `web/` altında oynanabilir tarayıcı dikey kesiti var (three.js, tek dosyaya paketlenir): 6 seviye, 5 harita (Kızılkum, Liman, Yıkık Şehir, Karlı Geçit, Gece Rafinerisi), ağır makineli mevziler, nişancılı uçaksavarlar, tanklar, rütbesi seviyeyle artan mavi manga. Her seviye helikopterle tahliye + kalkış sahnesiyle biter, sonraki bölüm geri sayımla kendiliğinden açılır.
-- Sketchfab'den model alma (askerler ve silahlar dışındaki her şey) planlandı ama ortamın ağ izni `api.sketchfab.com`'u reddediyor ve `SKETCHFAB_API_TOKEN` tanımlı değil. Erişim açılınca: `tools/sketchfab.mjs` (yalnız CC0/CC-BY, indirilebilir), `tools/prepare-prop.mjs`, görsel yer tutucu (`World.prop`, çarpıştırıcılar kutu kalır). Plan: `/root/.claude/plans/playful-munching-corbato.md` Aşama B.
+- Sketchfab'den model alma (askerler ve silahlar dışındaki her şey) planlandı ama ortamın ağ izni `api.sketchfab.com`'u reddediyor ve `SKETCHFAB_API_TOKEN` tanımlı değil. Erişim açılınca: `tools/sketchfab.mjs` (yalnız CC0/CC-BY, indirilebilir), `tools/prepare-prop.mjs`, görsel yer tutucu (`World.prop`, çarpıştırıcılar kutu kalır). Plan: `Docs/SKETCHFAB_PLAN.md`.
 - Unreal Engine 5 sürümü henüz başlamadı. Ana plan: `Docs/MASTER_PROMPT.md` (Faz 0'dan başlanacak; UE5, Visual Studio ve Windows makine gerekir).
 - Web sürümündeki ayar değerleri (`web/src/config.js`) UE5'teki Data Asset'lere taşınacak referans değerlerdir.
 
