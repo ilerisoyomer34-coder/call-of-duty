@@ -81,7 +81,7 @@ export class HUD {
     E.on('interact', (target, k) => this.setInteract(target, k));
     E.on('noAmmo', () => this.message('CEPHANE YOK', 'warn'));
     // Mevzi ateş açtı: bir kez büyük uyarı; mini haritada kalıcı işaret
-    E.on('hmgFire', () => this.message('AĞIR MAKİNELİ ATEŞİ · SİPER AL', 'warn'));
+    E.on('hmgFire', (m) => this.message(m?.warnText || 'AĞIR MAKİNELİ ATEŞİ · SİPER AL', 'warn'));
     // Dostun bildirdiği düşman kısa süre işaretli kalır
     this.marks = new Map();
     E.on('allyMark', (enemy, time) => this.marks.set(enemy, this.game.time + time));

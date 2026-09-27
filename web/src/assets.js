@@ -14,6 +14,11 @@ const cache = new Map();
 const loader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 const FETCH_TIMEOUT_MS = 20000;
+// Donanımın en yüksek anizotropisi (Game kurulurken bildirilir): silah ve asker dokuları eğik açıda keskin kalsın
+let maxAniso = 4;
+export function setMaxAnisotropy(n) {
+  maxAniso = n;
+}
 
 function decodeBase64(b64) {
   const bin = atob(b64);
@@ -52,7 +57,7 @@ export function loadTexture(path, { srgb = true, flipY = false } = {}) {
   return textureLoader.loadAsync(url).then((t) => {
     t.flipY = flipY; // glTF UV'leri üstten başlar
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = maxAniso;
     t.needsUpdate = true;
     return t;
   });
@@ -76,6 +81,7 @@ function prepareWeapon(scene) {
       }
       // Blender'da çok koyu tabanlı metaller ortam yansımasıyla okunur hale gelsin
       m.envMapIntensity = 1.0;
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap']) if (m[k]) m[k].anisotropy = maxAniso;
       if ('transmission' in m) m.transmission = 0;
     }
   });

@@ -16,9 +16,10 @@ import { Mission } from './mission.js';
 import { HUD } from './hud.js';
 import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
-import { preloadSoldier } from './soldier.js';
+import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS, MAPS } from './config.js';
+import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS, MAPS, RENDER } from './config.js';
+import { setMaxAnisotropy } from './assets.js';
 import { AllyManager } from './ally.js';
 import { storage, warnOnce } from './util.js';
 import { Emitter, clamp, rand } from './util.js';
@@ -150,7 +151,8 @@ export class Game {
     this.env = MAPS.kizilkum.env;
 
     const hi = this.quality === 'high';
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: this.quality !== 'low', powerPreference: 'high-performance' });
+    // Tuval her zaman kenar yumuşatmalı: eller ve silah doğrudan tuvale tam çözünürlükte çizilir
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -160,7 +162,12 @@ export class Game {
 
     this.camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 1200);
     this.camera.rotation.order = 'YXZ';
-    this.textures = createTextures(this.quality);
+    const aniso = this.renderer.capabilities.getMaxAnisotropy();
+    setMaxAnisotropy(aniso);
+    this.textures = createTextures(this.quality, aniso);
+    this.worldRT = null;
+    this.worldPR = 1;
+    this.blit = createBlit();
     this.audio = new Audio();
     this.input = new Input(this.canvas, document.getElementById('touch'));
     this.player = new Player(this);
@@ -214,7 +221,10 @@ export class Game {
     try {
       this.camera.updateMatrixWorld();
       // Zaman aşımı kazansa da derleme arka planda sürer: bitene dek bu sahnenin malzemeleri atılmaz
+      // Dünya ara hedefe çiziliyorsa gölgelendiriciler o hedefin ayarlarıyla (ton eşlemesiz) derlenmeli
+      r.setRenderTarget(this.worldRT);
       const p = r.compileAsync(this.scene, this.camera);
+      r.setRenderTarget(null);
       this.sceneCompile = p;
       p.then(() => {
         if (this.sceneCompile === p) this.sceneCompile = null;
@@ -266,6 +276,7 @@ export class Game {
       this.viewmodel.setEnvironment(this.envMap);
       this.viewmodel.setLighting(env.view);
     }
+    setSoldierEnvironment(this.envMap, this.renderer.shadowMap.enabled && (this.renderQuality || 'medium') !== 'low');
     return env;
   }
 
@@ -285,22 +296,62 @@ export class Game {
     this.hud.applySettings(S);
     if (this.effects) this.effects.bloodOn = S.blood;
     const q = resolveQuality(S.quality, this.isTouch);
-    const pr = q === 'high' ? Math.min(devicePixelRatio, 2) : q === 'medium' ? Math.min(devicePixelRatio, 1.5) : Math.min(devicePixelRatio, 1);
-    this.renderer.setPixelRatio(pr);
+    this.renderQuality = q;
     if (this.sun) this.sun.castShadow = q !== 'low' && this.renderer.shadowMap.enabled;
+    if (this.envMap) setSoldierEnvironment(this.envMap, q !== 'low' && this.renderer.shadowMap.enabled);
     this.resize();
   }
 
+  // Tuval tam cihaz çözünürlüğünde (eller ve silah); dünya kaliteye ve "Dünya çözünürlüğü" ayarına göre
+  // ölçekli hedefe çizilir. Dünya tam çözünürlükteyse ara hedef kullanılmaz (ek maliyet yok).
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.width = w;
     this.height = h;
+    const dpr = window.devicePixelRatio || 1;
+    const canvasPR = Math.min(dpr, RENDER.maxPixelRatio);
+    const q = this.renderQuality || resolveQuality(this.settings.quality, this.isTouch);
+    const scale = this.settings.renderScale;
+    const table = this.isTouch ? RENDER.touchWorldPixelRatio : RENDER.worldPixelRatio;
+    const worldPR = Math.min(canvasPR, scale === 'auto' || !scale ? Math.min(dpr, table[q]) : canvasPR * parseFloat(scale));
+    this.renderer.setPixelRatio(canvasPR);
     this.renderer.setSize(w, h, false);
+    this.worldPR = worldPR;
+    const rw = Math.max(1, Math.round(w * worldPR));
+    const rh = Math.max(1, Math.round(h * worldPR));
+    if (worldPR < canvasPR - 0.01) {
+      const samples = RENDER.msaa[q];
+      if (!this.worldRT || this.worldRT.samples !== samples) {
+        this.worldRT?.dispose();
+        this.worldRT = new THREE.WebGLRenderTarget(rw, rh, { type: THREE.HalfFloatType, samples });
+        this.blit.material.uniforms.tDiffuse.value = this.worldRT.texture;
+      } else this.worldRT.setSize(rw, rh);
+    } else if (this.worldRT) {
+      this.worldRT.dispose();
+      this.worldRT = null;
+    }
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.viewmodel.resize(w / h);
-    if (this.effects) this.effects.setScale(h * this.renderer.getPixelRatio(), this.camera.fov);
+    if (this.effects) this.effects.setScale(h * worldPR, this.camera.fov);
+  }
+
+  // Dünyayı çiz: ölçekli hedefe (ton eşleme yok, doğrusal HDR), sonra tam ekran dörtgenle tuvale
+  // (ACES + sRGB burada). Ölçek 1 ise doğrudan tuvale.
+  drawWorld(cam) {
+    const r = this.renderer;
+    if (this.worldRT) {
+      r.setRenderTarget(this.worldRT);
+      r.clear();
+      r.render(this.scene, cam);
+      r.setRenderTarget(null);
+      r.clear();
+      r.render(this.blit.scene, this.blit.camera);
+    } else {
+      r.clear();
+      r.render(this.scene, cam);
+    }
   }
 
   // --- Sahne kurulumu ---
@@ -404,6 +455,7 @@ export class Game {
     M.build();
     this.enemies.clear();
     this.allies.clear();
+    for (const a of M.aa || []) a.gunner = null; // nişancısız toplar göğe ateş etmeyi sürdürür
     M.objectives = [];
     M.radioQueue.length = 0;
     M.interactables.length = 0;
@@ -657,9 +709,8 @@ export class Game {
     if (this.mission.aa) for (const a of this.mission.aa) a.update(dt);
     this.effects.update(dt, cam.position);
     this.followSun(cam.position);
-    this.effects.setScale(this.height * this.renderer.getPixelRatio(), cam.fov);
-    this.renderer.clear();
-    this.renderer.render(this.scene, cam);
+    this.effects.setScale(this.height * this.worldPR, cam.fov);
+    this.drawWorld(cam);
   }
 
   updatePlaying(dt) {
@@ -682,7 +733,7 @@ export class Game {
     this.mission.update(dt);
     this.updateDebris(dt);
     this.effects.update(dt, this.camera.position);
-    this.effects.setScale(this.height * this.renderer.getPixelRatio(), this.camera.fov);
+    this.effects.setScale(this.height * this.worldPR, this.camera.fov);
     this.viewmodel.update(dt);
     this.hud.update(dt);
     this.audio.updateAmbient();
@@ -714,10 +765,33 @@ export class Game {
   renderFrame() {
     const r = this.renderer;
     this.followSun(this.player.pos);
-    r.clear();
-    r.render(this.scene, this.camera);
+    this.drawWorld(this.camera);
     if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory') this.viewmodel.render(r);
   }
+}
+
+// Ölçekli dünya hedefini tuvale aktaran tam ekran dörtgen: ton eşleme ve sRGB dönüşümü burada yapılır
+// (hedefe çizilirken three.js bunları atlar), böylece iki yolun görüntüsü aynı olur
+function createBlit() {
+  const material = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: /* glsl */ `
+uniform sampler2D tDiffuse;
+varying vec2 vUv;
+void main() {
+  gl_FragColor = texture2D(tDiffuse, vUv);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const scene = new THREE.Scene();
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  quad.frustumCulled = false;
+  scene.add(quad);
+  return { scene, material, camera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
 }
 
 // Gökyüzü gölgelendiricisinin renk uniform'ları (ortam tablosundan)

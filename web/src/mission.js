@@ -5,12 +5,14 @@ import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
 import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildWeapon, mat } from './models.js';
-import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG } from './config.js';
+import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
-import { rand, lerp, clamp, smoothstep, pick, dirToYaw } from './util.js';
+import { rand, lerp, clamp, smoothstep, pick, dirToYaw, damp } from './util.js';
 
 const _v = new THREE.Vector3();
+const _d = new THREE.Vector3();
+const _e = new THREE.Vector3();
 // Operasyonun kronolojik hedef sırası: bir seviyenin ilk hedefinden öncekiler yapılmış sayılır
 const OBJECTIVE_ORDER = ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'];
 const LEVEL_END_DELAY = 4; // son hedef ile zafer ekranı arası (s): telsiz duyulsun, çatışma yatışsın
@@ -169,14 +171,98 @@ class AAGun {
     m.root.position.copy(def.pos);
     m.root.rotation.y = def.yaw;
     game.scene.add(m.root);
-    game.world.addCollider(def.pos.x - 1.5, 0, def.pos.z - 1.5, def.pos.x + 1.5, 1.9, def.pos.z + 1.5, 'metal');
+    m.root.updateMatrixWorld(true);
+    const x = def.pos.x;
+    const z = def.pos.z;
+    if (this.kind === 'aa') {
+      // Alçak platform (üstüne çıkılabilir) + taret gövdesi: nişancının başı ve göğsü taretin üstünden görünür
+      game.world.addCollider(x - 1.5, 0, z - 1.5, x + 1.5, AA_GUN.baseH, z + 1.5, 'metal');
+      game.world.addCollider(x - AA_GUN.bodyHalf, 0, z - AA_GUN.bodyHalf, x + AA_GUN.bodyHalf, AA_GUN.bodyH, z + AA_GUN.bodyHalf, 'metal');
+    } else game.world.addCollider(x - 1.5, 0, z - 1.5, x + 1.5, 1.9, z + 1.5, 'metal');
     this.destroyed = false;
     this.planted = false;
     this.fuse = 0;
     this.fireT = rand(1, 4);
     this.beepT = 0;
+    this.burst = 0;
+    this.burstT = 0;
     this.c4 = null;
+    this.gunner = null;
+    // Nişancı düzeneği arayüzü (HeavyNest ile aynı; enemy.js → actMounted): taret tam döner
+    this.cfg = AA_GUN;
+    this.yaw = def.yaw;
+    this.arc = Math.PI;
+    this.selfIdle = true; // çatışma yokken top kendi başına göğe ateş eder
+    this.restPitch = AA_GUN.restPitch;
+    this.warned = false;
+    this.warnText = 'UÇAKSAVAR SANA ATEŞ EDİYOR · SİPER AL';
+    this.calloutName = 'Uçaksavar';
+    this.barrel = 0;
   }
+
+  // Başına nişancı oturt (seviyenin düşman grupları bu topun grubunu içeriyorsa)
+  man() {
+    if (this.kind !== 'aa' || this.destroyed || this.gunner) return;
+    this.gunner = this.game.enemies.spawn({
+      id: `${this.id}g`, type: 'aaGunner', group: this.def.group || 'village', pos: this.seatPos(new THREE.Vector3()), yaw: this.def.yaw, mount: this,
+    });
+  }
+
+  get aimYaw() {
+    return this.model.turret.rotation.y;
+  }
+  get aimPitch() {
+    return this.model.guns.rotation.x;
+  }
+  get worldYaw() {
+    return this.yaw + this.aimYaw;
+  }
+  get wrecked() {
+    return this.destroyed;
+  }
+  // Kumanda kolları taretle döner ama namluyla eğilmez: nişancının gövdesi namlunun tam açısını izlemez
+  get animPitch() {
+    return clamp(this.aimPitch, AA_GUN.animPitchMin, AA_GUN.animPitchMax);
+  }
+  // Nişancı başında ve çatışmada: göğe rastgele ateş yerine hedefe ateş eder
+  get engaged() {
+    const n = this.gunner;
+    return !!n && n.alive && n.mount === this && n.aiState === 'combat';
+  }
+
+  pivot(out) {
+    return out.set(this.pos.x, this.pos.y + AA_GUN.pivotH, this.pos.z);
+  }
+
+  // Nişancı taretin arkasında, platformun üstünde durur; taretle birlikte döner
+  seatPos(out, yaw = this.worldYaw) {
+    return out.set(this.pos.x + Math.sin(yaw) * AA_GUN.seatBack, this.pos.y + AA_GUN.seatY, this.pos.z + Math.cos(yaw) * AA_GUN.seatBack);
+  }
+
+  inArc() {
+    return true;
+  }
+
+  setAim(relYaw, pitch) {
+    this.model.turret.rotation.y = relYaw;
+    this.model.guns.rotation.x = pitch;
+    this.model.turret.updateMatrixWorld(true);
+  }
+
+  // İki namlu sırayla ateş eder
+  muzzleWorld(out) {
+    this.barrel ^= 1;
+    this.model.guns.updateMatrixWorld(true);
+    return this.model.guns.localToWorld(out.set(this.barrel ? AA_GUN.barrelX : -AA_GUN.barrelX, 0, -AA_GUN.barrelLen));
+  }
+
+  grips(outL, outR) {
+    const t = this.model.turret;
+    t.updateMatrixWorld(true);
+    t.localToWorld(outL.set(-AA_GUN.gripX, AA_GUN.gripY, AA_GUN.gripZ));
+    t.localToWorld(outR.set(AA_GUN.gripX, AA_GUN.gripY, AA_GUN.gripZ));
+  }
+
   plant() {
     const g = this.game;
     this.planted = true;
@@ -192,10 +278,15 @@ class AAGun {
   update(dt) {
     const g = this.game;
     if (this.destroyed) return;
-    // Göğe doğru uçaksavar ateşi: uzaktan hedefi belli eder
+    // Göğe doğru uçaksavar ateşi: uzaktan hedefi belli eder. Nişancı oyuncuyla çatışmadaysa top ona döner
+    // (enemy.js → actMounted); nişancı öldüyse ya da topu bıraktıysa top susar
     const dist = this.pos.distanceTo(g.player.pos);
-    if (!this.planted && dist < 170 && this.kind === 'aa') {
-      this.model.turret.rotation.y = Math.sin(g.time * 0.2 + this.pos.x) * 0.8;
+    const n = this.gunner;
+    const crewed = !n || (n.alive && n.mount === this);
+    if (!this.planted && dist < AA_GUN.skyFireRange && this.kind === 'aa' && crewed && !this.engaged) {
+      const m = this.model;
+      m.turret.rotation.y = Math.sin(g.time * 0.2 + this.pos.x) * 0.8;
+      m.guns.rotation.x = damp(m.guns.rotation.x, AA_GUN.idlePitch, 1.5, dt);
       this.fireT -= dt;
       if (this.fireT <= 0) {
         this.fireT = rand(3, 7);
@@ -207,16 +298,21 @@ class AAGun {
         if (this.burstT <= 0) {
           this.burstT = 0.13;
           this.burst--;
-          const m = this.model;
-          m.guns.updateMatrixWorld(true);
-          const start = new THREE.Vector3(this.burst % 2 ? 0.35 : -0.35, 0, -3.4).applyMatrix4(m.guns.matrixWorld);
-          const dir = new THREE.Vector3(0, 0, -1).transformDirection(m.guns.matrixWorld);
-          const end = start.clone().addScaledVector(dir, 260).add(new THREE.Vector3(rand(-8, 8), rand(-4, 4), rand(-8, 8)));
-          g.effects.tracer(start, end, 350, 0.07);
+          const start = this.muzzleWorld(_v);
+          const dir = _d.set(0, 0, -1).transformDirection(m.guns.matrixWorld);
+          _e.copy(start).addScaledVector(dir, 260);
+          _e.x += rand(-8, 8);
+          _e.y += rand(-4, 4);
+          _e.z += rand(-8, 8);
+          g.effects.tracer(start, _e, 350, 0.07);
           g.effects.enemyMuzzle(start, dir);
           g.audio.gunshot('enemyLmg', start);
         }
       }
+    } else if (!crewed && this.kind === 'aa') {
+      // Başında kimse yok: namlu yavaşça iner
+      const r = this.model.guns.rotation;
+      r.x = damp(r.x, AA_GUN.idleDrop, 1, dt);
     }
     if (this.planted) {
       this.fuse -= dt;
@@ -234,6 +330,7 @@ class AAGun {
     // Patlamadan önce işaretle: patlama onExplosion ile bu topu yeniden patlatmaya çalışmasın
     this.destroyed = true;
     this.planted = false;
+    if (this.gunner?.alive && this.gunner.mount === this) this.gunner.dismount();
     if (this.c4) this.c4.root.removeFromParent();
     g.explode(this.pos.clone().setY(1.2), C4.radius, C4.damage, 'player', 1.8);
     this.wreck(true);
@@ -363,6 +460,8 @@ export class Mission {
       this.intel = true;
       this.laptop.screen.material.emissive.setHex(0xd63d3d);
     }
+    // Uçaksavar nişancıları: topun grubu seviyede varsa (Seviye 1'de köy grubu yok, toplar yalnız göğe ateş eder)
+    for (const gun of this.aa) if (E.groups.includes(gun.def.group || 'village')) gun.man();
     D.enemies.forEach((spec, i) => {
       if (!E.groups.includes(spec.group) || E.exclude.includes(spec.type)) return;
       const s = { ...spec, id: `m${i}` };
@@ -370,6 +469,8 @@ export class Mission {
       g.enemies.spawn(s);
     });
     this.nests = nestDefs.map((n, i) => new HeavyNest(g, n, i));
+    // Nişancılı düzenekler (mevziler + başında nişancı olan uçaksavarlar): manga bunları bastırır
+    this.mounts = [...this.nests, ...this.aa.filter((a) => a.gunner)];
     this.waves = E.extraWave && D.extraWave ? [...D.waves, D.extraWave] : D.waves;
     this.defendTime = L.defendTime || D.defendTime;
     // Hedefler

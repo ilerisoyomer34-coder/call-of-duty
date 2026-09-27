@@ -17,6 +17,9 @@ export class HeavyNest {
     this.pos = def.pos.clone();
     this.yaw = def.yaw; // mevzinin baktığı merkez yön
     this.arc = HMG.arcDeg * DEG;
+    this.cfg = HMG; // nişancının düzenek ayarları (enemy.js → actMounted)
+    this.warnText = 'AĞIR MAKİNELİ ATEŞİ · SİPER AL';
+    this.calloutName = 'Makineli yuvası';
     const m = buildHeavyMG(HMG);
     this.model = m;
     m.root.position.set(this.pos.x, this.pos.y, this.pos.z);

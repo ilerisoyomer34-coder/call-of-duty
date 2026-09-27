@@ -22,6 +22,44 @@ import { clamp, damp, dampAngle, angleDiff, dirToYaw, lerp, smoothstep, rand, Sp
 
 const A = SOLDIER_ANIM;
 let template = null;
+let envMap = null; // haritanın yansıma haritası (setSoldierEnvironment)
+let realShadows = true; // gölge haritası açık mı (düşük kalitede kapalı: ayak gölgesi her mesafede)
+
+// Yumuşak ayak gölgesi: tek geometri ve malzeme, tüm askerler paylaşır
+let blobShared = null;
+function blobAssets() {
+  if (blobShared) return blobShared;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const grd = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(0,0,0,1)');
+  grd.addColorStop(0.55, 'rgba(0,0,0,0.55)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, 64, 64);
+  const geo = new THREE.PlaneGeometry(1.15, 1.15);
+  geo.rotateX(-Math.PI / 2);
+  geo.userData.shared = true; // sahne atılırken paylaşılan geometri silinmesin
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), color: 0x000000, transparent: true, opacity: A.blobOpacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  blobShared = { geo, mat };
+  return blobShared;
+}
+
+// Harita değişince askerlerin yansıma haritası (uzakta ve gölgede siyaha dönmesin)
+export function setSoldierEnvironment(tex, shadowsOn) {
+  envMap = tex;
+  realShadows = shadowsOn;
+  if (!template) return;
+  for (const L of template.looks.values()) {
+    for (const m of L.values()) {
+      if (!m.isMeshStandardMaterial) continue;
+      if (!m.envMap !== !tex) m.needsUpdate = true;
+      m.envMap = tex;
+      m.envMapIntensity = A.envIntensity;
+    }
+  }
+}
 
 // Geçici nesneler (her karede bellek ayırmamak için)
 const _p = new THREE.Vector3();
@@ -244,6 +282,8 @@ function lookMaterials(type) {
       m.roughness = 0.8;
       m.metalness = 0.08;
     }
+    m.envMap = envMap;
+    m.envMapIntensity = A.envIntensity;
     L.set(o.material, m);
   });
   template.looks.set(type, L);
@@ -307,6 +347,12 @@ class SkinnedSoldier {
     this.gun = mergeGroup(buildEnemyGun(kind), gunMat);
     this.gun.castShadow = true;
     this.root.add(this.gun);
+
+    const blob = blobAssets();
+    this.blob = new THREE.Mesh(blob.geo, blob.mat);
+    this.blob.position.y = 0.03;
+    this.blob.renderOrder = 1;
+    this.root.add(this.blob);
 
     this.body.updateMatrixWorld(true);
     this.meshes = this.buildHitboxes();
@@ -407,9 +453,11 @@ class SkinnedSoldier {
   animate(dt, st) {
     this.root.position.copy(st.pos);
     this.root.rotation.set(0, st.yaw, 0, 'YXZ');
+    // Gölge haritasının menzili dışında (ya da gölgeler kapalıyken) ayak gölgesi: asker havada durmasın
+    this.blob.visible = st.dist > A.blobFrom || !realShadows;
     // Uzaktaki askerlerde iskelet seyrek güncellenir; biriken süre tek adımda işlenir
     this.lodT += dt;
-    const every = st.dist > A.lodFar ? A.lodRates[1] : st.dist > A.lodNear ? A.lodRates[0] : 0;
+    const every = st.dist > A.lodVeryFar ? A.lodRates[2] : st.dist > A.lodFar ? A.lodRates[1] : st.dist > A.lodNear ? A.lodRates[0] : 0;
     if (this.lodT < every) return;
     const step = Math.min(this.lodT, 0.25);
     this.lodT = 0;
@@ -614,6 +662,7 @@ class SkinnedSoldier {
   // Silah elden düşer (asıl silah gizlenir; yere düşen kopya ortak geometriyi kullanır).
   // Mevzi nişancısının elinde tüfek yoktu: düşecek bir şey yok
   die(info, game) {
+    this.blob.visible = false; // devrilen gövdeyle birlikte eğilmesin
     if (!this.gun.visible) return;
     this.gun.updateMatrixWorld();
     const drop = new THREE.Mesh(this.gun.geometry, this.gun.material);

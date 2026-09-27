@@ -473,6 +473,8 @@ export const ENEMY_WEAPONS = {
   shotgun: { rpm: 80, damage: 9, magSize: 6, reload: 2.8, burst: [1, 1], burstGap: [0.7, 1.0], pellets: 7, spreadDeg: 5, range: 22, sound: 'enemyShotgun', noise: 70 },
   lmg: { rpm: 700, damage: 11, magSize: 80, reload: 4.2, burst: [8, 16], burstGap: [0.5, 1.0], pellets: 1, range: 90, sound: 'enemyLmg', noise: 70 },
   sniper: { rpm: 30, damage: 72, magSize: 5, reload: 3.2, burst: [1, 1], burstGap: [2.2, 3.0], pellets: 1, range: 160, sound: 'sniper', noise: 90, charge: 1.3 },
+  // Uçaksavar: ağır ve yavaş atış; mermi hedefin yakınında patlar (flak: yakınlık, yarıçap, parça hasarı)
+  flak: { rpm: 200, damage: 10, magSize: 40, reload: 4.5, burst: [3, 6], burstGap: [1.1, 1.9], pellets: 1, range: 160, sound: 'bmg50', noise: 130, tracerEvery: 1, flak: { proximity: 3.0, radius: 4.0, damage: 26, fx: 0.3 } },
   // Mevzi makinelisi: uzun seriler, ağır mermi. Oyuncuya verdiği hasarı zorluktaki dpsCap sınırlar
   hmg: { rpm: 450, damage: 15, magSize: 100, reload: 5.5, burst: [9, 18], burstGap: [0.7, 1.3], pellets: 1, range: 150, sound: 'enemyHmg', noise: 110, tracerEvery: 3 },
 };
@@ -501,6 +503,11 @@ export const ENEMY_TYPES = {
   },
   // Ağır makineli mevzi nişancısı: silahın başında durur (mounted). Silah susarsa ya da hedef uzun süre
   // atış yayının dışında kalırsa iner ve yedek tüfekle siper kullanan bir tüfekçi gibi savaşır (dismount)
+  aaGunner: {
+    name: 'Uçaksavar Nişancısı', hp: 130, weapon: 'flak', walk: 1.6, run: 4.0, viewRange: 110, fov: 220,
+    prefDist: [10, 26], usesCover: false, rushes: false, aimBase: 2.2, headMult: 2.4, mounted: true, fallbackWeapon: 'rifle',
+    colors: { uniform: 0x4a4436, vest: 0x2a2820, helmet: 0x33302a, skin: 0x9c7456, band: 0x8e2b23 },
+  },
   gunner: {
     name: 'Mevzi Makinelisi', hp: 150, weapon: 'hmg', walk: 1.6, run: 4.0, viewRange: 75, fov: 150,
     prefDist: [10, 26], usesCover: false, rushes: false, aimBase: 2.4, headMult: 2.4, mounted: true, fallbackWeapon: 'rifle',
@@ -531,6 +538,40 @@ export const HMG = {
   silenceRadius: 3.4, // patlayıcı bu yarıçapta patlarsa silah susar
   silenceDamage: 90, // susturan patlamanın en az hasarı (el bombası yeter)
   warnRange: 70, // oyuncu bu mesafedeyken ilk seri "AĞIR MAKİNELİ" uyarısı verir
+  pitchMin: -0.35, // namlu eğimi sınırları (rad)
+  pitchMax: 0.3,
+};
+
+// Uçaksavar topu nişancısı (düzenek arayüzü HMG ile ortak; eksik alanlar HMG'den gelmez, hepsi burada)
+export const AA_GUN = {
+  turnRate: 0.85, // taret dönüş hızı (rad/s): hızlı koşan oyuncuya yetişemez
+  pivotH: 1.8, // namlu ekseni yüksekliği
+  seatBack: 1.05, // nişancı taretin bu kadar arkasında, platformda durur
+  seatY: 0.5,
+  pitchMin: -0.2,
+  pitchMax: 1.2,
+  idlePitch: 0.7, // göğe ateş ederken namlu açısı
+  duckAt: 2.4, // bastırılınca eğilir (kalkanı yok: daha geç eğilir, çabuk kalkar)
+  duckTime: 1.0,
+  upTime: 3.0,
+  sweepDeg: 8,
+  sweepTime: 2.5,
+  dismountDelay: Infinity, // taret tam döndüğü için yay dışı yok: nişancı yerini bırakmaz
+  dismountRange: 0,
+  warnRange: 110,
+  restPitch: 0.3, // çatışmada hedef görünmezken namlu açısı
+  idleDrop: -0.1, // başında kimse kalmayınca namlunun indiği açı
+  skyFireRange: 170, // oyuncu bu kadar yakınsa top göğe ateş eder (uzaktan yerini belli eder)
+  baseH: 0.45, // platform çarpıştırıcısı: adım yüksekliğini aşmasın, üstüne çıkılabilsin
+  bodyHalf: 0.85, // taret gövdesi çarpıştırıcısı (yarı genişlik, yükseklik)
+  bodyH: 1.9,
+  barrelX: 0.35, // namlu uçları: guns grubunda (±x, 0, -len)
+  barrelLen: 3.4,
+  gripX: 0.28, // kumanda kolları: taret uzayında
+  gripY: 1.05,
+  gripZ: 0.5,
+  animPitchMin: -0.15, // nişancının gövde eğimi sınırı (namlu göğe dönükken arkaya yatmasın)
+  animPitchMax: 0.2,
 };
 
 // İskeletli asker (hazır model + prosedürel katmanlar). Değerler Soldier.glb klipleri ölçülerek bulundu:
@@ -561,9 +602,15 @@ export const SOLDIER_ANIM = {
     Right: { Index: [0.45, 0.5, 0.3], Middle: [1.15, 1.3, 0.8], Ring: [1.2, 1.3, 0.8], Pinky: [1.25, 1.2, 0.8] },
     Left: { Index: [0.8, 0.9, 0.5], Middle: [0.9, 1.0, 0.6], Ring: [0.95, 1.0, 0.6], Pinky: [1.0, 1.0, 0.6] },
   },
-  lodNear: 18, // bu mesafeden uzakta animasyon seyrek güncellenir (m)
-  lodFar: 50,
-  lodRates: [1 / 20, 1 / 10], // yakın-orta / uzak güncelleme aralığı (s)
+  // Uzaktaki askerin pozu daha seyrek güncellenir ama hiçbir mesafede donmaz; kök konumu her karede
+  // güncellenir (yoksa uzakta asker kayar ya da yerinde durup sonra sıçrar)
+  lodNear: 20, // bu mesafeye kadar her kare (m)
+  lodFar: 45,
+  lodVeryFar: 90,
+  lodRates: [1 / 30, 1 / 15, 1 / 8], // yakın-orta / uzak / çok uzak güncelleme aralığı (s)
+  blobFrom: 38, // gölge haritasının menzili dışında askerin altına yumuşak ayak gölgesi (m)
+  blobOpacity: 0.42,
+  envIntensity: 0.45, // ortam yansıması: gölgede ve uzakta asker simsiyah bir siluete dönmesin
   // Silah duruşları (omuz eklemine göre, gövde uzayında): stok konumu ve silah açıları
   stances: {
     aim: { stock: [-0.09, -0.03, 0.0], pitch: 0, yaw: 0.02, roll: 0 },
@@ -585,6 +632,7 @@ export const SOLDIER_LOOKS = {
   // Komando kademesi: koyu lacivert, parlak vizör (seçkin birlik)
   allyElite: { tint: [0.34, 0.5, 1.45], visor: 0x2a6adf, glow: 0x081436 },
   gunner: { tint: 0x9a927e, visor: 0x2a1208 },
+  aaGunner: { tint: 0x9a927e, visor: 0x2a1208 },
 };
 
 // Dost asker (oyuncunun mangası). Kalıcı ölmez: yaralanınca bir süre yerde kalıp toparlanır,
@@ -780,6 +828,16 @@ export const SOLDIER_HITBOXES = [
   { bone: 'LeftLeg', to: 'LeftFoot', width: 0.16, zone: 'limb' },
   { bone: 'RightLeg', to: 'RightFoot', width: 0.16, zone: 'limb' },
 ];
+
+// Görüntü çözünürlüğü: eller ve silah her zaman tam ekran çözünürlüğünde (keskin) çizilir; dünya kaliteye
+// göre ölçekli bir hedefe çizilip ekrana büyütülür. Telefonda dünyayı küçük çizmek akıcılığı korur,
+// en çok göze giren eller ve silah ise piksellenmez.
+export const RENDER = {
+  maxPixelRatio: 2, // tuvalin (eller + silah) en yüksek piksel oranı
+  worldPixelRatio: { high: 2, medium: 1.5, low: 1 }, // dünyanın en yüksek piksel oranı (masaüstü)
+  touchWorldPixelRatio: { high: 1.5, medium: 1.15, low: 0.85 }, // dokunmatik cihazlarda
+  msaa: { high: 4, medium: 4, low: 2 }, // dünya hedefinin kenar yumuşatma örnek sayısı
+};
 
 // Zorluk ayarları (DA_Difficulty karşılığı).
 export const DIFFICULTY = {

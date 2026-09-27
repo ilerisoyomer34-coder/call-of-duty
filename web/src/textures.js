@@ -78,11 +78,13 @@ function fillPixels(size, fn) {
   return c;
 }
 
+// Eğik bakılan zemin ve duvarlar bulanıklaşmasın: donanımın izin verdiği en yüksek anizotropi
+let maxAniso = 4;
 function toTexture(c, { repeat = true, srgb = true } = {}) {
   const t = new THREE.CanvasTexture(c);
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  t.anisotropy = 4;
+  t.anisotropy = maxAniso;
   t.generateMipmaps = true;
   t.minFilter = THREE.LinearMipmapLinearFilter;
   return t;
@@ -90,7 +92,8 @@ function toTexture(c, { repeat = true, srgb = true } = {}) {
 
 const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
 
-export function createTextures(quality = 'high') {
+export function createTextures(quality = 'high', anisotropy = 4) {
+  maxAniso = anisotropy;
   const big = quality === 'low' ? 256 : 512;
   const mid = quality === 'low' ? 128 : 256;
   const T = {};

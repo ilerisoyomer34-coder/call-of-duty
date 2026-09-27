@@ -12,6 +12,8 @@ const _p = new THREE.Vector3();
 const _r = new THREE.Euler();
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _upR = new THREE.Vector3(); // el sırtı yön ipuçları (poseArm)
+const _upL = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _hit = {};
 
@@ -42,7 +44,7 @@ export class Viewmodel {
     for (const id of WEAPON_ORDER) this.installModel(id, buildWeapon(id));
     // Blender modelleri hazır olunca yedek (prosedürel) modelin yerine geçer
     preloadWeapons(WEAPONS, (id, scene) => this.installModel(id, this.modelFromGlb(id, scene), true));
-    this.arms = buildArms();
+    this.arms = buildArms(textures);
     this.holder.add(this.arms.left.g, this.arms.right.g);
     this.grenade = buildGrenade();
     this.grenade.scale.setScalar(0.7);
@@ -472,8 +474,13 @@ export class Viewmodel {
       leftHand.copy(this.grenade.position).add(_v.set(0.01, -0.04, 0.05));
       elbowL.set(-0.3, -0.35, leftHand.z + 0.3);
     }
-    poseArm(this.arms.right, elbowR, rightHand);
-    poseArm(this.arms.left, elbowL, leftHand);
+    // El sırtı yönleri: sağ el kabzayı yandan kavrar, sol el kundağı alttan tutar (tabancada sağ eli sarar)
+    _upR.set(0.45, 1, 0.1);
+    if (cooking || throwing) _upL.set(0.2, 1, 0);
+    else if (handgun) _upL.set(-0.7, 0.6, 0);
+    else _upL.set(-0.35, -1, 0);
+    poseArm(this.arms.right, elbowR, rightHand, _upR);
+    poseArm(this.arms.left, elbowL, leftHand, _upL);
 
     // Kamera ve ışık
     const cam = g.camera;

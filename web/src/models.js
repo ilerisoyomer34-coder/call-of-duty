@@ -1,6 +1,7 @@
 // Prosedürel modeller: silahlar (birinci şahıs ve düşman), kollar, askerler, araçlar, görev nesneleri.
 // Sketchfab asset'leri gelene kadar yer tutucu değil, oyunun kendi görsel dili.
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const matCache = new Map();
 export function mat(color, rough = 0.7, metal = 0.1, extra = null) {
@@ -418,40 +419,110 @@ export const ENEMY_GUN_POINTS = {
 };
 
 // --- Birinci şahıs kollar ---
-export function buildArms() {
-  const sleeve = mat(0x59603f, 0.95, 0.0);
-  const glove = mat(0x2a2826, 0.85, 0.05);
-  const cuff = mat(0x4a4f36, 0.95, 0.0);
-  const mk = () => {
+// Birinci şahıs kollar: kumaş dokulu konik ön kol, katlanmış kol ağzı, eldivenli el (yuvarlatılmış avuç,
+// iki boğumlu bükülü dört parmak, başparmak). El parçaları tek geometride birleştirilir (tek çizim çağrısı).
+// side: 1 sağ, -1 sol (başparmak iç tarafta)
+export function buildArms(textures = null) {
+  const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x5f6948, roughness: 0.92, metalness: 0, map: textures?.canvas || null });
+  if (sleeveMat.map) {
+    sleeveMat.map = sleeveMat.map.clone();
+    sleeveMat.map.repeat.set(2, 3);
+    sleeveMat.map.needsUpdate = true;
+  }
+  const gloveMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58, metalness: 0.05 });
+  // Ön kol: z = 0 (dirsek) → 1 (bilek), boyu poseArm'da ölçeklenir
+  const foreGeo = new THREE.CylinderGeometry(0.041, 0.054, 1, 14, 1, true);
+  foreGeo.rotateX(Math.PI / 2);
+  foreGeo.translate(0, 0, 0.5);
+  const mk = (side) => {
     const g = new THREE.Group();
-    const fore = B(g, 0.082, 0.082, 1, sleeve, 0, 0, 0);
-    const cuffM = B(g, 0.09, 0.09, 0.05, cuff, 0, 0, 0);
-    const hand = B(g, 0.07, 0.05, 0.1, glove, 0, 0, 0);
-    const fingers = B(g, 0.065, 0.035, 0.05, glove, 0, 0, 0);
-    return { g, fore, cuff: cuffM, hand, fingers };
+    const fore = new THREE.Mesh(foreGeo, sleeveMat);
+    g.add(fore);
+    const hand = new THREE.Group();
+    const parts = new THREE.Group();
+    const leather = mat(0x2b2724, 0.58, 0.05);
+    const pad = mat(0x3b352f, 0.6, 0.05);
+    const cuff = mat(0x4f5739, 0.95, 0);
+    // Katlanmış kol ağzı ve eldiven bileği
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.035, 14), cuff);
+    roll.rotation.x = Math.PI / 2;
+    roll.position.z = -0.045;
+    parts.add(roll);
+    const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.05, 12), leather);
+    wrist.rotation.x = Math.PI / 2;
+    wrist.position.z = -0.01;
+    parts.add(wrist);
+    // Avuç: yuvarlatılmış kutu; üstte (el sırtı, +Y) boğum koruması
+    const palm = new THREE.Mesh(new RoundedBoxGeometry(0.078, 0.032, 0.088, 2, 0.012), leather);
+    palm.position.set(0, 0, 0.05);
+    parts.add(palm);
+    const knuckle = new THREE.Mesh(new RoundedBoxGeometry(0.07, 0.012, 0.022, 2, 0.005), pad);
+    knuckle.position.set(0, 0.018, 0.084);
+    parts.add(knuckle);
+    // Parmaklar: kavrama pozu (avuç tarafına, -Y'ye bükülü)
+    const seg = (len, r) => {
+      const geo = new THREE.CapsuleGeometry(r, len, 3, 8);
+      geo.rotateX(Math.PI / 2);
+      geo.translate(0, 0, len / 2 + r);
+      return geo;
+    };
+    const lens = [0.03, 0.034, 0.032, 0.026];
+    for (let i = 0; i < 4; i++) {
+      const x = (-0.027 + i * 0.018) * side;
+      const base = new THREE.Group();
+      base.position.set(x, 0, 0.092);
+      base.rotation.x = 1.05; // boğumdan aşağı bükülür
+      const p1 = new THREE.Mesh(seg(lens[i], 0.0085), leather);
+      base.add(p1);
+      const mid = new THREE.Group();
+      mid.position.z = lens[i] + 0.012;
+      mid.rotation.x = 1.0;
+      mid.add(new THREE.Mesh(seg(lens[i] * 0.8, 0.008), leather));
+      base.add(mid);
+      parts.add(base);
+    }
+    // Başparmak: iç yanda, öne ve avuca doğru
+    const thumb = new THREE.Group();
+    thumb.position.set(-0.04 * side, -0.006, 0.03);
+    thumb.rotation.set(0.55, -0.7 * side, 0);
+    thumb.add(new THREE.Mesh(seg(0.028, 0.0095), leather));
+    const tip = new THREE.Group();
+    tip.position.z = 0.04;
+    tip.rotation.x = 0.5;
+    tip.add(new THREE.Mesh(seg(0.022, 0.009), leather));
+    thumb.add(tip);
+    parts.add(thumb);
+    const merged = mergeGroup(parts, gloveMat);
+    hand.add(merged);
+    g.add(hand);
+    return { g, fore, hand, side };
   };
-  return { left: mk(), right: mk() };
+  return { left: mk(-1), right: mk(1) };
 }
 
-// Kol parçalarını dirsekten ele yerleştirir (basit IK).
+// Kolu dirsekten ele yerleştirir. up: el sırtının bakacağı yön ipucu (kamera uzayında); verilmezse yukarı.
+// Yön tabanı hem ön kola hem ele uygulanır: kumaş dokusu dönmez, parmaklar kabzaya sarılır.
 const _dir = new THREE.Vector3();
 const _q = new THREE.Quaternion();
-const _z = new THREE.Vector3(0, 0, 1);
-export function poseArm(arm, elbow, hand) {
+const _bx = new THREE.Vector3();
+const _by = new THREE.Vector3();
+const _bm = new THREE.Matrix4();
+const UP_DEFAULT = new THREE.Vector3(0, 1, 0);
+export function poseArm(arm, elbow, hand, up = UP_DEFAULT) {
   _dir.subVectors(hand, elbow);
   const len = _dir.length();
   _dir.divideScalar(len || 1);
-  _q.setFromUnitVectors(_z, _dir);
-  arm.fore.position.copy(elbow).addScaledVector(_dir, (len - 0.06) / 2);
+  _by.copy(up).addScaledVector(_dir, -up.dot(_dir));
+  if (_by.lengthSq() < 1e-6) _by.set(0, 1, 0).addScaledVector(_dir, -_dir.y);
+  _by.normalize();
+  _bx.crossVectors(_by, _dir);
+  _bm.makeBasis(_bx, _by, _dir);
+  _q.setFromRotationMatrix(_bm);
+  arm.fore.position.copy(elbow);
   arm.fore.quaternion.copy(_q);
-  arm.fore.scale.set(1, 1, Math.max(0.01, len - 0.06));
-  arm.cuff.position.copy(hand).addScaledVector(_dir, -0.07);
-  arm.cuff.quaternion.copy(_q);
-  arm.hand.position.copy(hand).addScaledVector(_dir, -0.01);
+  arm.fore.scale.set(1, 1, Math.max(0.01, len - 0.05));
+  arm.hand.position.copy(hand).addScaledVector(_dir, -0.05);
   arm.hand.quaternion.copy(_q);
-  arm.fingers.position.copy(hand).addScaledVector(_dir, 0.05);
-  arm.fingers.position.y -= 0.01;
-  arm.fingers.quaternion.copy(_q);
 }
 
 // --- Düşman askeri ---
@@ -578,7 +649,7 @@ export function buildSoldier(type, colors) {
   if (C.scale) root.scale.setScalar(C.scale);
   return { root, pelvis, spine, head, helmet, legL, legR, meshes: bodyMeshes, muzzleLocal };
 }
-export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle', gunner: 'rifle' };
+export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle', gunner: 'rifle', aaGunner: 'rifle' };
 
 // --- Görev nesneleri ---
 export function buildAAGun() {
@@ -597,7 +668,9 @@ export function buildAAGun() {
   B(turret, 1.4, 0.9, 1.0, olive, 0, 0.85, 0);
   B(turret, 0.08, 0.9, 1.1, olive, 0.75, 1.0, 0);
   B(turret, 0.08, 0.9, 1.1, olive, -0.75, 1.0, 0);
-  B(turret, 0.5, 0.5, 0.5, dark, 0, 0.7, 0.75); // koltuk
+  // Nişancının tuttuğu kumanda kolları (koltuk yok: nişancı taretin arkasında ayakta durur)
+  B(turret, 0.7, 0.04, 0.04, dark, 0, 1.05, 0.5);
+  for (const sx of [-0.28, 0.28]) B(turret, 0.04, 0.14, 0.04, dark, sx, 0.98, 0.5);
   const guns = new THREE.Group();
   guns.position.set(0, 1.3, -0.1);
   guns.rotation.x = 0.7;

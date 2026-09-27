@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   crouchMode: 'toggle',
   sprintMode: 'hold',
   quality: 'auto', // 'auto' | 'low' | 'medium' | 'high'
+  renderScale: 'auto', // dünya çözünürlüğü: 'auto' ya da '1' | '0.85' | '0.7' | '0.5' (eller ve silah hep tam)
   masterVolume: 0.8,
   sfxVolume: 1.0,
   ambientVolume: 0.6,
@@ -35,9 +36,10 @@ export function saveSettings(s) {
   storage.set(KEY, s);
 }
 
+// Dokunmatikte otomatik seçim "orta": dünya düşük çözünürlükte çizilse de eller ve silah keskin kalır
 export function resolveQuality(q, isTouch) {
   if (q !== 'auto') return q;
-  if (isTouch) return 'low';
+  if (isTouch) return 'medium';
   const cores = navigator.hardwareConcurrency || 4;
   return cores >= 8 ? 'high' : 'medium';
 }

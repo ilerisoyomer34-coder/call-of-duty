@@ -284,7 +284,7 @@ export function build(W) {
       },
       aa: {
         text: 'Uçaksavar toplarını C4 ile imha et', doneLine: 'Gökyüzü temiz! ', one: 'Güzel iş, bir top gitti. Diğerini de bul.',
-        radio: ['Köydeki iki uçaksavar topu hava desteğimizi engelliyor. İkisini de C4 ile patlat.', 'Toplar göğe ateş ediyor, izli mermilerden yerlerini görebilirsin.'],
+        radio: ['Köydeki iki uçaksavar topu hava desteğimizi engelliyor. İkisini de C4 ile patlat.', 'Toplar göğe ateş ediyor, izli mermilerden yerlerini görebilirsin. Başlarında nişancı var: seni görürse namluyu sana çevirir, açıkta durma.'],
       },
       intel: {
         text: 'Komuta merkezinden istihbaratı al',

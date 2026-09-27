@@ -435,7 +435,7 @@ export class Ally {
     const g = this.game;
     let best = null;
     let bestD = ALLY.suppress.range;
-    for (const n of g.mission?.nests || []) {
+    for (const n of g.mission?.mounts || []) {
       const e = n.gunner;
       if (!e.alive || e.mount !== n || e.aiState !== 'combat') continue;
       const d = eye.distanceTo(e.pos);
@@ -851,7 +851,7 @@ export class AllyManager {
     const rel = angleDiff(P.yaw, dirToYaw(enemy.pos.x - P.pos.x, enemy.pos.z - P.pos.z));
     const h = ((Math.round(-rel / (Math.PI / 6)) % 12) + 12) % 12;
     const m = Math.round(enemy.pos.distanceTo(P.pos) / 5) * 5;
-    const what = enemy.mount ? 'Makineli yuvası' : enemy.type === 'sniper' ? 'Keskin nişancı' : 'Düşman';
+    const what = enemy.mount?.calloutName || (enemy.type === 'sniper' ? 'Keskin nişancı' : 'Düşman');
     ally.say('contact', true, `${what}, saat ${CLOCK[h]} yönünde, ${m} metre!`);
     g.events.emit('allyMark', enemy, ALLY.callout.markTime);
   }
@@ -864,7 +864,7 @@ export class AllyManager {
     if (this.has('callout')) {
       this.calloutT = 0;
       this.callout(alive[0], nest.gunner);
-    } else g.mission?.radio(alive[0].name, 'Ağır makineli! Siper alın!', 0, 'ally');
+    } else g.mission?.radio(alive[0].name, `${nest.calloutName || 'Ağır makineli'}! Siper alın!`, 0, 'ally');
     if (this.has('flank') && !this.flanker) {
       // Oyuncudan en uzakta olmayan, yakındaki dost dolanır; diğerleri bastırır
       const cand = alive.slice().sort((a, b) => a.pos.distanceTo(nest.pos) - b.pos.distanceTo(nest.pos))[0];
