@@ -1,5 +1,5 @@
 // Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
-import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS } from './config.js';
+import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS, EXTRACT } from './config.js';
 import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
@@ -21,6 +21,7 @@ export class Menus {
   }
 
   show(id, push = true) {
+    if (id !== 'victoryScreen') this.stopCountdown();
     if (push && this.current && this.current !== id) this.stack.push(this.current);
     for (const s of SCREENS) $(s).hidden = s !== id;
     this.current = id;
@@ -35,6 +36,7 @@ export class Menus {
   }
 
   hideAll() {
+    this.stopCountdown();
     for (const s of SCREENS) $(s).hidden = true;
     this.current = null;
     this.stack = [];
@@ -67,12 +69,16 @@ export class Menus {
     click('btnQuit', () => g.toMenu());
     click('btnRespawn', () => g.respawn());
     click('btnDeathQuit', () => g.toMenu());
-    click('btnAgain', () => g.startMode(g.mode, g.difficultyKey, g.level.id));
-    click('btnNext', () => {
-      const next = LEVELS.find((l) => l.id === g.level.id + 1);
-      if (next) g.startMode('mission', g.difficultyKey, next.id);
+    click('btnAgain', () => {
+      this.stopCountdown();
+      g.startMode(g.mode, g.difficultyKey, g.level.id);
     });
-    click('btnVictoryMenu', () => g.toMenu());
+    click('btnNext', () => this.goNext());
+    click('btnHold', () => this.stopCountdown());
+    click('btnVictoryMenu', () => {
+      this.stopCountdown();
+      g.toMenu();
+    });
     click('btnDeploy', () => {
       const L = this.selLoadout;
       this.game.setLoadout(L.primary, L.secondary);
@@ -398,9 +404,44 @@ export class Menus {
     this.show('deathScreen', false);
   }
 
+  // Bölüm kartından sonraki bölüme geç (geri sayım bitince ya da düğmeyle)
+  goNext() {
+    const g = this.game;
+    this.stopCountdown();
+    const next = LEVELS.find((l) => l.id === g.level.id + 1);
+    if (next) g.startMode('mission', g.difficultyKey, next.id);
+  }
+
+  // Geri sayım: oyun döngüsü zafer ekranında durduğu için gerçek saatle ilerler
+  startCountdown(next) {
+    this.stopCountdown();
+    const total = EXTRACT.nextDelay;
+    const t0 = performance.now();
+    $('victoryNextText').textContent = `Sonraki bölüm: ${next.name} · ${MAPS[next.map]?.name || ''}`;
+    $('victoryNext').hidden = false;
+    $('btnHold').hidden = false;
+    const tick = () => {
+      const left = total - (performance.now() - t0) / 1000;
+      $('victoryCount').textContent = Math.max(0, Math.ceil(left));
+      $('victoryFill').style.transform = `scaleX(${Math.max(0, left / total)})`;
+      if (left <= 0) this.goNext();
+    };
+    tick();
+    this.countdown = setInterval(tick, 100);
+  }
+
+  stopCountdown() {
+    if (!this.countdown) return;
+    clearInterval(this.countdown);
+    this.countdown = null;
+    $('victoryCount').textContent = '–';
+    $('btnHold').hidden = true;
+    $('victoryNextText').textContent = 'Otomatik geçiş durduruldu';
+  }
+
   showVictory(stats, diffLabel, level = null, next = null, firstClear = false) {
     $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name} · ${MAPS[level.map]?.name || ''}` : 'Tahliye başarılı';
-    $('victoryTitle').textContent = next ? 'Seviye tamamlandı' : 'Operasyon tamamlandı';
+    $('victoryTitle').textContent = next ? 'Bölüm tamamlandı' : 'Operasyon tamamlandı';
     const un = $('victoryUnlock');
     un.hidden = !(firstClear && next);
     if (next) {
@@ -440,5 +481,7 @@ export class Menus {
     $('victoryRank').append(document.createTextNode('Değerlendirme: '), b, document.createTextNode(` · Zorluk: ${diffLabel}.${tail}`));
     this.stack = [];
     this.show('victoryScreen', false);
+    $('victoryNext').hidden = !next;
+    if (next) this.startCountdown(next);
   }
 }

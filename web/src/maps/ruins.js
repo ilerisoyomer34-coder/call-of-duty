@@ -181,6 +181,8 @@ export function build(W) {
       lz: { text: 'Stadyumdaki helikopter pistine ulaş' },
       defend: { radio: ['Şahin-2 yolda. Stadyumu tut, düşman dört bir yandan geliyor!'] },
     },
+    // Tank: belediyenin batısında, meydandan gelen caddeye bakar (roketatar meydanın batı yıkıntısında)
+    tanks: [{ pos: V(-26, -13), yaw: Math.PI, group: 'hq' }],
     hmg: [
       nest(2, 30, 0, 70, 'outpost'), // meydan, caddeye bakar
       nest(-16, -11, 0, 24, 'hq'), // belediye önü, batı

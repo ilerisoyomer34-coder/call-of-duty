@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { GRENADE, ALLY } from './config.js';
 import { buildGrenade, buildRocket } from './models.js';
-import { clamp, rand } from './util.js';
+import { clamp, rand, rayCylinder } from './util.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -39,11 +39,15 @@ export class GrenadeSystem {
       if (r.life <= 0) point = r.pos.clone();
       else {
         const wh = g.world.raycast(r.pos, _d, len + 0.15, _hit);
-        const eh = g.enemies.raycast(r.pos, _d, wh ? wh.dist : len + 0.15);
+        const maxT = wh ? wh.dist : len + 0.15;
+        // Düşman mermisi (tank topu) düşman askerlerinin içinden geçer; oyuncuya ya da dost askere çarpar
+        const eh = r.owner === 'enemy' ? null : g.enemies.raycast(r.pos, _d, maxT);
+        const fh = r.owner === 'enemy' ? this.foeHit(r.pos, _d, maxT) : -1;
         if (eh) {
           point = eh.point.clone();
           enemyHit = eh;
-        } else if (wh) point = wh.point.clone().addScaledVector(wh.normal, 0.25);
+        } else if (fh >= 0) point = r.pos.clone().addScaledVector(_d, fh);
+        else if (wh) point = wh.point.clone().addScaledVector(wh.normal, 0.25);
       }
       if (point) {
         this.rockets.splice(i, 1);
@@ -70,6 +74,20 @@ export class GrenadeSystem {
       }
       if (r.age < 0.05) fx.flashLight(r.pos, 0xffa050, 30, 6, 0.06);
     }
+  }
+
+  // Işın oyuncunun ya da bir dostun vuruş silindirine çarpıyor mu? (en yakın uzaklık, yoksa -1)
+  foeHit(o, d, maxT) {
+    const g = this.game;
+    let best = -1;
+    const test = (f) => {
+      if (!f.alive) return;
+      const t = rayCylinder(o, d, f.pos.x, f.pos.z, 0.45, f.pos.y, f.pos.y + (f.state?.height || 1.8) + 0.05, best >= 0 ? best : maxT);
+      if (t >= 0) best = t;
+    };
+    test(g.player);
+    for (const a of g.allies.list) test(a);
+    return best;
   }
 
   spawn(pos, vel, fuse, owner) {

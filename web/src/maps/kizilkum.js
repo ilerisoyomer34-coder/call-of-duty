@@ -216,6 +216,12 @@ export function build(W) {
       { id: 'rpg', pos: V(17.3, -33.4, 1.0), rotY: -0.3 },
     ],
     lz: V(0, -95),
+    // Savunmasız tahliye noktaları (Seviye 1–2): bir önceki hedefe göre, rotor çevresi en az 14 m açık;
+    // cp: tahliye başlarken kaydedilen kontrol noktası
+    extract: {
+      outpost: { pos: V(36, 84), cp: 1, radio: ['Şahin-2 yolun doğusundaki düzlüğe iniyor. Mangayı topla, helikoptere bin.'] },
+      aa: { pos: V(0, -5), cp: 2, radio: ['Şahin-2 köyün kuzeyindeki meydana iniyor. Helikoptere bin, limana gidiyoruz.'] },
+    },
     checkpoints: [
       { pos: V(0, 104), yaw: 0 },
       { pos: V(0, 58), yaw: 0 },

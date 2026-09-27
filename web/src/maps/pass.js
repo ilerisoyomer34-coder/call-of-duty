@@ -120,6 +120,7 @@ export function build(W) {
       { id: 'shotgun', pos: V(18, 48.5, 0.78), rotY: 0.2 },
       { id: 'sniper', pos: V(-34, 8, 1.1), rotY: 0.5 },
       { id: 'lmg', pos: V(30, 7, 1.05), rotY: 0 },
+      { id: 'rpg', pos: V(-6, 2, 1.1), rotY: 1.1 }, // uçaksavar mevkii: tanklar için
       { id: 'mar556', pos: V(5, -40.6, 0.8), rotY: 1.2 },
     ],
     lz: V(0, -90),
@@ -196,6 +197,11 @@ export function build(W) {
       lz: { text: 'Platodaki iniş pistine ulaş' },
       defend: { radio: ['Şahin-2 fırtınaya rağmen geliyor. Platoyu tut!'] },
     },
+    // Tanklar: doğu mevkiide karakoldan inen yola, sığınak kompleksinde avluya bakar
+    tanks: [
+      { pos: V(20, 18), yaw: Math.PI, group: 'village' },
+      { pos: V(22, -28), yaw: Math.PI, group: 'hq' },
+    ],
     hmg: [
       nest(-6, 52, -8, 84, 'outpost'), // karakol: yola bakar
       nest(0, 22, -2, 50, 'village'), // yol ortası

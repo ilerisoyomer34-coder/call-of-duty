@@ -82,6 +82,7 @@ export class HUD {
     E.on('noAmmo', () => this.message('CEPHANE YOK', 'warn'));
     // Mevzi ateş açtı: bir kez büyük uyarı; mini haritada kalıcı işaret
     E.on('hmgFire', (m) => this.message(m?.warnText || 'AĞIR MAKİNELİ ATEŞİ · SİPER AL', 'warn'));
+    E.on('tankSpotted', () => this.message('TANK! · ROKETATAR YA DA C4 KULLAN', 'warn'));
     // Dostun bildirdiği düşman kısa süre işaretli kalır
     this.marks = new Map();
     E.on('allyMark', (enemy, time) => this.marks.set(enemy, this.game.time + time));
@@ -600,7 +601,7 @@ export class HUD {
       ctx.fill();
     }
     // Kendini belli etmiş ağır makineli mevzileri: kırmızı üçgen (susturulunca kaybolur)
-    for (const n of g.mission?.nests || []) {
+    for (const n of g.mission?.mounts || []) {
       if (!n.warned || n.wrecked || !n.gunner.alive || n.gunner.mount !== n) continue;
       const [x, z] = toMap(n.pos.x, n.pos.z);
       ctx.save();
@@ -613,6 +614,19 @@ export class HUD {
       ctx.lineTo(-6.5, 5);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
+    }
+    // Kendini göstermiş tank: kırmızı gövde ve taretin baktığı yönde namlu
+    for (const t of g.mission?.tanks || []) {
+      if (!t.warned || t.destroyed) continue;
+      const [x, z] = toMap(t.pos.x, t.pos.z);
+      ctx.save();
+      ctx.translate(x, z);
+      ctx.rotate(-t.yaw);
+      ctx.fillStyle = '#ff5a3c';
+      ctx.fillRect(-4.5, -6.5, 9, 13);
+      ctx.rotate(-t.aimYaw);
+      ctx.fillRect(-1, -12, 2, 11);
       ctx.restore();
     }
     for (const mk of markers) {

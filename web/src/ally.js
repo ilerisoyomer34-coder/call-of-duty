@@ -857,6 +857,13 @@ export class AllyManager {
   }
 
   // Mevzi ilk kez ateş açtı (enemy.js çağırır): kademeye göre manga tepki verir (bildir, kanada dolan)
+  // Tank oyuncuyu gördü: manga bildirir (roketatar ya da C4 gerekir)
+  onTank() {
+    const alive = this.list.filter((a) => !a.down);
+    if (!alive.length) return;
+    this.game.mission?.radio(alive[0].name, 'Tank! Siper alın, mermi işlemez. Roketatar ya da C4 lazım!', 0, 'ally');
+  }
+
   onHmgFire(nest) {
     const g = this.game;
     const alive = this.list.filter((a) => !a.down);

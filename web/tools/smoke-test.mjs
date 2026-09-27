@@ -259,8 +259,25 @@ console.log('Bağımsız sürüm (dist/index.html)');
     const h = g.mission.heli.root.position;
     g.player.reset(new g.player.pos.constructor(h.x + 3, 0, h.z + 3), 0);
   });
+  await page.waitForFunction(() => !!window.__game.mission.takeoff || window.__game.state !== 'playing', null, { timeout: 60000 }).catch(() => {});
+  await waitGame(page, 1.2);
+  const cine = await page.evaluate(() => {
+    const g = window.__game;
+    const H = g.mission.heli;
+    return { on: !!g.mission.takeoff, camInHeli: g.camera.position.distanceTo(H.root.position) < 4, climb: H.root.position.y, hud: document.getElementById('hud').hidden, safe: g.player.invulnerable };
+  });
+  check(cine.on && cine.camInHeli && cine.hud && cine.safe, `Helikoptere binildi: kalkış sahnesi, kamera kabinde (yükseklik ${cine.climb.toFixed(1)} m)`);
+  await page.screenshot({ path: join(shots, '05b-takeoff.png') });
+  await page.evaluate(() => (window.__game.mission.takeoff.t = 6));
   await page.waitForFunction(() => window.__game.state === 'victory', null, { timeout: 60000 }).catch(() => {});
   check((await state(page)) === 'victory', 'Görev tamamlandı ekranı');
+  // Geri sayım gerçek saatle işler: ekran görüntüsü sürerken sonraki bölüme geçmesin diye hemen beklet
+  const hold = await page.evaluate(() => {
+    const shown = !document.getElementById('victoryNext').hidden;
+    document.getElementById('btnHold').click();
+    return { shown, stopped: document.getElementById('btnHold').hidden };
+  });
+  check(hold.shown && hold.stopped, 'Bölüm kartında geri sayım vardı, "Beklet" durdurdu');
   await page.screenshot({ path: join(shots, '06-victory.png') });
 
   // Ölüm ve yeniden doğma
@@ -270,6 +287,8 @@ console.log('Bağımsız sürüm (dist/index.html)');
     const P = window.__game.player;
     for (let i = 0; i < 12; i++) P.health.damage(20);
     P.die();
+    // Yazılımsal GPU'da oyun saati yavaş: ölüm kamerasının 2,2 sn'sini doğrudan geç
+    window.__game.deathT = 2.1;
   });
   await page.waitForFunction(() => window.__game.state === 'dead', null, { timeout: 60000 }).catch(() => {});
   check((await state(page)) === 'dead', 'Ölüm ekranı açıldı');
@@ -367,15 +386,32 @@ console.log('Seviyeler ve dost manga');
   check(fight.shots > 0, `Dostlar düşmana ateş etti (${fight.shots} mermi, ${fight.hurt} düşman yaralı/etkisiz)`);
   await page.screenshot({ path: join(shots, '09b-squad-fight.png') });
   // Seviyeyi bitir: sonraki seviye açılır
+  // Kontrol noktası temizlenince helikopter tahliyeye gelir; binince kalkış, sonra bölüm kartı
   await page.evaluate(() => window.__game.enemies.killAll());
+  await page.waitForFunction(() => window.__game.mission.current?.id === 'extract' || window.__game.state !== 'playing', null, { timeout: 60000 }).catch(() => {});
+  const ex = await page.evaluate(() => {
+    const M = window.__game.mission;
+    return { obj: M.current?.id, heli: !!M.heli, at: M.heli ? [M.heli.lz.x, M.heli.lz.z] : null };
+  });
+  check(ex.obj === 'extract' && ex.heli, `Seviye 1: bölge temizlenince helikopter tahliyeye geliyor (${ex.at})`);
+  await page.evaluate(() => (window.__game.mission.heli.t = 19.9));
+  await waitGame(page, 0.4);
+  await page.evaluate(() => {
+    const g = window.__game;
+    const h = g.mission.heli.root.position;
+    g.player.reset(new g.player.pos.constructor(h.x + 3, 0, h.z), 0);
+  });
+  await page.waitForFunction(() => !!window.__game.mission.takeoff, null, { timeout: 60000 }).catch(() => {});
+  check(await page.evaluate(() => !!window.__game.mission.takeoff && window.__game.allies.list.every((a) => !a.model.root.visible)), 'Seviye 1: oyuncu ve manga helikoptere bindi, kalkış başladı');
+  await page.evaluate(() => (window.__game.mission.takeoff.t = 6));
   await page.waitForFunction(() => window.__game.state === 'victory', null, { timeout: 60000 }).catch(() => {});
-  const v = await page.evaluate(() => ({ state: window.__game.state, unlocked: window.__game.progress.unlocked, next: !document.getElementById('btnNext').hidden, title: document.getElementById('victoryTitle').textContent }));
-  check(v.state === 'victory' && v.unlocked === 2 && v.next, `Seviye 1 bitti, Seviye 2 açıldı (${v.title})`);
+  const v = await page.evaluate(() => ({ state: window.__game.state, unlocked: window.__game.progress.unlocked, next: !document.getElementById('btnNext').hidden, title: document.getElementById('victoryTitle').textContent, count: !document.getElementById('victoryNext').hidden }));
+  check(v.state === 'victory' && v.unlocked === 2 && v.next && v.count, `Seviye 1 bitti, Seviye 2 açıldı, geri sayım başladı (${v.title})`);
   await page.screenshot({ path: join(shots, '09c-level-clear.png') });
-  await page.click('#btnNext');
-  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
+  // Düğmeye basmadan: geri sayım bitince sonraki bölüm kendiliğinden başlar
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
   const s2 = await page.evaluate(() => ({ level: window.__game.level.id, allies: window.__game.allies.list.length, obj: window.__game.mission.current.id }));
-  check(s2.level === 2 && s2.allies === 3 && s2.obj === 'aa', `Sonraki seviye: Seviye 2 uçaksavar hedefiyle başladı`);
+  check(s2.level === 2 && s2.allies === 3 && s2.obj === 'aa', `Geri sayım bitti: Seviye 2 uçaksavar hedefiyle kendiliğinden başladı`);
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();
@@ -448,8 +484,8 @@ console.log('Etkileşimler');
   await waitGame(page, 0.2);
   check(await page.evaluate(() => { const w = window.__game.weapons.current; return w.reserve === w.data.reserveMax; }), 'İkmal sandığı cephaneyi doldurdu');
   await page.screenshot({ path: join(shots, '13-interact.png') });
-  await page.waitForFunction(() => window.__game.state === 'victory', null, { timeout: 60000 }).catch(() => {});
-  check((await state(page)) === 'victory', 'İki top da patlayınca Seviye 2 bitti');
+  await page.waitForFunction(() => window.__game.mission.current?.id === 'extract', null, { timeout: 60000 }).catch(() => {});
+  check(await page.evaluate(() => window.__game.mission.current?.id === 'extract' && !!window.__game.mission.heli), 'İki top da patlayınca tahliye hedefi başladı, helikopter yolda');
   // İstihbarat: Yıkık Şehir'deki belediye binası
   await page.evaluate(() => window.__game.startMode('mission', 'normal', 4));
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
@@ -496,7 +532,14 @@ console.log('Haritalar, mevziler ve manga kademeleri');
       for (const a of D.aaGuns || []) reach(s, a.pos.clone().add({ x: 0, y: 0, z: 2.2 }), a.id);
       if (D.laptop) reach(s, D.laptop.pos.clone().setY(0).add({ x: 0, y: 0, z: 1.2 }), 'istihbarat');
       reach(s, D.lz, 'iniş');
+      for (const [k, x] of Object.entries(D.extract || {})) reach(s, x.pos, `tahliye-${k}`);
+      for (const t of g.mission.tanks) {
+        // Tank gövdesinin çevresi yürünebilir olmalı (C4 için yanına varılır)
+        const side = new g.player.pos.constructor(t.box.maxx + 1.2, 0, t.pos.z);
+        if (!walk(side)) reach(s, side, `${t.id}-yanı`);
+      }
       return {
+        tanks: g.mission.tanks.length,
         state: g.state, map: g.level.map, gunners: g.enemies.list.filter((e) => e.type === 'gunner' && e.mount).length,
         rank: g.allies.list[0]?.S.rank, tag: g.allies.list[0]?.rankName, issues, fog: g.scene.fog.color.getHexString(),
       };
@@ -505,6 +548,8 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     check(r.state === 'playing' && r.map === map, `Seviye ${id}: ${map} haritası açıldı`);
     check(r.gunners === hmg, `Seviye ${id}: ${hmg} ağır makineli mevzi (${r.gunners})`);
     check(r.rank === rank, `Seviye ${id}: manga kademesi ${rank} (etiket "${r.tag}")`);
+    const tanks = { 4: 1, 5: 2, 6: 2 }[id] || 0;
+    check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
     if (id >= 3) {
       await waitGame(page, 1.0);
@@ -692,6 +737,167 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     return f ? { name: f.name, out: !n.inArc(Math.atan2(-(f.flankGoal.x - n.pos.x), -(f.flankGoal.z - n.pos.z))) } : null;
   });
   check(!!fl && fl.out, `Komando mevziyi yandan vurmak için yayın dışına dolandı (${fl?.name})`);
+
+  // Uçaksavar nişancısı: taret oyuncuya döner, parça tesirli mermiyle ateş eder; nişancı ölünce top susar
+  await start(2);
+  const aa = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    g.cheats.god = false;
+    g.cheats.aiOff = false; // önceki denemeler yapay zekâyı dondurmuş olabilir
+    g.allies.clear();
+    for (const e of g.enemies.list) if (!e.mount) e.alive = false;
+    const a = g.mission.aa[0];
+    const e = a.gunner;
+    let at = null;
+    for (let k = 0; k < 64 && !at; k++) {
+      for (const d of [30, 36, 26]) {
+        const p = new V(a.pos.x + Math.sin(k * 0.1) * d, 0, a.pos.z + Math.cos(k * 0.1) * d);
+        if (g.nav.isWalkable(p.x, p.z) && g.world.lineOfSight(p.clone().setY(1.5), e.eyePos(new V()))) {
+          at = p;
+          break;
+        }
+      }
+    }
+    if (!at) return { gunner: e?.type, noSpot: true };
+    g.player.reset(at, 0);
+    e.foe = g.player;
+    e.lastKnown.copy(at);
+    e.lastSeen = g.time;
+    e.enterCombat();
+    const s0 = e.shotCount;
+    const hp0 = g.player.health.hp;
+    let bursts = 0;
+    const fb = e.flakBurst.bind(e);
+    e.flakBurst = (p) => {
+      bursts++;
+      fb(p);
+    };
+    for (let i = 0; i < 450 && g.player.alive; i++) {
+      g.time += 1 / 30;
+      g.enemies.update(1 / 30);
+      g.mission.update(1 / 30);
+    }
+    const res = { gunner: e.type, fired: e.shotCount - s0, bursts, dmg: Math.round(hp0 - g.player.health.hp), warned: a.warned };
+    g.cheats.god = true;
+    e.takeDamage(999, { zone: 'head', dir: new V(0, 0, 1), source: 'cheat' });
+    g.mission.aa[1].destroyed = true; // öbür topun göğe ateşi sayımı karıştırmasın
+    let tr = 0;
+    const ot = g.effects.tracer;
+    g.effects.tracer = function (...x) {
+      tr++;
+      return ot.apply(this, x);
+    };
+    for (let i = 0; i < 240; i++) {
+      g.time += 1 / 30;
+      g.enemies.update(1 / 30);
+      g.mission.update(1 / 30);
+    }
+    g.effects.tracer = ot;
+    res.after = tr;
+    return res;
+  });
+  check(aa.gunner === 'aaGunner' && aa.fired >= 5 && aa.dmg > 0, `Uçaksavar oyuncuya döndü ve ateş etti (${aa.fired} mermi, ${aa.bursts} parça patlaması, hasar ${aa.dmg})`);
+  check(aa.warned, 'Uçaksavar ilk atışta HUD uyarısı verdi');
+  check(aa.after === 0, `Nişancı ölünce uçaksavar sustu (${aa.after} izli mermi)`);
+
+  // Tank: top ve eş eksenli makineliyle ateş eder; mermi zırhı delmez, el bombası az, roket ve C4 imha eder
+  await start(4);
+  const tk = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    g.cheats.god = false;
+    g.cheats.aiOff = false;
+    g.allies.clear();
+    for (const e of g.enemies.list) e.alive = false;
+    const t = g.mission.tanks[0];
+    let at = null;
+    for (let k = 0; k < 64 && !at; k++) {
+      const p = new V(t.pos.x - Math.sin(t.yaw + k * 0.1) * 35, 0, t.pos.z - Math.cos(t.yaw + k * 0.1) * 35);
+      if (g.nav.isWalkable(p.x, p.z) && g.world.lineOfSight(t.sightPos(new V()), p.clone().setY(1.3))) at = p;
+    }
+    if (!at) return { noSpot: true };
+    g.player.reset(at, 0);
+    let shells = 0;
+    const off = g.events.on('tankFire', () => shells++);
+    let coax = 0;
+    const oc = t.fireCoax.bind(t);
+    t.fireCoax = () => {
+      coax++;
+      oc();
+    };
+    const hp0 = g.player.health.hp;
+    for (let i = 0; i < 400 && g.player.alive; i++) {
+      g.time += 1 / 30;
+      g.mission.update(1 / 30);
+      g.grenades.updateRockets(1 / 30);
+    }
+    off();
+    const res = { shells, coax, dmg: Math.round(hp0 - g.player.health.hp), warned: t.warned };
+    g.cheats.god = true;
+    const from = new V(t.box.maxx + 4, 1.0, t.pos.z);
+    const hp1 = t.hp;
+    const tr = g.weapons.trace(from, new V(-1, 0, 0), 50, from);
+    t.onShot();
+    res.bullet = tr.collider?.owner === t ? tr.surface : 'kaçtı';
+    res.bulletDmg = hp1 - t.hp;
+    g.explode(new V(t.box.maxx + 2, 0.3, t.pos.z), 7.5, 170, 'player');
+    res.grenade = Math.round(hp1 - t.hp);
+    // Gerçek roket: dünyaya (tank gövdesine) çarpıp patlar
+    const hp2 = t.hp;
+    g.grenades.spawnRocket(new V(t.box.maxx + 3, 1.1, t.pos.z), new V(-1, 0, 0), { rocketSpeed: 55, damage: 280, splashRadius: 6.5, splashDamage: 230 }, 'player');
+    for (let i = 0; i < 40 && g.grenades.rockets.length; i++) g.grenades.updateRockets(1 / 30);
+    res.rocket = Math.round(hp2 - t.hp);
+    let n = 1;
+    while (!t.destroyed && n < 6) {
+      g.explode(new V(t.box.maxx + 0.25, 1.2, t.pos.z), 6.5, 230, 'player', 1.25);
+      n++;
+    }
+    res.rockets = n;
+    res.destroyed = t.destroyed;
+    return res;
+  });
+  check(!tk.noSpot && tk.shells >= 1 && tk.coax > 5 && tk.dmg > 0, `Tank oyuncuya top ve makineliyle ateş etti (${tk.shells} top, ${tk.coax} makineli, hasar ${tk.dmg})`);
+  check(tk.warned, 'Tank görününce uyarı verdi');
+  check(tk.bullet === 'metal' && tk.bulletDmg === 0, `Mermi tank zırhında kıvılcım çıkardı, hasar vermedi (${tk.bullet})`);
+  check(tk.grenade > 0 && tk.grenade < 100 && tk.rocket > 250, `El bombası az (${tk.grenade}), roket çok (${tk.rocket}) hasar verdi`);
+  check(tk.destroyed && tk.rockets === 3, `Tank üç roketle imha edildi (${tk.rockets})`);
+  await start(5);
+  const c4 = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    g.cheats.god = true;
+    g.cheats.aiOff = true;
+    const t = g.mission.tanks[0];
+    g.player.reset(new V(t.box.maxx + 0.8, 0, t.pos.z), Math.PI / 2);
+    g.mission.update(1 / 30);
+    const it = g.mission.findInteractable(g.player.pos.clone().setY(1.6), new V(-1, 0, 0));
+    const id = it?.id;
+    it?.action();
+    for (let i = 0; i < 200; i++) {
+      g.time += 1 / 30;
+      g.mission.update(1 / 30);
+    }
+    return { id, destroyed: t.destroyed };
+  });
+  check(c4.id === 'tank0' && c4.destroyed, `Tanka C4 yerleştirildi ve tank imha edildi (${c4.id})`);
+
+  // Uzaktaki asker: 110 m ötede de her karede yerini ve yönünü günceller (donmaz)
+  const far = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    const e = g.enemies.list.find((x) => x.alive && !x.mount && !x.spec.elevated);
+    g.player.reset(e.pos.clone().add(new V(0, 0, 115)), 0);
+    let worst = 0;
+    for (let i = 0; i < 12; i++) {
+      e.pos.x += 0.12;
+      g.time += 1 / 30;
+      g.enemies.update(1 / 30);
+      worst = Math.max(worst, Math.hypot(e.model.root.position.x - e.pos.x, e.model.root.position.z - e.pos.z));
+    }
+    return { dist: Math.round(e.pos.distanceTo(g.player.pos)), worst, blob: !!e.model.blob?.visible };
+  });
+  check(far.worst < 0.05 && far.blob, `${far.dist} m ötedeki asker her karede yer değiştirdi (sapma ${far.worst.toFixed(3)} m), ayak gölgesi var`);
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();
@@ -866,6 +1072,9 @@ console.log('Telefon görünümü');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   await sleep(1200);
   check(await page.isVisible('#tbFire'), 'Dokunmatik kontroller görünüyor');
+  // Dünya ölçekli hedefe, eller ve silah tuvale tam cihaz çözünürlüğünde çizilir
+  const pr = await page.evaluate(() => ({ canvas: window.__game.renderer.getPixelRatio(), world: window.__game.worldPR, rt: !!window.__game.worldRT, q: window.__game.renderQuality }));
+  check(pr.canvas === 2 && pr.world < pr.canvas && pr.rt, `Telefonda eller/silah tam çözünürlükte (${pr.canvas}×), dünya ölçekli (${pr.world.toFixed(2)}×, ${pr.q})`);
   await page.screenshot({ path: join(shots, '12-mobile-play.png') });
   await ctx.close();
 }

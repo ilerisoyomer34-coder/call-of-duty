@@ -336,6 +336,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .seg .diff b { font-size: 17px; }
 .seg .diff.sel { background: #1b2126; box-shadow: inset 0 -3px 0 var(--amber); color: var(--amber); }
 .tip.unlock { color: var(--olive); }
+/* Bölüm kartı: sonraki bölüme otomatik geçiş geri sayımı (doluluk çubuğu kalan süreyi gösterir) */
+.nextBar { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 14px 14px; border: 1px solid rgba(240,163,58,.45); background: rgba(240,163,58,.08); font-weight: 600; letter-spacing: .02em; }
+.nextBar[hidden] { display: none; }
+.nextBar b { font-size: 1.4em; color: var(--accent, #f0a33a); min-width: 1.2em; text-align: center; }
+.nextBar .btn.small { margin-left: auto; padding: 6px 12px; font-size: .85em; }
+.nextBar i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.08); }
+.nextBar em { display: block; height: 100%; width: 100%; background: var(--accent, #f0a33a); transform-origin: left; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stats div { background: var(--panel-solid); padding: 14px; }
@@ -645,7 +652,8 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <p class="tip" id="victoryRank"></p>
       <p class="tip unlock" id="victoryUnlock" hidden></p>
       <div class="stats" id="victoryStats"></div>
-      <div class="row"><button class="btn primary" id="btnNext" hidden>Sonraki seviye</button><button class="btn" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
+      <div class="row"><button class="btn primary" id="btnNext" hidden>Sonraki bölüme geç</button><button class="btn" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
+      <div class="nextBar" id="victoryNext" hidden><span id="victoryNextText">Sonraki bölüme geçiliyor</span><b id="victoryCount">6</b><button class="btn small" id="btnHold">Beklet</button><i><em id="victoryFill"></em></i></div>
     </div>
   </section>
 

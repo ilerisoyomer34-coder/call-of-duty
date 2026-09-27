@@ -7,7 +7,7 @@ import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG } from '
 import { applyRadialDamage } from './grenades.js';
 import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
-import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp } from './util.js';
+import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp, rayCylinder } from './util.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -21,25 +21,6 @@ const _hit = {};
 const _ray = new THREE.Raycaster();
 const UP = new THREE.Vector3(0, 1, 0);
 const FOE_PLAYER_BIAS = 1.25; // oyuncu, dosttan bu kat uzakta olsa bile hedef seçilir
-
-// Işın - dikey silindir kesişimi (oyuncu vuruş kutusu)
-function rayCylinder(o, d, cx, cz, r, y0, y1, maxT) {
-  const ox = o.x - cx;
-  const oz = o.z - cz;
-  const a = d.x * d.x + d.z * d.z;
-  if (a < 1e-8) return -1;
-  const b = 2 * (ox * d.x + oz * d.z);
-  const c = ox * ox + oz * oz - r * r;
-  const disc = b * b - 4 * a * c;
-  if (disc < 0) return -1;
-  const sq = Math.sqrt(disc);
-  let t = (-b - sq) / (2 * a);
-  if (t < 0) t = (-b + sq) / (2 * a);
-  if (t < 0 || t > maxT) return -1;
-  const y = o.y + d.y * t;
-  if (y < y0 || y > y1) return -1;
-  return t;
-}
 
 let nextId = 1;
 

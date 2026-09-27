@@ -574,6 +574,67 @@ export const AA_GUN = {
   animPitchMax: 0.2,
 };
 
+// Helikopterle tahliye (mission.js): geliş, biniş, kalkış sahnesi, sonraki bölüme otomatik geçiş
+export const EXTRACT = {
+  approach: 20, // helikopterin gelip konma süresi (s)
+  boardRadius: 6.5,
+  takeoff: 6.5, // kalkış sahnesi süresi; bitince bölüm kartı
+  climb: 34, // kalkışta çıkılan yükseklik
+  speed: 26, // hızlanınca ileri hız (m/s)
+  accelTime: 2.5,
+  seat: [0.4, 2.05, 0.7], // kamera: kabinin içi, sağ kapının önü (helikopter uzayı)
+  look: [1, -0.5, 0.6], // kameranın bakış yönü: kapıdan dışarı, aşağı ve geriye (geride kalan savaş alanına)
+  nextDelay: 6, // bölüm kartında sonraki bölüme geçiş geri sayımı (s)
+};
+
+// Düşman tankı (tank.js). Zırhı mermi delmez; roket 3 isabette, C4 tek başına imha eder
+export const TANK = {
+  hp: 1000,
+  // Model ölçüleri (models.js → buildTank): gövde, taret ve top ekseni
+  hullLen: 6.8,
+  hullWidth: 3.4,
+  turretY: 1.62,
+  turretZ: 0.2,
+  gunY: 0.42,
+  gunZ: -1.1,
+  barrelLen: 4.6,
+  coaxX: 0.42,
+  // Çarpıştırıcılar: gövde kutusu ve taret kutusu (yarı genişlik)
+  colliderH: 1.75,
+  turretHalf: 1.5,
+  turretColH: 2.55,
+  // Algı: uyanıkken görüş menzili; uyanmadan önce yalnız bu yakınlıktaki hedefi fark eder
+  viewRange: 95,
+  wakeRange: 55,
+  think: 0.2,
+  forgetTime: 6, // hedef gözden kaybolunca son bilinen yere bu kadar nişanlı kalır
+  turnRate: 0.45, // taret dönüşü (rad/s): koşan oyuncu yandan dolanabilsin
+  idleSweep: 0.5,
+  pitchMin: -0.12,
+  pitchMax: 0.3,
+  // Ana top: hizalanınca aimTime bekler (oyuncuya kaçma payı), sonra ateş; dolum süresi
+  fireAlign: 0.05,
+  aimTime: 1.4,
+  reload: 6.5,
+  minGunRange: 7,
+  shell: { rocketSpeed: 110, damage: 0, splashRadius: 5.5, splashDamage: 120, errDeg: 0.8, errPerM: 0.012 },
+  muzzleFx: 0.35,
+  // Eş eksenli makineli
+  coaxAlign: 0.2,
+  coax: { rpm: 450, damage: 8, burst: [6, 12], burstGap: [0.8, 1.4], range: 80, errDeg: 2.2 },
+  // Patlama hasarı: gövde kutusuna uzaklık hitRadius'tan azsa tam; menzil patlama yarıçapının splashReach katı
+  hitRadius: 1.2,
+  splashReach: 0.6,
+  explosiveHeavy: 200, // bu hasarın üstü ağır patlayıcı (roket 230, C4 400); altı hafif (el bombası 170)
+  heavyMult: 1.5,
+  lightMult: 0.2,
+  c4Radius: 1.6, // C4 etkileşimi: gövdenin oyuncuya en yakın noktasından
+  c4Y: 1.0,
+  shotHintAfter: 6, // bu kadar mermi zırha çarpınca ipucu
+  wreckBlast: { radius: 7, damage: 160 },
+  score: 750,
+};
+
 // İskeletli asker (hazır model + prosedürel katmanlar). Değerler Soldier.glb klipleri ölçülerek bulundu:
 // yürüyüşte yerdeki ayak 1,65 m/s, koşuda 4,2 m/s geri kayıyor → bir tam adım döngüsü 1,70 / 2,94 m.
 export const SOLDIER_ANIM = {
@@ -753,18 +814,18 @@ export const LEVELS = [
   {
     id: 1, map: 'kizilkum', name: 'Kontrol Noktası', tag: 'Kolay',
     brief: 'Kuzeydeki kontrol noktasını mangayla birlikte temizle. Yavaş tepki veren, az isabet ettiren muhafızlar.',
-    start: 0, objectives: ['outpost'], allies: 3, allyTier: 1,
+    start: 0, objectives: ['outpost', 'extract'], allies: 3, allyTier: 1,
     radioIntro: 'Kızılkum Vadisi\'ne hoş geldiniz. Kartal-1, mangan arkanda: üç tüfekçi.',
-    outro: 'Kontrol noktası temiz. Güzel iş Kartal ekibi, köyün kuzeyinde mevzilenin.',
+    outro: 'Herkes içeride. Güzel iş Kartal ekibi, sizi köyün kuzeyine bırakıyoruz.',
     enemies: { groups: ['outpost'], exclude: ['shotgunner'], hmg: 0 },
     tuning: { reaction: 1.45, aim: 1.55, damage: 0.6, perception: 0.85, awareness: 0.75, attackers: -1, grenades: false },
   },
   {
     id: 2, map: 'kizilkum', name: 'Uçaksavarlar', tag: 'Kolay-orta',
     brief: 'Köydeki iki uçaksavar topunu C4 ile imha et. Pompalılar hücum eder, çatıda nöbetçi var.',
-    start: 1, objectives: ['aa'], allies: 3, allyTier: 2,
+    start: 1, objectives: ['aa', 'extract'], allies: 3, allyTier: 2,
     radioIntro: 'Kontrol noktası bizde. Sıradaki iş köyde.',
-    outro: 'İki top da sustu, gökyüzü bizim! Kartal ekibi, sizi limana gönderiyoruz.',
+    outro: 'Gökyüzü bizim! Kartal ekibi, sizi doğruca limana götürüyoruz.',
     enemies: { groups: ['village'], exclude: ['heavy'], hmg: 0 },
     tuning: { reaction: 1.2, aim: 1.25, damage: 0.8, perception: 0.95, awareness: 0.9, attackers: 0, grenades: false },
   },
@@ -784,7 +845,7 @@ export const LEVELS = [
     start: 0, objectives: ['outpost', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 3,
     radioIntro: 'Şehir merkezine giriyorsunuz. Yıkıntılar siper dolu ama pencerelerde makineli var.',
     outro: 'Tahliye tamam. İstihbarat komutanlığa ulaştı.',
-    enemies: { groups: ['outpost', 'hq'], exclude: [], reinforcements: true, hmg: 3 },
+    enemies: { groups: ['outpost', 'hq'], exclude: [], reinforcements: true, hmg: 3, tanks: 1 },
     defendTime: 90,
     tuning: { reaction: 0.95, aim: 0.98, damage: 1.0, perception: 1.03, awareness: 1.08, attackers: 0, grenades: true },
   },
@@ -794,7 +855,7 @@ export const LEVELS = [
     start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 4,
     radioIntro: 'Geçitte görüş kısa, kar sesleri yutuyor. Sığınakların mazgallarında ağır makineliler var.',
     outro: 'Tahliye tamam. Geçit açıldı.',
-    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], reinforcements: true, hmg: 4 },
+    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], reinforcements: true, hmg: 4, tanks: 2 },
     defendTime: 100,
     tuning: { reaction: 0.88, aim: 0.9, damage: 1.08, perception: 1.06, awareness: 1.15, attackers: 1, grenades: true },
   },
@@ -804,7 +865,7 @@ export const LEVELS = [
     start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
     radioIntro: 'Demir Şafak başladı. Karanlık seni gizler ama onları da. Komando mangan hazır.',
     outro: 'Tahliye tamam. Demir Şafak operasyonu başarıyla tamamlandı.',
-    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 5 },
+    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 5, tanks: 2 },
     defendTime: 115,
     tuning: { reaction: 0.82, aim: 0.85, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
   },
@@ -836,7 +897,8 @@ export const RENDER = {
   maxPixelRatio: 2, // tuvalin (eller + silah) en yüksek piksel oranı
   worldPixelRatio: { high: 2, medium: 1.5, low: 1 }, // dünyanın en yüksek piksel oranı (masaüstü)
   touchWorldPixelRatio: { high: 1.5, medium: 1.15, low: 0.85 }, // dokunmatik cihazlarda
-  msaa: { high: 4, medium: 4, low: 2 }, // dünya hedefinin kenar yumuşatma örnek sayısı
+  msaa: { high: 4, medium: 4, low: 2 },
+  anisotropy: { high: 16, medium: 8, low: 4 }, // doku süzme üst sınırı (cihazın izin verdiğiyle sınırlı) // dünya hedefinin kenar yumuşatma örnek sayısı
 };
 
 // Zorluk ayarları (DA_Difficulty karşılığı).

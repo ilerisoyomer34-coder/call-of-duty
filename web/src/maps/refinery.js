@@ -136,6 +136,7 @@ export function build(W) {
       { id: 'shotgun', pos: V(16, 58, 0.75), rotY: 0.1 },
       { id: 'lmg', pos: V(-12, 55, 1.05), rotY: 0 },
       { id: 'sniper', pos: V(-10, 24, 1.1), rotY: 0.6 },
+      { id: 'rpg', pos: V(20, 0, 1.1), rotY: 0.9 }, // pompaların yanı: tanklar için
       { id: 'smg', pos: V(-48, -46, 1.2), rotY: 0.4 },
     ],
     lz: V(0, -86),
@@ -214,6 +215,11 @@ export function build(W) {
       lz: { text: 'Kuzeydeki helikopter pistine ulaş' },
       defend: { radio: ['Şahin-2 batıdan geliyor. Şafak sökene dek pisti tut!'] },
     },
+    // Tanklar: kapının içinde pompa sahasına, kontrol odasının doğusunda avluya bakar
+    tanks: [
+      { pos: V(30, 31), yaw: Math.PI, group: 'village' },
+      { pos: V(21, -28), yaw: Math.PI, group: 'hq' },
+    ],
     hmg: [
       nest(0, 52, 0, 80, 'outpost'), // kapının arkası
       nest(0, 30, 0, 58, 'village'), // tank sahası girişi

@@ -23,6 +23,7 @@ export class Player {
   }
 
   reset(pos, yaw) {
+    this.invulnerable = false;
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);
     this.yaw = yaw;
@@ -100,7 +101,7 @@ export class Player {
 
   takeDamage(amount, fromPos = null) {
     const g = this.game;
-    if (!this.alive || g.cheats.god) return;
+    if (!this.alive || g.cheats.god || this.invulnerable) return; // kalkış sahnesinde helikopterin içinde
     // Son 1 saniyede alınan hasar zorluk sınırını aşmasın: çapraz ateşte bile tepki süresi kalır
     const cap = g.difficulty.dpsCap || 60;
     this.dmgWindow = (this.dmgWindow || []).filter((d) => this.time - d.t < 1);

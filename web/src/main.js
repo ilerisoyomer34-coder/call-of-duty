@@ -151,8 +151,9 @@ export class Game {
     this.env = MAPS.kizilkum.env;
 
     const hi = this.quality === 'high';
-    // Tuval her zaman kenar yumuşatmalı: eller ve silah doğrudan tuvale tam çözünürlükte çizilir
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' });
+    // Tuval kenar yumuşatmalı: eller ve silah doğrudan tuvale tam çözünürlükte çizilir. 'Düşük' kalite bilinçli
+    // performans modudur (zayıf GPU'da tuval MSAA'sı kareyi yarıya indirir); telefonlar artık 'orta'dan başlar
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: this.quality !== 'low', powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -162,7 +163,8 @@ export class Game {
 
     this.camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 1200);
     this.camera.rotation.order = 'YXZ';
-    const aniso = this.renderer.capabilities.getMaxAnisotropy();
+    // Anizotropi kaliteye göre: zemin tüm ekranı kapladığı için zayıf GPU'da 16× örnekleme kareyi belirgin yavaşlatır
+    const aniso = Math.min(this.renderer.capabilities.getMaxAnisotropy(), RENDER.anisotropy[this.quality] || 4);
     setMaxAnisotropy(aniso);
     this.textures = createTextures(this.quality, aniso);
     this.worldRT = null;
@@ -721,10 +723,20 @@ export class Game {
       this.renderFrame();
       return;
     }
-    const canAct = this.player.alive && !this.console.open && this.state === 'playing';
-    if (this.console.open) I.consumeLook();
-    this.player.update(dt, canAct ? I : NULL_INPUT);
-    this.player.applyCamera(this.camera, dt);
+    // Kalkış sahnesinde oyuncu helikopterin içinde: kontrol yok, kamera kabinden bakar
+    const cine = !!this.mission.takeoff;
+    const canAct = this.player.alive && !this.console.open && this.state === 'playing' && !cine;
+    if (this.console.open || cine) I.consumeLook();
+    if (cine) {
+      this.player.update(dt, NULL_INPUT);
+      this.player.applyCamera(this.camera, dt); // görüş açısı (dürbün kapanır) ve dinleyici güncel kalsın
+      this.mission.takeoffCamera(this.camera);
+      const c = this.camera.position;
+      this.audio.setListener(c.x, c.y, c.z, this.player.yaw);
+    } else {
+      this.player.update(dt, canAct ? I : NULL_INPUT);
+      this.player.applyCamera(this.camera, dt);
+    }
     this.camera.updateMatrixWorld();
     this.weapons.update(dt, canAct ? I : NULL_INPUT, canAct);
     this.enemies.update(dt);
@@ -738,7 +750,7 @@ export class Game {
     this.hud.update(dt);
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
-    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open;
+    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !cine;
     this.clickToPlay.hidden = !lockMissing;
     if (this.state === 'dying') {
       this.deathT += dt;
@@ -766,7 +778,7 @@ export class Game {
     const r = this.renderer;
     this.followSun(this.player.pos);
     this.drawWorld(this.camera);
-    if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory') this.viewmodel.render(r);
+    if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory' && !this.mission?.takeoff) this.viewmodel.render(r);
   }
 }
 

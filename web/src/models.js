@@ -692,6 +692,120 @@ export function buildAAGun() {
   return { root, turret, guns };
 }
 
+// Düşman tankı (Sketchfab modeli gelene kadar prosedürel yer tutucu). Üç hareketli grup: gövde (root),
+// taret (Y ekseninde döner), top (X ekseninde eğilir). Her grup tek geometriye birleştirilir (köşe renkli).
+// Yerel eksen: burun -Z. points: namlu ağzı ve eş eksenli makineli (top grubunda), nişancı gözü (taret grubunda)
+const tankMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.35 });
+const tankBurnt = new THREE.MeshStandardMaterial({ vertexColors: true, color: 0x2e2a26, roughness: 0.95, metalness: 0.2 });
+export function buildTank(T) {
+  const root = new THREE.Group();
+  const olive = mat(0x59623f, 0.75, 0.3);
+  const olive2 = mat(0x4b5436, 0.8, 0.3);
+  const sand = mat(0x8a7d5a, 0.85, 0.2); // bozuk kamuflaj lekeleri
+  const steel = mat(0x2b2e2f, 0.5, 0.6);
+  const rubber = mat(0x1a1a19, 0.95, 0.05);
+  const L = T.hullLen;
+  const Wd = T.hullWidth;
+  const hull = new THREE.Group();
+  // Alt gövde, üst gövde, eğimli ön zırh, motor güvertesi
+  B(hull, Wd - 1.1, 0.7, L - 0.6, olive2, 0, 0.75, 0);
+  B(hull, Wd, 0.55, L - 1.4, olive, 0, 1.35, 0.3);
+  B(hull, Wd - 0.1, 0.14, 1.6, olive, 0, 1.18, -L / 2 + 0.95, -0.52);
+  B(hull, Wd - 0.2, 0.5, 0.9, olive2, 0, 0.85, -L / 2 + 0.55, 0.85);
+  B(hull, Wd - 0.3, 0.12, 2.2, steel, 0, 1.66, L / 2 - 1.3); // motor ızgarası
+  for (let i = 0; i < 5; i++) B(hull, Wd - 0.5, 0.03, 0.08, olive2, 0, 1.73, L / 2 - 2.2 + i * 0.4);
+  B(hull, 0.5, 0.35, 0.3, steel, -Wd / 2 + 0.5, 1.2, L / 2 - 0.1); // egzoz
+  B(hull, 0.5, 0.35, 0.3, steel, Wd / 2 - 0.5, 1.2, L / 2 - 0.1);
+  // Paletler: çamurluk, palet kuşağı, yol tekerlekleri, ön avara ve arka zincir dişlisi
+  for (const sx of [-1, 1]) {
+    const x = sx * (Wd / 2 - 0.35);
+    B(hull, 0.72, 0.08, L, olive, x, 1.1, 0); // çamurluk
+    B(hull, 0.1, 0.55, L - 1.0, olive2, sx * (Wd / 2 - 0.02), 0.8, 0.1); // yan etek
+    B(hull, 0.66, 0.12, L - 0.9, rubber, x, 0.06, 0); // alt palet
+    B(hull, 0.66, 0.1, L - 1.2, rubber, x, 1.0, 0); // üst palet
+    for (let i = 0; i < 6; i++) {
+      const w = new THREE.CylinderGeometry(0.36, 0.36, 0.5, 14);
+      w.rotateZ(Math.PI / 2);
+      part(hull, w, steel, x, 0.42, -L / 2 + 1.25 + i * ((L - 2.5) / 5));
+    }
+    for (const [z, r, y] of [[-L / 2 + 0.45, 0.34, 0.6], [L / 2 - 0.45, 0.4, 0.62]]) {
+      const w = new THREE.CylinderGeometry(r, r, 0.56, 12);
+      w.rotateZ(Math.PI / 2);
+      part(hull, w, rubber, x, y, z);
+    }
+    // Paletin ön ve arka kıvrımı
+    B(hull, 0.66, 0.1, 0.9, rubber, x, 0.55, -L / 2 + 0.2, 1.1);
+    B(hull, 0.66, 0.1, 0.9, rubber, x, 0.55, L / 2 - 0.2, -1.1);
+  }
+  // Kamuflaj lekeleri, çeki halatı, yedek yakıt varilleri
+  B(hull, 1.0, 0.02, 0.8, sand, -0.6, 1.63, 0.6, 0, 0.3);
+  B(hull, 0.7, 0.02, 1.1, sand, 0.9, 1.63, -0.9, 0, -0.4);
+  for (const sx of [-0.6, 0.6]) {
+    const b = new THREE.CylinderGeometry(0.28, 0.28, 0.9, 12);
+    b.rotateZ(Math.PI / 2);
+    part(hull, b, olive2, sx, 1.5, L / 2 + 0.1);
+  }
+  const hullMesh = mergeGroup(hull, tankMat);
+  root.add(hullMesh);
+
+  // Taret: altıgen gövde, arka sepet, komutan kapağı, sis havan tüpleri, anten
+  const turret = new THREE.Group();
+  turret.position.set(0, T.turretY, T.turretZ);
+  root.add(turret);
+  const tg = new THREE.Group();
+  const hex = new THREE.CylinderGeometry(1.35, 1.55, 0.78, 6);
+  hex.scale(1, 1, 1.25);
+  part(tg, hex, olive, 0, 0.39, 0.1, 0, Math.PI / 6);
+  B(tg, 2.0, 0.6, 1.1, olive2, 0, 0.35, 1.75); // sepet
+  B(tg, 2.1, 0.08, 1.2, steel, 0, 0.72, 1.75); // sepet ızgarası
+  B(tg, 1.2, 0.02, 0.9, sand, -0.4, 0.79, -0.2, 0, 0.5);
+  const cup = new THREE.CylinderGeometry(0.42, 0.46, 0.3, 12);
+  part(tg, cup, olive2, 0.55, 0.93, 0.45);
+  part(tg, new THREE.CylinderGeometry(0.4, 0.4, 0.08, 12), steel, 0.55, 1.12, 0.45);
+  for (let i = 0; i < 6; i++) B(tg, 0.12, 0.08, 0.12, steel, 0.55 + Math.cos(i) * 0.36, 1.02, 0.45 + Math.sin(i) * 0.36);
+  B(tg, 0.4, 0.1, 0.45, olive2, -0.6, 0.83, 0.5); // yükleyici kapağı
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const tube = new THREE.CylinderGeometry(0.07, 0.07, 0.35, 8);
+      tube.rotateX(-1.1);
+      part(tg, tube, steel, sx * (1.05 + i * 0.12), 0.7, -0.55 + i * 0.05);
+    }
+  }
+  const ant = new THREE.CylinderGeometry(0.012, 0.02, 2.4, 5);
+  part(tg, ant, steel, -0.8, 1.9, 1.9);
+  const turretMesh = mergeGroup(tg, tankMat);
+  turret.add(turretMesh);
+
+  // Top: kalkan (mantle), namlu, duman tahliye silindiri, namlu freni; yanında eş eksenli makineli
+  const gun = new THREE.Group();
+  gun.position.set(0, T.gunY, T.gunZ);
+  turret.add(gun);
+  const gg = new THREE.Group();
+  B(gg, 1.1, 0.62, 0.6, olive2, 0, 0, -0.1);
+  cylZ(gg, 0.13, T.barrelLen, steel, 0, 0, -T.barrelLen / 2 - 0.3, 14);
+  cylZ(gg, 0.2, 0.9, steel, 0, 0, -T.barrelLen * 0.55, 14);
+  cylZ(gg, 0.19, 0.45, steel, 0, 0, -T.barrelLen - 0.3, 10);
+  cylZ(gg, 0.04, 0.5, steel, T.coaxX, 0.05, -0.55, 8);
+  const gunMesh = mergeGroup(gg, tankMat);
+  gun.add(gunMesh);
+
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  const meshes = [hullMesh, turretMesh, gunMesh];
+  return {
+    root, turret, gun, meshes, burnt: tankBurnt,
+    points: {
+      muzzle: new THREE.Vector3(0, 0, -T.barrelLen - 0.6),
+      coax: new THREE.Vector3(T.coaxX, 0.05, -0.85),
+      sight: new THREE.Vector3(0.55, 1.3, 0.45), // komutan kapağı (taret uzayı): görüş ve ışın başlangıcı
+    },
+  };
+}
+
 export function buildBarrel() {
   const g = new THREE.Group();
   const red = mat(0x8e2418, 0.6, 0.35);

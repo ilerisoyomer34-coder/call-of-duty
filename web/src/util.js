@@ -51,6 +51,25 @@ export function randomInCone(dir, halfAngleRad, out = new THREE.Vector3(), cente
     .normalize();
 }
 
+// Işın - dikey silindir kesişimi (oyuncu vuruş kutusu)
+export function rayCylinder(o, d, cx, cz, r, y0, y1, maxT) {
+  const ox = o.x - cx;
+  const oz = o.z - cz;
+  const a = d.x * d.x + d.z * d.z;
+  if (a < 1e-8) return -1;
+  const b = 2 * (ox * d.x + oz * d.z);
+  const c = ox * ox + oz * oz - r * r;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return -1;
+  const sq = Math.sqrt(disc);
+  let t = (-b - sq) / (2 * a);
+  if (t < 0) t = (-b + sq) / (2 * a);
+  if (t < 0 || t > maxT) return -1;
+  const y = o.y + d.y * t;
+  if (y < y0 || y > y1) return -1;
+  return t;
+}
+
 // Yay-sönüm (spring-damper) — prosedürel animasyonların temel taşı.
 export class Spring {
   constructor(stiffness = 120, damping = 14) {

@@ -5,16 +5,18 @@ import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
 import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildWeapon, mat } from './models.js';
-import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN } from './config.js';
+import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
+import { Tank } from './tank.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
 import { rand, lerp, clamp, smoothstep, pick, dirToYaw, damp } from './util.js';
 
 const _v = new THREE.Vector3();
+const _cam = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _e = new THREE.Vector3();
 // Operasyonun kronolojik hedef sırası: bir seviyenin ilk hedefinden öncekiler yapılmış sayılır
-const OBJECTIVE_ORDER = ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'];
+const OBJECTIVE_ORDER = ['outpost', 'aa', 'intel', 'lz', 'defend', 'board', 'extract'];
 const LEVEL_END_DELAY = 4; // son hedef ile zafer ekranı arası (s): telsiz duyulsun, çatışma yatışsın
 
 const TIPS = [
@@ -381,6 +383,8 @@ export class Mission {
     this.destroyed = new Set();
     this.intel = false;
     this.complete = false;
+    this.takeoff = null; // helikopter kalkış sahnesi (board → finish)
+    this.heliWaitSaid = false;
     this.checkpoint = null;
     this.markers = [];
   }
@@ -394,6 +398,9 @@ export class Mission {
     // birleştirilmeden önce eklenmeli)
     const nestDefs = this.mode === 'range' ? [] : (D.hmg || []).slice(0, this.level.enemies?.hmg || 0);
     for (const n of nestDefs) nestRing(W, n.pos.x, n.pos.z, n.yaw);
+    // Tanklar: çarpıştırıcıları gezinme ağından önce eklenmeli (askerler etrafından dolansın)
+    const tankDefs = this.mode === 'range' ? [] : (D.tanks || []).slice(0, this.level.enemies?.tanks || 0);
+    this.tanks = tankDefs.map((t, i) => new Tank(g, t, i));
     W.finalize();
     g.buildNav();
     g.barrels = (D.barrels || []).map((p) => new Barrel(g, p));
@@ -426,6 +433,14 @@ export class Mission {
         id: gun.id, pos: gun.pos.clone().setY(1), radius: 2.9, prompt: 'C4 yerleştir', time: C4.plantTime,
         enabled: () => !gun.destroyed && !gun.planted && this.current?.id === 'aa',
         action: () => gun.plant(),
+      });
+    }
+    // Tanka C4: gövdenin oyuncuya en yakın noktasından, hedeften bağımsız
+    for (const t of this.tanks) {
+      this.interactables.push({
+        id: t.id, pos: t.c4Spot, radius: TANK.c4Radius, prompt: 'Tanka C4 yerleştir', time: C4.plantTime,
+        enabled: () => !t.destroyed && !t.planted,
+        action: () => t.plant(),
       });
     }
     // İstihbarat dizüstü (haritada istihbarat hedefi varsa)
@@ -502,6 +517,7 @@ export class Mission {
       lines.forEach((t, i) => this.radio('YUVA', i === 0 ? `${done}${t}` : t, first ? 5.5 + i * 6.5 : 1.2 + i * 6));
     };
     const outpost = O.outpost || {};
+    const extractCp = () => this.extractInfo().cp ?? null;
     return {
       outpost: {
         id: 'outpost', text: outpost.text || 'Bölgeyi temizle', group: outpost.group || 'outpost', cp: 0,
@@ -544,7 +560,33 @@ export class Mission {
         id: 'board', text: 'Helikoptere bin', cp: null,
         marker: () => (this.heli ? this.heli.root.position.clone().setY(1.5) : D.lz.clone()),
       },
+      // Savunmasız tahliye: son hedeften sonra helikopter haritanın o bölgedeki açık noktasına iner
+      extract: {
+        id: 'extract', text: O.extract?.text || 'Tahliye noktasına git, helikoptere bin',
+        // Kontrol noktası tahliye başlarken kaydedilir (ölünce etkisiz düşmanlar geri gelmesin); yeri haritadan
+        get cp() {
+          return extractCp();
+        },
+        marker: () => (this.heli?.landed ? this.heli.root.position.clone().setY(1.5) : this.extractPoint().clone().setY(1)),
+        start: (first) => {
+          this.spawnHeli(this.extractPoint());
+          const prev = this.objectives[this.objIdx - 1];
+          const done = !first && prev ? O[prev.id]?.doneLine || '' : '';
+          const lines = this.extractInfo().radio || ['Şahin-2 tahliye için yolda. İşaretli noktaya git, helikoptere bin.'];
+          lines.forEach((t, i) => this.radio('YUVA', i === 0 ? `${done}${t}` : t, first ? 5.5 + i * 6.5 : 1.2 + i * 6));
+        },
+      },
     };
+  }
+
+  // Tahliye noktası ve telsizi: haritanın verdiği, bir önceki hedefe göre (yoksa iniş bölgesi)
+  extractInfo() {
+    const X = this.data.extract || {};
+    const prev = this.objectives[this.objIdx - 1]?.id;
+    return X[prev] || X.default || { pos: this.data.lz };
+  }
+  extractPoint() {
+    return this.extractInfo().pos;
   }
 
   killGroup(group) {
@@ -591,6 +633,7 @@ export class Mission {
     if (o.id === 'outpost') detail = `Kalan düşman: ${g.enemies.aliveInGroup(o.group)}`;
     else if (o.id === 'aa') detail = `${this.destroyed.size}/${this.aa.length} imha edildi`;
     else if (o.id === 'defend') detail = `Helikopter: ${Math.max(0, Math.ceil(this.defendTime - this.defendT))} sn`;
+    else if (o.id === 'extract') detail = this.heli?.landed ? 'Helikopter bekliyor' : 'Helikopter yolda';
     else if (o.id === 'lz' || o.id === 'board' || o.id === 'intel') detail = '';
     return { title: o.text, detail, index: this.objIdx + 1, total: this.objectives.length };
   }
@@ -611,6 +654,7 @@ export class Mission {
       dead: new Set(g.enemies.list.filter((e) => !e.alive).map((e) => e.id)),
       destroyed: new Set(this.destroyed),
       wrecked: new Set((this.nests || []).filter((n) => n.wrecked).map((n) => n.id)),
+      tankHp: new Map((this.tanks || []).map((t) => [t.id, t.hp])),
       intel: this.intel,
       loadout: g.weapons.owned && Object.keys(g.weapons.owned).length ? g.weapons.snapshot() : null,
       spawnedIds: new Set(g.enemies.list.map((e) => e.id)),
@@ -626,6 +670,11 @@ export class Mission {
     const C = this.checkpoint;
     // Mevziler: kontrol noktasından sonra susturulanlar yeniden çalışır (nişancı reset'te başına geçer)
     for (const n of this.nests || []) n.restore(C.wrecked.has(n.id));
+    // Tanklar: imha edilen enkaz kalır; sağ olan kontrol noktasındaki canıyla, oyuncuyu henüz görmemiş başlar
+    for (const t of this.tanks || []) {
+      if (!t.destroyed) t.hp = C.tankHp.get(t.id) ?? t.hp;
+      t.reset(false);
+    }
     // Kontrol noktasından sonra doğan düşmanları kaldır
     const keep = [];
     for (const e of g.enemies.list) {
@@ -722,6 +771,7 @@ export class Mission {
 
   // Roket ya da el bombası uçaksavarın dibinde patlarsa top da imha olur; mevzinin yanında patlarsa makineli susar
   onExplosion(pos, radius, damage, owner) {
+    for (const t of this.tanks || []) t.onExplosion(pos, radius, damage, owner);
     if (this.nests && owner !== 'enemy' && damage >= HMG.silenceDamage) {
       for (const n of this.nests) {
         if (!n.wrecked && n.pivot(_v).distanceTo(pos) < HMG.silenceRadius) n.silence();
@@ -837,6 +887,7 @@ export class Mission {
     if (this.pickups3) for (const p of this.pickups3) p.update(this.time);
     if (this.aa) for (const a of this.aa) a.update(dt);
     if (this.nests) for (const n of this.nests) n.update(dt);
+    if (this.tanks) for (const t of this.tanks) t.update(dt);
     // Yerden toplama
     const P = g.player;
     for (let i = this.pickups.length - 1; i >= 0; i--) {
@@ -858,6 +909,10 @@ export class Mission {
           g.events.emit('pickup', gotNade ? '+ CEPHANE  + EL BOMBASI' : '+ CEPHANE');
         }
       }
+    }
+    if (this.takeoff) {
+      this.updateTakeoff(dt);
+      return;
     }
     if (this.mode === 'range' || this.complete) {
       this.updateHeli(dt);
@@ -905,7 +960,13 @@ export class Mission {
         break;
       }
       case 'board':
-        if (this.heli && P.pos.distanceTo(this.heli.root.position) < 6.5) this.finish();
+      case 'extract':
+        if (this.heli?.landed && P.pos.distanceTo(this.heli.root.position) < EXTRACT.boardRadius) this.board();
+        else if (o.id === 'extract' && this.heli?.landed && !this.heliWaitSaid) {
+          this.heliWaitSaid = true;
+          g.events.emit('objective', this.currentText());
+          this.radio('PİLOT', 'Yere indik Kartal-1, hemen bin!', 0);
+        }
         break;
       default:
         break;
@@ -913,15 +974,16 @@ export class Mission {
     this.updateHeli(dt);
   }
 
-  spawnHeli() {
+  spawnHeli(at = this.data.lz) {
     const g = this.game;
+    if (this.heli) return;
     const h = buildHelicopter();
     g.scene.add(h.root);
     // Helikopter haritanın verdiği yönden gelir (varsayılan: güneyden, haritanın üstünden)
-    const lz = this.data.lz;
+    const lz = at;
     const from = this.data.heliFrom || new THREE.Vector3(lz.x, 0, 160);
     const yaw = dirToYaw(lz.x - from.x, lz.z - from.z);
-    this.heli = { ...h, t: 0, landed: false, from: from.clone(), yaw };
+    this.heli = { ...h, t: 0, landed: false, from: from.clone(), yaw, lz: lz.clone() };
     h.root.position.set(from.x, 45, from.z);
     h.root.rotation.y = yaw;
     g.audio.startRotor();
@@ -942,9 +1004,9 @@ export class Mission {
     if (!H) return;
     const g = this.game;
     H.t += dt;
-    const lz = this.data.lz;
+    const lz = H.lz;
     // Geliş yönünden iniş bölgesine süzülerek alçal (pistin 3 m gerisine konar)
-    const dur = 20;
+    const dur = EXTRACT.approach;
     const k = clamp(H.t / dur, 0, 1);
     const e = Math.min(1, smoothstep(k) * 1.15);
     const dx = lz.x - H.from.x;
@@ -962,6 +1024,63 @@ export class Mission {
     if (k >= 1) H.landed = true;
     if (this.heliDust) this.heliDust.rate = y < 12 ? 40 * (1 - y / 12) : 0;
     g.audio.updateRotor(H.root.position);
+  }
+
+  // Oyuncu bindi: hedefler biter, manga içeride, kalkış sahnesi başlar (bitince bölüm kartı)
+  board() {
+    const g = this.game;
+    if (this.takeoff || this.complete) return;
+    const H = this.heli;
+    // Kamera savaş alanını görsün: haritanın ortasına bakan kapı (sağ +1, sol -1)
+    const B = g.world.bounds;
+    const cx = (B.minx + B.maxx) / 2 - H.root.position.x;
+    const cz = (B.minz + B.maxz) / 2 - H.root.position.z;
+    const side = Math.cos(H.yaw) * cx - Math.sin(H.yaw) * cz >= 0 ? 1 : -1;
+    this.takeoff = { t: 0, base: H.root.position.clone(), fx: -Math.sin(H.yaw), fz: -Math.cos(H.yaw), side };
+    this.objIdx = this.objectives.length;
+    g.addScore(SCORE.objective, 'TAHLİYE');
+    g.audio.radio();
+    g.player.invulnerable = true;
+    for (const a of g.allies.list) a.model.root.visible = false;
+    g.hud.show(false);
+    g.input.enableTouch(false);
+    this.radioQueue.length = 0;
+    this.radio('PİLOT', 'Herkes içeride, kalkıyoruz!', 0);
+    this.radio('YUVA', this.level.outro, 2.4);
+    g.events.emit('boarded');
+  }
+
+  // Kalkış: dikine yüksel, burnu eğip hızlan; rotor tozu yükseldikçe azalır
+  updateTakeoff(dt) {
+    const g = this.game;
+    const T = this.takeoff;
+    const H = this.heli;
+    T.t += dt;
+    const k = T.t;
+    const up = smoothstep(clamp(k / 3.5, 0, 1)) * EXTRACT.climb + Math.min(k, 0.6) * 0.8;
+    const f = Math.max(0, k - 1.3);
+    const dist = (EXTRACT.speed * f * f) / (f + EXTRACT.accelTime);
+    H.root.position.set(T.base.x + T.fx * dist, T.base.y + up, T.base.z + T.fz * dist);
+    H.root.rotation.x = -0.14 * smoothstep(clamp((k - 1.1) / 1.8, 0, 1));
+    H.root.rotation.z = Math.sin(k * 0.9) * 0.03;
+    H.rotor.rotation.y += dt * 30;
+    H.tail.rotation.x += dt * 42;
+    if (this.heliDust) this.heliDust.rate = up < 10 ? 40 * (1 - up / 10) : 0;
+    g.audio.updateRotor(H.root.position);
+    if (T.t >= EXTRACT.takeoff) this.finish();
+  }
+
+  // Kalkış kamerası: kabinin içinden, sağ kapıdan aşağıdaki savaş alanına
+  takeoffCamera(cam) {
+    const H = this.heli;
+    H.root.updateMatrixWorld(true);
+    const S = EXTRACT.seat;
+    const L = EXTRACT.look;
+    const side = this.takeoff.side;
+    H.root.localToWorld(cam.position.set(S[0] * side, S[1], S[2]));
+    _cam.set(L[0] * side, L[1], L[2]).normalize().transformDirection(H.root.matrixWorld).add(cam.position);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(_cam);
   }
 
   finish() {
