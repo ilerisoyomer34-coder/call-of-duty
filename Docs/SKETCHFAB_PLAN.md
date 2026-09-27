@@ -4,6 +4,11 @@ Askerler ve silahlar dışındaki her şey (araçlar, binalar, eşyalar, zemin, 
 modellerle değiştirilecek. Aşama A (keskin eller/silah, uzaktaki askerler, uçaksavar nişancısı, tanklar, helikopterle
 tahliye ve otomatik sonraki bölüm) tamamlandı.
 
+## Durum
+- **Helikopter eklendi:** kullanıcı Sketchfab'den indirip oturuma yükledi. Model `SourceAssets/Sketchfab/helicopter_pranav27/`, yazarı pranav27, lisansı CC BY 4.0.
+- `tools/prepare-prop.mjs` hazır. Sadeleştirme, yeniden adlandırma, nicemleme ve `propAssets.json` akışı B1'deki gibi çalışıyor; eksik olan yalnızca indirme aracı `tools/sketchfab.mjs`.
+- Kullanıcı başka GLB'ler yüklerse aynı yolla eklenir: `SOURCES` tablosuna yeni bir satır, ardından kodda `buildX` içinde hazır modeli kullanma. Örnek: `models.js` → `buildHelicopterProp`.
+
 ## Başlamadan önce (B0)
 - Ortam ayarlarında `*.sketchfab.com` için ağ izni ve `SKETCHFAB_API_TOKEN` ortam değişkeni gerekir; ayarlar yeni oturumda geçerli olur.
 - Doğrulama: `env | grep -c SKETCHFAB_API_TOKEN`, sonra

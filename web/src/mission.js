@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
-import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, buildWeapon, mat } from './models.js';
+import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat } from './models.js';
 import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
@@ -17,6 +17,7 @@ const _d = new THREE.Vector3();
 const _e = new THREE.Vector3();
 // Operasyonun kronolojik hedef sırası: bir seviyenin ilk hedefinden öncekiler yapılmış sayılır
 const OBJECTIVE_ORDER = ['outpost', 'aa', 'intel', 'lz', 'defend', 'board', 'extract'];
+const HELI_PARK_Y = -400; // hazır helikopter gelene dek haritanın altında bekler (görünmez, gölge düşürmez)
 const LEVEL_END_DELAY = 4; // son hedef ile zafer ekranı arası (s): telsiz duyulsun, çatışma yatışsın
 
 const TIPS = [
@@ -425,6 +426,13 @@ export class Mission {
     if (this.mode === 'range') {
       this.buildRangeMode();
       return;
+    }
+    // Hazır helikopter modeli sahnenin altında bekler: gölgelendiricileri açılışta derlenir, geldiğinde takılma olmaz
+    this.heliSpare = null;
+    if (hasHelicopterProp()) {
+      this.heliSpare = buildHelicopter();
+      this.heliSpare.root.position.set(0, HELI_PARK_Y, 0);
+      g.scene.add(this.heliSpare.root);
     }
     // Uçaksavarlar / pompalar
     this.aa = (D.aaGuns || []).map((def) => new AAGun(g, def));
@@ -961,6 +969,8 @@ export class Mission {
       }
       case 'board':
       case 'extract':
+        // Kontrol noktasına dönüş helikopteri kaldırır: tahliyede yeniden çağrılır
+        if (o.id === 'extract' && !this.heli) this.spawnHeli(this.extractPoint());
         if (this.heli?.landed && P.pos.distanceTo(this.heli.root.position) < EXTRACT.boardRadius) this.board();
         else if (o.id === 'extract' && this.heli?.landed && !this.heliWaitSaid) {
           this.heliWaitSaid = true;
@@ -977,8 +987,9 @@ export class Mission {
   spawnHeli(at = this.data.lz) {
     const g = this.game;
     if (this.heli) return;
-    const h = buildHelicopter();
-    g.scene.add(h.root);
+    const h = this.heliSpare || buildHelicopter();
+    this.heliSpare = null;
+    if (!h.root.parent) g.scene.add(h.root);
     // Helikopter haritanın verdiği yönden gelir (varsayılan: güneyden, haritanın üstünden)
     const lz = at;
     const from = this.data.heliFrom || new THREE.Vector3(lz.x, 0, 160);
@@ -1020,7 +1031,7 @@ export class Mission {
     H.root.rotation.x = k < 0.85 ? 0.12 * (1 - k) : 0;
     H.root.rotation.z = Math.sin(H.t * 0.8) * 0.04 * (1 - k);
     H.rotor.rotation.y += dt * 28;
-    H.tail.rotation.x += dt * 40;
+    H.tail.rotation[H.tailAxis || 'x'] += dt * 40;
     if (k >= 1) H.landed = true;
     if (this.heliDust) this.heliDust.rate = y < 12 ? 40 * (1 - y / 12) : 0;
     g.audio.updateRotor(H.root.position);
@@ -1064,7 +1075,7 @@ export class Mission {
     H.root.rotation.x = -0.14 * smoothstep(clamp((k - 1.1) / 1.8, 0, 1));
     H.root.rotation.z = Math.sin(k * 0.9) * 0.03;
     H.rotor.rotation.y += dt * 30;
-    H.tail.rotation.x += dt * 42;
+    H.tail.rotation[H.tailAxis || 'x'] += dt * 42;
     if (this.heliDust) this.heliDust.rate = up < 10 ? 40 * (1 - up / 10) : 0;
     g.audio.updateRotor(H.root.position);
     if (T.t >= EXTRACT.takeoff) this.finish();
@@ -1077,7 +1088,9 @@ export class Mission {
     const S = EXTRACT.seat;
     const L = EXTRACT.look;
     const side = this.takeoff.side;
-    H.root.localToWorld(cam.position.set(S[0] * side, S[1], S[2]));
+    // Hazır modelde yer gövdeden ölçülür (kapının hemen dışı), prosedürel modelde ayar tablosundan
+    if (H.seat) H.root.localToWorld(cam.position.set(H.seat.x * side, H.seat.y, H.seat.z));
+    else H.root.localToWorld(cam.position.set(S[0] * side, S[1], S[2]));
     _cam.set(L[0] * side, L[1], L[2]).normalize().transformDirection(H.root.matrixWorld).add(cam.position);
     cam.up.set(0, 1, 0);
     cam.lookAt(_cam);

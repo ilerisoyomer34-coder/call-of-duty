@@ -2,7 +2,7 @@
 
 Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: mavi mangan Kartal ekibiyle beş farklı haritada operasyona çıkıyorsun. Kontrol noktalarını temizliyor, uçaksavarları ve yakıt pompalarını C4 ile patlatıyor, tankları roketatarla vuruyor, istihbarat topluyor ve helikopter gelene kadar iniş bölgesini tutuyorsun. Her bölüm helikoptere binip havalanınca biter, ardından sıradaki bölüm kendiliğinden başlar. Altı seviye kolaydan zora sıralı. İlk ikisi Kızılkum Vadisi'nde geçer; sonrakiler gün batımında bir limanda, yıkık bir şehirde, karlı bir dağ geçidinde ve gece bir rafineride. Zorlaştıkça düşman ağır makineli mevziler ve tanklar kurar, senin mangan da her seviyede daha profesyonel oynar.
 
-Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu. Düşman askerleri hazır iskeletli bir karakterdir (Mixamo "Vanguard"); dört silah oyuncunun kendi Blender dosyalarından gelir; harita, diğer modeller, dokular ve sesler kodla üretilir.
+Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu. Düşman askerleri hazır iskeletli bir karakterdir (Mixamo "Vanguard"); dört silah oyuncunun kendi Blender dosyalarından, dört silah ve tahliye helikopteri Sketchfab'den gelir (hepsi CC BY 4.0; silah adları kurgusal, dokulardaki gerçek marka yazıları silindi); harita, diğer modeller, dokular ve sesler kodla üretilir.
 
 ## Nasıl oynanır
 
@@ -118,14 +118,17 @@ web/
     audio.js       Web Audio ile sentezlenen tüm sesler
     hud.js         HUD, menus.js menüler, devconsole.js konsol
     shell.html     sayfa iskeleti ve arayüz stilleri
-  assets/        silah GLB'leri, asker GLB'si ve dokuları
+  assets/        silah GLB'leri, asker GLB'si ve dokuları, hazır araç modelleri (props/)
   tools/build.mjs  tek dosyaya paketleme
   tools/prepare-character.mjs  hazır karakteri oyuna hazırlama (UV/klip ayıklama, dokuları ayırma)
+  tools/prepare-prop.mjs  hazır araç modelini (Sketchfab) sadeleştirme, parça adlandırma, lisans kaydı
+  tools/prepare-weapon-glb.mjs  Sketchfab silahını oyunun silah düzenine çevirme (weapon-glb-map.json)
   tools/smoke-test.mjs  otomatik oynanış testi
 Docs/MASTER_PROMPT.md  Unreal Engine 5 ana planı
 Docs/import_reports/   her içe aktarılan model için rapor ve önizleme
 SourceAssets/Weapons/  özgün .blend dosyaları ve asset_info.json (lisans kaydı)
 SourceAssets/Characters/  özgün karakter dosyası ve asset_info.json
+SourceAssets/Sketchfab/   Sketchfab'den gelen özgün modeller ve asset_info.json (lisans kaydı)
 Tools/blender/         model inceleme ve oyuna dönüştürme betikleri
 ```
 
@@ -143,3 +146,33 @@ Tools/blender/         model inceleme ve oyuna dönüştürme betikleri
 2. `web/tools/prepare-character.mjs` içindeki `SOURCES` tablosuna bir satır ekle (klip ve doku adları).
 3. `cd web && node tools/prepare-character.mjs <ad>` → `web/assets/characters/<ad>.glb`, dokular ve `web/src/characterAssets.json`.
 4. Klip adları `Idle`, `Walk`, `Run`, kemikler Mixamo adlandırmasında olmalı (`Hips`, `Spine2`, `RightArm`…). Adım boyları `config.js` → `SOLDIER_ANIM`'de.
+
+## Hazır model ekleme (Sketchfab)
+
+Askerler ve silahlar dışındaki araç ve eşyalar Sketchfab'den alınan hazır modellerle değiştirilebilir. Şu an tahliye helikopteri hazır modeldir; diğerleri kodla üretilir.
+
+1. Sketchfab'de lisansı **CC Attribution** ya da **CC0** olan, indirilebilir bir model seç ("NonCommercial" ve "NoDerivs" olanlar olmaz). **Download 3D Model** → glTF/GLB.
+2. Dosyayı `SourceAssets/Sketchfab/<ad>_<yazar>/original/` altına koy, yanına lisansıyla `asset_info.json` yaz. Sketchfab GLB'leri yazar, lisans ve kaynak bilgisini dosyanın içinde (`asset.extras`) taşır.
+3. `web/tools/prepare-prop.mjs` içindeki `SOURCES` tablosuna bir satır ekle: sadeleştirme oranı, hareketli parçaların (rotor, taret…) yeni adları, burnun baktığı eksen, oyundaki boy ve renk ayarı.
+4. `cd web && node tools/prepare-prop.mjs <ad>` → `web/assets/props/<ad>.glb` ve `web/src/propAssets.json`. Model sadeleştirilir (helikopter 290 bin → 49 bin üçgen, 8,1 → 0,74 MB) ve nicemlenir.
+5. Atıf `CREDITS.md`'ye yazılır; oyun içi "Emeği geçenler" ekranı `propAssets.json`'dan kendiliğinden doldurulur. Model yüklenemezse oyun kodla üretilen yedek modelle devam eder.
+
+### Sketchfab silahı ekleme
+
+Silahlar için `web/tools/prepare-weapon-glb.mjs` kullanılır (Blender betiğinin GLB karşılığı; çıktısı aynı: `web/assets/weapons/<id>.glb` + `weaponAssets.json`).
+
+1. Kaynağı `SourceAssets/Sketchfab/<id>_<yazar>/original/` altına koy, `asset_info.json` yaz.
+2. `web/tools/weapon-glb-map.json`'a satır ekle: namlu ve üst ekseni (`forward`, `up`), gerçek boy (`scaleTo`), sergi parçalarını atan kalıp (`exclude`), parça kalıpları ya da kutuları (`parts`, `partBoxes`, `splitBoxes`: `mag`, `charging`, `optic`).
+3. `node tools/prepare-weapon-glb.mjs <id> --preview` → yönlendirilmiş modeli yazar; ızgaralı yan görünümden el (`hand`), namlu, nişangah, sol el ve kovan noktalarını metre olarak oku, tabloya yaz.
+4. Dokulardaki gerçek marka, seri numarası ve kişi bilgilerini `textures.<sıra>.paint` kutularıyla boya (araç tarayıcı tuvalinde boyar, küçültür ve JPEG yazar).
+5. `node tools/prepare-weapon-glb.mjs <id>`; `config.js` → `WEAPONS`'a kurgusal adla girdi (`model: 'glb'`, `source: 'sketchfab'`) ve `WEAPON_ORDER`'a ekle.
+
+| Silah | Kaynak | Üçgen | Özellik |
+|---|---|---|---|
+| K8 Bozkurt | low-poly C8 IUR (D_U) | 21 bin | Taarruz tüfeği, demir nişangah |
+| KR-4 Atmaca | low-poly Colt M4A1 (D_U) | 21 bin | Karabina, taşıma kulbu nişangahı, üçlü seri |
+| MK-4 Doğan | m4 Carbine Rifle (Pieter Ferreira) | 71 bin (588 binden) | Holografik nişangah, ön tutamak |
+| KT-9 Kaplan | Gun (Dries Deryckere) | 22 bin | Dürbünlü taktik nişancı tüfeği |
+
+Poligonda 1–9 tuşları eski dokuz silahı seçer; bu dördüne fare tekerleğiyle geçilir. Görevde teçhizat ekranından seçilir.
+

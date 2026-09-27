@@ -144,7 +144,9 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(5)');
   check(await page.isVisible('#loadoutScreen'), 'Teçhizat ekranı açıldı');
-  check((await page.$$('#primaryList .gun')).length === 6 && (await page.$$('#secondaryList .gun')).length === 3, 'Teçhizatta 6 ana + 3 yan silah');
+  check((await page.$$('#primaryList .gun')).length === 10 && (await page.$$('#secondaryList .gun')).length === 3, 'Teçhizatta 10 ana + 3 yan silah');
+  const badges = await page.evaluate(() => [...document.querySelectorAll('#primaryList .gun .badge')].map((b) => b.textContent));
+  check(badges.filter((b) => b === 'Sketchfab').length === 4, `Sketchfab silahları teçhizatta rozetli (${badges.join(', ')})`);
   await page.screenshot({ path: join(shots, '01b-loadout.png') });
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
@@ -248,6 +250,19 @@ console.log('Bağımsız sürüm (dist/index.html)');
   });
   await waitGame(page, 0.5);
   check(await page.evaluate(() => !!window.__game.mission.heli), 'Helikopter geldi');
+  const heli = await page.evaluate(() => {
+    const g = window.__game;
+    const H = g.mission.heli;
+    const r0 = H.rotor.rotation.y;
+    const t0 = H.tail.rotation[H.tailAxis || 'x'];
+    g.mission.updateHeli(0.05);
+    let tris = 0;
+    H.root.traverse((o) => {
+      if (o.isMesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    });
+    return { prop: !!H.prop, spin: H.rotor.rotation.y !== r0 && H.tail.rotation[H.tailAxis || 'x'] !== t0, tris: Math.round(tris) };
+  });
+  check(heli.prop && heli.spin, `Helikopter hazır modelle (Sketchfab, ${heli.tris} üçgen), ana ve kuyruk pervanesi dönüyor`);
   await page.evaluate(() => {
     const g = window.__game;
     g.mission.heli.t = 19.9;
@@ -264,7 +279,7 @@ console.log('Bağımsız sürüm (dist/index.html)');
   const cine = await page.evaluate(() => {
     const g = window.__game;
     const H = g.mission.heli;
-    return { on: !!g.mission.takeoff, camInHeli: g.camera.position.distanceTo(H.root.position) < 4, climb: H.root.position.y, hud: document.getElementById('hud').hidden, safe: g.player.invulnerable };
+    return { on: !!g.mission.takeoff, camInHeli: g.camera.position.distanceTo(H.root.position) < 7 /* kapının hemen dışı, gövde 11 m */, climb: H.root.position.y, hud: document.getElementById('hud').hidden, safe: g.player.invulnerable };
   });
   check(cine.on && cine.camInHeli && cine.hud && cine.safe, `Helikoptere binildi: kalkış sahnesi, kamera kabinde (yükseklik ${cine.climb.toFixed(1)} m)`);
   await page.screenshot({ path: join(shots, '05b-takeoff.png') });
@@ -924,9 +939,28 @@ console.log('Atış poligonu');
     return { dummies: g.enemies.list.length, owned: Object.keys(g.weapons.owned) };
   });
   check(r.dummies === 10, `Mankenler yerleşti (${r.dummies})`);
-  check(r.owned.length === 9, `Poligonda dokuz silah (${r.owned.join(', ')})`);
+  check(r.owned.length === 13, `Poligonda on üç silah (${r.owned.join(', ')})`);
   await page.waitForFunction(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb)), 'Blender modelleri (MAR-556, MG-43, MR-82, D-50) yüklendi');
+  // Sketchfab silahları: model, parçalar (şarjör, nişangah gövdesi) ve ayrı JPEG dokular
+  await page.waitForFunction(() => ['k8', 'kr4', 'mk4', 'kt9'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 60000 }).catch(() => {});
+  const sk = await page.evaluate(() => {
+    const V = window.__game.viewmodel.models;
+    const textured = (id) => {
+      let n = 0;
+      V[id].root.traverse((o) => {
+        if (o.isMesh && o.material.map && o.material.map.image && !o.material.transparent) n++; // namlu alevi (saydam) hariç
+      });
+      return n;
+    };
+    return {
+      glb: ['k8', 'kr4', 'mk4', 'kt9'].every((id) => V[id].glb),
+      parts: { k8: Object.keys(V.k8.parts).sort().join('+'), mk4: Object.keys(V.mk4.parts).join('+'), kt9: Object.keys(V.kt9.parts).join('+') },
+      tex: { mk4: textured('mk4'), kt9: textured('kt9') },
+    };
+  });
+  check(sk.glb && sk.parts.k8 === 'charging+mag' && sk.parts.mk4 === 'optic' && sk.parts.kt9 === 'mag', `Sketchfab silahları yüklendi, parçalar ayrı (${JSON.stringify(sk.parts)})`);
+  check(sk.tex.mk4 > 0 && sk.tex.kt9 > 0, `Sketchfab silah dokuları ayrı dosyadan bağlandı (${JSON.stringify(sk.tex)})`);
   await waitGame(page, 0.1);
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.35);
@@ -956,7 +990,19 @@ console.log('Atış poligonu');
     const id = await page.evaluate(() => window.__game.weapons.currentId);
     if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
   }
-  check(fired.length === 9, `Dokuz silahın hepsi ateş etti (${fired.join(', ')})`);
+  // 10.–13. silah (Sketchfab): 1-9 tuşlarının ötesinde, doğrudan geçiş
+  for (const id of ['k8', 'kr4', 'mk4', 'kt9']) {
+    await page.evaluate((w) => window.__game.weapons.switchTo(w), id);
+    await page.waitForFunction((w) => window.__game.weapons.currentId === w && window.__game.weapons.state === 'idle', id, { timeout: 120000, polling: 50 });
+    await waitGame(page, 0.3);
+    const before = await page.evaluate(() => window.__game.stats.shots);
+    await page.mouse.down();
+    await waitGame(page, 0.05);
+    await page.mouse.up();
+    await waitGame(page, 0.1);
+    if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
+  }
+  check(fired.length === 13, `On üç silahın hepsi ateş etti (${fired.join(', ')})`);
   // Dürbün kaplaması
   await page.keyboard.press('Digit6');
   await waitGame(page, 1.0);
@@ -1032,9 +1078,21 @@ console.log('Artifact sürümü (dist/artifact.html)');
   await sleep(800);
   check((await state(page)) === 'menu', 'CDN three.js ile menü açıldı');
   check(await page.evaluate(() => document.getElementById('loading').hidden), 'Yükleme ekranı kapandı');
+  // Menü arka planı görev haritasıdır: hazır helikopter yan dosyadan indiyse sahnenin altında bekler
+  const hp = await page.evaluate(() => ({ prop: !!window.__game.mission.heliSpare?.prop, credit: document.querySelector('#propCredits p')?.textContent || '' }));
+  check(hp.prop && /CC-BY-4\.0/.test(hp.credit), `Helikopter modeli yan dosyadan yüklendi, atfı emeği geçenlerde ("${hp.credit.slice(0, 48)}…")`);
   await page.evaluate(() => window.__game.startMode('range', 'normal'));
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
   check(await page.evaluate(() => window.__game.enemies.list.length > 0 && window.__game.enemies.list.every((e) => !!e.model.bones)), 'Asker modeli yan dosyadan yüklendi (iskeletli)');
+  await page.waitForFunction(() => window.__game.viewmodel.models.kt9?.glb, null, { timeout: 60000 }).catch(() => {});
+  const wt = await page.evaluate(() => {
+    let n = 0;
+    window.__game.viewmodel.models.kt9?.root.traverse((o) => {
+      if (o.isMesh && o.material.map?.image && !o.material.transparent) n++;
+    });
+    return n;
+  });
+  check(wt > 0, `Sketchfab silahı ve dokuları yan dosyalardan yüklendi (KT-9, ${wt} dokulu parça)`);
   await page.close();
 }
 if (run('artifact')) {

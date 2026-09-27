@@ -1,0 +1,340 @@
+{
+  "k8": {
+    "source": "SourceAssets/Sketchfab/k8_du/original/low-poly_c8_iur.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.9,
+    "exclude": "^(ar15 30rnd mag \\(steel\\)_8|55645)",
+    "parts": {
+      "mag": "^ar15 30rnd mag empty",
+      "charging": "charging handle"
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.125
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0225,
+        -0.449
+      ],
+      "sight": [
+        0,
+        0.087,
+        0.12
+      ],
+      "leftHand": [
+        0,
+        -0.008,
+        -0.2
+      ],
+      "eject": [
+        0.03,
+        0.02,
+        0.05
+      ]
+    }
+  },
+  "kr4": {
+    "source": "SourceAssets/Sketchfab/kr4_du/original/low-poly_colt_m4a1.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.84,
+    "exclude": "^(ar15 30rnd mag \\(steel\\)_15|55645)",
+    "parts": {
+      "mag": "^ar15 30rnd mag empty",
+      "charging": "charging handle"
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.125
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0225,
+        -0.412
+      ],
+      "sight": [
+        0,
+        0.088,
+        0.15
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.15
+      ],
+      "eject": [
+        0.03,
+        0.02,
+        0.05
+      ]
+    }
+  },
+  "mk4": {
+    "source": "SourceAssets/Sketchfab/mk4_pieterferreira/original/m4_carbine_rifle.glb",
+    "forward": "-z",
+    "up": "+y",
+    "scaleTo": 0.84,
+    "ratio": 0.06,
+    "error": 0.007,
+    "materials": {
+      "*": {
+        "baseColor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "alphaMode": "MASK",
+        "alphaCutoff": 0.5
+      }
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.09
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.032,
+        -0.425
+      ],
+      "sight": [
+        0,
+        0.098,
+        0.06
+      ],
+      "leftHand": [
+        0,
+        -0.045,
+        -0.18
+      ],
+      "eject": [
+        0.03,
+        0.03,
+        0.02
+      ]
+    },
+    "partBoxes": {
+      "mag": [
+        [
+          -0.04,
+          -0.2,
+          -0.08
+        ],
+        [
+          0.04,
+          -0.05,
+          0.07
+        ]
+      ],
+      "optic": [
+        [
+          -0.04,
+          0.055,
+          -0.03
+        ],
+        [
+          0.04,
+          0.15,
+          0.1
+        ]
+      ]
+    },
+    "textures": {
+      "0": {
+        "paint": [
+          [
+            105,
+            218,
+            26,
+            101,
+            118,
+            330
+          ]
+        ]
+      }
+    },
+    "splitBoxes": {
+      "optic": [
+        [
+          -0.035,
+          0.075,
+          -0.02
+        ],
+        [
+          0.035,
+          0.14,
+          0.075
+        ]
+      ]
+    }
+  },
+  "kt9": {
+    "source": "SourceAssets/Sketchfab/kt9_deryckere/original/gun.glb",
+    "localTo": "Gun.obj.cleaner",
+    "forward": "-y",
+    "up": "+z",
+    "scaleTo": 0.92,
+    "hand": [
+      0,
+      -0.022,
+      0.15
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.021,
+        -0.46
+      ],
+      "sight": [
+        0,
+        0.122,
+        0.22
+      ],
+      "leftHand": [
+        0,
+        -0.02,
+        -0.16
+      ],
+      "eject": [
+        0.035,
+        0.02,
+        0.02
+      ]
+    },
+    "partBoxes": {
+      "mag": [
+        [
+          -0.05,
+          -0.2,
+          -0.03
+        ],
+        [
+          0.05,
+          -0.06,
+          0.1
+        ]
+      ]
+    },
+    "textures": {
+      "0": {
+        "max": 1024,
+        "paint": [
+          [
+            103,
+            655,
+            50,
+            27,
+            100,
+            648
+          ],
+          [
+            105,
+            693,
+            48,
+            14,
+            100,
+            720
+          ],
+          [
+            105,
+            803,
+            48,
+            14,
+            100,
+            790
+          ],
+          [
+            748,
+            331,
+            56,
+            18,
+            760,
+            325
+          ],
+          [
+            746,
+            568,
+            54,
+            20,
+            775,
+            596
+          ],
+          [
+            897,
+            76,
+            10,
+            84,
+            910,
+            70
+          ]
+        ]
+      },
+      "3": {
+        "paint": [
+          [
+            1140,
+            748,
+            100,
+            62,
+            1120,
+            790
+          ],
+          [
+            826,
+            1465,
+            112,
+            25,
+            820,
+            1480
+          ],
+          [
+            808,
+            1685,
+            114,
+            30,
+            800,
+            1700
+          ],
+          [
+            1048,
+            1685,
+            184,
+            24,
+            1040,
+            1695
+          ],
+          [
+            1806,
+            1752,
+            172,
+            20,
+            1800,
+            1762
+          ],
+          [
+            1492,
+            689,
+            92,
+            58,
+            1530,
+            800
+          ]
+        ]
+      }
+    }
+  },
+  "_notes": {
+    "points": "Oyun uzayında (metre, namlu -Z, üst +Y) köken değişmeden önceki konumlar; araç el (hand) noktasını kökene taşır",
+    "textures.paint": "[x, y, genişlik, yükseklik, örnekX, örnekY]: özgün doku pikselleri; gerçek marka/seri no yazıları örnek noktanın rengiyle boyanır",
+    "partBoxes": "Parça adı → [min, max] kutusu: merkezi kutuya düşen mesh o parçaya gider (kaynakta parçalar adlandırılmamışsa)",
+    "splitBoxes": "Parça adı → [min, max]: gövdede kalan mesh'lerin ağırlık merkezi kutuya düşen üçgenleri o parçaya taşınır (cam, nişangah gövdesiyle aynı mesh'teyse)"
+  }
+}

@@ -6,10 +6,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import WEAPON_ASSETS from './weaponAssets.json';
 import CHARACTER_ASSETS from './characterAssets.json';
+import PROP_ASSETS from './propAssets.json';
 import GAME_ASSETS from 'virtual:game-assets';
 import { warnOnce } from './util.js';
 
-export { WEAPON_ASSETS, CHARACTER_ASSETS };
+export { WEAPON_ASSETS, CHARACTER_ASSETS, PROP_ASSETS };
 const cache = new Map();
 const loader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
@@ -88,12 +89,60 @@ function prepareWeapon(scene) {
   return scene;
 }
 
+// Ayrı JPEG dokuları malzeme adına göre bağla (Sketchfab silahları: renk, normal, pürüz/metal, ortam gölgesi, ışıma).
+// GLB dokusuz gelir (Artifact CSP blob adresine izin vermez); doku inmezse malzeme düz renkte kalır
+async function applyTextureSpec(scene, materials) {
+  if (!materials) return;
+  const texCache = new Map();
+  const tex = (path, srgb) => {
+    if (!path) return Promise.resolve(null);
+    const k = `${path}|${srgb}`;
+    if (!texCache.has(k)) texCache.set(k, loadTexture(path, { srgb }).catch((e) => (warnOnce(`tex-${path}`, `${path} yüklenemedi (${e.message})`), null)));
+    return texCache.get(k);
+  };
+  const done = new Set();
+  const jobs = [];
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const m = o.material;
+    const spec = materials[m.name];
+    if (!spec || done.has(m)) return;
+    done.add(m);
+    const tangents = !!o.geometry.attributes.tangent;
+    jobs.push(
+      Promise.all([tex(spec.map, true), tex(spec.normalMap, false), tex(spec.ormMap, false), tex(spec.aoMap, false), tex(spec.emissiveMap, true)]).then(([map, normalMap, orm, ao, emissive]) => {
+        if (map) m.map = map;
+        if (normalMap) {
+          m.normalMap = normalMap;
+          // glTF normal haritası: teğet yoksa three.js türev teğetlerle Y'yi ters okur (GLTFLoader da böyle düzeltir)
+          if (!tangents) m.normalScale.y = -Math.abs(m.normalScale.y);
+        }
+        if (orm) {
+          m.roughnessMap = orm; // yeşil kanal
+          m.metalnessMap = orm; // mavi kanal
+        }
+        if (ao) m.aoMap = ao; // kırmızı kanal
+        if (emissive) m.emissiveMap = emissive;
+        m.needsUpdate = true;
+      })
+    );
+  });
+  await Promise.all(jobs);
+}
+
 // assetId → Promise<THREE.Group> (her çağrıda bağımsız kopya)
 export function loadWeaponAsset(assetId) {
   const key = `weapon:${assetId}`;
   if (!cache.has(key)) {
     const entry = WEAPON_ASSETS[assetId];
-    const p = entry ? readBinary(entry.file).then(parseGltf).then((g) => prepareWeapon(g.scene)) : Promise.reject(new Error(`${assetId} kaydı yok`));
+    const p = entry
+      ? readBinary(entry.file)
+          .then(parseGltf)
+          .then(async (g) => {
+            await applyTextureSpec(g.scene, entry.materials);
+            return prepareWeapon(g.scene);
+          })
+      : Promise.reject(new Error(`${assetId} kaydı yok`));
     cache.set(key, p);
   }
   return cache.get(key).then((scene) => scene.clone(true));
@@ -165,6 +214,24 @@ export function loadCharacterAsset(id) {
       return { scene: gltf.scene, animations: gltf.animations };
     })();
     cache.set(key, p);
+  }
+  return cache.get(key);
+}
+
+// Hazır araç/eşya modeli (Sketchfab, tools/prepare-prop.mjs): sahne şablonu. İskelet yok; kopyası
+// Object3D.clone ile alınır, malzemeler kopyalar arasında paylaşılır
+export function loadPropAsset(id) {
+  const key = `prop:${id}`;
+  if (!cache.has(key)) {
+    const entry = PROP_ASSETS[id];
+    cache.set(
+      key,
+      (async () => {
+        if (!entry) throw new Error(`${id} kaydı yok`);
+        const gltf = await parseGltf(await readBinary(entry.file));
+        return gltf.scene;
+      })()
+    );
   }
   return cache.get(key);
 }

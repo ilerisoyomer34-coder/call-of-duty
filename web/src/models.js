@@ -893,7 +893,104 @@ export function buildC4() {
   return { root: g, light };
 }
 
+// Hazır helikopter modeli (Sketchfab, propAssets.json → helicopter). Yüklenince buildHelicopter onu kopyalar;
+// yüklenemezse (dosya yok, ağ hatası) aşağıdaki prosedürel helikopter kullanılır
+let heliProp = null;
+let propEnv = null;
+const PROP_ENV_INTENSITY = 0.6; // ortam yansıması: gövde gökyüzünü hafifçe yansıtsın, karanlıkta simsiyah kalmasın
+// Modelin burnunun baktığı eksen → oyunda burnu -Z'ye çeviren dönüş
+const PROP_YAW = { '+z': Math.PI, '-z': 0, '+x': Math.PI / 2, '-x': -Math.PI / 2 };
+
+function applyPropEnv(m) {
+  m.envMap = propEnv;
+  m.envMapIntensity = PROP_ENV_INTENSITY;
+  m.needsUpdate = true;
+}
+
+// Şablonu bir kez hazırla: askerî renk, gölgeler, ortam yansıması (kopyalar malzemeyi paylaşır)
+export function setHelicopterProp(scene, info) {
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    const hex = info.tint?.[o.material.name];
+    if (hex) o.material.color.set(hex);
+    if (propEnv) applyPropEnv(o.material);
+  });
+  heliProp = { scene, info };
+}
+
+export function hasHelicopterProp() {
+  return !!heliProp;
+}
+
+export function setPropEnvironment(tex) {
+  propEnv = tex;
+  heliProp?.scene.traverse((o) => o.isMesh && applyPropEnv(o.material));
+}
+
+// Hazır modelden helikopter: burun -Z, kızaklar y=0'da, gövde (pervaneler hariç) info.length boyunda.
+// Pervaneler dönme eksenindeki birer pivota bağlanır (rotor: y ekseni, tail: tailAxis ekseni).
+// seat: kalkış kamerasının yeri (sağ kapının hemen dışı; sol kapı için x işareti çevrilir)
+function buildHelicopterProp({ scene, info }) {
+  const root = new THREE.Group();
+  const inner = new THREE.Group();
+  const model = scene.clone(true);
+  inner.add(model);
+  const yaw = PROP_YAW[info.forward] ?? 0;
+  inner.rotation.y = yaw;
+  root.add(inner);
+  const find = (name) => model.getObjectByName(name);
+  const rotorRoots = [...info.rotors.main, ...info.rotors.tail].map(find).filter(Boolean);
+  const underRotor = (o) => {
+    for (let p = o; p; p = p.parent) if (rotorRoots.includes(p)) return true;
+    return false;
+  };
+  const bodyBox = (out) => {
+    root.updateMatrixWorld(true);
+    out.makeEmpty();
+    model.traverse((o) => {
+      if (o.isMesh && !underRotor(o)) out.expandByObject(o);
+    });
+    return out;
+  };
+  const box = bodyBox(new THREE.Box3());
+  const size = box.getSize(new THREE.Vector3());
+  inner.scale.setScalar(info.length / Math.max(size.x, size.z));
+  bodyBox(box);
+  const all = new THREE.Box3().setFromObject(inner);
+  const c = box.getCenter(new THREE.Vector3());
+  inner.position.set(-c.x, -all.min.y, -c.z);
+  root.updateMatrixWorld(true);
+  bodyBox(box);
+  // Pervane pivotları: ilk düğümün kökeni göbek merkezidir; attach dünya dönüşümünü korur
+  const pivot = (names) => {
+    const nodes = names.map(find).filter(Boolean);
+    const p = new THREE.Group();
+    root.add(p);
+    if (nodes.length) nodes[0].getWorldPosition(p.position);
+    p.updateMatrixWorld(true);
+    for (const n of nodes) p.attach(n);
+    return p;
+  };
+  const rotor = pivot(info.rotors.main);
+  const tail = pivot(info.rotors.tail);
+  // Model yan döndürüldüyse kuyruk pervanesinin x ekseni oyunda z olur
+  const quarter = Math.abs(Math.abs(yaw) - Math.PI / 2) < 1e-3;
+  const tailAxis = quarter ? { x: 'z', z: 'x' }[info.axes.tail] || info.axes.tail : info.axes.tail;
+  // Kapı hizası: kapı düğümleri varsa onların ortası, yoksa gövdenin ön yarısı
+  const door = new THREE.Box3();
+  for (const name of ['DoorFront', 'DoorRear']) {
+    const d = find(name);
+    if (d) door.expandByObject(d);
+  }
+  const dc = door.isEmpty() ? new THREE.Vector3(0, box.min.y + 1.4, box.min.z * 0.3) : door.getCenter(new THREE.Vector3());
+  const seat = new THREE.Vector3(box.max.x + 0.3, dc.y + 0.25, dc.z);
+  return { root, rotor, tail, tailAxis, seat, prop: true };
+}
+
 export function buildHelicopter() {
+  if (heliProp) return buildHelicopterProp(heliProp);
   const root = new THREE.Group();
   const body = mat(0x3b4331, 0.7, 0.3);
   const dark = mat(0x1d2019, 0.6, 0.4);

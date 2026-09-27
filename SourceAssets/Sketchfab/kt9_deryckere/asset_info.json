@@ -1,0 +1,17 @@
+{
+  "title": "Gun",
+  "author": "Dries Deryckere",
+  "author_url": "https://sketchfab.com/deryckeredries",
+  "source_url": "https://sketchfab.com/3d-models/gun-a66b52ede9af472a9a9e0946154d603c",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-09-27",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (04bb9603-gun.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), 3 PBR malzeme (renk, normal, pürüz/metal), 9 doku (512–2048 px), 21 660 üçgen",
+  "category": "Weapons",
+  "game_name": "KT-9 Kaplan (kt9)",
+  "intended_use": "Dürbünlü taktik nişancı tüfeği KT-9 Kaplan",
+  "original_file": "original/gun.glb",
+  "sha256": "305ea6df0ce15ac21b47100414c4f213769188a171bc5980fe741a13fe260523",
+  "modifications": "web/tools/prepare-weapon-glb.mjs: sergi için eğik duran kök düğümün yerel uzayında alındı; namlu -Z, 0,92 m, köken kabzada; şarjör ayrı parça; dokular JPEG olarak ayrıldı; gerçek marka ve kişi bilgileri dokulardan silindi (\"ACR\" amblemi, \"S/N ACR00076\", \"MODEL ACR / CALIBER\", \"B.F.I. WINDHAM, ME. U.S.A.\", \"EO TECH\", \"AIMPOINT\", bir yazı ve bir kişi fotoğrafı). Adı kurgusal.",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
+}

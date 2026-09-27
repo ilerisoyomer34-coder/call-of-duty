@@ -3,17 +3,17 @@
     "file": "assets/weapons/mg43.glb",
     "points": {
       "muzzle": [
-        0.0,
+        0,
         0.082,
         -0.872
       ],
       "sight": [
-        -0.0,
+        0,
         0.178,
         0.006
       ],
       "leftHand": [
-        0.0,
+        0,
         0.02,
         -0.336
       ],
@@ -48,17 +48,17 @@
     "file": "assets/weapons/mar556.glb",
     "points": {
       "muzzle": [
-        0.0,
+        0,
         0.0423,
         -0.7006
       ],
       "sight": [
-        0.0,
+        0,
         0.0901,
         -0.0227
       ],
       "leftHand": [
-        0.0,
+        0,
         -0.0274,
         -0.4005
       ],
@@ -93,17 +93,17 @@
     "file": "assets/weapons/m82.glb",
     "points": {
       "muzzle": [
-        0.0,
+        0,
         0.04,
         -1.05
       ],
       "sight": [
-        -0.0,
+        0,
         0.112,
         0.082
       ],
       "leftHand": [
-        0.0,
+        0,
         0.005,
         -0.23
       ],
@@ -137,12 +137,12 @@
     "file": "assets/weapons/d50.glb",
     "points": {
       "muzzle": [
-        0.0,
+        0,
         0.0405,
         -0.218
       ],
       "sight": [
-        0.0,
+        0,
         0.0772,
         0.023
       ],
@@ -176,5 +176,231 @@
     "length": 0.28,
     "tris": 10596,
     "bytes": 276360
+  },
+  "k8": {
+    "file": "assets/weapons/k8.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.0525,
+        -0.574
+      ],
+      "sight": [
+        0,
+        0.117,
+        -0.005
+      ],
+      "leftHand": [
+        0,
+        0.022,
+        -0.325
+      ],
+      "eject": [
+        0.03,
+        0.05,
+        -0.075
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.048,
+        -0.145,
+        -0.575
+      ],
+      "max": [
+        0.04,
+        0.133,
+        0.325
+      ]
+    },
+    "length": 0.9,
+    "tris": 21113,
+    "bytes": 837604,
+    "credit": {
+      "title": "low-poly C8 IUR",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-c8-iur-0204eaad7005420cb0694d4af81f1485"
+    }
+  },
+  "kr4": {
+    "file": "assets/weapons/kr4.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.0525,
+        -0.537
+      ],
+      "sight": [
+        0,
+        0.118,
+        0.025
+      ],
+      "leftHand": [
+        0,
+        0.018,
+        -0.275
+      ],
+      "eject": [
+        0.03,
+        0.05,
+        -0.075
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.033,
+        -0.143,
+        -0.534
+      ],
+      "max": [
+        0.039,
+        0.13,
+        0.306
+      ]
+    },
+    "length": 0.84,
+    "tris": 20817,
+    "bytes": 832644,
+    "credit": {
+      "title": "low-poly Colt M4A1",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-colt-m4a1-c0313e9f6c164de8903615c4297a2485"
+    }
+  },
+  "kt9": {
+    "file": "assets/weapons/kt9.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.043,
+        -0.61
+      ],
+      "sight": [
+        0,
+        0.144,
+        0.07
+      ],
+      "leftHand": [
+        0,
+        0.002,
+        -0.31
+      ],
+      "eject": [
+        0.035,
+        0.042,
+        -0.13
+      ]
+    },
+    "parts": [
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.059,
+        -0.175,
+        -0.61
+      ],
+      "max": [
+        0.059,
+        0.219,
+        0.31
+      ]
+    },
+    "length": 0.92,
+    "tris": 21660,
+    "bytes": 419816,
+    "materials": {
+      "Material__180": {
+        "map": "assets/weapons/kt9_t0.jpg",
+        "normalMap": "assets/weapons/kt9_t2.jpg",
+        "ormMap": "assets/weapons/kt9_t1.jpg",
+        "aoMap": "assets/weapons/kt9_t1.jpg"
+      },
+      "Material__183": {
+        "map": "assets/weapons/kt9_t3.jpg",
+        "normalMap": "assets/weapons/kt9_t5.jpg",
+        "ormMap": "assets/weapons/kt9_t4.jpg",
+        "aoMap": "assets/weapons/kt9_t4.jpg"
+      },
+      "Material__184": {
+        "map": "assets/weapons/kt9_t6.jpg",
+        "normalMap": "assets/weapons/kt9_t8.jpg",
+        "ormMap": "assets/weapons/kt9_t7.jpg",
+        "aoMap": "assets/weapons/kt9_t7.jpg"
+      }
+    },
+    "credit": {
+      "title": "Gun",
+      "author": "Dries Deryckere (https://sketchfab.com/deryckeredries)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/gun-a66b52ede9af472a9a9e0946154d603c"
+    }
+  },
+  "mk4": {
+    "file": "assets/weapons/mk4.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.062,
+        -0.515
+      ],
+      "sight": [
+        0,
+        0.128,
+        -0.03
+      ],
+      "leftHand": [
+        0,
+        -0.015,
+        -0.27
+      ],
+      "eject": [
+        0.03,
+        0.06,
+        -0.07
+      ]
+    },
+    "parts": [
+      "optic"
+    ],
+    "bounds": {
+      "min": [
+        -0.033,
+        -0.13,
+        -0.515
+      ],
+      "max": [
+        0.038,
+        0.15,
+        0.325
+      ]
+    },
+    "length": 0.84,
+    "tris": 71245,
+    "bytes": 2639776,
+    "materials": {
+      "Material__35": {
+        "map": "assets/weapons/mk4_t0.jpg",
+        "ormMap": "assets/weapons/mk4_t1.jpg",
+        "aoMap": "assets/weapons/mk4_t1.jpg",
+        "emissiveMap": "assets/weapons/mk4_t2.jpg"
+      }
+    },
+    "credit": {
+      "title": "m4 Carbine Rifle",
+      "author": "Pieter Ferreira (https://sketchfab.com/Badboy17Aiden)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/m4-carbine-rifle-37cafb82ae144484a26e9ab71a0f8f0e"
+    }
   }
 }

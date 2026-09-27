@@ -1,0 +1,31 @@
+{
+  "helicopter": {
+    "file": "assets/props/helicopter.glb",
+    "rotors": {
+      "main": [
+        "RotorMain",
+        "RotorHub"
+      ],
+      "tail": [
+        "RotorTail"
+      ]
+    },
+    "axes": {
+      "main": "y",
+      "tail": "x"
+    },
+    "forward": "+z",
+    "length": 11,
+    "tint": {
+      "Material.004": "#55603f"
+    },
+    "credit": {
+      "title": "HELICOPTER",
+      "author": "pranav27 (https://sketchfab.com/pranav27)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/helicopter-c33f1be4708b422e8750d9b1db9894bf"
+    },
+    "tris": 49084,
+    "bytes": 771628
+  }
+}

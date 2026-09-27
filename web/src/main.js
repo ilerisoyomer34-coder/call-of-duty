@@ -19,8 +19,9 @@ import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS, MAPS, RENDER } from './config.js';
-import { setMaxAnisotropy } from './assets.js';
+import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
+import { setHelicopterProp, setPropEnvironment } from './models.js';
 import { storage, warnOnce } from './util.js';
 import { Emitter, clamp, rand } from './util.js';
 
@@ -208,6 +209,17 @@ export class Game {
     }
   }
 
+  // Hazır araç modelleri (Sketchfab): gelmezse prosedürel modelle devam edilir; açılışı bekletmesin diye kısa süre sınırı
+  async loadProps() {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('zaman aşımı')), CHARACTER_TIMEOUT_MS));
+    try {
+      const scene = await Promise.race([loadPropAsset('helicopter'), timeout]);
+      setHelicopterProp(scene, PROP_ASSETS.helicopter);
+    } catch (err) {
+      warnOnce('heli-model', `Helikopter modeli yüklenemedi, basit model kullanılıyor (${err.message})`);
+    }
+  }
+
   // Gölgelendiricileri yükleme ekranı açıkken derle: ilk karede telefonda saniyelerce donma olmasın.
   // KHR_parallel_shader_compile yoksa derleme yine olur ama zaman aşımı sonsuz beklemeyi önler.
   precompile() {
@@ -279,6 +291,7 @@ export class Game {
       this.viewmodel.setLighting(env.view);
     }
     setSoldierEnvironment(this.envMap, this.renderer.shadowMap.enabled && (this.renderQuality || 'medium') !== 'low');
+    setPropEnvironment(this.envMap);
     return env;
   }
 
@@ -879,6 +892,9 @@ async function boot() {
     L.step('Asker modelleri yükleniyor', 0.4);
     await nextPaint();
     await game.loadCharacters();
+    L.step('Araç modelleri yükleniyor', 0.5);
+    await nextPaint();
+    await game.loadProps();
     L.step('Harita inşa ediliyor', 0.6);
     await nextPaint();
     game.showMenu();

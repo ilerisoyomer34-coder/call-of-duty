@@ -3,6 +3,7 @@ import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LAB
 import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
+import { PROP_ASSETS, WEAPON_ASSETS } from './assets.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
@@ -18,6 +19,28 @@ export class Menus {
     this.buildControls();
     this.buildDifficulty();
     this.buildBrief();
+    this.buildPropCredits();
+  }
+
+  // Hazır araç modellerinin atfı (CC BY: yazar, kaynak, lisans, değişiklik) propAssets.json'dan
+  buildPropCredits() {
+    const box = $('propCredits');
+    if (!box) return;
+    const names = { helicopter: 'Tahliye helikopteri' };
+    // Sketchfab silahları: oyundaki kurgusal adıyla
+    for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = d.name;
+    const entries = [...Object.entries(PROP_ASSETS), ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];
+    for (const [id, a] of entries) {
+      const c = a.credit || {};
+      const p = document.createElement('p');
+      const b = document.createElement('b');
+      b.textContent = `${names[id] || id}: `;
+      const author = (c.author || '').replace(/\s*\(.*\)$/, '');
+      const license = (c.license || '').replace(/\s*\(.*\)$/, '');
+      const change = WEAPON_ASSETS[id] ? 'Oyun için sadeleştirildi, dokulardaki marka yazıları silindi.' : 'Oyun için sadeleştirildi ve rengi değiştirildi.';
+      p.append(b, document.createTextNode(`"${c.title}" — ${author}, Sketchfab (${license}). ${change} ${c.source}`));
+      box.appendChild(p);
+    }
   }
 
   show(id, push = true) {
@@ -249,7 +272,7 @@ export class Menus {
         if (d.model === 'glb') {
           const badge = document.createElement('span');
           badge.className = 'badge';
-          badge.textContent = 'Blender';
+          badge.textContent = d.source === 'sketchfab' ? 'Sketchfab' : 'Blender';
           top.appendChild(badge);
         }
         const kind = document.createElement('div');

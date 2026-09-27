@@ -1,0 +1,16 @@
+{
+  "title": "HELICOPTER",
+  "author": "pranav27",
+  "author_url": "https://sketchfab.com/pranav27",
+  "source_url": "https://sketchfab.com/3d-models/helicopter-c33f1be4708b422e8750d9b1db9894bf",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-09-27",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (5c9a95ba-helicopter.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), dokusuz; 8 düz renkli malzeme (KHR_materials_specular), 290 856 üçgen, 28 mesh",
+  "category": "Vehicles",
+  "intended_use": "Tahliye helikopteri Şahin-2: geliş, iniş, biniş ve kalkış sahnesi",
+  "original_file": "original/helicopter.glb",
+  "sha256": "731d7587901dcccbc74fbf9ad78a4d3b8e728a198dd8857188c748825933b348",
+  "modifications": "web/tools/prepare-prop.mjs: dedup + weld + meshoptimizer sadeleştirme (290 856 → 49 084 üçgen), KHR_mesh_quantization ile nicemleme (8,1 MB → 0,74 MB); pervane, göbek ve kapı düğümleri yeniden adlandırıldı (RotorMain, RotorHub, RotorTail, DoorFront, DoorRear); gövde malzemesi (Material.004) gri yerine askerî yeşil (#55603f). Oyunda ölçek 11 m gövde boyuna ayarlanır, pervaneler kodla döndürülür.",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir."
+}

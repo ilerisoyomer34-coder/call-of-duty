@@ -1,0 +1,17 @@
+{
+  "title": "low-poly C8 IUR",
+  "author": "D_U",
+  "author_url": "https://sketchfab.com/DU1701",
+  "source_url": "https://sketchfab.com/3d-models/low-poly-c8-iur-0204eaad7005420cb0694d4af81f1485",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-09-27",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (72418bdd-low-poly_c8_iur_1.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), dokusuz; 5 düz renkli malzeme, 23 829 üçgen",
+  "category": "Weapons",
+  "game_name": "K8 Bozkurt (k8)",
+  "intended_use": "Taarruz tüfeği K8 Bozkurt (demir nişangah)",
+  "original_file": "original/low-poly_c8_iur.glb",
+  "sha256": "2b950b5c7aa62591c0139ca4c8e0af231c41267f418ab9295eccd3337e9306f9",
+  "modifications": "web/tools/prepare-weapon-glb.mjs: sergi amaçlı yedek şarjör ve fişek atıldı; namlu -Z, 0,90 m, köken kabzada; şarjör ve kurma kolu ayrı parça (mag, charging); konum/normal nicemlendi (23 829 → 21 113 üçgen, 0,8 MB). Adı kurgusal.",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
+}
