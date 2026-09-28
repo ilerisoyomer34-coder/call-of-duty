@@ -26,7 +26,7 @@ export class HUD {
       interact: $('interact'), interactText: $('interactText'), interactBar: $('interactBar'), interactKey: $('interactKey'),
       markers: $('markers'), icons: $('icons'), dmgNums: $('dmgNums'), dmgDirs: $('dmgDirs'), grenadeWarn: $('grenadeWarn'),
       compassStrip: $('compassStrip'), compassObj: $('compassObj'), compass: $('compass'),
-      minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'),
+      minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'), tbAds: $('tbAds'),
       slots: $('slots'), scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
     };
     this.ch = {
@@ -315,6 +315,13 @@ export class HUD {
     const cam = g.camera;
     const width = g.width;
     const height = g.height;
+
+    // Dokunmatik NİŞAN aç/kapa çalışır: nişandayken düğme parmak kalksa da yanık kalsın (DOM'a yalnız değişince yaz)
+    const adsLatched = g.input.touch.active && P.adsToggle;
+    if (adsLatched !== this.adsLatched) {
+      this.adsLatched = adsLatched;
+      this.el.tbAds.classList.toggle('latched', adsLatched);
+    }
 
     // Nişangah: anlık sapmaya göre açılır
     if (w) {

@@ -433,7 +433,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #stick[hidden] { display: none; }
 #stickKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(231,220,196,.45); transform: translate(-50%, -50%); }
 .tb { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(231,220,196,.4); background: rgba(13,16,19,.45); color: var(--sand); font: 700 12px/1 var(--f-ui); letter-spacing: .06em; display: flex; align-items: center; justify-content: center; text-align: center; }
-.tb.on { background: rgba(240,163,58,.55); border-color: var(--amber); }
+.tb.on, .tb.latched { background: rgba(240,163,58,.55); border-color: var(--amber); }
 .tb.big { width: 84px; height: 84px; font-size: 15px; border-color: rgba(224,81,63,.7); }
 #tbFire { right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 #tbAds { right: calc(122px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
@@ -628,7 +628,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <div><div class="eyebrow">Klavye ve fare</div><h2>Kontroller</h2></div>
       <div class="grid2" id="keyTables"></div>
       <p class="tip"><b>Gamepad:</b> sol çubuk hareket, sağ çubuk bakış, RT ateş, LT nişan, A zıpla, B çömel, X şarjör, Y silah, RB el bombası, LB etkileşim, sağ çubuğa basma bıçak.</p>
-      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin.</p>
+      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın.</p>
       <div class="row"><button class="btn primary" data-back>Geri</button></div>
     </div>
   </section>

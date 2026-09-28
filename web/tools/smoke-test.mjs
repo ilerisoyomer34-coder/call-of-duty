@@ -1136,6 +1136,17 @@ console.log('Telefon görünümü');
   const pr = await page.evaluate(() => ({ canvas: window.__game.renderer.getPixelRatio(), world: window.__game.worldPR, rt: !!window.__game.worldRT, q: window.__game.renderQuality }));
   check(pr.canvas === 2 && pr.world < pr.canvas && pr.rt, `Telefonda eller/silah tam çözünürlükte (${pr.canvas}×), dünya ölçekli (${pr.world.toFixed(2)}×, ${pr.q})`);
   await page.screenshot({ path: join(shots, '12-mobile-play.png') });
+  // NİŞAN dokunmatikte aç/kapa: bir dokunuşla nişanda kalır (parmak kalksa da), ikincisiyle çıkar
+  const adsState = () => page.evaluate(() => ({ on: window.__game.player.adsToggle, t: window.__game.player.adsT, lit: document.getElementById('tbAds').classList.contains('latched') }));
+  await page.tap('#tbAds');
+  await waitGame(page, 0.6);
+  const a1 = await adsState();
+  check(a1.on && a1.lit && a1.t > 0.9, `NİŞAN'a bir dokunuş: parmak kalktı, nişanda kalıyor (adsT ${a1.t.toFixed(2)}, düğme yanık)`);
+  await page.screenshot({ path: join(shots, '12b-mobile-ads.png') });
+  await page.tap('#tbAds');
+  await waitGame(page, 0.6);
+  const a2 = await adsState();
+  check(!a2.on && !a2.lit && a2.t < 0.1, `İkinci dokunuş nişandan çıkardı (adsT ${a2.t.toFixed(2)}, düğme söndü)`);
   await ctx.close();
 }
 

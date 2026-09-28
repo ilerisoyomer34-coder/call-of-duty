@@ -185,7 +185,8 @@ export class Player {
     const sprintInput = S.sprintMode === 'toggle' ? (input.pressed('sprint') ? (this.sprintToggle = !this.sprintToggle) : this.sprintToggle) : input.isDown('sprint') || input.touch.sprint;
     const weaponBlocksSprint = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing';
     let wantSprint = sprintInput && mv.y > 0.35 && this.grounded && !weaponBlocksSprint && !this.interacting;
-    if (S.adsMode === 'toggle') {
+    // Dokunmatikte NİŞAN hep aç/kapa: başparmaklar bakış ve ateşle meşgulken düğme basılı tutulamaz
+    if (input.touch.active || S.adsMode === 'toggle') {
       if (input.pressed('ads')) this.adsToggle = !this.adsToggle;
     } else this.adsToggle = input.isDown('ads');
     const wantAds = this.adsToggle && W.canAds && !this.interacting;
