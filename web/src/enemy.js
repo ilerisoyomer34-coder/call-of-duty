@@ -7,6 +7,8 @@ import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG } from '
 import { applyRadialDamage } from './grenades.js';
 import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
+import { rollEnemyArmor, computeArmorDamage, penFor, enemyPen, playerZoneAt } from './armor.js';
+import { EV } from './events.js';
 import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp, rayCylinder } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -44,7 +46,10 @@ export class Enemy {
     this.state = { pos: this.pos, vel: this.vel, radius: 0.38, height: 1.8, grounded: true, gravity: 15, hitWall: false };
     const W = ENEMY_WEAPONS[T.weapon];
     this.W = W;
-    this.health = new Health(T.hp, this.type === 'heavy' ? 80 : 0);
+    this.wKey = T.weapon; // zırh delmesi için silah kimliği (data/armor.json → enemyWeaponPen)
+    this.health = new Health(T.hp);
+    // Zırh: türe, zorluğa ve seviyeye göre veriden (ağır asker hep zırhlı); poligon mankenleri zırhsız
+    this.armor = this.dummy ? null : rollEnemyArmor(this.type, game.difficultyKey, game.level?.id || 1);
     this.weapon = { mag: W.magSize, cooldown: 0, burstLeft: 0, gapT: rand(0.2, 0.6), reloadT: 0, charge: 0 };
     this.anim = { aimPitch: 0, deathT: 0, fallDir: 1, fallSide: 0 };
     this.shotCount = 0;
@@ -128,7 +133,8 @@ export class Enemy {
     const B = this.Tbase;
     if (!B.mounted) return;
     this.T = mounted ? B : { ...B, usesCover: true, fov: 120, viewRange: 60 };
-    this.W = ENEMY_WEAPONS[mounted ? B.weapon : B.fallbackWeapon];
+    this.wKey = mounted ? B.weapon : B.fallbackWeapon;
+    this.W = ENEMY_WEAPONS[this.wKey];
     this.weapon.mag = this.W.magSize;
     this.weapon.reloadT = 0;
     this.weapon.burstLeft = 0;
@@ -167,6 +173,20 @@ export class Enemy {
   takeDamage(amount, info) {
     if (!this.alive) return { killed: false, headshot: false };
     const g = this.game;
+    // Zırh (belge §4.5): bölgenin parçası mermiden emdiği kadar aşınır; kırılınca olay yayımlanır
+    let armorHit = false;
+    let armorBroken = false;
+    const piece = this.armor && info.source !== 'cheat' ? this.armor.pieceFor(info.zone) : null;
+    if (piece && piece.points > 0) {
+      const r = computeArmorDamage(amount, penFor(info.weapon), piece);
+      amount = r.healthDamage;
+      armorHit = r.absorbed > 0;
+      if (r.broken) {
+        armorBroken = true;
+        this.armorBrokenBy = info.source;
+        g.events.emit(EV.ARMOR_BROKEN, { target: this, targetType: 'enemy', piece: piece.id, by: info.source });
+      }
+    }
     const dealt = this.health.damage(amount);
     void dealt;
     this.model.hit(info.zone);
@@ -182,9 +202,9 @@ export class Enemy {
     }
     if (this.health.dead) {
       this.die(info);
-      return { killed: true, headshot: info.zone === 'head' };
+      return { killed: true, headshot: info.zone === 'head', armorHit, armorBroken };
     }
-    return { killed: false, headshot: false };
+    return { killed: false, headshot: false, armorHit, armorBroken };
   }
 
   die(info) {
@@ -1046,7 +1066,10 @@ export class Enemy {
       if (h >= 0) {
         hitPlayer = true;
         const fall = dist < 25 ? 1 : lerp(1, 0.6, clamp((dist - 25) / 40, 0, 1));
-        F.takeDamage(W.damage * D.damageMult * fall * (F === P ? 1 : ALLY.damageTaken), this.pos);
+        // Bölge: mermi silindire hangi yükseklikte girdi (kafa / gövde / bacak); zırh delmesi silahtan
+        const height = F.state?.height || 1.8;
+        const zone = playerZoneAt(muzzle.y + d.y * h - F.pos.y, height);
+        F.takeDamage(W.damage * D.damageMult * fall * (F === P ? 1 : ALLY.damageTaken), this.pos, { zone, pen: enemyPen(this.wKey), source: this.type });
         g.effects.impact(_v.copy(muzzle).addScaledVector(d, h), _v2.copy(d).negate(), 'flesh', 0.3);
       } else {
         const endT = maxT;

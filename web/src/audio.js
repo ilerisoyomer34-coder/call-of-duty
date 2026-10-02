@@ -348,6 +348,10 @@ export class Audio {
     } else if (kind === 'kill') {
       this.tone(dest, t, 0.06, { type: 'square', freq: 1400, gain: 0.12 });
       this.tone(dest, t + 0.07, 0.1, { type: 'square', freq: 1050, gain: 0.12 });
+    } else if (kind === 'armor') {
+      // Zırhlı hedef: kısa, tiz metal "tın"
+      this.tone(dest, t, 0.09, { type: 'triangle', freq: 3200, freqEnd: 2900, gain: 0.16 });
+      this.noiseBurst(dest, t, 0.025, { type: 'bandpass', freq: 6000, q: 3, gain: 0.35 });
     } else {
       this.tone(dest, t, 0.035, { type: 'square', freq: 1900, gain: 0.1 });
       this.noiseBurst(dest, t, 0.02, { type: 'highpass', freq: 5000, gain: 0.3 });
@@ -361,6 +365,32 @@ export class Audio {
     dest.gain.value = 0.5;
     this.noiseBurst(dest, t, 0.12, { type: 'lowpass', freq: 380, gain: 0.9 });
     this.tone(dest, t, 0.1, { freq: 90, freqEnd: 50, gain: 0.6 });
+  }
+
+  // Oyuncunun zırhına isabet: yelekte tok seramik "tak", kaskta çınlayan metal
+  armorHit(slot = 'body') {
+    if (!this.ctx) return;
+    const t = this.now;
+    const dest = this.out(0);
+    dest.gain.value = 0.5;
+    if (slot === 'helmet') {
+      this.tone(dest, t, 0.22, { type: 'triangle', freq: 1700, freqEnd: 1550, gain: 0.25 });
+      this.noiseBurst(dest, t, 0.05, { type: 'highpass', freq: 3000, gain: 0.5 });
+    } else {
+      this.noiseBurst(dest, t, 0.07, { type: 'bandpass', freq: 900, q: 1.4, gain: 0.9 });
+      this.tone(dest, t, 0.08, { type: 'square', freq: 220, freqEnd: 140, gain: 0.25 });
+    }
+  }
+
+  // Zırh kırıldı: belirgin çatlama ve dağılan parçalar
+  armorBreak() {
+    if (!this.ctx) return;
+    const t = this.now;
+    const dest = this.out(0);
+    dest.gain.value = 0.7;
+    this.noiseBurst(dest, t, 0.18, { type: 'highpass', freq: 1800, gain: 0.9, freqEnd: 600 });
+    this.noiseBurst(dest, t + 0.05, 0.25, { type: 'bandpass', freq: 2600, q: 0.8, gain: 0.5 });
+    this.tone(dest, t, 0.12, { type: 'sawtooth', freq: 320, freqEnd: 90, gain: 0.3 });
   }
 
   heartbeat() {

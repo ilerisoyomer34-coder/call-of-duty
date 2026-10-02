@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { MOVEMENT as M } from './config.js';
 import { DEG, clamp, damp, lerp, smoothstep, yawToDir } from './util.js';
 import { Health } from './health.js';
+import { ArmorLoadout, computeArmorDamage, playerZoneMult, ARMOR_DATA } from './armor.js';
+import { EV } from './events.js';
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -57,6 +59,10 @@ export class Player {
     this.state.grounded = true;
     this.state.height = M.standHeight;
     this.health.reset();
+    // Kuşanılan zırh (mağazadan, kayıtta) her görevin ve yeniden doğuşun başında tam dolu
+    const L = this.game.save?.data.loadout;
+    this.armor = new ArmorLoadout(L?.armor || null, L?.helmet || null);
+    this.game.events.emit('armor', this.armor);
     this.hbTimer = 0;
     this.lookDX = 0;
     this.lookDY = 0;
@@ -99,9 +105,26 @@ export class Player {
     this.sprintToggle = false;
   }
 
-  takeDamage(amount, fromPos = null) {
+  // hit: { zone: 'head'|'torso'|'leg', pen: zırh delme, source } — verilmezse gövde, varsayılan delme
+  takeDamage(amount, fromPos = null, hit = null) {
     const g = this.game;
     if (!this.alive || g.cheats.god || this.invulnerable) return; // kalkış sahnesinde helikopterin içinde
+    // Bölge çarpanı, sonra zırh (belge §4.5): zırh emdiği kadar aşınır, kalan cana gider
+    const zone = hit?.zone || 'torso';
+    const raw = amount * playerZoneMult(zone);
+    const piece = this.armor.pieceFor(zone);
+    const res = computeArmorDamage(raw, hit?.pen ?? ARMOR_DATA.defaultPen, piece);
+    if (res.absorbed > 0) {
+      g.audio.armorHit(piece.def.slot);
+      g.events.emit('armor', this.armor, true);
+    }
+    g.events.emit(EV.DAMAGE_TAKEN, { target: this, targetType: 'player', rawDamage: raw, absorbed: res.absorbed, healthDamage: res.healthDamage, hitZone: zone });
+    if (res.broken) {
+      g.audio.armorBreak();
+      g.events.emit('message', piece.def.slot === 'helmet' ? 'KASK KIRILDI' : 'ZIRH KIRILDI', 'warn');
+      g.events.emit(EV.ARMOR_BROKEN, { target: this, targetType: 'player', piece: piece.id, by: hit?.source || 'enemy' });
+    }
+    amount = res.healthDamage;
     // Son 1 saniyede alınan hasar zorluk sınırını aşmasın: çapraz ateşte bile tepki süresi kalır
     const cap = g.difficulty.dpsCap || 60;
     this.dmgWindow = (this.dmgWindow || []).filter((d) => this.time - d.t < 1);
@@ -184,7 +207,8 @@ export class Player {
 
     const sprintInput = S.sprintMode === 'toggle' ? (input.pressed('sprint') ? (this.sprintToggle = !this.sprintToggle) : this.sprintToggle) : input.isDown('sprint') || input.touch.sprint;
     const weaponBlocksSprint = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing';
-    let wantSprint = sprintInput && mv.y > 0.35 && this.grounded && !weaponBlocksSprint && !this.interacting;
+    // Ağır Saldırı Zırhı'nda koşu kapalı
+    let wantSprint = sprintInput && mv.y > 0.35 && this.grounded && !weaponBlocksSprint && !this.interacting && !this.armor.noSprint;
     // Dokunmatikte NİŞAN hep aç/kapa: başparmaklar bakış ve ateşle meşgulken düğme basılı tutulamaz
     if (input.touch.active || S.adsMode === 'toggle') {
       if (input.pressed('ads')) this.adsToggle = !this.adsToggle;
@@ -218,7 +242,8 @@ export class Player {
 
     const adsTime = w ? w.data.ads.time : 0.2;
     const adsTarget = wantAds && !this.sprinting ? 1 : 0;
-    this.adsT = clamp(this.adsT + (adsTarget ? 1 : -1) * (dt / adsTime), 0, 1);
+    // Zırhın hız cezası nişan alma süresine de işler
+    this.adsT = clamp(this.adsT + (adsTarget ? 1 : -1) * (dt / (adsTime / this.armor.speedMult)), 0, 1);
 
     // --- Hareket ---
     yawToDir(this.yaw, _fwd);
@@ -226,6 +251,7 @@ export class Player {
     _wish.set(0, 0, 0).addScaledVector(_fwd, mv.y).addScaledVector(_right, mv.x);
     let maxSpeed = this.sprinting ? M.sprintSpeed : this.crouched ? M.crouchSpeed : M.walkSpeed;
     if (w) maxSpeed *= lerp(w.data.mobility || 1, w.data.ads.moveMult, this.adsT);
+    maxSpeed *= this.armor.speedMult; // zırhın hız cezası (belge §4.7)
     if (this.interacting) maxSpeed *= 0.2;
     if (this.grounded) {
       const tx = _wish.x * maxSpeed;
@@ -302,7 +328,7 @@ export class Player {
       const h = g.world.raycast(_tmp, dir, M.leanOffset + 0.25, _hit);
       if (h) leanTarget *= clamp((h.dist - 0.25) / M.leanOffset, 0, 1);
     }
-    this.lean = damp(this.lean, leanTarget, 10, dt);
+    this.lean = damp(this.lean, leanTarget, 10 * this.armor.speedMult, dt);
 
     // Kamera yüksekliği (merdivenlerde yumuşatılır)
     const eyeH = lerp(M.eyeStand, M.eyeCrouch, this.crouchT);

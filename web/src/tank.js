@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { TANK, C4, ALLY } from './config.js';
 import { buildTank, buildC4 } from './models.js';
 import { rand, clamp, angleDiff, dirToYaw, damp, randomInCone, rayCylinder, DEG } from './util.js';
+import { enemyPen, playerZoneAt } from './armor.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -246,7 +247,8 @@ export class Tank {
     const h = rayCylinder(muzzle, d, F.pos.x, F.pos.z, 0.38, F.pos.y, F.pos.y + (F.state?.height || 1.8) + 0.05, maxT);
     let end;
     if (h >= 0) {
-      F.takeDamage(K.damage * D.damageMult * (F === P ? 1 : ALLY.damageTaken), this.pos);
+      const zone = playerZoneAt(muzzle.y + d.y * h - F.pos.y, F.state?.height || 1.8);
+      F.takeDamage(K.damage * D.damageMult * (F === P ? 1 : ALLY.damageTaken), this.pos, { zone, pen: enemyPen('coax'), source: 'tank' });
       end = _v.copy(muzzle).addScaledVector(d, h);
       g.effects.impact(end, _aim.copy(d).negate(), 'flesh', 0.3);
     } else {

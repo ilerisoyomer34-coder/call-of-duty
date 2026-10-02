@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GRENADE, ALLY } from './config.js';
 import { buildGrenade, buildRocket } from './models.js';
 import { clamp, rand, rayCylinder } from './util.js';
+import { ARMOR_DATA } from './armor.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -178,7 +179,8 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
       const f = Math.pow(1 - d / radius, 1.4) * (los ? 1 : 0.2);
       // Oyuncunun kendi bombası daha az acıtır ama yine tehlikeli; manganın bombası oyuncuyu yaralamaz
       const mult = owner === 'player' ? 0.7 : game.difficulty.damageMult;
-      if (f > 0.01 && owner !== 'ally') P.takeDamage(damage * f * mult, pos);
+      // Patlama gövdeye gelir; parça tesiri zırhı kısmen deler
+      if (f > 0.01 && owner !== 'ally') P.takeDamage(damage * f * mult, pos, { zone: 'torso', pen: ARMOR_DATA.explosivePen, source: 'explosion' });
     }
   }
   // Dost askerler: düşman patlamasından etkilenir, oyuncunun ve manganın patlamasından değil (dost ateşi kapalı)

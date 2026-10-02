@@ -463,6 +463,8 @@ export class PlayerWeapons {
     let kill = false;
     let headKill = false;
     let headHit = false;
+    let armorHit = false;
+    let armorBroken = false;
     for (let p = 0; p < pellets; p++) {
       if (pellets > 1) randomInCone(_fwd, (d.pelletSpread + spreadDeg * 0.35) * DEG, _d, 0.8);
       else randomInCone(_fwd, spreadDeg * DEG, _d, 1.3);
@@ -477,9 +479,12 @@ export class PlayerWeapons {
             kill = true;
             if (res.zone === 'head') headKill = true;
           } else if (res.zone === 'head') headHit = true;
+          if (out.armorHit) armorHit = true;
+          if (out.armorBroken) armorBroken = true;
         }
-        g.effects.impact(res.point, _tmp.copy(_d).negate(), 'flesh', pellets > 1 ? 0.5 : 1);
-        if (p === 0) g.audio.impact('flesh', res.point);
+        // Zırha isabet: kıvılcım ve tok metal ses (belge §4.7); zırhsız yer: kan
+        g.effects.impact(res.point, _tmp.copy(_d).negate(), out.armorHit ? 'metal' : 'flesh', pellets > 1 ? 0.5 : 1);
+        if (p === 0) g.audio.impact(out.armorHit ? 'metal' : 'flesh', res.point);
         // Arkadaki duvara kan izi
         if (g.settings.blood && Math.random() < 0.6) {
           const b = g.world.raycast(res.point, _d, 2.5, _hit2);
@@ -508,9 +513,11 @@ export class PlayerWeapons {
     g.stats.shots++;
     if (anyHit) {
       g.stats.hits++;
-      const kind = kill ? 'kill' : headHit ? 'head' : 'hit';
+      // Zırhlı düşmana isabet mavi işaretle gösterilir; öldürme ve kafa vuruşu önceliklidir
+      const kind = kill ? 'kill' : headHit ? 'head' : armorHit ? 'armor' : 'hit';
       g.events.emit('hitmarker', kind, headKill);
       g.audio.hitmarker(headKill || headHit ? 'head' : kind);
+      if (armorBroken && !kill) g.events.emit('pickup', 'ZIRH KIRILDI');
     }
     // Bloom, geri tepme, görsel tepme, ses, ışık
     w.bloom = Math.min(d.spread.max, w.bloom + d.spread.perShot);

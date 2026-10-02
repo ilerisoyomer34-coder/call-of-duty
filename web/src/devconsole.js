@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { WEAPON_ORDER, LEVELS, ALLY_TIERS } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { formatKR } from './economy.js';
+import { ArmorLoadout, ARMOR_DEFS } from './armor.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -22,6 +23,8 @@ const HELP = `Komutlar:
   fps                 FPS göstergesi
   credits [n|set n]   kredi ekle (eksi: harca) ya da bakiyeyi ayarla; boş: bakiyeyi yaz
   econlog             son kredi hareketleri
+  armor <yelek|none> [kask|none]   zırh kuşan (ör. armor armor_plate helmet_tactical), satın almış sayılır
+  armorfill           zırhı doldur; armor yazınca kuşanılanı gösterir
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -206,6 +209,36 @@ export class DevConsole {
         this.print(`Kredi: ${formatKR(E.credits)}`);
         break;
       }
+      case 'armor': {
+        const ids = [...ARMOR_DEFS.keys()];
+        if (!args.length) {
+          const a = g.player.armor;
+          this.print(`Yelek: ${a.body ? `${a.body.def.name} ${a.body.points.toFixed(1)}/${a.body.max}` : 'yok'} · Kask: ${a.helmet ? `${a.helmet.def.name} ${a.helmet.points.toFixed(1)}/${a.helmet.max}` : 'yok'}`);
+          this.print(`Seçenekler: ${ids.join(', ')}, none`);
+          break;
+        }
+        const pick = (v, slot) => (v === 'none' ? null : ARMOR_DEFS.get(v)?.slot === slot ? v : undefined);
+        const body = pick(args[0], 'body');
+        const helmet = args[1] !== undefined ? pick(args[1], 'helmet') : g.save.data.loadout.helmet;
+        if (body === undefined || helmet === undefined) {
+          this.print(`Bilinmeyen zırh. Seçenekler: ${ids.join(', ')}, none`);
+          break;
+        }
+        g.save.update((d) => {
+          d.loadout.armor = body;
+          d.loadout.helmet = helmet;
+          for (const [id, list] of [[body, d.inventory.armor], [helmet, d.inventory.helmets]]) if (id && !list.includes(id)) list.push(id);
+        }, { now: true });
+        g.player.armor = new ArmorLoadout(body, helmet);
+        g.events.emit('armor', g.player.armor);
+        this.print(`Kuşanıldı: ${body || 'yeleksiz'} / ${helmet || 'kasksız'}`);
+        break;
+      }
+      case 'armorfill':
+        g.player.armor.refill();
+        g.events.emit('armor', g.player.armor);
+        this.print('Zırh dolduruldu.');
+        break;
       case 'econlog': {
         const log = g.economy.log.slice(-10);
         if (!log.length) this.print('Kredi hareketi yok.');

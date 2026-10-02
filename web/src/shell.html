@@ -145,6 +145,7 @@
   --red: #e0513f;
   --cyan: #7fc6c9;
   --blue: #6fb0ff;
+  --steel: #8db8d8;
   --f-display: 'Big Shoulders Stencil Display', 'Impact', 'Arial Narrow Bold', sans-serif;
   --f-ui: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif;
   --f-num: 'Share Tech Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -213,6 +214,21 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #health .bar { height: 6px; background: rgba(231,220,196,.14); margin-top: 7px; }
 #health .bar i { display: block; height: 100%; width: 100%; background: var(--sand); transition: width .15s, background .3s; }
 #health.low .bar i { background: var(--red); }
+/* Zırh: can çubuğunun üstünde çelik mavisi ikinci katman; isabette kısa parlama, kask simgesi doluluğa göre */
+#health .ar { margin-bottom: 8px; }
+#health .ar .val { font-size: 20px; color: var(--steel); }
+#health .ar .bar { height: 5px; margin-top: 5px; }
+#health .ar .bar i { background: var(--steel); transition: width .12s; }
+#health .ar.flash .bar i { background: #e6f3ff; transition: none; }
+#health .ar.broken .val { color: var(--red); }
+#health .helm { margin-left: auto; margin-right: 8px; width: 18px; height: 14px; }
+#health .helm svg { width: 100%; height: 100%; fill: var(--steel); }
+#health .helm.worn svg { fill: var(--sand-dim); }
+#health .ar .row { align-items: center; }
+#hitmarker.armor i { background: var(--steel); width: 3px; }
+/* Ağır balistik kask vizörü: ekran kenarında ince çerçeve */
+#visor { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 2px rgba(150,180,200,.18), inset 0 0 90px 30px rgba(10,16,22,.45); border-radius: 26px; }
+#visor[hidden] { display: none; }
 #health.low .val { color: var(--red); }
 
 #ammo { position: absolute; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); min-width: 230px; padding: 10px 14px 12px; text-align: right; }
@@ -475,6 +491,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   #compassStrip span.card { font-size: 14px; top: 9px; }
   #health { width: 150px; padding: 6px 9px; }
   #health .val { font-size: 18px; }
+  #health .ar .val { font-size: 15px; }
+  #health .ar { margin-bottom: 5px; }
   #health .lbl { font-size: 10px; }
   #ammo { min-width: 140px; padding: 6px 10px 8px; }
   #ammo .w { font-size: 14px; }
@@ -531,7 +549,14 @@ body.touch #reloadHint { top: calc(50% + 34px); }
     <div id="objective" class="panel"><div class="k">Hedef <span id="objNum"></span></div><div class="t" id="objTitle"></div><div class="d" id="objDetail"></div></div>
     <canvas id="minimap" width="336" height="336"></canvas>
     <div id="score">PUAN <b id="scoreVal">0</b></div>
-    <div id="health" class="panel"><div class="row"><span class="lbl">SAĞLIK</span><span class="val" id="hpVal">100</span></div><div class="bar"><i id="hpBar"></i></div></div>
+    <div id="health" class="panel">
+      <div class="ar" id="armorRow" hidden>
+        <div class="row"><span class="lbl">ZIRH</span><span class="helm" id="helmIcon" hidden><svg viewBox="0 0 24 18" aria-hidden="true"><path d="M2 14 C2 6 7 1 12 1 C17 1 22 6 22 14 L22 16 L2 16 Z"/><rect x="0" y="14" width="24" height="3" rx="1"/></svg></span><span class="val" id="arVal">0</span></div>
+        <div class="bar"><i id="arBar"></i></div>
+      </div>
+      <div class="row"><span class="lbl">SAĞLIK</span><span class="val" id="hpVal">100</span></div><div class="bar"><i id="hpBar"></i></div>
+    </div>
+    <div id="visor" hidden></div>
     <div id="ammo" class="panel"><div class="w" id="wName"></div><div class="m" id="wMode"></div><div class="n"><span class="mag" id="aMag">30</span><span class="res" id="aRes">/ 150</span></div><div class="g" id="nades"></div><div id="slots"></div></div>
     <div id="reloadHint">R · ŞARJÖR DEĞİŞTİR</div>
     <div id="interact" class="panel"><kbd id="interactKey">F</kbd><span id="interactText"></span><span class="p"><i id="interactBar"></i></span></div>

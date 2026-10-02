@@ -12,5 +12,22 @@
     { "id": "helmet_tactical", "name": "Taktik Kask (yüksek kesim)", "points": 50, "absorb": 0.5, "speedPenalty": 0, "price": 900, "desc": "Yüksek kesim, kulaklık uyumlu; daha çok koruma." },
     { "id": "helmet_heavy", "name": "Ağır Balistik Kask + Vizör", "points": 80, "absorb": 0.6, "speedPenalty": 0.02, "visor": true, "price": 1800, "desc": "Vizörlü ağır kask; ekran kenarında ince vizör çerçevesi." }
   ],
-  "zoneArmor": { "head": "helmet", "torso": "body", "arm": "body", "leg": null, "limb": null }
+  "zoneArmor": { "head": "helmet", "torso": "body", "arm": "body", "leg": null, "limb": null },
+  "defaultPen": 0.3,
+  "explosivePen": 0.5,
+  "_enemyWeaponPen": "Düşman silahlarının zırh delmesi (config.js → ENEMY_WEAPONS kimlikleri; coax: tankın eş eksenli makinelisi, shell: tank topu)",
+  "enemyWeaponPen": { "rifle": 0.35, "shotgun": 0.1, "lmg": 0.3, "sniper": 0.75, "flak": 0.5, "hmg": 0.6, "coax": 0.35, "shell": 0.5 },
+  "_playerZones": "Oyuncunun vurulduğu bölge, isabetin oyuncu silindirindeki yüksekliğinden: tepeden headTop metre kafa, alttan legFrac oranı bacak, arası gövde. Bölge çarpanı zırhtan önce uygulanır.",
+  "playerZones": { "headTop": 0.26, "legFrac": 0.45, "mult": { "head": 1.5, "torso": 1.0, "leg": 0.75 } },
+  "_enemyArmor": "Düşmanlara zırh: türe göre parça ve zorluğa göre olasılık (0–1); fromLevel bu seviyeden başlar; levelScale seviyeye göre olasılık çarpanı (en çok 1; olasılığı 1 olan tür hep zırhlıdır). Görev ve zorluk değişince yalnız bu tablo değişir.",
+  "enemyArmor": {
+    "levelScale": { "1": 0.5, "2": 0.7, "3": 1.0, "4": 1.1, "5": 1.2, "6": 1.3 },
+    "types": {
+      "rifleman": { "body": "armor_light", "chance": { "easy": 0, "normal": 0.25, "hard": 0.5 }, "fromLevel": 2 },
+      "shotgunner": { "body": "armor_kevlar", "helmet": "helmet_kevlar", "chance": { "easy": 0.15, "normal": 0.4, "hard": 0.6 }, "fromLevel": 2 },
+      "heavy": { "body": "armor_plate", "helmet": "helmet_tactical", "chance": { "easy": 1, "normal": 1, "hard": 1 }, "fromLevel": 1 },
+      "sniper": { "helmet": "helmet_kevlar", "chance": { "easy": 0, "normal": 0.3, "hard": 0.5 }, "fromLevel": 3 },
+      "gunner": { "body": "armor_plate", "chance": { "easy": 0.3, "normal": 0.6, "hard": 1 }, "fromLevel": 3 }
+    }
+  }
 }

@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, mission, levels, interact, maps, range, artifact, mobile, pwa
+// Bölümler: visual, save, mission, levels, interact, maps, range, armor, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1136,6 +1136,85 @@ console.log('Atış poligonu');
   await page.screenshot({ path: join(shots, '10-range-grenade.png') });
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+}
+
+// ---------------- Zırh (armor.js, Modül A) ----------------
+if (run('armor')) {
+console.log('Zırh');
+
+  const page = await openPage('standalone');
+  // Konsoldan kuşan (mağaza F3'te): Hafif Taktik Yelek + Kevlar Kask
+  await page.evaluate(() => window.__game.console.run('armor armor_light helmet_kevlar'));
+  await page.evaluate(() => window.__game.startMode('range', 'normal'));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => (window.__game.input.lockFailed = true));
+  await waitGame(page, 0.3);
+  const a0 = await page.evaluate(() => ({ shown: !document.getElementById('armorRow').hidden, val: document.getElementById('arVal').textContent, helm: !document.getElementById('helmIcon').hidden }));
+  check(a0.shown && a0.val === '50' && a0.helm, `HUD'da zırh çubuğu ve kask simgesi (ZP ${a0.val})`);
+  await page.screenshot({ path: join(shots, '16-armor-hud.png') });
+  // §12/2: Hafif Taktik Yelek'li oyuncuya AKM (36, delme 0,35) ile tek gövde vuruşu → can 72,19, zırh 41,81
+  const s2 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const log = [];
+    const off = g.events.on('DAMAGE_TAKEN', (e) => log.push(e));
+    P.takeDamage(36, null, { zone: 'torso', pen: 0.35 });
+    const r = { hp: P.health.hp, armor: P.armor.body.points, val: document.getElementById('arVal').textContent };
+    // §12/3: aynı silahla kasklı ve kasksız kafa vuruşu farkı hasar günlüğünde
+    P.health.hp = 100;
+    P.dmgWindow = [];
+    P.takeDamage(20, null, { zone: 'head', pen: 0.35 });
+    const withHelmet = log.at(-1).healthDamage;
+    P.armor.helmet = null;
+    P.health.hp = 100;
+    P.dmgWindow = [];
+    P.takeDamage(20, null, { zone: 'head', pen: 0.35 });
+    const noHelmet = log.at(-1).healthDamage;
+    off();
+    return { ...r, withHelmet, noHelmet };
+  });
+  check(Math.abs(s2.hp - 72.19) < 1e-6 && Math.abs(s2.armor - 41.81) < 1e-6 && s2.val === '42', `Belge §12/2: tek gövde vuruşu → can ${s2.hp.toFixed(2)}, zırh ${s2.armor.toFixed(2)}`);
+  check(s2.withHelmet < s2.noHelmet, `Kask kafa vuruşunu azalttı (kasklı ${s2.withHelmet.toFixed(1)}, kasksız ${s2.noHelmet.toFixed(1)})`);
+  // Zırh kırılınca uyarı ve kırık görünüm
+  const br = await page.evaluate(() => {
+    const P = window.__game.player;
+    P.health.hp = 100000;
+    for (let i = 0; i < 12 && P.armor.body.points > 0; i++) {
+      P.dmgWindow = [];
+      P.takeDamage(30, null, { zone: 'torso', pen: 0 });
+    }
+    return { pts: P.armor.body.points, msg: document.getElementById('message').textContent, broken: document.getElementById('armorRow').classList.contains('broken') };
+  });
+  check(br.pts <= 0 && br.msg === 'ZIRH KIRILDI' && br.broken, `Zırh kırıldı: "${br.msg}"`);
+  // Ağır Saldırı Zırhı: hız cezası ve koşu kapalı
+  const sp = await page.evaluate(() => {
+    const g = window.__game;
+    g.player.health.hp = 100;
+    g.console.run('armor armor_assault none');
+    return { mult: g.player.armor.speedMult, noSprint: g.player.armor.noSprint };
+  });
+  await page.keyboard.down('KeyW');
+  await page.keyboard.down('ShiftLeft');
+  await waitGame(page, 0.4);
+  const sprintHeavy = await page.evaluate(() => window.__game.player.sprinting);
+  await page.keyboard.up('ShiftLeft');
+  await page.keyboard.up('KeyW');
+  check(Math.abs(sp.mult - 0.78) < 1e-9 && sp.noSprint && !sprintHeavy, `Ağır Saldırı Zırhı: hız ×${sp.mult.toFixed(2)}, koşamıyor`);
+  // Düşman zırhı: ağır asker her zaman zırhlı; tüfek mermisini emer, mavi isabet işareti
+  const en = await page.evaluate(() => {
+    const g = window.__game;
+    g.console.run('armor none none');
+    g.cheats.aiOff = true;
+    g.console.run('spawn 1 heavy');
+    const e = g.enemies.list.find((x) => x.type === 'heavy' && x.alive);
+    const before = e.armor?.body?.points;
+    const out = e.takeDamage(30, { zone: 'torso', dir: new e.pos.constructor(0, 0, 1), source: 'player', weapon: 'rifle' });
+    g.events.emit('hitmarker', 'armor');
+    return { armored: !!e.armor?.body && !!e.armor?.helmet, before, after: e.armor?.body?.points, hit: out.armorHit, blue: document.getElementById('hitmarker').classList.contains('armor'), hp: e.health.hp };
+  });
+  check(en.armored && en.hit && en.after < en.before && en.hp > 70, `Ağır düşman zırhlı: zırh ${en.before} → ${en.after?.toFixed(1)}, can ${en.hp.toFixed(1)}`);
+  check(en.blue, 'Zırhlı hedefe isabet işareti mavi');
   await page.close();
 }
 

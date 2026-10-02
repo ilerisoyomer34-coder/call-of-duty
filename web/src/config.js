@@ -21,8 +21,8 @@ export const MOVEMENT = {
   leanRoll: 9,
   sprintOutTime: 0.18, // koşudan çıkıp ateş edebilmek için geçen süre
   maxHealth: 100,
-  regenDelay: 4.5,
-  regenRate: 28,
+  regenDelay: 6,
+  regenRate: 18, // can/s; zırh, ilk yardım kiti ve canlandırma gelince yavaşlatıldı (28 → 18, Operasyon Güncellemesi kararı)
   // Yapay zekânın duyacağı ayak sesi yarıçapları
   noiseSprint: 16,
   noiseWalk: 7,
@@ -1109,17 +1109,17 @@ export const DIFFICULTY = {
   easy: {
     label: 'Acemi', desc: 'Düşmanlar yavaş fark eder, az isabet ettirir.',
     reaction: 0.95, aimMult: 1.7, damageMult: 0.55, perception: 0.8, awarenessRate: 0.65,
-    maxAttackers: 1, grenades: false, regenDelay: 3.5, dpsCap: 32,
+    maxAttackers: 1, grenades: false, regenDelay: 5, dpsCap: 32,
   },
   normal: {
     label: 'Asker', desc: 'Dengeli çatışma. İlk oynayış için önerilir.',
     reaction: 0.62, aimMult: 1.0, damageMult: 1.0, perception: 1.0, awarenessRate: 1.0,
-    maxAttackers: 2, grenades: true, regenDelay: 4.5, dpsCap: 40,
+    maxAttackers: 2, grenades: true, regenDelay: 6, dpsCap: 40,
   },
   hard: {
     label: 'Gazi', desc: 'Hızlı tepki, sert isabet, bol el bombası.',
     reaction: 0.38, aimMult: 0.72, damageMult: 1.45, perception: 1.15, awarenessRate: 1.45,
-    maxAttackers: 3, grenades: true, regenDelay: 5.5, dpsCap: 75,
+    maxAttackers: 3, grenades: true, regenDelay: 7, dpsCap: 75,
   },
 };
 

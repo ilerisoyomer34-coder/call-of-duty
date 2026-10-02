@@ -21,6 +21,7 @@ export class HUD {
       crosshair: $('crosshair'), chT: null, hit: $('hitmarker'), vignette: $('vignette'), dead: $('dead'),
       objNum: $('objNum'), objTitle: $('objTitle'), objDetail: $('objDetail'), objective: $('objective'),
       hpVal: $('hpVal'), hpBar: $('hpBar'), health: $('health'),
+      armorRow: $('armorRow'), arVal: $('arVal'), arBar: $('arBar'), helmIcon: $('helmIcon'), visor: $('visor'),
       wName: $('wName'), wMode: $('wMode'), aMag: $('aMag'), aRes: $('aRes'), ammo: $('ammo'), nades: $('nades'),
       reloadHint: $('reloadHint'), radio: $('radio'), message: $('message'), feed: $('feed'),
       interact: $('interact'), interactText: $('interactText'), interactBar: $('interactBar'), interactKey: $('interactKey'),
@@ -58,6 +59,7 @@ export class HUD {
   bind() {
     const E = this.game.events;
     E.on('health', (hp, max) => this.setHealth(hp, max));
+    E.on('armor', (a, hit) => this.setArmor(a, hit));
     E.on('ammo', (w) => this.setAmmo(w));
     E.on('weapon', (w) => {
       this.setAmmo(w);
@@ -144,6 +146,32 @@ export class HUD {
     this.el.vignette.style.opacity = r < 0.6 ? String(clamp((0.6 - r) / 0.45, 0, 1)) : '0';
   }
 
+  // Zırh çubuğu: gövde zırhının ZP'si; kask simgesi kaskın doluluğuna göre (aşınınca soluk)
+  setArmor(a, hit = false) {
+    const E = this.el;
+    const has = !!a && !a.empty;
+    E.armorRow.hidden = !has;
+    E.visor.hidden = !a?.helmet?.def.visor;
+    if (!has) return;
+    const b = a.body;
+    const pts = b ? b.points : 0;
+    E.arVal.textContent = b ? Math.ceil(pts) : '—';
+    E.arBar.style.width = b ? `${(pts / b.max) * 100}%` : '0%';
+    E.armorRow.classList.toggle('broken', !!b && pts <= 0);
+    E.helmIcon.hidden = !a.helmet;
+    if (a.helmet) {
+      E.helmIcon.classList.toggle('worn', a.helmet.points < a.helmet.max * 0.5);
+      E.helmIcon.style.opacity = String(0.35 + 0.65 * (a.helmet.points / a.helmet.max));
+    }
+    if (hit) {
+      E.armorRow.classList.remove('flash');
+      void E.armorRow.offsetWidth;
+      E.armorRow.classList.add('flash');
+      clearTimeout(this.armorFlashT);
+      this.armorFlashT = setTimeout(() => E.armorRow.classList.remove('flash'), 140);
+    }
+  }
+
   setAmmo(w) {
     if (!w) return;
     const d = w.data;
@@ -207,7 +235,7 @@ export class HUD {
     const h = this.el.hit;
     h.className = '';
     void h.offsetWidth;
-    h.className = `show ${kind === 'kill' ? 'kill' : kind === 'head' || headKill ? 'head' : ''}`;
+    h.className = `show ${kind === 'kill' ? 'kill' : kind === 'head' || headKill ? 'head' : kind === 'armor' ? 'armor' : ''}`;
   }
 
   damageDir(ang) {
