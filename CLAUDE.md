@@ -15,7 +15,7 @@
   - `dist/pwa/`: yüklenebilir uygulama. İçinde three paketli, modeller gerçek dosya; `manifest.webmanifest`, `icons/` ve `sw.js` var.
 - Yayın (GitHub Pages): `npm run deploy:pages` commit'lenmiş `dist/pwa/`'yı `gh-pages` dalına gönderir. Aynı iş push'ta `.github/workflows/pages.yml` ile kendiliğinden de yapılır.
 - PWA simgeleri: `node tools/make-icons.mjs`. `src/pwa/icon.svg` dosyasından `src/pwa/icons/*.png` üretir; çıktılar commit'lenir, derleme bu dosyaları yalnız kopyalar.
-- `npm test` → derler, başsız Chromium'da menü/görev/poligon/telefon akışlarını dener; ekran görüntüleri `web/tools/shots/`
+- `npm test` → önce birim testleri (`npm run test:unit` = `node --test tests/*.test.mjs`), sonra derler, başsız Chromium'da menü/görev/poligon/telefon akışlarını dener; ekran görüntüleri `web/tools/shots/`
 - Kaynak değiştiyse `dist/` yeniden derlenip commit'lenmeli.
 - Blender modelleri: `python Tools/blender/export_weapon.py <mg43|mar556|m82|d50> --render` (Python 3.11 + `pip install bpy==5.0.1`). Çıktılar: `web/assets/weapons/*.glb`, `web/src/weaponAssets.json`, `Docs/import_reports/`.
 - Hazır araç/eşya modeli (Sketchfab): `cd web && node tools/prepare-prop.mjs helicopter` (kaynak `SourceAssets/Sketchfab/<ad>/original/*.glb`, ayarlar dosyadaki `SOURCES` tablosunda). Çıktılar: `web/assets/props/*.glb`, `web/src/propAssets.json` (rotor adları, eksenler, boy, renk, atıf). Sadeleştirme `meshoptimizer` ile.
@@ -25,11 +25,16 @@
 
 ## Kurallar
 - Kod içi isimler İngilizce, yorumlar Türkçe ve "neden"i anlatır.
-- Ayar değerleri `config.js`'de; kodda sihirli sayı bırakma.
+- Ayar değerleri `config.js`'de; kodda sihirli sayı bırakma. Kataloglar (zırh, mağaza, görevler, canlandırma, tim, komut sözlüğü, telsiz replikleri, silahların görünen bilgileri) `web/src/data/*.json`'da; `import X from './data/x.json' with { type: 'json' }` ile alınır (esbuild ve Node testleri aynı sözdizimini okur). Denge değişikliği kod değil veri değişikliğidir.
+- Operasyon Güncellemesi (Modül A–E, belge sohbette; plan: F1–F10). Ortak altyapı:
+  - Olaylar `src/events.js` → `EV` sabitleri; `game.events` ile yayımlanır. Eski olaylar (`enemyKilled`, `allyDown`…) adlarıyla sürer.
+  - Kayıt `src/save.js` → tek anahtar `demirsafak.save` (`version`). Eski `demirsafak.{settings,progress,loadout}.v1` ilk açılışta içe aktarılır, silinmez. Ayarlar `save.data.settings`; ilerleme `save.data.progress` (oyun nesnenin kendisini değiştirip `save.update(null, { now: true })` çağırır). Yazma 250 ms toplanır; satın alma ve ilerleme `now: true`.
+  - Kredi `src/economy.js` → `game.economy.add/spend/set` tek giriş noktası; asla eksi değil; günlük `save.data.econLog`; `CREDITS_CHANGED` olayı. Başlangıç 1.000 KR (`data/store.json`). Biçim `formatKR` ("12.500 KR").
+  - Tuşlar: konsol \` ve F10; F1–F5, F8, F9 tim komutlarına ayrıldı. Oyunda bağlı F tuşlarının tarayıcı varsayılanı engellenir. `settings.bindings` (eylem → kodlar) `applyBindingOverrides` ile `BINDINGS`'in üstüne yazılır; `DEFAULT_BINDINGS` dokunulmaz.
 - Sistemler arası iletişim `game.events` (Emitter) üzerinden; HUD olaylarla güncellenir.
 - Çalışma sırasında bellek ayırmaktan kaçın (efektler havuzlanır, geçici vektörler modül düzeyinde).
 - Işık sayısı sabit kalmalı (efekt ışık havuzu); değişirse shader'lar yeniden derlenir.
-- Silah adları kurgusal kalmalı; gerçek marka/logo yok. Harici asset eklenirse lisansı `CREDITS.md`, `SourceAssets/.../asset_info.json` ve menüdeki "Emeği geçenler" ekranına yazılmalı.
+- Silah adları `web/src/data/weapons.json`'da: `displayName` gerçek ad (varsayılan), `altName` kurgusal ad (Ayarlar → "Gerçek silah adları" kapalıyken). Logo, marka yazısı ve seri no modele/dokuya konmaz (dokulardakiler boyanır). Harici asset eklenirse lisansı `CREDITS.md`, `SourceAssets/.../asset_info.json` ve menüdeki "Emeği geçenler" ekranına yazılmalı.
 - Yakın dövüş bıçağı: `weapon-glb-map.json` → `knife` (köken sap ortası, uç -Z, ağız -Y), `viewmodel.js` → `KNIFE_KEYS` (sol elde soldan sağa kesiş; silah sağ alta iner). Model yüklenemezse eski dipçik darbesi oynar. İlk çizimde gölgelendiricisi bir kez derlenir (`knifeWarm`).
 - İçe aktarılan silahlarda kapalı nişangah gövdeleri `optic` parçası yapılır; nişan alırken gizlenip yerine açık tüp çizilir (`adsRing`). Cam başka parçayla aynı mesh'teyse `splitBoxes` üçgen düzeyinde ayırır.
 - Sketchfab silah dokularındaki gerçek marka, seri no ve kişi bilgisi `weapon-glb-map.json` → `textures.<sıra>.paint` ile boyanır; yeni dokuda bu yazılar aranmalı (kırpıp bak). Dokular GLB'de değil ayrı JPEG'dir (`assets.js` → `applyTextureSpec`, glTF normal haritası için `normalScale.y` ters).
@@ -45,7 +50,7 @@
 - Çizim: dünya `worldRT`'ye (ölçekli, MSAA, HalfFloat) çizilir, tam ekran dörtgenle ton eşlenip tuvale aktarılır; eller/silah tuvale tam DPR'de çizilir (`RENDER`, `renderScale` ayarı). Ön derleme `worldRT` bağlıyken yapılır ki gölgelendirici sürümleri eşleşsin.
 - Manga kademesi `config.js` → `ALLY_TIERS` (seviyenin `allyTier`'ı): değerler ve açık taktikler; taktik kodu `ally.js`. Manganın el bombası oyuncuyu ve dostları yaralamaz.
 - Dost askerler (`ally.js`) düşmanın gördüğü hedef arayüzünü (pos, alive, headPos, chestPos, takeDamage…) oyuncuyla aynı biçimde sunar; düşman `foe` alanında oyuncuyu ya da bir dostu tutar. Oyuncunun mermisi ve patlayıcısı dostu yaralamaz.
-- Testler: `SMOKE_ONLY=levels,maps npm test` gibi yalnızca bazı bölümler koşturulabilir (visual, mission, levels, interact, maps, range, artifact, mobile, pwa). `maps` bölümü her seviyede hedeflere ve tahliye noktalarına yol, düşman/tank yerleşimini, mevzi, uçaksavar nişancısı ve tank davranışını, uzaktaki askerin donmadığını ve manga kademelerini dener; `levels` tahliye → kalkış → geri sayımla sonraki bölümü; `mobile` eller/silah ile dünya çözünürlüğünü; `pwa` yerel sunucuda (gh-pages düzeni, `/call-of-duty/` alt yolu) manifest, yüklenebilirlik, önbellek, çevrimdışı açılış, yükleme düğmesi ve güncelleme akışını. Yazılımsal GPU'da oyun saati yavaş ilerler; ölçümleri kare beklemeden doğrudan çağrıyla yap.
+- Testler: `SMOKE_ONLY=levels,maps npm test` gibi yalnızca bazı bölümler koşturulabilir (visual, save, mission, levels, interact, maps, range, artifact, mobile, pwa). `maps` bölümü her seviyede hedeflere ve tahliye noktalarına yol, düşman/tank yerleşimini, mevzi, uçaksavar nişancısı ve tank davranışını, uzaktaki askerin donmadığını ve manga kademelerini dener; `levels` tahliye → kalkış → geri sayımla sonraki bölümü; `mobile` eller/silah ile dünya çözünürlüğünü; `pwa` yerel sunucuda (gh-pages düzeni, `/call-of-duty/` alt yolu) manifest, yüklenebilirlik, önbellek, çevrimdışı açılış, yükleme düğmesi ve güncelleme akışını. Yazılımsal GPU'da oyun saati yavaş ilerler; ölçümleri kare beklemeden doğrudan çağrıyla yap.
 - **PWA (`dist/pwa/`):**
   - GitHub Pages `gh-pages` dalından yayımlanır: https://ilerisoyomer34-coder.github.io/call-of-duty/
     - Dalın kökü `dist/pwa/`. Derleme içine `.nojekyll` yazar, bu dosya önbelleğe girmez.

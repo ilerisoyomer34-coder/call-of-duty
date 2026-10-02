@@ -1,0 +1,27 @@
+{
+  "_doc": "Telsiz replikleri (Operasyon Güncellemesi §8.7). Her olayda en az 3 varyasyon. minGapSec: iki replik arası en az süre; sameTypeCooldownSec: aynı türün tekrar bekleme süresi; urgent: kuyruğu atlayan türler. {name} konuşanın adı, {dir} saat yönü, {dist} mesafe ile değişir.",
+  "minGapSec": 2.5,
+  "sameTypeCooldownSec": 10,
+  "urgent": ["playerDowned", "grenade", "cannotReach"],
+  "lines": {
+    "enemySpotted": ["Düşman görüldü, saat {dir} yönü!", "Temas! Saat {dir}!", "İleride hareket var!", "Düşman, {dist} metre!"],
+    "reloading": ["Şarjör değiştiriyorum!", "Beni koruyun, dolduruyorum!", "Doldurmam lazım!"],
+    "hit": ["Vuruldum!", "Yaralıyım ama devam ediyorum!", "Sıyırdı, iyiyim!"],
+    "down": ["Vuruldum! Yerdeyim!", "Yaralandım, yere düştüm!", "Yardım edin, kalkamıyorum!"],
+    "playerDowned": ["Komutan yerde! Gidiyorum!", "Dayan komutanım, geliyorum!", "Komutan vuruldu, ona gidiyorum!"],
+    "holdOnPlayer": ["Komutan yerde! Pozisyonu bırakıyorum!", "Emri bırakıyorum, komutana gidiyorum!", "Önce komutan!"],
+    "cannotReach": ["Ateş altındayız, ulaşamıyorum! Dayan!", "Önce şunları temizlememiz lazım!", "Yol çok sıcak, bekle!"],
+    "reviving": ["Kalk komutanım, seni aldım!", "Seni kaldırıyorum, dayan!", "Tamam, ayaktasın!"],
+    "revivedAlly": ["Kalk asker!", "Seni aldım, kalk!", "Ayağa kalk, devam ediyoruz!"],
+    "enemyDown": ["Hedef etkisiz.", "Bir düşman eksildi!", "Düştü!"],
+    "areaClear": ["Bölge temiz.", "Burası güvenli.", "Temiz, ilerleyebiliriz."],
+    "grenade": ["El bombası! Dağılın!", "Bomba! Siper!", "El bombası, kaçın!"],
+    "lowHealthCover": ["Önce siper almam lazım!", "Ağır yaralıyım, siperdeyim!", "Kendimi toparlamam lazım!"],
+    "noAmmo": ["Mermim bitti, şarjör değiştiriyorum!", "Cephanem azaldı!", "Son şarjör!"],
+    "noPath": ["Oraya yol yok komutanım!", "Oraya geçemiyorum!", "Yol kapalı!"],
+    "inPosition": ["Pozisyondayım.", "Yerimdeyim.", "Hazırım."],
+    "targetDown": ["Hedef etkisiz!", "Hedef düştü!", "İndirdim!"],
+    "healDone": ["Tamam, toparlandın.", "Sarıldın, devam!", "Bu kadar, iyisin!"],
+    "healCooldown": ["Malzemem bitti, biraz bekle!", "Şu an iyileştiremem!", "Kit yok, sonra!"]
+  }
+}

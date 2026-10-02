@@ -4,6 +4,8 @@ import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
 import { PROP_ASSETS, WEAPON_ASSETS } from './assets.js';
+import { formatKR } from './economy.js';
+import { EV } from './events.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
@@ -20,6 +22,14 @@ export class Menus {
     this.buildDifficulty();
     this.buildBrief();
     this.buildPropCredits();
+    // Kredi bakiyesi: her harcama/kazançta güncellenir
+    this.updateCredits();
+    game.events.on(EV.CREDITS_CHANGED, () => this.updateCredits());
+  }
+
+  updateCredits() {
+    const el = $('menuCreditsVal');
+    if (el) el.textContent = formatKR(this.game.economy.credits);
   }
 
   // Hazır araç modellerinin atfı (CC BY: yazar, kaynak, lisans, değişiklik) propAssets.json'dan

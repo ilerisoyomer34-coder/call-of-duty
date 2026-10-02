@@ -1,7 +1,6 @@
-// Oyuncu ayarları: varsayılanlar, yükleme/kaydetme (tarayıcı depolaması yoksa bellekte kalır).
-import { storage } from './util.js';
-
-const KEY = 'demirsafak.settings.v1';
+// Oyuncu ayarları: varsayılanlar, yükleme/kaydetme. Ayarlar ortak kaydın (save.js) settings alanında
+// durur; depolama kapalıysa bellekte kalır.
+import { getSave } from './save.js';
 
 export const DEFAULT_SETTINGS = {
   sensitivity: 1.0,
@@ -22,10 +21,12 @@ export const DEFAULT_SETTINGS = {
   blood: true,
   damageNumbers: false,
   showFps: false,
+  realNames: true, // silahların gerçek adı; kapalıyken kurgusal ad (data/weapons.json → altName)
+  bindings: {}, // tuş atamaları: eylem → tuş kodları (input.js → BINDINGS'in üstüne yazılır)
 };
 
 export function loadSettings() {
-  const saved = storage.get(KEY, {});
+  const saved = getSave().data.settings;
   const s = { ...DEFAULT_SETTINGS, ...(saved && typeof saved === 'object' ? saved : {}) };
   // Yükleme ekranındaki "Düşük grafikle aç" düğmesi: depolama kapalıysa pencere adıyla gelir
   if (typeof window !== 'undefined' && window.name === 'demirsafak-low') s.quality = 'low';
@@ -33,7 +34,7 @@ export function loadSettings() {
 }
 
 export function saveSettings(s) {
-  storage.set(KEY, s);
+  getSave().update((d) => (d.settings = { ...s }), { now: true });
 }
 
 // Dokunmatikte otomatik seçim "orta": dünya düşük çözünürlükte çizilse de eller ve silah keskin kalır

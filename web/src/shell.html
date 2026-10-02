@@ -102,12 +102,21 @@
     var id = e.target && e.target.id;
     if (id === 'ldRetry') location.reload();
     else if (id === 'ldLow') {
-      // Depolama kapalıysa pencere adı yeniden yüklemeden sonra da kalır
+      // Ayar ortak kayıtta (save.js → demirsafak.save); kayıt henüz yoksa eski anahtara yazılır, ilk
+      // açılışta içeri aktarılır. Depolama kapalıysa pencere adı yeniden yüklemeden sonra da kalır.
       try {
-        var k = 'demirsafak.settings.v1';
-        var s = JSON.parse(localStorage.getItem(k) || '{}') || {};
-        s.quality = 'low';
-        localStorage.setItem(k, JSON.stringify(s));
+        var nk = 'demirsafak.save';
+        var save = JSON.parse(localStorage.getItem(nk) || 'null');
+        if (save && typeof save === 'object') {
+          save.settings = save.settings || {};
+          save.settings.quality = 'low';
+          localStorage.setItem(nk, JSON.stringify(save));
+        } else {
+          var k = 'demirsafak.settings.v1';
+          var s = JSON.parse(localStorage.getItem(k) || '{}') || {};
+          s.quality = 'low';
+          localStorage.setItem(k, JSON.stringify(s));
+        }
       } catch (err) { /* depolama yok */ }
       try { window.name = 'demirsafak-low'; } catch (err) { /* yok */ }
       location.reload();
@@ -284,6 +293,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .brief { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); max-width: 420px; }
 .brief b { font: 400 14px/1.3 var(--f-num); color: var(--amber); }
 @media (max-height: 640px) { #menu .brief { display: none; } }
+/* Kredi (kalıcı para birimi): turuncu-sarı, görev içi hiçbir sayaçla karışmasın diye ayrı renk ve çerçeve */
+.kr { display: inline-flex; align-items: baseline; gap: 10px; margin-top: 14px; padding: 6px 12px; border: 1px solid rgba(255,207,92,.45); background: rgba(255,207,92,.08); }
+.kr small { font: 600 11px/1 var(--f-ui); letter-spacing: .24em; color: var(--sand-dim); }
+.kr b { font: 400 20px/1 var(--f-num); color: #ffcf5c; font-variant-numeric: tabular-nums; }
 .pwaStatus { display: flex; align-items: center; gap: 14px; margin-top: -14px; padding-left: 19px; font: 500 15px/1.3 var(--f-ui); letter-spacing: .04em; color: var(--sand-dim); }
 .pwaStatus[hidden], .pwaStatus .btn[hidden] { display: none; }
 .pwaStatus.warn { color: var(--amber); }
@@ -297,6 +310,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   #menu .eyebrow { font-size: 11px; letter-spacing: .2em; }
   #menu .title { font-size: clamp(42px, 8.5vw, 72px); }
   #menu .sub { font-size: 13px; }
+  #menu .kr { margin-top: 8px; padding: 4px 10px; }
+  #menu .kr b { font-size: 16px; }
   #menu .mbtn { font-size: 19px; padding-block: 7px; }
   #menu .mbtn small { display: none; }
   #menu .pwaStatus { margin-top: 0; }
@@ -551,6 +566,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
         <div class="eyebrow">Operasyon · Kızılkum Vadisi · 05:42</div>
         <h1 class="title">DEMİR<br>ŞAFAK</h1>
         <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
+        <div class="kr" id="menuCredits" title="Kredi: görevlerden kazanılır, mağazada harcanır"><small>KREDİ</small><b id="menuCreditsVal">0 KR</b></div>
       </div>
       <div class="menuList" id="mainList">
         <button class="mbtn primary" id="btnPlay">Göreve başla<small>Altı seviye, beş harita · kolaydan zora · mavi mangan seninle</small></button>

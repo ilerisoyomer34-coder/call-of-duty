@@ -22,7 +22,10 @@ import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS, MAPS, RENDER } fro
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment } from './models.js';
-import { storage, warnOnce } from './util.js';
+import { warnOnce } from './util.js';
+import { getSave } from './save.js';
+import { EconomySystem } from './economy.js';
+import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
 import { Emitter, clamp, rand } from './util.js';
 
@@ -65,7 +68,6 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-const LOADOUT_KEY = 'demirsafak.loadout.v1';
 const CHARACTER_TIMEOUT_MS = 25000; // asker modeli bu sürede inmezse basit askerle açılır
 const PRECOMPILE_TIMEOUT_MS = 8000; // paralel derleme desteklenmiyorsa bu süreden sonra beklemeden devam
 const FRAME_ERROR_LIMIT = 90; // art arda bu kadar karede hata olursa oyuncuya gösterilir
@@ -97,12 +99,13 @@ function nextPaint() {
     setTimeout(go, 150);
   });
 }
-// Seviye ilerlemesi: açılan son seviye ve her seviyenin en iyi sonucu (tarayıcı depolaması yoksa bellekte)
-const PROGRESS_KEY = 'demirsafak.progress.v1';
-function loadProgress() {
-  const s = storage.get(PROGRESS_KEY, null);
-  const unlocked = clamp(Math.floor(s?.unlocked || 1), 1, LEVELS.length);
-  return { unlocked, best: s && typeof s.best === 'object' && s.best ? s.best : {} };
+// Seviye ilerlemesi: açılan son seviye ve her seviyenin en iyi sonucu. Ortak kaydın (save.js) progress
+// nesnesinin kendisi döner: oyun onu değiştirip saveProgress ile yazar
+function loadProgress(save) {
+  const P = save.data.progress;
+  P.unlocked = clamp(Math.floor(P.unlocked || 1), 1, LEVELS.length);
+  if (!P.best || typeof P.best !== 'object') P.best = {};
+  return P;
 }
 
 // Seviyenin zorluk çarpanları seçilen temel zorluğun (Acemi/Asker/Gazi) üstüne uygulanır.
@@ -124,8 +127,8 @@ function levelDifficulty(base, level) {
   };
 }
 
-function loadLoadout() {
-  const s = storage.get(LOADOUT_KEY, null);
+function loadLoadout(save) {
+  const s = save.data.loadout;
   const ok = s && WEAPONS[s.primary]?.category === 'primary' && WEAPONS[s.secondary]?.category === 'secondary';
   return ok ? { primary: s.primary, secondary: s.secondary } : { ...DEFAULT_LOADOUT };
 }
@@ -133,7 +136,11 @@ function loadLoadout() {
 export class Game {
   constructor() {
     this.events = new Emitter();
+    // Ortak kayıt (kredi, envanter, teçhizat, ilerleme, ayarlar) ve kredi hareketlerinin tek giriş noktası
+    this.save = getSave();
+    this.economy = new EconomySystem(this.save, this.events);
     this.settings = loadSettings();
+    applyBindingOverrides(this.settings.bindings);
     this.canvas = document.getElementById('game');
     this.isTouch = matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 0 && 'ontouchstart' in window);
     this.quality = resolveQuality(this.settings.quality, this.isTouch);
@@ -145,7 +152,7 @@ export class Game {
     this.mode = 'menu';
     this.difficultyKey = 'normal';
     this.difficulty = DIFFICULTY.normal;
-    this.progress = loadProgress();
+    this.progress = loadProgress(this.save);
     this.level = LEVELS[0];
     this.barrels = [];
     this.debris = [];
@@ -177,7 +184,7 @@ export class Game {
     this.player = new Player(this);
     this.viewmodel = new Viewmodel(this, this.textures);
     this.applyEnvironment('kizilkum');
-    this.loadout = loadLoadout();
+    this.loadout = loadLoadout(this.save);
     this.hud = new HUD(this);
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
@@ -480,7 +487,7 @@ export class Game {
 
   setLoadout(primary, secondary) {
     this.loadout = { primary, secondary };
-    storage.set(LOADOUT_KEY, this.loadout);
+    this.save.update((d) => Object.assign(d.loadout, this.loadout), { now: true });
   }
 
   async startMode(mode, diffKey = 'normal', levelId = this.level.id) {
@@ -619,7 +626,7 @@ export class Game {
     P.unlocked = Math.max(P.unlocked, Math.min(LEVELS.length, lv.id + 1));
     const prev = P.best[lv.id];
     if (!prev || this.stats.score > prev.score) P.best[lv.id] = { score: this.stats.score, time: Math.round(this.stats.time), diff: this.difficultyKey };
-    storage.set(PROGRESS_KEY, P);
+    this.save.update(null, { now: true }); // P, kaydın progress nesnesinin kendisi
     const next = LEVELS.find((l) => l.id === lv.id + 1) || null;
     this.menus.showVictory(this.stats, DIFFICULTY[this.difficultyKey]?.label || '', lv, next, firstClear);
   }
@@ -627,7 +634,7 @@ export class Game {
   // Konsol ve testler için: tüm seviyeleri aç
   unlockAllLevels() {
     this.progress.unlocked = LEVELS.length;
-    storage.set(PROGRESS_KEY, this.progress);
+    this.save.update(null, { now: true });
   }
 
   findInteractable(eye, fwd) {

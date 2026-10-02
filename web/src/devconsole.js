@@ -1,7 +1,8 @@
-// Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F2 ile açılır.
+// Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F10 ile açılır.
 import * as THREE from 'three';
 import { WEAPON_ORDER, LEVELS, ALLY_TIERS } from './config.js';
 import { HeavyNest } from './hmg.js';
+import { formatKR } from './economy.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -19,6 +20,10 @@ const HELP = `Komutlar:
   unlock              tüm seviyelerin kilidini aç
   debug allies        dost asker durumlarını yaz
   fps                 FPS göstergesi
+  credits [n|set n]   kredi ekle (eksi: harca) ya da bakiyeyi ayarla; boş: bakiyeyi yaz
+  econlog             son kredi hareketleri
+  save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
+  resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
 
 export class DevConsole {
@@ -189,6 +194,35 @@ export class DevConsole {
       case 'fps':
         g.settings.showFps = !g.settings.showFps;
         g.applySettings();
+        break;
+      case 'credits': {
+        const E = g.economy;
+        if (args[0] === 'set') E.set(parseInt(args[1], 10) || 0, 'konsol');
+        else if (args[0]) {
+          const n = parseInt(args[0], 10) || 0;
+          if (n >= 0) E.add(n, 'konsol');
+          else if (!E.spend(-n, 'konsol')) this.print('Yetersiz kredi.');
+        }
+        this.print(`Kredi: ${formatKR(E.credits)}`);
+        break;
+      }
+      case 'econlog': {
+        const log = g.economy.log.slice(-10);
+        if (!log.length) this.print('Kredi hareketi yok.');
+        for (const e of log) this.print(`${new Date(e.t).toLocaleTimeString('tr-TR')}  ${e.delta >= 0 ? '+' : ''}${e.delta}  ${e.reason || '—'}  → ${formatKR(e.balance)}`);
+        break;
+      }
+      case 'save': {
+        const d = g.save.data;
+        this.print(`Kayıt sürüm ${d.version} · ${formatKR(d.credits)} · açık seviye ${d.progress.unlocked}`);
+        this.print(`Envanter: ${JSON.stringify(d.inventory)}`);
+        this.print(`Teçhizat: ${JSON.stringify(d.loadout)}`);
+        break;
+      }
+      case 'resetsave':
+        g.save.reset();
+        this.print('Kayıt sıfırlandı, sayfa yenileniyor…');
+        setTimeout(() => location.reload(), 600);
         break;
       case 'clear':
         this.log.textContent = '';

@@ -1,0 +1,16 @@
+{
+  "_doc": "Zırh ve kask kataloğu (Operasyon Güncellemesi §4.3–4.4). points: Zırh Puanı (ZP), absorb: hasar emme oranı (0–1), speedPenalty: hareket/nişan/eğilme hızı cezası (0–1), noSprint: koşu kapalı, price: KR. NIJ etiketi yalnız fikir verir; değerler dengeye göre.",
+  "body": [
+    { "id": "armor_light", "name": "Hafif Taktik Yelek", "nij": "NIJ IIIA (yumuşak)", "points": 50, "absorb": 0.35, "speedPenalty": 0, "price": 800, "desc": "Hafif, sessiz, hareketi kısıtlamaz. Tabanca ve parçacıklara karşı iyi." },
+    { "id": "armor_kevlar", "name": "Kevlar Muharebe Yeleği", "nij": "NIJ IIIA+", "points": 80, "absorb": 0.45, "speedPenalty": 0.03, "price": 1500, "desc": "Dengeli koruma; tüfek mermisini bir süre yavaşlatır." },
+    { "id": "armor_plate", "name": "Seramik Plaka Taşıyıcı", "nij": "NIJ III", "points": 110, "absorb": 0.55, "speedPenalty": 0.06, "price": 2800, "desc": "Ön ve arka seramik plaka; piyade tüfeğine karşı ciddi koruma." },
+    { "id": "armor_heavy", "name": "Ağır Balistik Zırh", "nij": "NIJ IV", "points": 150, "absorb": 0.65, "speedPenalty": 0.1, "price": 4500, "desc": "Zırh delici mermiye de dayanıklı; belirgin şekilde ağır." },
+    { "id": "armor_assault", "name": "Ağır Saldırı Zırhı", "nij": "Özel (EOD tipi)", "points": 250, "absorb": 0.75, "speedPenalty": 0.22, "noSprint": true, "price": 8000, "desc": "Yürüyen kale: çok dayanıklı ama yavaş ve koşamazsın." }
+  ],
+  "helmets": [
+    { "id": "helmet_kevlar", "name": "Kevlar Kask", "points": 30, "absorb": 0.4, "speedPenalty": 0, "price": 500, "desc": "Kafa vuruşlarının bir kısmını emer." },
+    { "id": "helmet_tactical", "name": "Taktik Kask (yüksek kesim)", "points": 50, "absorb": 0.5, "speedPenalty": 0, "price": 900, "desc": "Yüksek kesim, kulaklık uyumlu; daha çok koruma." },
+    { "id": "helmet_heavy", "name": "Ağır Balistik Kask + Vizör", "points": 80, "absorb": 0.6, "speedPenalty": 0.02, "visor": true, "price": 1800, "desc": "Vizörlü ağır kask; ekran kenarında ince vizör çerçevesi." }
+  ],
+  "zoneArmor": { "head": "helmet", "torso": "body", "arm": "body", "leg": null, "limb": null }
+}

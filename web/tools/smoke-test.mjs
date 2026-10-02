@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, mission, levels, interact, maps, range, artifact, mobile, pwa
+// Bölümler: visual, save, mission, levels, interact, maps, range, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -124,6 +124,57 @@ console.log('Görsel kontrol (yüksek kalite)');
   await waitGame(page, 0.5);
   await page.screenshot({ path: join(shots, '00-soldier-high.png') });
   await page.close();
+}
+
+// ---------------- Kayıt ve kredi (save.js, economy.js) ----------------
+if (run('save')) {
+console.log('Kayıt ve kredi');
+
+  const fresh = async (init) => {
+    const ctx = await browser.newContext({ viewport: { width: 960, height: 540 } });
+    if (init) await ctx.addInitScript(init);
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(`[save] pageerror: ${e.message}`));
+    await page.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+    await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+    return { ctx, page };
+  };
+  // Yeni oyuncu: 1.000 KR, kayıt sürümüyle yazıldı
+  {
+    const { ctx, page } = await fresh(() => localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' })));
+    const r = await page.evaluate(() => ({ text: document.getElementById('menuCreditsVal').textContent, save: JSON.parse(localStorage.getItem('demirsafak.save') || 'null') }));
+    check(r.text === '1.000 KR' && r.save?.version === 1 && r.save.credits === 1000, `Yeni kayıt: menüde "${r.text}", kayıt sürüm ${r.save?.version}`);
+    // Harcama ve kazanç tek giriş noktasından: menü sayacı güncellenir, kayıt hemen yazılır
+    const e = await page.evaluate(() => {
+      const E = window.__game.economy;
+      const ok = E.spend(800, 'test');
+      const no = E.spend(5000, 'test');
+      E.add(300, 'test');
+      return { ok, no, text: document.getElementById('menuCreditsVal').textContent, saved: JSON.parse(localStorage.getItem('demirsafak.save')).credits, log: E.log.length };
+    });
+    check(e.ok && !e.no && e.text === '500 KR' && e.saved === 500 && e.log === 2, `Kredi harcandı/kazanıldı, yetersiz harcama reddedildi, kayıt anında yazıldı (${e.text})`);
+    // Yeniden açılınca kredi korunur
+    await page.reload();
+    await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+    check((await page.evaluate(() => window.__game.economy.credits)) === 500, 'Sayfa yenilenince kredi korundu');
+    await ctx.close();
+  }
+  // Eski sürüm kaydı: seviye, teçhizat ve ayarlar yeni kayda aktarılır, eski anahtarlar silinmez
+  {
+    const { ctx, page } = await fresh(() => {
+      if (localStorage.getItem('demirsafak.save')) return;
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low', sensitivity: 1.3 }));
+      localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: 4, best: { 2: { score: 1800, time: 300, diff: 'hard' } } }));
+      localStorage.setItem('demirsafak.loadout.v1', JSON.stringify({ primary: 'k8', secondary: 'd50' }));
+    });
+    const m = await page.evaluate(() => {
+      const g = window.__game;
+      return { unlocked: g.progress.unlocked, best: g.progress.best[2]?.score, primary: g.loadout.primary, secondary: g.loadout.secondary, sens: g.settings.sensitivity, credits: g.economy.credits, legacy: !!localStorage.getItem('demirsafak.progress.v1') };
+    });
+    check(m.unlocked === 4 && m.best === 1800 && m.primary === 'k8' && m.secondary === 'd50' && m.sens === 1.3 && m.credits === 1000 && m.legacy, `Eski kayıt yükseltildi: seviye ${m.unlocked}, teçhizat ${m.primary}/${m.secondary}, ayar korundu, yedek duruyor`);
+    await ctx.close();
+  }
 }
 
 if (run('mission')) {

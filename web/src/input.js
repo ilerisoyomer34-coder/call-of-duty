@@ -32,8 +32,31 @@ export const BINDINGS = {
   swapWeapon: ['KeyX'],
   holdBreath: ['ShiftLeft', 'ShiftRight'],
   pause: ['Escape', 'KeyP'],
-  console: ['Backquote', 'F2'],
+  console: ['Backquote', 'F10'], // F2 tim komutlarına ayrıldı (Operasyon Güncellemesi §8.2)
 };
+
+// Varsayılan atamalar (ayarlardaki "varsayılana dön" için) ve tarayıcının kendi işini yapan F tuşları:
+// oyunda bağlı bir F tuşunun varsayılanı (F1 yardım, F5 yenile…) engellenir
+export const DEFAULT_BINDINGS = Object.freeze(Object.fromEntries(Object.entries(BINDINGS).map(([k, v]) => [k, Object.freeze([...v])])));
+const boundFKeys = new Set();
+function refreshBoundFKeys() {
+  boundFKeys.clear();
+  for (const codes of Object.values(BINDINGS)) for (const c of codes) if (/^F\d+$/.test(c)) boundFKeys.add(c);
+}
+refreshBoundFKeys();
+
+// Kayıttaki tuş atamaları (settings.bindings: eylem → tuş kodları) varsayılanların üstüne yazılır.
+// Bilinmeyen eylem ya da hatalı değer yok sayılır; boş liste o eylemi tuşsuz bırakır.
+export function applyBindingOverrides(over) {
+  for (const [action, def] of Object.entries(DEFAULT_BINDINGS)) BINDINGS[action] = [...def];
+  if (over && typeof over === 'object') {
+    for (const [action, codes] of Object.entries(over)) {
+      if (!(action in BINDINGS) || !Array.isArray(codes)) continue;
+      BINDINGS[action] = codes.filter((c) => typeof c === 'string' && c.length > 0);
+    }
+  }
+  refreshBoundFKeys();
+}
 
 export const ACTION_LABELS = {
   forward: 'İleri', back: 'Geri', left: 'Sol', right: 'Sağ', jump: 'Zıpla', crouch: 'Çömel',
@@ -91,7 +114,7 @@ export class Input {
     window.addEventListener('keydown', (e) => {
       if (this.onAnyKey && this.onAnyKey(e)) return;
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      if (this.enabled && (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab')) e.preventDefault();
+      if (this.enabled && (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab' || boundFKeys.has(e.code))) e.preventDefault();
       if (!this.down.has(e.code)) this.pressedCodes.add(e.code);
       this.down.add(e.code);
     });

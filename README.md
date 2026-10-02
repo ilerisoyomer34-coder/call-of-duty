@@ -49,7 +49,7 @@ Site `gh-pages` dalından yayımlanır. Bu dalın kökü `web/dist/pwa/` klasör
 | Silahlar | 1 ana, 2 yan silah (poligonda 1–9), X son silah, tekerlek | Y |
 | Dürbünde nefesini tut | Shift | L3 |
 | Duraklat | Esc / P | Start |
-| Geliştirici konsolu | ` veya F2 | |
+| Geliştirici konsolu | ` veya F10 | |
 
 Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timescale 0.5`, `ai`, `debug ai`, `debug allies`, `cp 4`, `level 3`, `unlock`, `fps`.
 

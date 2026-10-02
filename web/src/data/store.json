@@ -1,0 +1,27 @@
+{
+  "_doc": "Mağaza ve ekonomi (Operasyon Güncellemesi §4.2, §4.8). Kredi (KR) kalıcıdır, görevlerden kazanılır, asla eksiye düşmez. perBuy: bir satın almada gelen adet, maxStack: bir teçhizat yuvasında taşınabilecek en fazla adet.",
+  "currency": "KR",
+  "startCredits": 1000,
+  "logSize": 50,
+  "loadoutSlots": 2,
+  "categories": [
+    { "id": "armor", "label": "Zırh" },
+    { "id": "helmet", "label": "Kask" },
+    { "id": "consumable", "label": "Sarf Malzemeleri" },
+    { "id": "squad", "label": "Tim Yükseltmeleri" },
+    { "id": "weapon", "label": "Silahlar" }
+  ],
+  "consumables": [
+    { "id": "plate_pack", "name": "Zırh Plakası (3'lü)", "desc": "Görevde 2 sn'de takılır, +50 ZP (zırhın azami değerine kadar).", "price": 600, "perBuy": 3, "maxStack": 3, "useTime": 2, "armor": 50 },
+    { "id": "medkit", "name": "İlk Yardım Kiti", "desc": "3 sn'de +50 can.", "price": 400, "perBuy": 1, "maxStack": 2, "useTime": 3, "heal": 50 },
+    { "id": "adrenaline", "name": "Adrenalin Şırıngası", "desc": "Yere düşmüşken kendini ayağa kaldırır. Görev başına en fazla 1.", "price": 1200, "perBuy": 1, "maxStack": 1, "perMission": 1 },
+    { "id": "smoke", "name": "Sis Bombası", "desc": "15 sn görüş engeli. Askerler canlandırmaya giderken kendileri de kullanabilir.", "price": 300, "perBuy": 1, "maxStack": 2, "duration": 15 },
+    { "id": "frag", "name": "El Bombası", "desc": "Standart parça tesirli el bombası.", "price": 400, "perBuy": 1, "maxStack": 2 }
+  ],
+  "upgrades": [
+    { "id": "squad_armor_1", "name": "Tim Zırhı Sv. 1", "desc": "Askerlere +50 ZP. Yaşayan asker, seni kaldıracak askerdir.", "price": 3000, "squadArmor": 50 },
+    { "id": "squad_armor_2", "name": "Tim Zırhı Sv. 2", "desc": "Askerlere +100 ZP.", "price": 6000, "squadArmor": 100, "requires": "squad_armor_1" },
+    { "id": "medic_training", "name": "Muharebe Medik Eğitimi", "desc": "Tüm canlandırma süreleri −%25.", "price": 2500, "reviveTimeMult": 0.75 },
+    { "id": "radio_pack", "name": "Telsiz Paketi", "desc": "Askerlerin gördüğü düşmanlar mini haritada işaretlenir.", "price": 1500 }
+  ]
+}

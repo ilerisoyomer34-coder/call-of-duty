@@ -1,0 +1,31 @@
+{
+  "_doc": "Görev ve meydan okuma tanımları (Operasyon Güncellemesi §6). Koşul türleri: count (olay sayısı ≥ count), never (olay hiç olmamalı; görev sonunda onaylanır), timer (görev süresi ≤ hedef süre), only (tüm öldürmeler filtreye uymalı). filter: olay yükündeki alan = değer; {\"gte\": n} / {\"lte\": n} karşılaştırma. Seviye satırları havuzdaki bir görevin count/reward değerini ezebilir. Yeni görev = yeni satır, kod değil.",
+  "rules": {
+    "difficultyMult": { "easy": 0.8, "normal": 1.0, "hard": 1.4 },
+    "repeatPrimary": 0.5,
+    "repeatBonus": 0.25,
+    "consolationPerKill": 20,
+    "starsForBonuses": [0, 2, 3]
+  },
+  "bonusPool": {
+    "headhunter": { "name": "Keskin Göz", "desc": "{count} kafa vuruşuyla etkisiz hâle getir", "type": "count", "event": "ENEMY_KILLED", "filter": { "headshot": true, "killer": "player" }, "count": 10, "reward": 300 },
+    "untouchable": { "name": "Dokunulmaz", "desc": "Bölümü hiç yere düşmeden bitir", "type": "never", "event": "PLAYER_DOWNED", "reward": 500 },
+    "no_one_left": { "name": "Kimse Geride Kalmaz", "desc": "Hiçbir asker kan kaybından ölmeden bitir", "type": "never", "event": "ALLY_DIED", "reward": 450 },
+    "brotherhood": { "name": "Kardeşlik", "desc": "{count} kez takım arkadaşını canlandır", "type": "count", "event": "ALLY_REVIVED", "filter": { "by": "player" }, "count": 2, "reward": 250 },
+    "commander": { "name": "Komutan", "desc": "{count} komut ver, askerler hepsini tamamlasın", "type": "count", "event": "COMMAND_COMPLETED", "count": 5, "reward": 200 },
+    "suppressor": { "name": "Baskı Ustası", "desc": "Baskı ateşi sürerken {count} düşman etkisiz hâle gelsin", "type": "count", "event": "ENEMY_KILLED", "filter": { "underSuppression": true }, "count": 3, "reward": 250 },
+    "blitz": { "name": "Yıldırım Harekâtı", "desc": "Bölümü {par} altında bitir", "type": "timer", "reward": 400 },
+    "sidearm": { "name": "Tabanca Ustası", "desc": "Yalnızca yan silahla {count} düşman", "type": "count", "event": "ENEMY_KILLED", "filter": { "killer": "player", "slot": "secondary" }, "count": 5, "reward": 300 },
+    "longshot": { "name": "Uzak Atış", "desc": "60 m'nin üzerinden {count} düşman", "type": "count", "event": "ENEMY_KILLED", "filter": { "killer": "player", "distance": { "gte": 60 } }, "count": 3, "reward": 350 },
+    "frugal": { "name": "Tutumlu", "desc": "Hiç sarf malzemesi kullanmadan bitir", "type": "never", "event": "ITEM_USED", "reward": 200 },
+    "armor_breaker": { "name": "Zırh Kırıcı", "desc": "{count} düşmanın zırhını kır", "type": "count", "event": "ARMOR_BROKEN", "filter": { "targetType": "enemy", "by": "player" }, "count": 3, "reward": 250 }
+  },
+  "levels": {
+    "1": { "primary": { "reward": 1000 }, "parTimeSec": 360, "bonus": [{ "id": "headhunter", "count": 3, "reward": 200 }, { "id": "untouchable" }, { "id": "frugal" }] },
+    "2": { "primary": { "reward": 1100 }, "parTimeSec": 420, "bonus": [{ "id": "longshot", "count": 2 }, { "id": "blitz" }, { "id": "no_one_left" }] },
+    "3": { "primary": { "reward": 1300 }, "parTimeSec": 720, "bonus": [{ "id": "headhunter", "count": 8 }, { "id": "brotherhood", "count": 1 }, { "id": "sidearm", "count": 3 }] },
+    "4": { "primary": { "reward": 1500 }, "parTimeSec": 840, "bonus": [{ "id": "armor_breaker" }, { "id": "commander" }, { "id": "untouchable" }] },
+    "5": { "primary": { "reward": 1700 }, "parTimeSec": 960, "bonus": [{ "id": "suppressor" }, { "id": "longshot" }, { "id": "no_one_left" }] },
+    "6": { "primary": { "reward": 2000 }, "parTimeSec": 1080, "bonus": [{ "id": "headhunter", "count": 12 }, { "id": "blitz" }, { "id": "brotherhood" }] }
+  }
+}
