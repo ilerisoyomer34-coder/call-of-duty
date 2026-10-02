@@ -5,8 +5,8 @@
 import * as THREE from 'three';
 import { buildWeapon, buildArms, poseArm, buildGrenade } from './models.js';
 import { WEAPONS, WEAPON_ORDER } from './config.js';
-import { preloadWeapons, rigFor, assetIdFor } from './assets.js';
-import { clamp, damp, lerp, smoothstep, Spring, rand } from './util.js';
+import { preloadWeapons, rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
+import { clamp, damp, lerp, smoothstep, Spring, rand, warnOnce } from './util.js';
 
 const _p = new THREE.Vector3();
 const _r = new THREE.Euler();
@@ -24,6 +24,19 @@ function envelope(k, a, b, c, d) {
   if (k <= c) return 1;
   return 1 - smoothstep((k - c) / (d - c));
 }
+
+// Bıçak savurma anahtar kareleri (görünüm modeli uzayı: x sağ, y yukarı, kamera -Z'ye bakar).
+// Sol el bıçağı sol alttan kaldırır, soldan sağa keser (isabet anı MELEE.hitTime ≈ 0,14 sn, kesişin
+// ortası), sonra sağ alttan ekrandan çıkar. rot: Euler (x, y, z). Ucu hep ileri-sağa bakar, ağzı aşağıda:
+// bıçağın yan yüzü kameraya döner, kesiş boyunca siluet okunur (uç kameradan uzağa bakarsa kısalıp kaybolur).
+const KNIFE_KEYS = [
+  { t: 0.0, pos: [-0.34, -0.36, -0.3], rot: [0.3, -0.3, 0.3] },
+  { t: 0.08, pos: [-0.26, -0.07, -0.38], rot: [0.2, -0.45, 0.25] },
+  { t: 0.2, pos: [0.12, -0.12, -0.44], rot: [-0.05, -0.8, 0.1] },
+  { t: 0.34, pos: [0.14, -0.28, -0.36], rot: [-0.3, -0.95, 0] },
+  { t: 0.5, pos: [0.06, -0.52, -0.3], rot: [-0.6, -1.1, 0] },
+];
+const KNIFE_END = KNIFE_KEYS[KNIFE_KEYS.length - 1].t;
 
 export class Viewmodel {
   constructor(game, textures) {
@@ -50,6 +63,21 @@ export class Viewmodel {
     this.grenade.scale.setScalar(0.7);
     this.grenade.visible = false;
     this.holder.add(this.grenade);
+    // Yakın dövüş bıçağı (Sketchfab, sol elde savrulur). Yüklenemezse eski dipçik darbesi kalır.
+    this.knife = null;
+    this.knifeWarm = false;
+    loadWeaponAsset('knife')
+      .then((scene) => {
+        const k = new THREE.Group();
+        k.add(scene);
+        k.visible = false;
+        k.traverse((o) => {
+          if (o.isMesh) o.frustumCulled = false;
+        });
+        this.holder.add(k);
+        this.knife = k;
+      })
+      .catch((e) => warnOnce('glb-knife', `Bıçak modeli yüklenemedi, dipçik darbesi kullanılıyor (${e.message})`));
     this.holder.traverse((o) => {
       if (o.isMesh) o.frustumCulled = false;
     });
@@ -421,8 +449,17 @@ export class Viewmodel {
       m.parts.slide.position.z = m.parts.slide.userData.base.z + (w.slideLocked ? travel : clamp(sz * 0.006, 0, travel));
     }
 
-    // Bıçak (dipçik/silah darbesi)
-    if (W.state === 'melee') {
+    // Bıçak: sol el bıçağı savururken silah sağ alta iner. Model yoksa dipçik darbesi.
+    const knifeOn = W.state === 'melee' && !!this.knife && W.stateT < KNIFE_END;
+    if (this.knife) this.knife.visible = knifeOn;
+    if (W.state === 'melee' && this.knife) {
+      const s = envelope(W.stateT, 0, 0.08, 0.38, 0.56);
+      _p.x += 0.1 * s;
+      _p.y += -0.15 * s;
+      rz += -0.3 * s;
+      rx += -0.2 * s;
+      if (knifeOn) this.poseKnife(W.stateT);
+    } else if (W.state === 'melee') {
       const k = clamp(W.stateT / 0.42, 0, 1);
       const s = k < 0.3 ? smoothstep(k / 0.3) : 1 - smoothstep((k - 0.3) / 0.7);
       _p.x += -0.1 * s;
@@ -474,9 +511,15 @@ export class Viewmodel {
       leftHand.copy(this.grenade.position).add(_v.set(0.01, -0.04, 0.05));
       elbowL.set(-0.3, -0.35, leftHand.z + 0.3);
     }
+    if (knifeOn) {
+      // Sol el bıçağın sapını kavrar (bıçağın kökeni sap ortası); dirsek elin altında ve gerisinde
+      leftHand.copy(this.knife.position);
+      elbowL.set(leftHand.x - 0.16, leftHand.y - 0.3, leftHand.z + 0.32);
+    }
     // El sırtı yönleri: sağ el kabzayı yandan kavrar, sol el kundağı alttan tutar (tabancada sağ eli sarar)
     _upR.set(0.45, 1, 0.1);
     if (cooking || throwing) _upL.set(0.2, 1, 0);
+    else if (knifeOn) _upL.set(-0.4, 1, 0);
     else if (handgun) _upL.set(-0.7, 0.6, 0);
     else _upL.set(-0.35, -1, 0);
     poseArm(this.arms.right, elbowR, rightHand, _upR);
@@ -499,7 +542,27 @@ export class Viewmodel {
     this.hemi.intensity = 0.9 + 0.7 * this.lightScale;
   }
 
+  // Bıçağı t anındaki anahtar kareye yerleştir (iki kare arası yumuşak geçiş)
+  poseKnife(t) {
+    let i = 0;
+    while (i < KNIFE_KEYS.length - 2 && t > KNIFE_KEYS[i + 1].t) i++;
+    const a = KNIFE_KEYS[i];
+    const b = KNIFE_KEYS[i + 1];
+    const k = smoothstep(clamp((t - a.t) / (b.t - a.t), 0, 1));
+    this.knife.position.set(lerp(a.pos[0], b.pos[0], k), lerp(a.pos[1], b.pos[1], k), lerp(a.pos[2], b.pos[2], k));
+    this.knife.rotation.set(lerp(a.rot[0], b.rot[0], k), lerp(a.rot[1], b.rot[1], k), lerp(a.rot[2], b.rot[2], k));
+  }
+
   render(renderer) {
+    // Gölgelendirici ilk savuruşta takılmasın: bıçak yüklendikten sonra ilk çizimde bir kez derlenir
+    // (derleme yalnız görünür nesnelere bakar)
+    if (this.knife && !this.knifeWarm) {
+      this.knifeWarm = true;
+      const was = this.knife.visible;
+      this.knife.visible = true;
+      renderer.compile(this.scene, this.camera);
+      this.knife.visible = was;
+    }
     renderer.clearDepth();
     renderer.render(this.scene, this.camera);
   }

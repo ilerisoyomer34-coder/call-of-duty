@@ -331,6 +331,16 @@
       }
     }
   },
+  "knife": {
+    "source": "SourceAssets/Sketchfab/knife_cglab34/original/knife.glb",
+    "forward": "-x",
+    "up": "+y",
+    "scaleTo": 0.30,
+    "hand": [0, 0.029, 0.08],
+    "points": { "tip": [0, 0.034, -0.151], "guard": [0, 0.03, 0.024] },
+    "texMax": 1024,
+    "texMaxData": 1024
+  },
   "_notes": {
     "points": "Oyun uzayında (metre, namlu -Z, üst +Y) köken değişmeden önceki konumlar; araç el (hand) noktasını kökene taşır",
     "textures.paint": "[x, y, genişlik, yükseklik, örnekX, örnekY]: özgün doku pikselleri; gerçek marka/seri no yazıları örnek noktanın rengiyle boyanır",

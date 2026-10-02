@@ -33,6 +33,7 @@ Mixamo koşulları özetle: karakter ve animasyonlar kişisel ve ticari projeler
 | KR-4 Atmaca | [low-poly Colt M4A1](https://sketchfab.com/3d-models/low-poly-colt-m4a1-c0313e9f6c164de8903615c4297a2485) | [D_U](https://sketchfab.com/DU1701) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Aynı işlemler |
 | MK-4 Doğan | [m4 Carbine Rifle](https://sketchfab.com/3d-models/m4-carbine-rifle-37cafb82ae144484a26e9ab71a0f8f0e) | [Pieter Ferreira](https://sketchfab.com/Badboy17Aiden) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 588 bin → 71 bin üçgen, nişangah gövdesi ayrı, dokudaki model yazısı silindi |
 | KT-9 Kaplan | [Gun](https://sketchfab.com/3d-models/gun-a66b52ede9af472a9a9e0946154d603c) | [Dries Deryckere](https://sketchfab.com/deryckeredries) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Dokulardaki gerçek marka, seri no, üretici adresi ve bir kişi fotoğrafı silindi |
+| Yakın dövüş bıçağı | [Knife](https://sketchfab.com/3d-models/knife-8374ea78a11c4be5a2f145448c17c90e) | [CG Lab34](https://sketchfab.com/tuandesigner.mtc) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Yönlendirildi, 30 cm'ye ölçeklendi, dokular 2048 px PNG'den 1024 px JPEG'e küçültüldü (dokularda yazı yok) |
 
 Oyundaki silah adları kurgusaldır; kaynak model adlarındaki gerçek markalar oyunda kullanılmaz. Hazırlama: `web/tools/prepare-weapon-glb.mjs` (ayarlar `web/tools/weapon-glb-map.json`).
 

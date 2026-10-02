@@ -962,6 +962,23 @@ console.log('Atış poligonu');
   });
   check(sk.glb && sk.parts.k8 === 'charging+mag' && sk.parts.mk4 === 'optic' && sk.parts.kt9 === 'mag', `Sketchfab silahları yüklendi, parçalar ayrı (${JSON.stringify(sk.parts)})`);
   check(sk.tex.mk4 > 0 && sk.tex.kt9 > 0, `Sketchfab silah dokuları ayrı dosyadan bağlandı (${JSON.stringify(sk.tex)})`);
+  // Bıçak (Sketchfab): V ile yakın dövüşte sol elde dokulu bıçak savrulur
+  await page.waitForFunction(() => !!window.__game.viewmodel.knife, null, { timeout: 30000 }).catch(() => {});
+  await page.keyboard.press('KeyV');
+  const knifeSeen = await page
+    .waitForFunction(() => window.__game.weapons.state === 'melee' && window.__game.viewmodel.knife?.visible, null, { timeout: 20000, polling: 16 })
+    .then(() => true, () => false);
+  const kn = await page.evaluate(() => {
+    let tex = 0;
+    window.__game.viewmodel.knife?.traverse((o) => {
+      if (o.isMesh && o.material.map?.image && o.material.normalMap?.image) tex++;
+    });
+    return { loaded: !!window.__game.viewmodel.knife, tex };
+  });
+  check(kn.loaded && knifeSeen && kn.tex > 0, `Bıçak modeli yakın dövüşte sol elde görünüyor (dokulu parça: ${kn.tex})`);
+  await page.screenshot({ path: join(shots, '08c-knife.png') });
+  await page.waitForFunction(() => window.__game.weapons.state !== 'melee', null, { timeout: 20000 }).catch(() => {});
+  check(await page.evaluate(() => !window.__game.viewmodel.knife?.visible), 'Bıçak vuruştan sonra gizlendi');
   await waitGame(page, 0.1);
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.35);

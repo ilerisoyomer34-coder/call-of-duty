@@ -402,5 +402,49 @@
       "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
       "source": "https://sketchfab.com/3d-models/m4-carbine-rifle-37cafb82ae144484a26e9ab71a0f8f0e"
     }
+  },
+  "knife": {
+    "file": "assets/weapons/knife.glb",
+    "points": {
+      "tip": [
+        0,
+        0.005,
+        -0.231
+      ],
+      "guard": [
+        0,
+        0.001,
+        -0.056
+      ]
+    },
+    "parts": [],
+    "bounds": {
+      "min": [
+        -0.017,
+        -0.028,
+        -0.232
+      ],
+      "max": [
+        0.017,
+        0.029,
+        0.07
+      ]
+    },
+    "length": 0.3,
+    "tris": 1142,
+    "bytes": 19984,
+    "materials": {
+      "tesst": {
+        "map": "assets/weapons/knife_t0.jpg",
+        "normalMap": "assets/weapons/knife_t2.jpg",
+        "ormMap": "assets/weapons/knife_t1.jpg"
+      }
+    },
+    "credit": {
+      "title": "Knife",
+      "author": "CG Lab34 (https://sketchfab.com/tuandesigner.mtc)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/knife-8374ea78a11c4be5a2f145448c17c90e"
+    }
   }
 }

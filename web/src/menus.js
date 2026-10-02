@@ -26,7 +26,7 @@ export class Menus {
   buildPropCredits() {
     const box = $('propCredits');
     if (!box) return;
-    const names = { helicopter: 'Tahliye helikopteri' };
+    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı' };
     // Sketchfab silahları: oyundaki kurgusal adıyla
     for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = d.name;
     const entries = [...Object.entries(PROP_ASSETS), ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];
@@ -37,7 +37,7 @@ export class Menus {
       b.textContent = `${names[id] || id}: `;
       const author = (c.author || '').replace(/\s*\(.*\)$/, '');
       const license = (c.license || '').replace(/\s*\(.*\)$/, '');
-      const change = WEAPON_ASSETS[id] ? 'Oyun için sadeleştirildi, dokulardaki marka yazıları silindi.' : 'Oyun için sadeleştirildi ve rengi değiştirildi.';
+      const change = id === 'knife' ? 'Oyun için ölçeklendi, dokuları küçültüldü.' : WEAPON_ASSETS[id] ? 'Oyun için sadeleştirildi, dokulardaki marka yazıları silindi.' : 'Oyun için sadeleştirildi ve rengi değiştirildi.';
       p.append(b, document.createTextNode(`"${c.title}" — ${author}, Sketchfab (${license}). ${change} ${c.source}`));
       box.appendChild(p);
     }
