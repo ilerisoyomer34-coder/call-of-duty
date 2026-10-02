@@ -382,6 +382,18 @@ export class Audio {
     }
   }
 
+  // Mağazada satın alma: kısa "kasa" sesi (iki parlak zil ve bozuk para tıkırtısı)
+  purchase() {
+    if (!this.ctx) return;
+    const t = this.now;
+    const dest = this.out(0, this.ui);
+    dest.gain.value = 0.6;
+    this.noiseBurst(dest, t, 0.04, { type: 'highpass', freq: 3500, gain: 0.35 });
+    this.tone(dest, t + 0.02, 0.32, { type: 'triangle', freq: 1318, gain: 0.22 });
+    this.tone(dest, t + 0.1, 0.42, { type: 'triangle', freq: 1760, gain: 0.2 });
+    this.noiseBurst(dest, t + 0.12, 0.12, { type: 'bandpass', freq: 7000, q: 4, gain: 0.25 });
+  }
+
   // Zırh kırıldı: belirgin çatlama ve dağılan parçalar
   armorBreak() {
     if (!this.ctx) return;

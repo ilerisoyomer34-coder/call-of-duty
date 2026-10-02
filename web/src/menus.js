@@ -6,9 +6,10 @@ import { formatTime } from './util.js';
 import { PROP_ASSETS, WEAPON_ASSETS } from './assets.js';
 import { formatKR } from './economy.js';
 import { EV } from './events.js';
+import { StoreScreen } from './storeScreen.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 export class Menus {
   constructor(game) {
@@ -22,6 +23,8 @@ export class Menus {
     this.buildDifficulty();
     this.buildBrief();
     this.buildPropCredits();
+    // Mağaza: ana menü, teçhizat ve bölüm sonu ekranından açılır (görevde açılmaz)
+    this.storeScreen = new StoreScreen(game, this);
     // Kredi bakiyesi: her harcama/kazançta güncellenir
     this.updateCredits();
     game.events.on(EV.CREDITS_CHANGED, () => this.updateCredits());
@@ -92,6 +95,8 @@ export class Menus {
     for (const b of document.querySelectorAll('.mbtn, .btn')) b.addEventListener('mouseenter', () => g.audio.uiHover());
     click('btnPlay', () => this.showLevels());
     click('btnRange', () => g.startMode('range', 'normal'));
+    click('btnStore', () => this.storeScreen.open());
+    click('btnLoadoutStore', () => this.storeScreen.open());
     click('btnSettings', () => this.openSettings());
     click('btnControls', () => this.show('controlsScreen'));
     click('btnCredits', () => this.show('creditsScreen'));

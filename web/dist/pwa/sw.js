@@ -1,7 +1,7 @@
 // Demir Şafak hizmet çalışanı (PWA). tools/build.mjs bu şablondan dist/pwa/sw.js üretir:
 // __VERSION__ tüm dosyaların içerik özetiyle, __FILES__ önbelleğe alınacak dosya listesiyle değişir.
 // Sürüm her içerik değişiminde değiştiği için tarayıcı yeni sw.js'i görür ve güncellemeyi indirir.
-const VERSION = "f744b5366bd0";
+const VERSION = "f2631c0bfd67";
 const FILES = ["index.html","manifest.webmanifest","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","icons/apple-touch-icon.png","icons/favicon-32.png","assets/characters/soldier.glb","assets/characters/soldier_diffuse.jpg","assets/characters/soldier_normal.jpg","assets/props/helicopter.glb","assets/weapons/d50.glb","assets/weapons/k8.glb","assets/weapons/knife.glb","assets/weapons/knife_t0.jpg","assets/weapons/knife_t1.jpg","assets/weapons/knife_t2.jpg","assets/weapons/kr4.glb","assets/weapons/kt9.glb","assets/weapons/kt9_t0.jpg","assets/weapons/kt9_t1.jpg","assets/weapons/kt9_t2.jpg","assets/weapons/kt9_t3.jpg","assets/weapons/kt9_t4.jpg","assets/weapons/kt9_t5.jpg","assets/weapons/kt9_t6.jpg","assets/weapons/kt9_t7.jpg","assets/weapons/kt9_t8.jpg","assets/weapons/m82.glb","assets/weapons/mar556.glb","assets/weapons/mg43.glb","assets/weapons/mk4.glb","assets/weapons/mk4_t0.jpg","assets/weapons/mk4_t1.jpg","assets/weapons/mk4_t2.jpg"];
 const PREFIX = 'demirsafak-';
 const CACHE = `${PREFIX}${VERSION}`;

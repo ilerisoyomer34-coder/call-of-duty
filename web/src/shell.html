@@ -309,6 +309,61 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .brief { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); max-width: 420px; }
 .brief b { font: 400 14px/1.3 var(--f-num); color: var(--amber); }
 @media (max-height: 640px) { #menu .brief { display: none; } }
+/* ---------- Mağaza (storeScreen.js) ---------- */
+#storeScreen .sheet.store { width: min(1080px, 100%); }
+.stHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.stHead .kr { margin-top: 0; }
+.stTabs .diff b { font-size: 16px; }
+.stBody { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .stBody { grid-template-columns: 1fr; } }
+.stGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
+.stCard { appearance: none; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 10px 12px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; font-family: var(--f-ui); }
+.stCard:hover, .stCard:focus-visible { border-color: var(--amber); outline: none; }
+.stCard.sel { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); background: #1b2126; }
+.stCard.credit, .stCard.locked, .stCard.full { opacity: .72; }
+.stCard.bought { animation: stBought .7s ease-out; }
+@keyframes stBought { 0% { box-shadow: 0 0 0 0 rgba(255,207,92,.85); } 100% { box-shadow: 0 0 0 16px rgba(255,207,92,0); } }
+.stImg { height: 70px; display: flex; align-items: center; justify-content: center; color: var(--sand); background: radial-gradient(ellipse at center, rgba(141,184,216,.14), transparent 70%); }
+.stImg svg { height: 100%; }
+.stImg.big { height: 124px; }
+.stCard b { font: 700 16px/1.1 var(--f-ui); letter-spacing: .04em; text-transform: uppercase; }
+.stDesc { font: 400 13px/1.3 var(--f-ui); color: var(--sand-dim); }
+.stFoot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; flex-wrap: wrap; }
+.stPrice { font: 400 15px/1 var(--f-num); color: #ffcf5c; }
+.stBadge { font: 600 10px/1 var(--f-ui); letter-spacing: .14em; padding: 3px 5px; font-style: normal; background: var(--olive); color: var(--ink); white-space: nowrap; }
+.stBadge.equipped { background: var(--amber); }
+.stBadge.credit { background: var(--red); color: #fff; }
+.stBadge.locked, .stBadge.full { background: var(--sand-dim); }
+.stDetail { background: var(--panel-solid); border: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.stDetail .stName { font: 700 22px/1.1 var(--f-ui); letter-spacing: .04em; text-transform: uppercase; margin: 0; color: var(--sand); }
+/* Yatay telefon: başlık küçülür, kart açıklamaları gizlenir; kartlar ve ayrıntı kaydırmadan daha çok sığar */
+@media (max-height: 520px) {
+  #storeScreen .sheet { padding-block: 12px; gap: 10px; }
+  #storeScreen .sheet h2 { font-size: 28px; }
+  #storeScreen .eyebrow { font-size: 11px; }
+  .stTabs .diff { padding: 7px 12px; }
+  .stTabs .diff b { font-size: 14px; }
+  .stCard { padding: 8px 10px 10px; gap: 4px; }
+  .stImg { height: 44px; }
+  .stImg.big { height: 72px; }
+  .stDesc { display: none; }
+  .stDetail { padding: 10px; gap: 6px; }
+  .stDetail .stName { font-size: 18px; }
+  .stText { font-size: 14px; }
+}
+.stTag { font: 400 12px/1 var(--f-num); color: var(--steel); }
+.stText { margin: 0; font: 400 15px/1.4 var(--f-ui); color: var(--sand-dim); }
+.stWarn { margin: 0; font: 600 14px/1.3 var(--f-ui); color: var(--red); }
+.stCmp { display: flex; flex-direction: column; gap: 2px; }
+.stRow { display: flex; justify-content: space-between; gap: 10px; font: 500 15px/1.3 var(--f-ui); border-bottom: 1px solid var(--line); padding: 4px 0; }
+.stRow b { font: 400 14px/1.3 var(--f-num); }
+.stRow.up b { color: #7fd38a; }
+.stRow.down b { color: var(--red); }
+.stState { font: 600 13px/1 var(--f-ui); letter-spacing: .14em; color: var(--amber); align-self: center; }
+.stModal { position: absolute; inset: 0; background: rgba(5,7,9,.72); display: flex; align-items: center; justify-content: center; z-index: 5; padding: 16px; }
+.stModal[hidden] { display: none; }
+.stModalBox { background: var(--panel-solid); border: 1px solid var(--amber); padding: 20px; max-width: 440px; display: flex; flex-direction: column; gap: 16px; }
+.stModalBox p { margin: 0; font: 600 18px/1.4 var(--f-ui); color: var(--sand); }
 /* Kredi (kalıcı para birimi): turuncu-sarı, görev içi hiçbir sayaçla karışmasın diye ayrı renk ve çerçeve */
 .kr { display: inline-flex; align-items: baseline; gap: 10px; margin-top: 14px; padding: 6px 12px; border: 1px solid rgba(255,207,92,.45); background: rgba(255,207,92,.08); }
 .kr small { font: 600 11px/1 var(--f-ui); letter-spacing: .24em; color: var(--sand-dim); }
@@ -596,6 +651,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <div class="menuList" id="mainList">
         <button class="mbtn primary" id="btnPlay">Göreve başla<small>Altı seviye, beş harita · kolaydan zora · mavi mangan seninle</small></button>
         <button class="mbtn" id="btnRange">Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></button>
+        <button class="mbtn" id="btnStore">Mağaza<small>Zırh, kask, sarf malzemesi ve tim yükseltmeleri</small></button>
         <button class="mbtn" id="btnSettings">Ayarlar</button>
         <button class="mbtn" id="btnControls">Kontroller</button>
         <button class="mbtn" id="btnCredits">Emeği geçenler</button>
@@ -625,8 +681,12 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <h3>Yan silah</h3>
       <div class="guns" id="secondaryList"></div>
       <p class="tip">Harita boyunca yedi silah daha bulacaksın. Yerdeki silahı <b>F</b> ile alırsan aynı türdeki silahının yerine geçer; bıraktığını istersen geri alabilirsin.</p>
-      <div class="row"><button class="btn primary" id="btnDeploy">Göreve başla</button><button class="btn" data-back>Geri</button></div>
+      <div class="row"><button class="btn primary" id="btnDeploy">Göreve başla</button><button class="btn" id="btnLoadoutStore">Mağaza</button><button class="btn" data-back>Geri</button></div>
     </div>
+  </section>
+
+  <section id="storeScreen" class="screen panelScreen" hidden>
+    <div class="sheet store" id="storeRoot"></div>
   </section>
 
   <section id="settingsScreen" class="screen panelScreen" hidden>

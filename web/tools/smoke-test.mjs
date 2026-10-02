@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, mission, levels, interact, maps, range, armor, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, interact, maps, range, armor, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -175,6 +175,71 @@ console.log('Kayıt ve kredi');
     check(m.unlocked === 4 && m.best === 1800 && m.primary === 'k8' && m.secondary === 'd50' && m.sens === 1.3 && m.credits === 1000 && m.legacy, `Eski kayıt yükseltildi: seviye ${m.unlocked}, teçhizat ${m.primary}/${m.secondary}, ayar korundu, yedek duruyor`);
     await ctx.close();
   }
+}
+
+// ---------------- Mağaza (store.js, storeScreen.js) ----------------
+if (run('store')) {
+console.log('Mağaza');
+
+  // §12/1: yeni kayıt → 1.000 KR → Hafif Taktik Yelek al (200 KR kalır) → kuşan → görevde 50 ZP
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await ctx.addInitScript(() => {
+    if (!localStorage.getItem('demirsafak.save')) localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+  });
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`[store] pageerror: ${e.message}`));
+  await page.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  await page.click('#btnStore');
+  await page.waitForSelector('#storeScreen:not([hidden])', { timeout: 5000 });
+  const tabs = await page.$$eval('.stTabs .diff', (bs) => bs.map((b) => b.textContent));
+  check(tabs.join(',') === 'Zırh,Kask,Sarf Malzemeleri,Tim Yükseltmeleri', `Mağaza sekmeleri: ${tabs.join(' · ')} (kilitli silah yok, Silahlar sekmesi gizli)`);
+  await page.click('.stCard[data-id="armor_light"]');
+  await page.click('#stBuy');
+  const modal = await page.textContent('.stModalBox p');
+  check(modal === 'Hafif Taktik Yelek — 800 KR. Onaylıyor musun?', `Onay penceresi: "${modal}"`);
+  await page.click('#stConfirm');
+  await page.waitForFunction(() => document.querySelector('#storeRoot .kr b').textContent === '200 KR', null, { timeout: 5000 }).catch(() => {});
+  const after = await page.evaluate(() => ({
+    credits: window.__game.economy.credits,
+    chip: document.querySelector('#storeRoot .kr b').textContent,
+    badge: document.querySelector('.stCard[data-id="armor_light"] .stBadge')?.textContent,
+    saved: JSON.parse(localStorage.getItem('demirsafak.save')).inventory.armor,
+  }));
+  check(after.credits === 200 && after.chip === '200 KR' && after.badge === 'SAHİPSİN' && after.saved.includes('armor_light'), `Satın alındı: ${after.chip} kaldı, rozet ${after.badge}, kayda yazıldı`);
+  await page.click('#stEquip');
+  const eq = await page.evaluate(() => ({ badge: document.querySelector('.stCard[data-id="armor_light"] .stBadge')?.textContent, loadout: window.__game.save.data.loadout.armor }));
+  check(eq.badge === 'KUŞANILDI' && eq.loadout === 'armor_light', 'Kuşanıldı (KUŞANILDI rozeti)');
+  // Yetersiz kredi: düğme pasif, eksik miktarı yazar; karşılaştırma ▲/▼
+  await page.click('.stCard[data-id="armor_plate"]');
+  const plate = await page.evaluate(() => {
+    const b = document.getElementById('stBuy');
+    return { text: b.textContent, disabled: b.disabled, up: document.querySelectorAll('.stRow.up').length, down: document.querySelectorAll('.stRow.down').length };
+  });
+  check(plate.disabled && plate.text === '2.600 KR eksik' && plate.up >= 2 && plate.down === 1, `Yetersiz kredi: "${plate.text}", karşılaştırma ▲${plate.up} ▼${plate.down}`);
+  await page.screenshot({ path: join(shots, '17-store.png') });
+  // Geri → ana menüde bakiye; görevde zırh kuşanılı
+  await page.click('#stBack');
+  check((await page.textContent('#menuCreditsVal')) === '200 KR', 'Ana menüde bakiye 200 KR');
+  await page.evaluate(() => window.__game.startMode('range', 'normal'));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  check((await page.textContent('#arVal')) === '50', 'Görevde HUD 50 ZP gösteriyor (§12/1)');
+  await ctx.close();
+
+  // Telefon: mağaza yatay ekranda
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[store-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  await mp.tap('#btnStore');
+  await mp.waitForSelector('#storeScreen:not([hidden])', { timeout: 5000 });
+  await sleep(300);
+  await mp.screenshot({ path: join(shots, '17b-store-mobile.png') });
+  check(await mp.isVisible('.stCard[data-id="armor_light"]'), 'Telefonda mağaza kartları görünüyor');
+  await mctx.close();
 }
 
 if (run('mission')) {

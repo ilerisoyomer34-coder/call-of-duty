@@ -49,7 +49,7 @@ export class DevConsole {
           this.print(`> ${cmd}`);
           this.run(cmd);
         }
-      } else if (e.key === 'Escape' || e.key === '`' || e.key === 'F2') {
+      } else if (e.key === 'Escape' || e.key === '`' || e.key === 'F10') {
         e.preventDefault();
         this.toggle(false);
       } else if (e.key === 'ArrowUp') {
