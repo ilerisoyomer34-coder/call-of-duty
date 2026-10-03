@@ -1130,19 +1130,28 @@ export const PWA = {
 export const DIFFICULTY = {
   easy: {
     label: 'Acemi', desc: 'Düşmanlar yavaş fark eder, az isabet ettirir.',
-    reaction: 0.95, aimMult: 1.7, damageMult: 0.55, perception: 0.8, awarenessRate: 0.65,
+    reaction: 0.9, aimMult: 1.7, damageMult: 0.6, perception: 0.8, awarenessRate: 0.65,
     maxAttackers: 1, grenades: false, regenDelay: 5, dpsCap: 32,
   },
   normal: {
     label: 'Asker', desc: 'Dengeli çatışma. İlk oynayış için önerilir.',
-    reaction: 0.62, aimMult: 1.0, damageMult: 1.0, perception: 1.0, awarenessRate: 1.0,
+    reaction: 0.6, aimMult: 1.0, damageMult: 0.85, perception: 1.0, awarenessRate: 1.0,
     maxAttackers: 2, grenades: true, regenDelay: 6, dpsCap: 40,
   },
   hard: {
     label: 'Gazi', desc: 'Hızlı tepki, sert isabet, bol el bombası.',
-    reaction: 0.38, aimMult: 0.72, damageMult: 1.45, perception: 1.15, awarenessRate: 1.45,
+    reaction: 0.4, aimMult: 0.72, damageMult: 1.0, perception: 1.15, awarenessRate: 1.45,
     maxAttackers: 3, grenades: true, regenDelay: 7, dpsCap: 75,
   },
+};
+
+// Hayatta kalma ölçümü (Operasyon Güncellemesi §10): hasar günlüğü ve yere düşme süresi (time-to-down).
+// Hedef (Asker, Hafif Taktik Yelek, açıkta): tek düşmana ≥ 4 sn, iki düşmana ≥ 2,5 sn (duman testi "balance")
+export const BALANCE = {
+  dmgLogSize: 32, // oyuncunun son isabet kayıtları (konsol "dmgpanel")
+  dmgPanelSec: 10, // panelde gösterilen pencere
+  ttdKeep: 30, // kayıtta tutulan son yere düşme süreleri
+  ttdTarget: { one: 4, two: 2.5 },
 };
 
 export const AI = {

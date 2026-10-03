@@ -2,7 +2,7 @@
 // konuma bağlı öğeler (nişangah, pusula, işaretçiler, mini harita, hasar yönü, düşman farkındalık ikonları).
 import * as THREE from 'three';
 import { DEG, clamp } from './util.js';
-import { WEAPONS, MAPS, ALLY_TIERS } from './config.js';
+import { WEAPONS, MAPS, ALLY_TIERS, BALANCE, ENEMY_TYPES } from './config.js';
 import { weaponName, weaponShortName } from './weaponInfo.js';
 import { itemIcon } from './storeIcons.js';
 import { BINDINGS, keyName } from './input.js';
@@ -475,6 +475,43 @@ export class HUD {
   }
 
   // Alfa Timi durumu (§8.1): renk, çağrı kodu ve ad, can ve zırh çubuğu, son emir. Saniyede dört kez.
+  // Geliştirici hasar paneli (konsol "dmgpanel", §10): son 10 sn'deki isabetler — kaynak, mesafe, ham hasar →
+  // zırhın emdiği → cana geçen — ve yere düşme süreleri. Kapalıyken hiç güncellenmez
+  updateDmgPanel(dt) {
+    const g = this.game;
+    if (!g.debugDmg) {
+      if (this.dmgPanel && !this.dmgPanel.hidden) this.dmgPanel.hidden = true;
+      return;
+    }
+    this.dmgPanelT = (this.dmgPanelT || 0) - dt;
+    if (this.dmgPanelT > 0 && !this.dmgPanel?.hidden) return;
+    this.dmgPanelT = 0.25;
+    if (!this.dmgPanel) {
+      this.dmgPanel = document.createElement('pre');
+      this.dmgPanel.id = 'dmgPanel';
+      this.root.appendChild(this.dmgPanel);
+    }
+    const P = g.player;
+    const f1 = (v) => v.toFixed(1).replace('.', ',');
+    const rows = (P.dmgLog || []).filter((d) => P.time - d.t <= BALANCE.dmgPanelSec);
+    let hp = 0;
+    let ar = 0;
+    for (const d of rows) {
+      hp += d.dealt;
+      ar += d.absorbed;
+    }
+    const lines = [`HASAR · son ${BALANCE.dmgPanelSec} sn: ${rows.length} isabet · can −${f1(hp)} · zırh −${f1(ar)}`];
+    for (const d of rows.slice(-8).reverse()) {
+      const who = ENEMY_TYPES[d.src]?.name || d.src;
+      lines.push(`−${f1(P.time - d.t)} sn  ${who.padEnd(14)} ${d.dist != null ? `${d.dist} m`.padStart(5) : '    —'}  ${f1(d.raw)} → zırh ${f1(d.absorbed)} → can ${f1(d.dealt)}  (${Math.round(d.hp)})`);
+    }
+    const T = g.stats.ttd || [];
+    const avg = T.length ? T.reduce((a, b) => a + b, 0) / T.length : 0;
+    lines.push(T.length ? `Yere düşme: son ${f1(T.at(-1))} sn · ort. ${f1(avg)} sn (${T.length})` : 'Yere düşme: henüz yok');
+    this.dmgPanel.textContent = lines.join('\n');
+    this.dmgPanel.hidden = false;
+  }
+
   // Dokunmatikte paneller sol sütunda alt alta: can paneli zırh satırıyla uzayınca silah paneli (ve onun altındaki
   // bonus takipçisi) aşağı kayar, üst üste binmez. Masaüstünde CSS konumu geçerlidir
   layoutColumn(dt) {
@@ -561,6 +598,7 @@ export class HUD {
     this.updateSquad(dt);
     this.updateDowned(dt);
     this.layoutColumn(dt);
+    this.updateDmgPanel(dt);
 
     // Dokunmatik NİŞAN aç/kapa çalışır: nişandayken düğme parmak kalksa da yanık kalsın (DOM'a yalnız değişince yaz)
     const adsLatched = g.input.touch.active && P.adsToggle;

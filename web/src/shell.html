@@ -733,6 +733,10 @@ body:not(.playing) #radioLog { display: none; }
 /* Telefonda ipucu kısa ve dar: sağ alttaki SİLAH düğmesine taşmasın */
 #wheel.touch .wHint { max-width: 220px; font-size: 12px; }
 
+/* Geliştirici hasar paneli (konsol "dmgpanel") */
+#dmgPanel { position: absolute; right: 16px; top: calc(140px + env(safe-area-inset-top, 0px)); margin: 0; max-width: min(520px, 60vw); padding: 8px 10px; background: rgba(8,10,12,.82); border: 1px solid var(--line); font: 400 12px/1.35 var(--f-num); color: var(--sand); white-space: pre; overflow: hidden; }
+#dmgPanel[hidden] { display: none; }
+
 /* ---------- Geliştirici konsolu ---------- */
 #console { position: absolute; left: 0; right: 0; top: 0; background: rgba(8,10,12,.92); border-bottom: 1px solid var(--line); font: 400 14px/1.4 var(--f-num); pointer-events: auto; padding: 10px 16px; max-height: 40vh; display: flex; flex-direction: column; }
 #console[hidden] { display: none; }

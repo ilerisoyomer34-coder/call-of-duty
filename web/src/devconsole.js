@@ -1,6 +1,6 @@
 // Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F10 ile açılır.
 import * as THREE from 'three';
-import { WEAPON_ORDER, LEVELS, ALLY_TIERS } from './config.js';
+import { WEAPON_ORDER, LEVELS, ALLY_TIERS, BALANCE } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { formatKR } from './economy.js';
 import { ArmorLoadout, ARMOR_DEFS } from './armor.js';
@@ -33,6 +33,7 @@ const HELP = `Komutlar:
   down                oyuncuyu yere düşür; aiscores: askerlerin yardım puanı ve kararı
   cmd <KOMUT> [alfa-n|all]   tim komutu (FOLLOW, HOLD, MOVE_TO, ATTACK, SUPPRESS, TAKE_COVER, HEAL_PLAYER, HOLD_FIRE, FREE_FIRE, CLEAR_AREA)
   chat <cümle>        Türkçe cümleyi ayrıştırıcıdan geçir ve komut olarak ver ("chat kaya beni iyileştir")
+  dmgpanel            hasar paneli: son 10 sn'deki isabetler (kaynak, mesafe, zırh, can); ttd: yere düşme süreleri
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -277,6 +278,18 @@ export class DevConsole {
         const who = args[1] && args[1].toLowerCase() !== 'all' ? args[1].replace(/^alfa-?/i, 'Alfa-') : 'all';
         const c = g.commands.issue(id, who, { inputMethod: 'console' });
         this.print(c ? `${id} → ${c.addressees.join(', ')}` : `Verilemedi (komutlar: ${Object.keys(COMMANDS).join(', ')})`);
+        break;
+      }
+      case 'dmgpanel':
+        g.debugDmg = !g.debugDmg;
+        this.print(`Hasar paneli ${g.debugDmg ? 'açık' : 'kapalı'}`);
+        break;
+      case 'ttd': {
+        // Yere düşme süresi (§10): bu görev ve kayıttaki son örnekler
+        const T = g.stats.ttd || [];
+        const S = g.save.data.stats;
+        this.print(`Bu görev: ${T.length ? T.map((v) => `${v} sn`).join(', ') : 'yok'}`);
+        this.print(`Kayıt: ort. ${S.ttdAvg ?? '—'} sn (${(S.ttdSamples || []).length} örnek) · hedef tek düşman ≥ ${BALANCE.ttdTarget.one} sn, iki ≥ ${BALANCE.ttdTarget.two} sn`);
         break;
       }
       case 'chat': {

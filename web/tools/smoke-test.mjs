@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1440,6 +1440,320 @@ console.log('Telsiz kutusu ve yazılı komut');
   const me = await mp.evaluate(() => ({ ev: window.__ev.at(-1), open: window.__game.chat.open }));
   check(me.ev?.id === 'SUPPRESS' && me.ev.who.join() === 'Alfa-3' && me.ev.m === 'text' && !me.open, `Telefonda yazılı komut: "alfa 3 baskı ateşi aç" → ${me.ev?.id} ${me.ev?.who?.join()}`);
   await mctx.close();
+}
+
+// ---------------- Denge ve kabul senaryoları (Operasyon Güncellemesi F10, §10 ve §12) ----------------
+if (run('balance')) {
+console.log('Denge (yere düşme süresi) ve kabul senaryoları');
+
+  const page = await openPage('standalone');
+  // Asker zorluğu, Hafif Taktik Yelek; Seviye 4'ün ayar çarpanları ×1 (zorluk tablosunun kendisi ölçülür)
+  await page.evaluate(() => window.__game.save.update((d) => {
+    if (!d.inventory.armor.includes('armor_light')) d.inventory.armor.push('armor_light');
+    d.loadout.armor = 'armor_light';
+  }, { now: true }));
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 4));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  // Ölçüm düzeneği: tim yok, el bombası yok; seçilen tüfekçiler oyuncudan 25 m'de, görüş hattında; çizim kapalı,
+  // oyun saati doğrudan adımlanır (yazılımsal GPU'da kare beklemek çok yavaş)
+  const bal = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const V = P.pos.constructor;
+    g.input.lockFailed = true;
+    g.allies.clear();
+    g.difficulty = { ...g.difficulty, grenades: false };
+    const eye = () => P.pos.clone().add(new V(0, 1.6, 0));
+    const rifle = g.enemies.list.filter((e) => e.alive && e.type === 'rifleman' && !e.mount);
+    const spots = [];
+    for (let k = 0; k < 32 && spots.length < 2; k++) {
+      const a = (k / 32) * Math.PI * 2;
+      const p = P.pos.clone().add(new V(Math.sin(a) * 25, 0, Math.cos(a) * 25));
+      if (!g.nav.isWalkable(p.x, p.z) || !g.world.lineOfSight(eye(), p.clone().add(new V(0, 1.3, 0)))) continue;
+      if (spots.length && spots[0].distanceTo(p) < 6) continue;
+      spots.push(p);
+    }
+    const rf = g.renderFrame;
+    g.renderFrame = () => {};
+    const place = (n) => {
+      const use = rifle.slice(0, n);
+      for (const e of g.enemies.list) {
+        if (use.includes(e)) continue;
+        e.dummy = true;
+        e.pos.set(9000, 0, 9000);
+      }
+      use.forEach((e, i) => {
+        e.dummy = false;
+        e.pos.copy(spots[i] || spots[0]);
+        e.path = null;
+        e.visibleT = 0;
+      });
+      return use;
+    };
+    // İlk atış ve oturmuş atış isabeti (25 m): düşmanın atışı doğrudan çağrılır, oyuncuya isabet sayılır
+    const e0 = place(1)[0];
+    g.updatePlaying(0.02);
+    e0.pos.copy(spots[0]);
+    const tk = P.takeDamage;
+    let hits = 0;
+    P.takeDamage = () => hits++;
+    const N = 200;
+    for (let i = 0; i < N; i++) {
+      e0.visibleT = 0;
+      e0.foe = P;
+      e0.shoot(false);
+    }
+    const first = hits / N;
+    hits = 0;
+    for (let i = 0; i < N; i++) {
+      e0.visibleT = 5;
+      e0.foe = P;
+      e0.shoot(false);
+    }
+    const settled = hits / N;
+    P.takeDamage = tk;
+    const trial = (n, cap) => {
+      place(n);
+      P.down = false;
+      P.bleed = null;
+      P.alive = true;
+      P.health.hp = P.health.max;
+      P.armor.refill();
+      P.ttdStart = -1;
+      P.lastDamage = -99;
+      g.state = 'playing';
+      const before = g.stats.ttd.length;
+      let t = 0;
+      while (t < cap && !P.down && P.alive) {
+        g.updatePlaying(0.05);
+        t += 0.05;
+      }
+      return g.stats.ttd.length > before ? g.stats.ttd.at(-1) : null;
+    };
+    const one = [trial(1, 20), trial(1, 20)];
+    const two = [trial(2, 30), trial(2, 30), trial(2, 30)];
+    g.renderFrame = rf;
+    // Ölçüm bitti: oyuncu ayağa, düşmanlar uzakta
+    P.down = false;
+    P.bleed = null;
+    P.alive = true;
+    P.health.hp = P.health.max;
+    g.state = 'playing';
+    for (const e of g.enemies.list) e.dummy = true;
+    return { spots: spots.length, first, settled, one, two, armor: P.armor.body?.def.id, mult: g.difficulty.damageMult, log: P.dmgLog.length };
+  });
+  check(bal.spots === 2 && bal.armor === 'armor_light' && bal.mult === 0.85, `Ölçüm düzeneği: Asker (hasar ×${bal.mult}), ${bal.armor}, 25 m'de görüş hattı`);
+  check(bal.first < bal.settled, `Düşman ilk atışlarda daha çok ıskalar: ilk atış %${Math.round(bal.first * 100)}, oturmuş %${Math.round(bal.settled * 100)} (25 m)`);
+  check(bal.one.every((t) => t === null || t >= 4), `Tek düşmana karşı yere düşme ≥ 4 sn (${bal.one.map((t) => (t === null ? '20 sn\'de düşmedi' : `${t} sn`)).join(', ')})`);
+  check(bal.two.every((t) => t === null || t >= 2.5), `İki düşmana karşı yere düşme ≥ 2,5 sn (${bal.two.map((t) => (t === null ? '30 sn\'de düşmedi' : `${t} sn`)).join(', ')})`);
+  // Hasar paneli (konsol "dmgpanel"): son 10 sn'deki isabetler ve yere düşme süresi
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.console.run('dmgpanel');
+    const P = g.player;
+    // Son 10 sn'de bir isabet olsun: kasklı ve kasksız kafa vuruşu (§12/3) günlükte yan yana
+    // (saniyelik hasar tavanı ikinci vuruşu kırpmasın: pencere ve can her vuruştan önce sıfırlanır)
+    const hit = () => {
+      P.dmgWindow = [];
+      P.health.hp = P.health.max;
+      P.takeDamage(30, P.pos.clone().add(new P.pos.constructor(0, 0, -20)), { zone: 'head', pen: 0.3, source: 'rifleman' });
+    };
+    g.console.run('armor armor_light helmet_kevlar');
+    hit();
+    g.console.run('armor armor_light none');
+    hit();
+    window.__hb = P.dmgLog.slice(-2).map((d) => d.dealt);
+    // Bir yere düşme örneği: tam candan art arda isabet (süre ölçümü ilk isabetten başlar)
+    P.health.hp = P.health.max;
+    P.ttdStart = -1;
+    for (let i = 0; i < 12 && !P.down; i++) {
+      P.dmgWindow = [];
+      P.time += 0.4;
+      P.takeDamage(30, null, { zone: 'torso', pen: 1, source: 'rifleman' });
+    }
+    P.revive('test');
+  });
+  await waitGame(page, 0.4);
+  const dp = await page.evaluate(() => {
+    const [helm, bare] = window.__hb;
+    return { shown: !document.getElementById('dmgPanel')?.hidden, text: document.getElementById('dmgPanel')?.textContent || '', helm, bare };
+  });
+  check(dp.shown && /HASAR · son 10 sn/.test(dp.text) && /Tüfekçi/.test(dp.text) && /Yere düşme: son/.test(dp.text), 'Hasar paneli: isabetler, kaynak, mesafe ve yere düşme süresi');
+  check(dp.helm < dp.bare, `§12/3 Kasklı/kasksız kafa vuruşu hasar günlüğünde (cana ${dp.helm?.toFixed(1)} / ${dp.bare?.toFixed(1)})`);
+  await page.screenshot({ path: join(shots, '24-dmgpanel.png') });
+  // Görev sonu: yere düşme süreleri kayda yazılır
+  const tt = await page.evaluate(() => {
+    const g = window.__game;
+    g.console.run('dmgpanel');
+    g.onMissionComplete();
+    g.menus.stopCountdown();
+    return { avg: g.save.data.stats.ttdAvg, n: (g.save.data.stats.ttdSamples || []).length };
+  });
+  check(tt.avg > 0 && tt.n >= 1, `Görev sonunda ortalama yere düşme süresi kayda yazıldı (${tt.avg} sn, ${tt.n} örnek)`);
+  await page.close();
+
+  // Kabul senaryoları §12/4–7 ve 11: tim ve yere düşme
+  const pg = await openPage('standalone');
+  await pg.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await pg.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await pg.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.cheats.aiOff = true;
+  });
+  await waitGame(pg, 0.3);
+  // §12/11 Performans: 3 asker + 10 uyanık düşman + efektlerle oyun mantığı karesi (çizim hariç, yazılımsal GPU'da
+  // çizim ölçülemez): ortalama ms
+  const perf = await pg.evaluate(() => {
+    const g = window.__game;
+    g.cheats.aiOff = false;
+    g.cheats.god = true;
+    const P = g.player;
+    const V = P.pos.constructor;
+    const live = g.enemies.list.filter((e) => e.alive && !e.mount).slice(0, 10);
+    live.forEach((e, i) => {
+      const p = g.nav.randomPointNear(P.pos.clone().add(new V(Math.sin(i) * 30, 0, Math.cos(i) * 30)), 6);
+      if (p) e.pos.copy(p);
+      e.awareness = 1;
+    });
+    for (let i = 0; i < 6; i++) g.effects.impact(P.pos.clone().add(new V(i, 1, -5)), new V(0, 1, 0), 'dust', 1);
+    const rf = g.renderFrame;
+    g.renderFrame = () => {};
+    for (let i = 0; i < 20; i++) g.updatePlaying(1 / 60);
+    const t0 = performance.now();
+    const n = 120;
+    for (let i = 0; i < n; i++) g.updatePlaying(1 / 60);
+    const ms = (performance.now() - t0) / n;
+    g.renderFrame = rf;
+    g.cheats.god = false;
+    g.cheats.aiOff = true;
+    // Sonraki senaryolarda tehdit sayılmasınlar
+    for (const e of live) {
+      e.dummy = true;
+      e.pos.set(9000, 0, 9000);
+    }
+    return { ms, allies: g.allies.list.length, enemies: live.length, awake: live.filter((e) => e.alive).length };
+  });
+  check(perf.allies === 3 && perf.enemies === 10 && perf.ms < 8, `§12/11 Performans: 3 asker + 10 düşman, oyun mantığı ${perf.ms.toFixed(2)} ms/kare (çizim hariç; 60 FPS bütçesi 16,7 ms)`);
+  // §12/4 Açıkta, 3 düşmanın görüş hattında yere düşme: askerler "ulaşamıyorum" der ve bastırır; tehdit
+  // azalınca medik gelip kaldırır
+  const s4 = await pg.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const V = P.pos.constructor;
+    g.mission.radioQueue.length = 0;
+    const head = P.pos.clone().add(new V(0, 1.6, 0));
+    const foes = [];
+    for (const e of g.enemies.list) {
+      if (foes.length >= 3) break;
+      if (!e.alive || e.mount) continue;
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2 + foes.length;
+        const p = P.pos.clone().add(new V(Math.sin(a) * 14, 0, Math.cos(a) * 14));
+        if (!g.nav.isWalkable(p.x, p.z) || !g.world.lineOfSight(p.clone().add(new V(0, 1.6, 0)), head)) continue;
+        e.pos.copy(p);
+        e.dummy = false;
+        foes.push(e);
+        break;
+      }
+    }
+    const [a1, med, a3] = g.allies.list;
+    med.pos.copy(g.nav.randomPointNear(P.pos.clone().add(new V(0, 0, 15)), 2) || P.pos);
+    a1.pos.copy(g.nav.randomPointNear(P.pos.clone().add(new V(15, 0, 0)), 2) || P.pos);
+    a3.pos.copy(g.nav.randomPointNear(P.pos.clone().add(new V(-15, 0, 0)), 2) || P.pos);
+    P.health.hp = 5;
+    P.dmgWindow = [];
+    P.protectUntil = 0;
+    P.takeDamage(40, null, { zone: 'torso', pen: 1 });
+    g.allies.rescueT = 0;
+    g.allies.cannotSayT = 0;
+    g.allies.update(0.05);
+    const decision = g.allies.rescue.decision;
+    const suppressing = g.allies.list.filter((a) => a.suppress && a !== g.allies.rescue.reviver).length;
+    const said = [...g.chat.lines.map((l) => l.el.textContent), ...g.mission.radioQueue.map((r) => r.text)].join(' | ');
+    // Tehdit kalkar: düşmanlar etkisiz
+    for (const e of foes) e.takeDamage(9999, { zone: 'torso', source: 'cheat', dir: new V(0, 0, 1) });
+    g.allies.rescueT = 0;
+    g.allies.update(0.05);
+    const reviver = g.allies.rescue.reviver;
+    let up = false;
+    for (let i = 0; i < 300 && P.down; i++) g.allies.update(0.05);
+    up = !P.down;
+    return { threats: foes.length, down: true, decision, suppressing, said, reviver: reviver?.callsign, role: reviver?.role, up };
+  });
+  check(s4.threats === 3 && s4.decision !== 'direct' && s4.suppressing >= 2 && /ulaşamıyorum|temizlememiz|sıcak/.test(s4.said), `§12/4 Üç düşmanın görüşünde: karar "${s4.decision}", ${s4.suppressing} asker bastırıyor, telsiz: "${(s4.said.match(/[^|]*(ulaşamıyorum|temizlememiz|sıcak)[^|]*/) || [''])[0].trim()}"`);
+  check(s4.reviver === 'Alfa-2' && s4.up, `Tehdit kalkınca medik (${s4.reviver}) gelip kaldırdı`);
+  // §12/5 Canlandırıcıya 30 hasar: işlem kesilir, kan kaybı sayacı sıfırlanmaz, kaldığı yerden sürer
+  const s5 = await pg.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const V = P.pos.constructor;
+    P.health.hp = 5;
+    P.dmgWindow = [];
+    P.protectUntil = 0;
+    P.takeDamage(40, null, { zone: 'torso', pen: 1 });
+    P.bleed.tick(1.5); // asker gelene kadar sayaç işlemiş olsun
+    const med = g.allies.list[1];
+    med.pos.copy(P.pos).add(new V(0.9, 0, 0));
+    g.allies.rescueT = 0;
+    // Medik yanına çömelip canlandırmaya başlasın (yarıda kesilecek)
+    for (let i = 0; i < 40 && !(P.reviver === med && med.rescueT > 0.4); i++) g.allies.update(0.05);
+    const reviving = P.reviver === med && med.rescueT > 0;
+    const left = P.bleed.left;
+    med.takeDamage(30, null, { zone: 'leg' });
+    const cut = med.rescueT === 0 && P.reviver !== med;
+    const kept = Math.abs(P.bleed.left - left) < 1e-9 && left < P.bleed.total;
+    // Sayaç işlemeye devam eder (canlandıran yokken)
+    P.bleed.tick(0.5, !!P.reviver);
+    const resumed = P.bleed.left < left;
+    // Yeniden canlandırma bitsin
+    for (let i = 0; i < 300 && P.down; i++) g.allies.update(0.05);
+    return { reviving, cut, kept, resumed, up: !P.down, left: +left.toFixed(2) };
+  });
+  check(s5.reviving && s5.cut && s5.kept && s5.resumed && s5.up, `§12/5 Canlandırıcıya 30 hasar: işlem kesildi, sayaç ${s5.left} sn'den sürdü, sonra yine kaldırıldı${s5.reviving && s5.cut && s5.kept && s5.resumed && s5.up ? '' : ` ${JSON.stringify(s5)}`}`);
+  // §12/6 Aynı görevde 3. düşüş: sayaç 12 sn
+  const s6 = await pg.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const downs = g.stats.downs;
+    P.health.hp = 5;
+    P.dmgWindow = [];
+    P.protectUntil = 0;
+    P.takeDamage(40, null, { zone: 'torso', pen: 1 });
+    const total = P.bleed.total;
+    P.revive('test');
+    return { n: g.stats.downs, total, before: downs };
+  });
+  check(s6.n === 3 && s6.total === 12, `§12/6 ${s6.n}. düşüşte kan kaybı ${s6.total} sn`);
+  // §12/7 Tüm tim yerdeyken oyuncu düşer: sayaç dolunca ölüm ve son kontrol noktasından devam
+  const s7 = await pg.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    for (const a of g.allies.list) a.takeDamage(9999, null, { zone: 'torso' });
+    const allDown = g.allies.list.every((a) => a.down);
+    P.health.hp = 5;
+    P.dmgWindow = [];
+    P.protectUntil = 0;
+    P.takeDamage(40, null, { zone: 'torso', pen: 1 });
+    g.allies.rescueT = 0;
+    g.allies.update(0.05);
+    const nobody = !g.allies.rescue.reviver;
+    P.bleed.left = 0.05;
+    const fake = { pressed: () => false, isDown: () => false, released: () => false, consumeLook: () => ({ dx: 0, dy: 0 }), move: () => ({ x: 0, y: 0 }), touch: { active: false, sprint: false } };
+    for (let i = 0; i < 5 && P.alive; i++) P.update(0.05, fake);
+    return { allDown, nobody, dead: !P.alive, state: g.state, cp: g.mission.checkpoint?.idx };
+  });
+  await pg.waitForFunction(() => window.__game.state === 'dead', null, { timeout: 120000 }).catch(() => {});
+  const s7b = await pg.evaluate(() => {
+    const g = window.__game;
+    const shown = !document.getElementById('deathScreen').hidden;
+    g.respawn();
+    return { shown, alive: g.player.alive, down: g.player.down, state: g.state, allies: g.allies.list.filter((a) => !a.down).length };
+  });
+  check(s7.allDown && s7.nobody && s7.dead && s7b.shown && s7b.alive && !s7b.down && s7b.state === 'playing', `§12/7 Tüm tim yerdeyken sayaç doldu: ölüm ekranı, kontrol noktası ${s7.cp}'dan devam (ayakta ${s7b.allies} asker)`);
+  const lastErr = await pg.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await pg.close();
 }
 
 if (run('interact')) {

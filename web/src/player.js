@@ -1,7 +1,7 @@
 // Oyuncu karakteri (AShooterCharacter karşılığı): hareket, bakış, geri tepme telafisi,
 // nişan alma, çömelme, eğilme, koşma, ayak sesleri, sağlık/yenilenme, kamera sarsıntısı ve etkileşim.
 import * as THREE from 'three';
-import { MOVEMENT as M, KIT } from './config.js';
+import { MOVEMENT as M, KIT, BALANCE } from './config.js';
 import { DEG, clamp, damp, lerp, smoothstep, yawToDir } from './util.js';
 import { Health } from './health.js';
 import { ArmorLoadout, computeArmorDamage, playerZoneMult, ARMOR_DATA } from './armor.js';
@@ -27,6 +27,10 @@ export class Player {
 
   reset(pos, yaw) {
     this.invulnerable = false;
+    // Yere düşme süresi ölçümü ve hasar günlüğü (§10): tam candayken alınan ilk hasardan başlar
+    this.ttdStart = -1;
+    this.dmgLog = this.dmgLog || [];
+    this.dmgLog.length = 0;
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);
     this.yaw = yaw;
@@ -161,6 +165,8 @@ export class Player {
     this.dmgWindow.push({ t: this.time, a: scaled });
     const dealt = this.health.damage(scaled);
     this.lastDamage = this.time;
+    if (this.ttdStart < 0 && dealt > 0) this.ttdStart = this.time;
+    this.logDamage(hit, fromPos, raw, res.absorbed, dealt);
     g.stats.damageTaken += dealt;
     if (fromPos) {
       const ang = Math.atan2(fromPos.x - this.pos.x, fromPos.z - this.pos.z);
@@ -179,9 +185,24 @@ export class Player {
     }
   }
 
+  // Hasar günlüğü (konsol "dmgpanel"): kaynak, mesafe, ham hasar → zırhın emdiği → cana geçen
+  logDamage(hit, fromPos, raw, absorbed, dealt) {
+    const L = this.dmgLog || (this.dmgLog = []);
+    if (L.length >= BALANCE.dmgLogSize) L.shift();
+    L.push({ t: this.time, src: hit?.source || 'bilinmiyor', dist: fromPos ? Math.round(fromPos.distanceTo(this.pos)) : null, raw, absorbed, dealt, hp: this.health.hp });
+  }
+
+  // Yere düşme süresi: tam candan ilk hasar ile düşüş/ölüm arası (can tekrar dolunca sayaç sıfırlanır)
+  recordTtd() {
+    if (this.ttdStart < 0) return;
+    this.game.stats.ttd?.push(Math.round((this.time - this.ttdStart) * 100) / 100);
+    this.ttdStart = -1;
+  }
+
   // Yere düş: kan kaybı sayacı görevdeki kaçıncı düşüş olduğuna ve zorluğa göre
   goDown() {
     const g = this.game;
+    this.recordTtd();
     this.down = true;
     g.stats.downs = (g.stats.downs || 0) + 1;
     this.bleed = new BleedOut(bleedOutFor(g.stats.downs, g.difficultyKey));
@@ -285,6 +306,7 @@ export class Player {
   }
 
   die() {
+    this.recordTtd();
     this.alive = false;
     this.deathT = 0;
     this.interacting = false;
@@ -486,6 +508,7 @@ export class Player {
     const regenDelay = g.difficulty.regenDelay ?? M.regenDelay;
     if (this.time - this.lastDamage > regenDelay && this.health.hp < this.health.max) {
       this.health.heal(M.regenRate * dt);
+      if (this.health.hp >= this.health.max) this.ttdStart = -1;
     }
     // Düşük canda kalp atışı
     if (this.health.ratio < 0.35) {

@@ -18,7 +18,7 @@ import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment } from './models.js';
@@ -207,6 +207,12 @@ export class Game {
     this.console = new DevConsole(this);
 
     this.input.onLockChange = (locked) => {
+      // Telsiz satırı kapanırken istenen kilit satır yeniden açıldıktan sonra gelebilir: yazarken imleç serbest
+      // kalsın (kilitliyken Esc tarayıcıya gider, satırı kapatamaz)
+      if (locked && this.chat?.open) {
+        this.input.exitLock();
+        return;
+      }
       // Konsol ve telsiz satırı imleci bilerek serbest bırakır: o zaman duraklatma
       if (!locked && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active) this.pause();
     };
@@ -322,7 +328,7 @@ export class Game {
   }
 
   freshStats() {
-    return { kills: 0, headshots: 0, shots: 0, hits: 0, deaths: 0, score: 0, time: 0, grenades: 0, damageTaken: 0, explosions: 0 };
+    return { kills: 0, headshots: 0, shots: 0, hits: 0, deaths: 0, score: 0, time: 0, grenades: 0, damageTaken: 0, explosions: 0, ttd: [] };
   }
 
   enableTouch() {
@@ -542,8 +548,14 @@ export class Game {
       d.missions[R.levelId] = mergeRecord(d.missions[R.levelId], { success, stars: rw.stars, results, timeSec });
       if (success) d.stats.missionsCompleted = (d.stats.missionsCompleted || 0) + 1;
       d.stats.kills = (d.stats.kills || 0) + this.stats.kills;
+      // Yere düşme süreleri (§10): son örnekler ve ortalaması denge izlemesi için kayıtta
+      if (this.stats.ttd.length) {
+        d.stats.ttdSamples = [...(d.stats.ttdSamples || []), ...this.stats.ttd].slice(-BALANCE.ttdKeep);
+        d.stats.ttdAvg = Math.round((d.stats.ttdSamples.reduce((a, b) => a + b, 0) / d.stats.ttdSamples.length) * 100) / 100;
+      }
     }, { now: true });
-    this.events.emit(EV.MISSION_ENDED, { missionId: R.levelId, success, timeSec, total: rw.total, stars: rw.stars });
+    const ttd = this.stats.ttd.length ? this.stats.ttd.reduce((a, b) => a + b, 0) / this.stats.ttd.length : null;
+    this.events.emit(EV.MISSION_ENDED, { missionId: R.levelId, success, timeSec, total: rw.total, stars: rw.stars, ttdAvg: ttd });
     return { ...rw, results };
   }
 

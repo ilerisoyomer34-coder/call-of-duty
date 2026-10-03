@@ -635,8 +635,10 @@ export class Ally {
       this.sayLine(this.voice('lowHealthCover'), false);
     }
     if (g.time < this.selfCoverUntil && this.cover) goal = this.cover.pos;
-    // Oyuncunun nişan hattındaysa kenara çekil
-    if (this.inFireLane()) {
+    // Oyuncunun nişan hattındaysa kenara çekil; oyuncuyu tedavi ederken ya da kaldırırken yanından ayrılmaz
+    // (yoksa tam önünde duran medik tedaviyi yarıda bırakıp kenara kaçar)
+    const tending = this.order.id === 'HEAL_PLAYER' || (g.allies.rescue.reviver === this && P.down);
+    if (!tending && this.inFireLane()) {
       const c = Math.cos(P.yaw);
       const s = Math.sin(P.yaw);
       const side = (this.pos.x - P.pos.x) * c - (this.pos.z - P.pos.z) * s >= 0 ? 1 : -1;
@@ -1405,7 +1407,8 @@ export class AllyManager {
       g.grenades.spawn(from, new THREE.Vector3((to.x - from.x) / t, (to.y - from.y) / t + 0.5 * 15 * t, (to.z - from.z) / t), 1.2, 'ally', 'smoke');
       best.say('grenade', true, 'Sis atıyorum, komutanın yanına!');
     }
-    if (R.decision === 'cannot' && best && this.cannotSayT <= 0) {
+    // Gidemiyor ya da önce temizlemek gerekiyor: komutana söylenir ("Ateş altındayız, ulaşamıyorum!", §12/4)
+    if ((R.decision === 'cannot' || R.decision === 'clearFirst') && best && this.cannotSayT <= 0) {
       this.cannotSayT = 8;
       best.sayLine(best.voice('cannotReach'), true, true);
     }

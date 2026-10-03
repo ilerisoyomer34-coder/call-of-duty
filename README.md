@@ -1,6 +1,6 @@
 # Demir Şafak
 
-Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: mavi mangan Kartal ekibiyle beş farklı haritada operasyona çıkıyorsun. Kontrol noktalarını temizliyor, uçaksavarları ve yakıt pompalarını C4 ile patlatıyor, tankları roketatarla vuruyor, istihbarat topluyor ve helikopter gelene kadar iniş bölgesini tutuyorsun. Her bölüm helikoptere binip havalanınca biter, ardından sıradaki bölüm kendiliğinden başlar. Altı seviye kolaydan zora sıralı. İlk ikisi Kızılkum Vadisi'nde geçer; sonrakiler gün batımında bir limanda, yıkık bir şehirde, karlı bir dağ geçidinde ve gece bir rafineride. Zorlaştıkça düşman ağır makineli mevziler ve tanklar kurar, senin mangan da her seviyede daha profesyonel oynar.
+Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: komutanı olduğun üç kişilik Alfa Timi'yle beş farklı haritada operasyona çıkıyorsun; timine çarktan, kısayollardan, işaretleyerek ya da Türkçe yazarak (isteğe bağlı sesle) komut verirsin. Kontrol noktalarını temizliyor, uçaksavarları ve yakıt pompalarını C4 ile patlatıyor, tankları roketatarla vuruyor, istihbarat topluyor ve helikopter gelene kadar iniş bölgesini tutuyorsun. Her bölüm helikoptere binip havalanınca biter, ardından sıradaki bölüm kendiliğinden başlar. Altı seviye kolaydan zora sıralı. İlk ikisi Kızılkum Vadisi'nde geçer; sonrakiler gün batımında bir limanda, yıkık bir şehirde, karlı bir dağ geçidinde ve gece bir rafineride. Zorlaştıkça düşman ağır makineli mevziler ve tanklar kurar, senin mangan da her seviyede daha profesyonel oynar.
 
 Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu. Düşman askerleri hazır iskeletli bir karakterdir (Mixamo "Vanguard"); dört silah oyuncunun kendi Blender dosyalarından, dört silah, yakın dövüş bıçağı ve tahliye helikopteri Sketchfab'den gelir (hepsi CC BY 4.0; silah adları kurgusal, dokulardaki gerçek marka yazıları silindi); harita, diğer modeller, dokular ve sesler kodla üretilir.
 
@@ -48,10 +48,20 @@ Site `gh-pages` dalından yayımlanır. Bu dalın kökü `web/dist/pwa/` klasör
 | Sola / sağa eğil | Q / E | D-pad sol / sağ |
 | Silahlar | 1 ana, 2 yan silah (poligonda 1–9), X son silah, tekerlek | Y |
 | Dürbünde nefesini tut | Shift | L3 |
+| Sarf yuvaları (plaka, ilk yardım, sis, el bombası, adrenalin) | 3 / 4 | |
+| Komut çarkı (basılı tut, fareyle seç, bırak) | T | |
+| İşaretle (düşman → saldır, zemin → git, yaralı → kaldır; çift basış iptal) | Z | |
+| Tim kısayolları: takip, pozisyon, baskı, siper, beni iyileştir, ateşi kes, serbest ateş | F1, F2, F3, F4, F5, F8, F9 | |
+| Telsiz: yazılı komut ("Kaya beni iyileştir") | Enter | |
+| Sesli komut (tarayıcı destekliyorsa) | N (basılı tut) | |
+| Bonus görev takipçisini daralt | J | |
+| Yerdeyken: yardım çağır / pes et | F / X (basılı tut) | |
 | Duraklat | Esc / P | Start |
 | Geliştirici konsolu | ` veya F10 | |
 
-Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timescale 0.5`, `ai`, `debug ai`, `debug allies`, `cp 4`, `level 3`, `unlock`, `fps`.
+Tüm tuşlar **Kontroller** ekranından değiştirilebilir (her eylemde iki yuva; çakışan tuş uyarılır). Telefonda TELSİZ (çark), İŞARET, SOHBET ve MİKROFON düğmeleri var.
+
+Konsol komutları: `god`, `ammo`, `giveall`, `spawn 3 heavy`, `killall`, `timescale 0.5`, `ai`, `debug ai`, `debug allies`, `cp 4`, `level 3`, `unlock`, `fps`, `credits 5000`, `armor armor_light helmet_kevlar`, `missions complete`, `cmd TAKE_COVER all`, `chat herkes siper alsın`, `down`, `aiscores`, `dmgpanel`, `ttd`.
 
 ## Seviyeler
 
@@ -102,11 +112,29 @@ Seviye ayarları `web/src/config.js` → `LEVELS`; harita ortamları → `MAPS`;
 - **Görüntü:** dünya ölçekli çözünürlükte, kenar yumuşatmalı (MSAA) ayrı bir hedefe çizilir; eller ve silah her zaman tam cihaz çözünürlüğünde, kenar yumuşatmalı çizilir. Telefonda performans korunurken silah ve eller keskin kalır. Ayarlarda "Dünya çözünürlüğü" seçilebilir; dokular kaliteye göre anizotropik süzmeyle örneklenir (yüksekte 16×, ortada 8×, düşükte 4×). Düşük kalite bilinçli performans modudur: tuvalde kenar yumuşatma kapalıdır. Birinci şahıs eller prosedürel eldivenli ellerdir (parmaklar kabzayı ve el kundağını kavrar).
 - **Askerler:** iskeletli hazır model; bekleme, yürüme ve koşma klipleri hıza göre karışır, adım döngüsü gerçek hıza bağlı olduğu için ayak kaymaz. Alt gövde hareket yönüne döner, üst gövde hedefe bakar; geri geri yürüme, yan adım, çömelme (bacak IK), iki elle silah tutuşu (kol IK), nişan / hazır / rahat duruşları, şarjör değiştirme, atışta geri tepme, isabette sarsılma, ölümde diz çöküp devrilme ve elden düşen silah. Türler renk tonu ve boyla ayrışır. Vuruş bölgeleri kemiklere bağlı kutulardır (kafa, gövde, kol-bacak). Model yüklenemezse kodla üretilen yedek askerler kullanılır. Uzaktaki askerler donmaz: yer ve yön her karede güncellenir, poz uzaklığa göre saniyede 30/15/8 kez hesaplanır; gölge menzili dışında yumuşak ayak gölgesi, karanlıkta kararmamaları için ortam yansıması alırlar.
 - **Düşman yapay zekâsı:** devriye, şüphelenme, araştırma, alarm yayma, siper bulma ve siperden göz atma, yan adım, hücum eden pompalılar, bastırma ateşi yapan ağır makineliler, mevzideki sehpalı makineliler, lazerle nişan alan keskin nişancılar, el bombası atma, düşük canda geri çekilme. Adil isabet: mesafe, hareketin, ilk atış ıskası ve zorluk hesaba katılır; aynı anda yalnızca sınırlı sayıda düşman sana ateş eder.
-- **Mavi manga (Kartal ekibi):** aynı iskeletli askerin mavi sürümü (Komando rütbesinde koyu lacivert). Seni gevşek bir düzende izler; sessiz ilerlerken ateş açmaz, çatışma başlayınca ya da sen ateş edince düzen yerinin yakınında siper alıp görünen en yakın düşmana kısa seriler atar. Rütbeyle açılan taktikler yukarıdaki tabloda. Düşmanlar dostları da hedef alır. Vurulan dost ölmez, bir süre yaralı kalıp toparlanır. Başlarında rütbeli mavi isim etiketi, mini haritada mavi nokta var; telsizden seslenirler ("Temas!", "Makineliyi bastırıyorum, yanaş!", "Bomba atıyorum!"). Senin mermin ve patlayıcın dostu yaralamaz, manganın bombası da seni yaralamaz.
+- **Alfa Timi:** Alfa-1 Çavuş Demir (tüfekçi, komutları ilk o onaylar), Alfa-2 Onbaşı Kaya (medik) ve Alfa-3 Er Yıldız (makineli tüfekçi); rütbeleri seviyeyle yükselir. Seni gevşek bir düzende izler, çatışmada siper alıp ateş eder, verdiğin komutları onaylar, uygular ve sonucunu bildirir. Rütbeyle açılan taktikler yukarıdaki tabloda. Düşmanlar dostları da hedef alır. Yere düşen asker Acemi'de kendi kalkar; Asker ve Gazi'de 45 saniye içinde kaldırılmazsa ölür ve sonraki kontrol noktasında geri gelir. Başlarında rütbeli isim etiketi, mini haritada mavi nokta, solda can/zırh/emir listesi var. Senin mermin ve patlayıcın dostu yaralamaz, timin bombası da seni yaralamaz.
 - **Haritalar ve ortam:** her haritanın kendi gökyüzü, sis, güneş/ay ışığı, silah yansıması, ortam sesi (rüzgâr, dalga, makine uğultusu) ve hava durumu (kar, kül) var. Işık sayısı sabit; gece lambaları ışımalı malzemedir, baca alevi parçacıktır.
 - **Görev:** kontrol noktaları, telsiz anonsları, patlayıcı variller, düşen mühimmat, ikmal sandıkları, dalga savunması ve helikopterle tahliye. Zorluklar: Acemi, Asker, Gazi.
 - **Atış poligonu:** 10 / 25 / 50 / 100 m hedefler, hareketli mankenler, yüzey test duvarı, hasar sayıları.
 - **Arayüz:** pusula, mini harita (ateş eden düşmanlar görünür), hedef işaretçisi, hasar yönü, el bombası uyarısı, düşman farkındalık ikonları, ayarlar (hassasiyet, FOV, basılı tut / aç-kapa, grafik kalitesi, ses, kamera sarsıntısı, nişangah rengi, kan).
+
+## Operasyon Güncellemesi
+
+- **Kredi ve mağaza:** görev ödülleri kredi (KR) olarak birikir; başlangıç 1.000 KR. Mağazada beş gövde zırhı, üç kask, sarf malzemeleri ve tim yükseltmeleri var. Zırh hasarın bir kısmını emer ve aşınır (HUD'da çelik mavisi çubuk, kask simgesi); her görevde tam dolu başlar. Düşmanlar da zorluğa göre zırhlı olabilir; zırh delen silahlar burada fark eder.
+- **Teçhizat ekranı:** silahlar gerçek adlarıyla (Ayarlar'dan kurgusal adlara dönülebilir), modelden üretilen görsel, dönen 3B önizleme, altı istatistik çubuğu ve rozetlerle; iki sarf yuvası.
+- **Görevler ve bonuslar:** her bölümün brifingi, ana hedefi ve üç bonus görevi var (Keskin Göz, Dokunulmaz, Tutumlu, Kardeşlik, Komutan…). Ekranda takipçi; bölüm sonunda kredi dökümü ve yıldızlar. Tekrar oynamada ödül azalır.
+- **Yere düşme ve canlandırma:** ölümcül hasarda ölmek yerine yere düşersin (kan kaybı sayacı 30 / 20 / 12 sn). Askerler sana ulaşıp ulaşamayacaklarını hesaplar: biri koşup kaldırır (medik daha hızlı), diğerleri tehdidi bastırır, gerekirse sis atılır; ulaşamıyorlarsa telsizden söylerler. Yardım çağırabilir, adrenalinle kalkabilir ya da pes edebilirsin. Sen de yerdeki askeri F basılı tutarak kaldırırsın.
+- **Komutlar:** çark (T), kısayollar (F1–F5, F8, F9), bağlamsal işaret (Z; yerde halka, düşmanda kırmızı elmas) ve telsiz satırı. Telsiz kutusunda her komut ve her cevap görünür; Türkçe yazılan cümle ("Demir ve Yıldız oraya gidin", "alfa 3 baskı ateşi aç") komuta dönüşür, anlaşılmazsa asker sorar ve öneri verir. Seslendirme ve sesli komut isteğe bağlı.
+- **Zorluk tablosu** (Acemi / Asker / Gazi):
+
+  | | Acemi | Asker | Gazi |
+  |---|---|---|---|
+  | Düşman hasarı | ×0,6 | ×0,85 | ×1,0 |
+  | Düşman tepki süresi | 0,9 sn | 0,6 sn | 0,4 sn |
+  | Kan kaybı süresi | ×1,5 | ×1,0 | ×0,7 |
+  | Görev ödülü | ×0,8 | ×1,0 | ×1,4 |
+
+  Seviyelerin kendi çarpanları bunun üstüne uygulanır. Asker zorluğunda, Hafif Taktik Yelek'le açıkta tek düşmana karşı yere düşme süresi en az 4 sn, ikiye karşı en az 2,5 sn olacak şekilde ölçülür (duman testinin "balance" bölümü). Konsolda `dmgpanel` son 10 saniyede alınan isabetleri gösterir; görev sonunda ortalama yere düşme süresi kayda yazılır.
 
 ## Proje yapısı
 
