@@ -10,11 +10,26 @@
 //   suppress: ağır makineli nişancısını bastırma ateşiyle eğdirme · revive: yerdeki dostu ayıltma
 //   grenade: toplu düşmana ya da mevziye el bombası · bound: biri örterken diğeri sipere atılır
 //   flank: bir dost mevzinin atış yayının dışına dolanıp nişancıyı yandan vurur
+//
+// Alfa Timi (Operasyon Güncellemesi §8.1, §8.6): kimlik, rol ve rol silahı data/squad.json'dan. Komutlar
+// (commands.js) askere bir emir verir; hareket hedefi şu öncelikle seçilir:
+//   1) yerde (Modül D) · 2) can %25'in altında ve ateş altında: kısa süre siper · 3) son emir
+//   (pozisyonu koru, oraya git, siper al, bölgeyi temizle, beni iyileştir) · 4) otonom davranış (takip,
+//   çatışmada siper, kademe taktikleri). Saldır ve baskı ateşi hareketi değil ateşi yönlendirir;
+//   ateşi kes/serbest ateş tetik disiplinidir.
 import * as THREE from 'three';
 import { ALLY, ALLY_TIERS, SOLDIER_ANIM, HMG } from './config.js';
 import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
 import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick } from './util.js';
+import SQUAD from './data/squad.json' with { type: 'json' };
+import STORE from './data/store.json' with { type: 'json' };
+import VOICE from './data/voicelines.tr.json' with { type: 'json' };
+import { computeArmorDamage } from './armor.js';
+
+const O = SQUAD.orders;
+// Tim Zırhı yükseltmeleri (mağaza): sahip olunan en yüksek seviyenin ZP'si
+const SQUAD_ARMOR = STORE.upgrades.filter((u) => u.squadArmor).sort((a, b) => b.squadArmor - a.squadArmor);
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -32,7 +47,7 @@ const LINES = {
   kill: ['Düştü!', 'Bir düşman eksik.', 'Hedef etkisiz.'],
   down: ['Vuruldum! Biraz zaman lazım.', 'Yaralandım, yere düştüm!'],
   up: ['Toparlandım, devam ediyorum.', 'Tamam, yine çatışmadayım.'],
-  friendly: ['Dikkat Kartal-1, bana ateş etme!', 'Dost ateşi! Nişanını kaldır!'],
+  friendly: ['Dikkat komutanım, bana ateş etme!', 'Dost ateşi! Nişanını kaldır!'],
   suppress: ['Makineliyi bastırıyorum, yanaş!', 'Makineli yuvasını baskı altına aldım!', 'Başını kaldırtmıyorum, ilerle!'],
   grenade: ['Bomba atıyorum!', 'El bombası, eğilin!'],
   revive: ['Seni kaldırıyorum, dayan!', 'Yaralıya gidiyorum!'],
@@ -44,19 +59,28 @@ export class Ally {
   constructor(game, index, pos, yaw) {
     this.game = game;
     this.index = index;
-    this.name = ALLY.names[index] || `Kartal-${index + 2}`;
+    // Kimlik ve rol (data/squad.json): Alfa-1 Demir tüfekçi, Alfa-2 Kaya medik, Alfa-3 Yıldız makineli
+    this.member = SQUAD.members[index % SQUAD.members.length];
+    this.callsign = this.member.callsign;
+    this.name = this.callsign; // HUD etiketi ve telsiz
+    this.person = this.member.name;
+    this.role = this.member.role;
+    this.C = SQUAD.roleCombat[this.role] || SQUAD.roleCombat.rifleman;
     this.isPlayer = false;
     // Kademe değerleri (seviyeyle artar): isabet, tepki, hasar, can, taktikler
     this.S = game.allies.tier;
-    this.rankName = `${this.S.short} ${this.name}`;
-    this.model = createSoldier(this.S.elite ? 'allyElite' : 'ally', ALLY.colors);
+    this.rankName = `${this.S.short} ${this.person}`;
+    this.radioLabel = `${this.callsign} ${this.rankName}`;
+    this.model = createSoldier(this.C.gun === 'lmg' ? 'allyGunner' : this.S.elite ? 'allyElite' : 'ally', ALLY.colors);
     game.scene.add(this.model.root);
     this.pos = new THREE.Vector3().copy(pos);
     this.vel = new THREE.Vector3();
     this.state = { pos: this.pos, vel: this.vel, radius: 0.36, height: 1.8, grounded: true, gravity: 15, hitWall: false };
     this.health = new Health(this.S.hp, 0);
     this.flankGoal = new THREE.Vector3();
-    this.weapon = { mag: ALLY.magSize, cooldown: 0, burstLeft: 0, gapT: 0, reloadT: 0 };
+    this.weapon = { mag: this.C.magSize, cooldown: 0, burstLeft: 0, gapT: 0, reloadT: 0 };
+    this.armor = null; // Tim Zırhı: { points, max, absorb }
+    this.orderPos = new THREE.Vector3();
     this.slotGoal = new THREE.Vector3();
     this.lastPos = new THREE.Vector3();
     this.pathGoal = new THREE.Vector3(Infinity, 0, 0);
@@ -91,8 +115,20 @@ export class Ally {
     this.crouch = false;
     this.aimPitch = 0;
     this.sayT = rand(2, 5);
-    this.weapon.mag = ALLY.magSize;
+    this.weapon.mag = this.C.magSize;
     this.weapon.reloadT = 0;
+    // Tim Zırhı her görev/toplanmada tam dolu (oyuncunun zırhı gibi)
+    const inv = this.game.save?.data.inventory.upgrades || [];
+    const up = SQUAD_ARMOR.find((u) => inv.includes(u.id));
+    this.armor = up ? { points: up.squadArmor, max: up.squadArmor, absorb: SQUAD.squadArmorAbsorb } : null;
+    // Emir durumu: hareket emri (order), odak hedefi (saldır), baskı alanı, tetik disiplini
+    this.order = { id: 'FOLLOW', cmd: null };
+    this.focus = null;
+    this.focusCmd = null;
+    this.suppress = null;
+    this.holdFire = false;
+    this.healCooldownUntil = this.healCooldownUntil || 0;
+    this.selfCoverUntil = 0;
     this.weapon.burstLeft = 0;
     this.peekPhase = 'show';
     this.peekT = 0;
@@ -133,10 +169,12 @@ export class Ally {
     return out.set(this.pos.x, this.pos.y + (this.crouch ? 0.95 : 1.3), this.pos.z);
   }
 
-  takeDamage(amount, fromPos = null) {
+  takeDamage(amount, fromPos = null, hit = null) {
     if (this.down) return;
     const g = this.game;
     this.lastHurt = g.time;
+    // Tim Zırhı (mağaza yükseltmesi): gövde ve kafa vuruşunu emer, bacak vuruşu doğrudan cana
+    if (this.armor && this.armor.points > 0 && hit?.zone !== 'leg') amount = computeArmorDamage(amount, hit?.pen ?? 0.3, this.armor).healthDamage;
     this.health.damage(amount);
     this.model.hit('torso');
     // Görmediği yerden vurulduysa o yöne döner
@@ -149,6 +187,13 @@ export class Ally {
       this.reviving = null;
       this.flanking = null;
       this.releaseCover();
+      // Yere düşen asker emrini bırakır; komut başka muhatap kalmadıysa başarısız olur
+      g.commands?.drop(this, this.order.cmd, 'down');
+      g.commands?.drop(this, this.focusCmd, 'down');
+      g.commands?.drop(this, this.suppress?.cmd, 'down');
+      this.order = { id: 'FOLLOW', cmd: null };
+      this.focus = null;
+      this.suppress = null;
       this.say('down', true);
       g.events.emit('allyDown', this);
     }
@@ -166,7 +211,215 @@ export class Ally {
     if (!force && (this.sayT > 0 || M.sayT > 0)) return;
     this.sayT = rand(7, 11);
     M.sayT = 3.5;
-    g.mission?.radio(this.name, text || pick(LINES[kind]), 0, 'ally');
+    g.mission?.radio(this.radioLabel, text || pick(LINES[kind]), 0, 'ally');
+  }
+
+  // Komut onayı ve rapor satırı (bekleme süresini atlar)
+  sayLine(text, force = true) {
+    if (!text) return;
+    if (force) this.sayT = Math.max(this.sayT, 3);
+    this.game.mission?.radio(this.radioLabel, text, 0, 'squad');
+  }
+
+  voice(kind) {
+    const lines = VOICE.lines[kind];
+    return lines ? pick(lines) : null;
+  }
+
+  // --- Komutlar (commands.js) ---
+  // i/n: muhatap listesindeki sıra; aynı noktaya gönderilenler yan yana dağılır
+  setOrder(commandId, cmd, i = 0, n = 1) {
+    const g = this.game;
+    const C = g.commands;
+    switch (commandId) {
+      case 'HOLD_FIRE':
+        this.holdFire = true;
+        C.complete(this, cmd);
+        return;
+      case 'FREE_FIRE':
+        this.holdFire = false;
+        C.complete(this, cmd);
+        return;
+      case 'ATTACK':
+        C.drop(this, this.focusCmd, 'replaced');
+        this.focus = cmd.target;
+        this.focusCmd = cmd;
+        this.focusSeenT = g.time;
+        this.holdFire = false;
+        return;
+      case 'SUPPRESS':
+        C.drop(this, this.suppress?.cmd, 'replaced');
+        this.suppress = { pos: cmd.pos.clone().setY(1.2), until: g.time + O.suppressTime, cmd };
+        this.holdFire = false;
+        return;
+      default:
+        break;
+    }
+    // Hareket emirleri bir öncekinin yerine geçer
+    C.drop(this, this.order.cmd, 'replaced');
+    const o = { id: commandId, cmd, arrived: false, pos: null };
+    if (commandId === 'HOLD') {
+      o.pos = this.pos.clone();
+      o.arrived = true;
+      o.cmd = null;
+      C.complete(this, cmd);
+    } else if (commandId === 'MOVE_TO' || commandId === 'CLEAR_AREA') {
+      o.pos = this.spreadPoint(cmd.pos, i, n);
+      // Ulaşılamayan nokta: yol bulucu en yakın noktaya kadar götürür; hedeften uzak kalıyorsa yol yok
+      const path = g.nav.inBounds(o.pos.x, o.pos.z) && g.nav.isWalkable(o.pos.x, o.pos.z) ? g.nav.findPath(this.pos, o.pos) : null;
+      const end = path?.[path.length - 1];
+      if (!end || Math.hypot(end.x - o.pos.x, end.z - o.pos.z) > 3) {
+        C.fail(this, cmd, 'no-path', this.voice('noPath'));
+        return;
+      }
+      if (commandId === 'CLEAR_AREA') {
+        o.points = [];
+        for (let k = 0; k < O.clearPoints; k++) {
+          const p = g.nav.randomPointNear(cmd.pos, O.clearRadius);
+          if (p) o.points.push(p);
+        }
+        o.points.push(o.pos.clone());
+        o.idx = 0;
+      }
+    } else if (commandId === 'TAKE_COVER') {
+      const c = this.coverFromThreat();
+      this.releaseCover();
+      if (c) {
+        this.cover = c;
+        c.taken = this;
+      }
+      o.pos = c ? c.pos.clone() : this.pos.clone();
+    } else if (commandId === 'HEAL_PLAYER') {
+      const left = this.healCooldownUntil - g.time;
+      if (left > 0) {
+        C.fail(this, cmd, 'cooldown', `${this.voice('healCooldown')} (${Math.ceil(left)} sn)`);
+        return;
+      }
+      o.prev = this.order.id === 'HEAL_PLAYER' ? this.order.prev : this.order;
+      o.t = 0;
+    }
+    this.order = o;
+    this.path = null;
+  }
+
+  // Saldır ve baskı emirlerinin sonu: hedef düştü / kayboldu, baskı süresi doldu
+  updateOrders() {
+    const g = this.game;
+    const C = g.commands;
+    if (this.focus) {
+      if (!this.focus.alive) {
+        C.complete(this, this.focusCmd, this.voice('targetDown'));
+        this.focus = null;
+        this.focusCmd = null;
+      } else if (g.time - this.focusSeenT > O.attackLoseTime) {
+        C.fail(this, this.focusCmd, 'lost', 'Hedefi kaybettim komutanım!');
+        this.focus = null;
+        this.focusCmd = null;
+      }
+    }
+    if (this.suppress && g.time > this.suppress.until) {
+      C.complete(this, this.suppress.cmd, 'Baskı ateşi tamam.');
+      this.suppress = null;
+    }
+  }
+
+  // Grup emrinde askerler hedef noktada yan yana (oyuncunun sağına/soluna) dağılır
+  spreadPoint(base, i, n) {
+    const g = this.game;
+    const P = g.player;
+    const off = (i - (n - 1) / 2) * O.spread;
+    const out = new THREE.Vector3(base.x + Math.cos(P.yaw) * off, 0, base.z - Math.sin(P.yaw) * off);
+    if (!g.nav.isWalkable(out.x, out.z)) out.copy(g.nav.randomPointNear(base, 2.5) || base);
+    return out;
+  }
+
+  // Tehdit yönüne göre en yakın siper: en yakın canlı düşman (yoksa oyuncunun baktığı yön)
+  coverFromThreat() {
+    const g = this.game;
+    let threat = this.target?.alive ? this.target.pos : null;
+    if (!threat) {
+      let bestD = 60;
+      for (const e of g.enemies.list) {
+        if (!e.alive || e.dummy) continue;
+        const d = e.pos.distanceTo(this.pos);
+        if (d < bestD) {
+          bestD = d;
+          threat = e.pos;
+        }
+      }
+    }
+    if (!threat) threat = _v3.set(this.pos.x - Math.sin(g.player.yaw) * 20, 0, this.pos.z - Math.cos(g.player.yaw) * 20);
+    let best = null;
+    let bestScore = -Infinity;
+    for (const c of g.nav.coversNear(this.pos, 10)) {
+      if (c.taken && c.taken !== this) continue;
+      const tx = threat.x - c.pos.x;
+      const tz = threat.z - c.pos.z;
+      const dT = Math.hypot(tx, tz) || 1;
+      if ((c.normal.x * tx + c.normal.z * tz) / dT < 0.3) continue; // siper tehdide dönük olmalı
+      const score = -c.pos.distanceTo(this.pos);
+      if (score > bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  // Hareket emrinin hedefi (yoksa null: otonom davranış). Varınca emri bitirir ve rapor verir.
+  orderGoal(dt) {
+    const g = this.game;
+    const o = this.order;
+    const C = g.commands;
+    if (o.id === 'FOLLOW') {
+      if (o.cmd && this.pos.distanceTo(this.slotGoal) < O.followDoneDist) {
+        C.complete(this, o.cmd);
+        o.cmd = null;
+      }
+      return null;
+    }
+    if (o.id === 'HEAL_PLAYER') {
+      const P = g.player;
+      if (!P.alive) {
+        C.fail(this, o.cmd, 'player-dead');
+        this.order = o.prev || { id: 'FOLLOW', cmd: null };
+        return null;
+      }
+      if (this.pos.distanceTo(P.pos) < O.healRange) {
+        this.crouch = true;
+        o.t += dt;
+        if (o.t >= this.member.healTimeSec) {
+          P.health.heal(this.member.healHp);
+          this.healCooldownUntil = g.time + this.member.healCooldownSec;
+          C.complete(this, o.cmd, this.voice('healDone'));
+          this.order = o.prev || { id: 'FOLLOW', cmd: null };
+        }
+        return this.pos; // yanında: yerinde durur (düzen yerine dönmez), tedavi eder
+      }
+      return P.pos;
+    }
+    if (o.id === 'CLEAR_AREA' && o.points) {
+      const p = o.points[o.idx];
+      if (Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < O.arriveDist) {
+        o.idx++;
+        if (o.idx >= o.points.length) {
+          // Son nokta: görünen düşman yoksa bölge temiz; varsa çatışma bitince yeniden bakılır
+          o.points = null;
+          o.arrived = true;
+          if (!this.targetVisible) C.complete(this, o.cmd, this.voice('areaClear'));
+          else C.fail(this, o.cmd, 'contact', this.voice('cannotReach'));
+          o.cmd = null;
+          return o.pos;
+        }
+      }
+      return o.points[o.idx];
+    }
+    if (!o.arrived && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < O.arriveDist) {
+      o.arrived = true;
+      C.complete(this, o.cmd, o.id === 'TAKE_COVER' ? null : this.voice('inPosition'));
+      o.cmd = null;
+    }
+    return o.pos;
   }
 
   // Oyuncuya göre düzen yeri (sağa, geriye); yürünemiyorsa yakındaki boş nokta
@@ -209,13 +462,18 @@ export class Ally {
       this.thinkT += ALLY.thinkInterval;
       this.perceive();
     }
-    const weaponsFree = g.allies.weaponsFree || g.time - this.lastHurt < 6;
+    // Tetik disiplini: "ateşi kes" emrinde yalnız kendisine ateş edilirse karşılık verir; saldır ve baskı
+    // emirleri tetiği serbest bırakır
+    const hurtRecently = g.time - this.lastHurt < 6;
+    const weaponsFree = (this.holdFire ? false : g.allies.weaponsFree) || hurtRecently || !!this.focus || !!this.suppress;
+    this.updateOrders();
 
     // Hedef: çatışmada düzen yerinin yakınındaki siper, değilse düzen yeri
     this.slotT -= dt;
     if (this.slotT <= 0) {
       this.slotT = 0.4;
-      this.slotPos(this.slotGoal);
+      if (this.order.pos && this.order.id !== 'HEAL_PLAYER') this.slotGoal.copy(this.order.pos);
+      else this.slotPos(this.slotGoal);
     }
     let goal = this.slotGoal;
     if (weaponsFree && this.target) {
@@ -226,12 +484,34 @@ export class Ally {
       }
       if (this.cover) goal = this.cover.pos;
     } else this.releaseCover();
-    // Kademe taktikleri hedefi değiştirebilir: yaralıya koş, mevzinin yanına dolan
-    const tac = this.tacticGoal(dt, weaponsFree);
+    // Emir: pozisyonu koru / oraya git / siper al / temizle / iyileştir. Noktası olan emirde çatışma siperi
+    // o noktanın çevresinden seçilir (slotGoal yerine emir noktası)
+    const og = this.orderGoal(dt);
+    if (og) {
+      // Çatışmada emir noktasının yanındaki siper korunur; siper al, temizle ve iyileştir emirleri doğrudan gider
+      const keepFightCover = weaponsFree && this.target && this.cover && !['TAKE_COVER', 'HEAL_PLAYER', 'CLEAR_AREA'].includes(this.order.id);
+      if (!keepFightCover) goal = og;
+    }
+    // Saldır: odak hedef görünmüyorsa takipteki asker ona yaklaşır
+    if (this.focus && !this.targetVisible && this.order.id === 'FOLLOW') goal = this.focus.pos;
+    // Kademe taktikleri hedefi değiştirebilir: yaralıya koş, mevzinin yanına dolan (emir yokken)
+    const tac = this.order.id === 'FOLLOW' ? this.tacticGoal(dt, weaponsFree) : this.reviving ? this.tacticGoal(dt, weaponsFree) : null;
     if (tac) {
       goal = tac;
       this.releaseCover();
     }
+    // Kendini koruma: can çok düşük ve ateş altında → kısa süre en yakın sipere (emirden önce gelir)
+    if (this.health.hp < this.health.max * O.selfPreserveHp && g.time - this.lastHurt < O.selfPreserveHurtSec && g.time > this.selfCoverUntil) {
+      this.selfCoverUntil = g.time + O.selfPreserveCoverSec;
+      const c = this.coverFromThreat();
+      if (c) {
+        this.releaseCover();
+        this.cover = c;
+        c.taken = this;
+      }
+      this.sayLine(this.voice('lowHealthCover'), false);
+    }
+    if (g.time < this.selfCoverUntil && this.cover) goal = this.cover.pos;
     // Oyuncunun nişan hattındaysa kenara çekil
     if (this.inFireLane()) {
       const c = Math.cos(P.yaw);
@@ -243,7 +523,7 @@ export class Ally {
 
     // Çok geride kaldıysa (ör. kontrol noktası, dar geçit) oyuncunun görmediği anda yanına al
     const dP = this.pos.distanceTo(P.pos);
-    if (dP > ALLY.teleportDist && P.alive) {
+    if (dP > ALLY.teleportDist && P.alive && this.order.id === 'FOLLOW') {
       _d.subVectors(this.slotGoal, P.pos).normalize();
       const fx = -Math.sin(P.yaw);
       const fz = -Math.cos(P.yaw);
@@ -270,8 +550,13 @@ export class Ally {
       this.path = null;
       this.vel.x = damp(this.vel.x, 0, 8, dt);
       this.vel.z = damp(this.vel.z, 0, 8, dt);
-      // Siperde şarjör değiştirirken çömel
+      // Siperde şarjör değiştirirken çömel; "siper al" emrinde siperde eğik bekle (hedef görünce kalkar)
       if (this.cover && this.weapon.reloadT > 0) this.crouch = true;
+      if (this.order.id === 'TAKE_COVER' && !(this.targetVisible && weaponsFree)) this.crouch = true;
+      if (this.order.id === 'HEAL_PLAYER' && this.pos.distanceTo(P.pos) < O.healRange) {
+        this.crouch = true;
+        hiding = true;
+      }
       // Eğilip çıkma: siperde saklan / kalk ve ateş et döngüsü (düşman görüşünden çıkar)
       if (this.cover && this.target && this.has('peek')) {
         this.peekT -= dt;
@@ -342,7 +627,7 @@ export class Ally {
     ANIM.crouch = this.crouch;
     ANIM.aimPitch = this.aimPitch;
     ANIM.stance = this.throwAnim ? 'ready' : stance;
-    ANIM.reload = W.reloadT > 0 ? 1 - W.reloadT / ALLY.reload : -1;
+    ANIM.reload = W.reloadT > 0 ? 1 - W.reloadT / this.C.reload : -1;
     ANIM.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
     ANIM.dist = this.pos.distanceTo(this.game.player.pos);
     this.model.animate(dt, ANIM);
@@ -394,6 +679,18 @@ export class Ally {
     let bestD = ALLY.viewRange;
     let tests = 0;
     const T = this.target;
+    // Saldır emri: işaretli düşman her zaman hedef; görünürlüğü ayrıca izlenir
+    if (this.focus?.alive) {
+      const vis = eye.distanceTo(this.focus.pos) < ALLY.viewRange * 1.5 && (g.world.canSee(eye, this.focus.chestPos(_v2)) || g.world.canSee(eye, this.focus.eyePos(_v2)));
+      if (this.target !== this.focus) this.reactT = this.S.reaction * 0.6;
+      this.target = this.focus;
+      this.targetVisible = vis;
+      if (vis) {
+        this.lastSeenT = g.time;
+        this.focusSeenT = g.time;
+      }
+      return;
+    }
     const gunner = this.has('suppress') ? this.visibleGunner(eye) : null;
     if (gunner) {
       best = gunner;
@@ -681,18 +978,20 @@ export class Ally {
     this.reactT -= dt;
     if (W.reloadT > 0) {
       W.reloadT -= dt;
-      if (W.reloadT <= 0) W.mag = ALLY.magSize;
+      if (W.reloadT <= 0) W.mag = this.C.magSize;
       return;
     }
     if (this.boundGoal && this.horizSpeed > 2) return; // sıçrarken ateş etmez, koşar
     if (W.mag <= 0) {
-      W.reloadT = ALLY.reload;
+      W.reloadT = this.C.reload;
       g.audio.mech('magOut', this.pos);
-      if (this.target) this.say('reload');
+      if (this.target || this.suppress) this.say('reload');
       return;
     }
-    const T = this.target;
-    if (!weaponsFree || !T || !this.targetVisible || this.reactT > 0) {
+    // Baskı ateşi: görünür hedef gerekmez, alana sürekli seri
+    const sup = this.suppress;
+    const T = sup ? this.areaTarget(sup.pos) : this.target;
+    if (!weaponsFree || !T || (!sup && (!this.targetVisible || this.reactT > 0))) {
       W.burstLeft = 0;
       return;
     }
@@ -701,10 +1000,10 @@ export class Ally {
     if (W.burstLeft <= 0) {
       W.gapT -= dt;
       if (W.gapT <= 0) {
-        // Mevziye bastırma ateşi: uzun, sık seriler
-        const sup = T.mount && this.has('suppress');
-        const b = sup ? ALLY.suppress.burst : ALLY.burst;
-        const gap = sup ? ALLY.suppress.gap : this.S.burstGap;
+        // Mevziye bastırma ya da baskı emri: uzun, sık seriler
+        const long = sup || (T.mount && this.has('suppress'));
+        const b = long ? ALLY.suppress.burst : this.C.burst;
+        const gap = long ? ALLY.suppress.gap : this.S.burstGap;
         W.burstLeft = Math.round(rand(b[0], b[1]));
         W.gapT = rand(gap[0], gap[1]);
       }
@@ -713,11 +1012,31 @@ export class Ally {
     while (W.burstLeft > 0 && W.cooldown <= 0 && W.mag > 0 && n < 3) {
       this.shoot(T);
       W.burstLeft--;
-      W.mag--;
-      W.cooldown += 60 / ALLY.rpm;
+      W.mag -= sup ? O.suppressAmmoMult : 1; // baskı ateşi cephaneyi daha hızlı tüketir
+      W.cooldown += 60 / this.C.rpm;
       n++;
     }
+    if (sup) this.applySuppression(sup.pos);
     if (W.cooldown < -0.2) W.cooldown = 0;
+  }
+
+  // Baskı alanı için sahte hedef (ateş kodu hedeften yalnız konum ister)
+  areaTarget(p) {
+    const A = (this._area ||= { pos: new THREE.Vector3(), alive: true, mount: null, area: true, chestPos: (o) => o.copy(A.pos), eyePos: (o) => o.copy(A.pos) });
+    A.pos.copy(p);
+    return A;
+  }
+
+  // Baskı alanındaki düşmanlar eğilir ve isabetleri düşer (makineli tüfekçide alan daha geniş)
+  applySuppression(p) {
+    const g = this.game;
+    const r = O.suppressRadius * (this.member.suppressMult || 1);
+    for (const e of g.enemies.list) {
+      if (!e.alive || e.dummy || e.pos.distanceTo(p) > r) continue;
+      e.aimPenaltyUntil = g.time + O.suppressHold;
+      e.aimPenalty = O.suppressAimMult;
+      e.suppress?.();
+    }
   }
 
   shoot(T) {
@@ -730,16 +1049,16 @@ export class Ally {
     const dist = base.length();
     base.divideScalar(dist);
     let err = this.S.aimDeg * (0.6 + dist / 40) * (this.horizSpeed > 1 ? 1.5 : 1);
-    if (T.mount && this.has('suppress')) err = Math.max(err, ALLY.suppress.aimDeg * (0.6 + dist / 60));
+    if ((T.mount && this.has('suppress')) || T.area) err = Math.max(err, ALLY.suppress.aimDeg * (0.6 + dist / 60));
     const dir = randomInCone(base, err * DEG, new THREE.Vector3(), 0.8);
-    const wh = g.world.raycast(muzzle, dir, ALLY.range, _hit);
-    const eh = g.enemies.raycast(muzzle, dir, wh ? wh.dist : ALLY.range);
+    const wh = g.world.raycast(muzzle, dir, this.C.range, _hit);
+    const eh = g.enemies.raycast(muzzle, dir, wh ? wh.dist : this.C.range);
     let end;
     if (eh?.armor) {
       if (muzzle.distanceTo(g.camera.position) < 90) g.effects.impact(eh.point, eh.normal, 'metal', 0.5);
       end = eh.point;
     } else if (eh && eh.enemy.alive) {
-      const dmg = this.S.damage * (ALLY.zones[eh.zone] || 1);
+      const dmg = this.S.damage * this.C.damageMult * (ALLY.zones[eh.zone] || 1);
       const out = eh.enemy.takeDamage(dmg, { zone: eh.zone, dir, point: eh.point, source: 'ally', attacker: this, weapon: 'allyRifle' });
       g.effects.impact(eh.point, _v3.copy(dir).negate(), 'flesh', 0.5);
       if (out.killed) {
@@ -751,7 +1070,7 @@ export class Ally {
       if (muzzle.distanceTo(g.camera.position) < 90) g.effects.impact(wh.point, wh.normal, wh.surface, 0.5);
       if (wh.collider?.owner?.onShot) wh.collider.owner.onShot(this.S.damage, wh.point);
       end = wh.point;
-    } else end = _v3.copy(muzzle).addScaledVector(dir, 80);
+    } else end = _v3.copy(muzzle).addScaledVector(dir, Math.min(80, this.C.range));
     if (Math.random() < 0.5) g.effects.tracer(muzzle, end, 320, 0.018);
     if (muzzle.distanceTo(g.camera.position) < 80) {
       g.effects.enemyMuzzle(muzzle, dir);
@@ -759,7 +1078,7 @@ export class Ally {
     }
     g.audio.gunshot('rifle2', muzzle);
     g.makeNoise(this.pos, ALLY.noise, 'gunshot');
-    g.enemies.bulletNearMiss(muzzle, dir, eh ? eh.dist : wh ? wh.dist : ALLY.range, this);
+    g.enemies.bulletNearMiss(muzzle, dir, eh ? eh.dist : wh ? wh.dist : this.C.range, this);
     this.model.fire(0.8);
   }
 
@@ -933,6 +1252,11 @@ export class AllyManager {
       pushApart(a, P.pos, 0.75);
       for (const e of g.enemies.list) if (e.alive) pushApart(a, e.pos, 0.75);
     }
+  }
+
+  // Baskı ateşi altındaki düşman mı? (bonus görev "Baskı Ustası" için ENEMY_KILLED yükü)
+  isSuppressing(enemy) {
+    return (enemy.aimPenaltyUntil || 0) > this.game.time;
   }
 
   // Düşmanın görebileceği en yakın dost (yalnızca en yakın aday için görüş testi)

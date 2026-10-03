@@ -306,6 +306,7 @@ export class Menus {
     const groups = [
       ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
       ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'pause']],
+      ['Tim komutları', ['cmdFollow', 'cmdHold', 'cmdSuppress', 'cmdCover', 'cmdHeal', 'cmdHoldFire', 'cmdFreeFire']],
     ];
     const box = $('keyTables');
     box.innerHTML = '';
@@ -509,7 +510,7 @@ export class Menus {
     $('victoryRank').innerHTML = '';
     const b = document.createElement('b');
     b.textContent = `${rank}`;
-    const tail = next ? '' : ' Kartal ekibi istihbaratla birlikte üsse döndü.';
+    const tail = next ? '' : ' Alfa Timi istihbaratla birlikte üsse döndü.';
     $('victoryRank').append(document.createTextNode('Değerlendirme: '), b, document.createTextNode(` · Zorluk: ${diffLabel}.${tail}`));
     this.stack = [];
     this.show('victoryScreen', false);

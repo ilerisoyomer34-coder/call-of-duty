@@ -16,6 +16,14 @@ const CARD = [
   [0, 'K'], [45, 'KD'], [90, 'D'], [135, 'GD'], [180, 'G'], [225, 'GB'], [270, 'B'], [315, 'KB'],
 ];
 
+// Asker satırındaki emir etiketi: saldırı/baskı hareket emrinden önce gösterilir
+const ORDER_LABEL = { FOLLOW: 'Takip', HOLD: 'Pozisyon', MOVE_TO: 'İlerliyor', TAKE_COVER: 'Siper', CLEAR_AREA: 'Temizlik', HEAL_PLAYER: 'Tedavi' };
+function orderLabel(a) {
+  let t = a.suppress ? 'Baskı' : a.focus ? 'Saldırı' : a.order.id === 'MOVE_TO' && a.order.arrived ? 'Pozisyonda' : ORDER_LABEL[a.order.id] || '';
+  if (a.holdFire) t += ' · ateş kesik';
+  return t;
+}
+
 export class HUD {
   constructor(game) {
     this.game = game;
@@ -31,7 +39,7 @@ export class HUD {
       markers: $('markers'), icons: $('icons'), dmgNums: $('dmgNums'), dmgDirs: $('dmgDirs'), grenadeWarn: $('grenadeWarn'),
       compassStrip: $('compassStrip'), compassObj: $('compassObj'), compass: $('compass'),
       minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'), tbAds: $('tbAds'),
-      slots: $('slots'), kit: $('kit'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
+      slots: $('slots'), kit: $('kit'), squad: $('squad'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
     };
     this.ch = {
       t: this.el.crosshair.querySelector('.t'), b: this.el.crosshair.querySelector('.b'),
@@ -350,7 +358,7 @@ export class HUD {
       const rank = ALLY_TIERS[L.allyTier || 1]?.rank || '';
       c.children[0].textContent = `SEVİYE ${L.id} · ${L.tag} · ${map}`.toLocaleUpperCase('tr-TR');
       c.children[1].textContent = L.name.toLocaleUpperCase('tr-TR');
-      c.children[2].textContent = L.allies ? `Kartal ekibi · ${L.allies} ${rank.toLocaleLowerCase('tr-TR')} seninle` : 'Kartal-1 · tek başına';
+      c.children[2].textContent = L.allies ? `Alfa Timi · ${L.allies} ${rank.toLocaleLowerCase('tr-TR')} seninle` : 'Komutan · tek başına';
     }
     c.classList.remove('on');
     void c.offsetWidth;
@@ -386,6 +394,57 @@ export class HUD {
   }
 
   // Kare başına güncelleme
+  // Alfa Timi durumu (§8.1): renk, çağrı kodu ve ad, can ve zırh çubuğu, son emir. Saniyede dört kez.
+  updateSquad(dt) {
+    const box = this.el.squad;
+    if (!box) return;
+    this.squadT = (this.squadT || 0) - dt;
+    if (this.squadT > 0) return;
+    this.squadT = 0.25;
+    const list = this.game.allies.list;
+    box.hidden = !list.length || this.game.mode !== 'mission';
+    if (box.hidden) return;
+    // Can paneli zırh satırıyla uzayıp kısalır: liste hep hemen üstünde dursun
+    const hp = this.el.health;
+    if (hp?.offsetHeight) box.style.bottom = `${hp.offsetParent ? hp.offsetParent.clientHeight - hp.offsetTop + 6 : 104}px`;
+    if (!this.sqRows || this.sqRows.length !== list.length || this.sqRows.some((r, i) => r.ally !== list[i])) {
+      box.innerHTML = '';
+      this.sqRows = list.map((a) => {
+        const r = document.createElement('div');
+        r.className = 'sq';
+        const dot = document.createElement('i');
+        dot.style.background = a.member.color;
+        const name = document.createElement('b');
+        name.textContent = `${a.callsign} ${a.person}`;
+        const ord = document.createElement('em');
+        const hp = document.createElement('u');
+        hp.className = 'hp';
+        const hpI = document.createElement('s');
+        hp.append(hpI);
+        const ar = document.createElement('u');
+        ar.className = 'ar';
+        const arI = document.createElement('s');
+        ar.append(arI);
+        r.append(dot, name, ord, hp, ar);
+        r.title = a.member.roleLabel;
+        box.appendChild(r);
+        return { ally: a, r, ord, hpI, ar, arI, last: '' };
+      });
+    }
+    for (const row of this.sqRows) {
+      const a = row.ally;
+      const label = a.down ? 'YERDE' : orderLabel(a);
+      if (label !== row.last) {
+        row.last = label;
+        row.ord.textContent = label;
+      }
+      row.r.classList.toggle('down', a.down);
+      row.hpI.style.transform = `scaleX(${a.down ? 0 : clamp(a.health.hp / a.health.max, 0, 1)})`;
+      row.ar.hidden = !a.armor;
+      if (a.armor) row.arI.style.transform = `scaleX(${clamp(a.armor.points / a.armor.max, 0, 1)})`;
+    }
+  }
+
   update(dt) {
     const g = this.game;
     const P = g.player;
@@ -394,6 +453,7 @@ export class HUD {
     const cam = g.camera;
     const width = g.width;
     const height = g.height;
+    this.updateSquad(dt);
 
     // Dokunmatik NİŞAN aç/kapa çalışır: nişandayken düğme parmak kalksa da yanık kalsın (DOM'a yalnız değişince yaz)
     const adsLatched = g.input.touch.active && P.adsToggle;
@@ -559,7 +619,7 @@ export class HUD {
       at++;
       el.hidden = false;
       el.classList.toggle('down', a.down);
-      const txt = a.down ? `${a.rankName} · YARALI` : a.rankName;
+      const txt = a.down ? `${a.callsign} · YARALI` : `${a.callsign} · ${a.rankName}`;
       if (el.firstChild.textContent !== txt) el.firstChild.textContent = txt;
       el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
       el.style.opacity = String(clamp(1.2 - d / ALLY_TAG_RANGE, 0.4, 1));

@@ -649,7 +649,7 @@ export function buildSoldier(type, colors) {
   if (C.scale) root.scale.setScalar(C.scale);
   return { root, pelvis, spine, head, helmet, legL, legR, meshes: bodyMeshes, muzzleLocal };
 }
-export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle', gunner: 'rifle', aaGunner: 'rifle' };
+export const ENEMY_GUN_KIND = { rifleman: 'rifle', shotgunner: 'shotgun', heavy: 'lmg', sniper: 'sniper', dummy: 'rifle', gunner: 'rifle', aaGunner: 'rifle', allyGunner: 'lmg' };
 
 // --- Görev nesneleri ---
 export function buildAAGun() {

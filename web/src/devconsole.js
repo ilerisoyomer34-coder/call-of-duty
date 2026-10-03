@@ -6,6 +6,7 @@ import { formatKR } from './economy.js';
 import { ArmorLoadout, ARMOR_DEFS } from './armor.js';
 import { CONSUMABLES } from './loadout.js';
 import { levelMission, RULES } from './missionSystem.js';
+import { COMMANDS } from './commands.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -29,6 +30,7 @@ const HELP = `Komutlar:
   armorfill           zırhı doldur; armor yazınca kuşanılanı gösterir
   give <sarf> [n]     envantere sarf malzemesi ekle (plate_pack, medkit, adrenaline, smoke, frag)
   missions [complete|reset]  bonus görev durumu; tümünü 3 yıldızla tamamla / sıfırla
+  cmd <KOMUT> [alfa-n|all]   tim komutu (FOLLOW, HOLD, MOVE_TO, ATTACK, SUPPRESS, TAKE_COVER, HEAL_PLAYER, HOLD_FIRE, FREE_FIRE, CLEAR_AREA)
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -251,6 +253,14 @@ export class DevConsole {
         if (id === 'frag') g.weapons.kitFrags = g.kit.count('frag');
         g.kit.emit();
         this.print(`${id}: envanterde ${g.save.data.inventory.consumables[id]}`);
+        break;
+      }
+      case 'cmd': {
+        // cmd <KOMUT> [all|alfa-1|alfa-2|alfa-3]: tim komutu ver (hedef/nokta nişangâhtan)
+        const id = (args[0] || '').toUpperCase();
+        const who = args[1] && args[1].toLowerCase() !== 'all' ? args[1].replace(/^alfa-?/i, 'Alfa-') : 'all';
+        const c = g.commands.issue(id, who, { inputMethod: 'console' });
+        this.print(c ? `${id} → ${c.addressees.join(', ')}` : `Verilemedi (komutlar: ${Object.keys(COMMANDS).join(', ')})`);
         break;
       }
       case 'missions': {

@@ -73,6 +73,11 @@ export class NavGrid {
     return [clamp(cx, 0, this.w - 1), clamp(cz, 0, this.h - 1)];
   }
 
+  // Nokta ızgaranın içinde mi? (cellOf kenara kıstırır; harita dışı hedefler buradan ayıklanır)
+  inBounds(x, z) {
+    return x >= this.minx && z >= this.minz && x < this.minx + this.w * CS && z < this.minz + this.h * CS;
+  }
+
   isWalkable(x, z) {
     const [cx, cz] = this.cellOf(x, z);
     return !this.blocked[cz * this.w + cx];

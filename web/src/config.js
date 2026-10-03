@@ -902,7 +902,7 @@ export const SOLDIER_LOOKS = {
 // böylece seviye dengesi "dostlar öldü, seviye imkânsızlaştı" durumuna düşmez.
 // Can, yaralı kalma süresi, tepki, isabet, hasar ve seri arası kademeye göre değişir: ALLY_TIERS
 export const ALLY = {
-  names: ['Kartal-2', 'Kartal-3', 'Kartal-4'],
+  // Ad, rol ve rol silahı data/squad.json'da (Alfa Timi); burada ortak davranış değerleri
   regenDelay: 6, // hasar almadan bu kadar süre geçince can dolmaya başlar (s)
   regenRate: 18, // can / s
   reviveHp: 0.55, // toparlanınca canın oranı
@@ -1017,8 +1017,8 @@ export const LEVELS = [
     id: 1, map: 'kizilkum', name: 'Kontrol Noktası', tag: 'Kolay',
     brief: 'Kuzeydeki kontrol noktasını mangayla birlikte temizle. Yavaş tepki veren, az isabet ettiren muhafızlar.',
     start: 0, objectives: ['outpost', 'extract'], allies: 3, allyTier: 1,
-    radioIntro: 'Kızılkum Vadisi\'ne hoş geldiniz. Kartal-1, mangan arkanda: üç tüfekçi.',
-    outro: 'Herkes içeride. Güzel iş Kartal ekibi, sizi köyün kuzeyine bırakıyoruz.',
+    radioIntro: 'Kızılkum Vadisi\'ne hoş geldiniz. Komutan, Alfa Timi arkanda: Demir, Kaya ve Yıldız.',
+    outro: 'Herkes içeride. Güzel iş Alfa Timi, sizi köyün kuzeyine bırakıyoruz.',
     enemies: { groups: ['outpost'], exclude: ['shotgunner'], hmg: 0 },
     tuning: { reaction: 1.45, aim: 1.55, damage: 0.6, perception: 0.85, awareness: 0.75, attackers: -1, grenades: false },
   },
@@ -1027,7 +1027,7 @@ export const LEVELS = [
     brief: 'Köydeki iki uçaksavar topunu C4 ile imha et. Pompalılar hücum eder, çatıda nöbetçi var.',
     start: 1, objectives: ['aa', 'extract'], allies: 3, allyTier: 2,
     radioIntro: 'Kontrol noktası bizde. Sıradaki iş köyde.',
-    outro: 'Gökyüzü bizim! Kartal ekibi, sizi doğruca limana götürüyoruz.',
+    outro: 'Gökyüzü bizim! Alfa Timi, sizi doğruca limana götürüyoruz.',
     enemies: { groups: ['village'], exclude: ['heavy'], hmg: 0 },
     tuning: { reaction: 1.2, aim: 1.25, damage: 0.8, perception: 0.95, awareness: 0.9, attackers: 0, grenades: false },
   },

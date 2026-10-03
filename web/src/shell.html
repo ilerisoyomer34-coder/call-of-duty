@@ -201,6 +201,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #objective .t { font: 600 19px/1.15 var(--f-ui); margin-top: 5px; text-wrap: balance; }
 #objective .d { font: 400 15px/1.2 var(--f-num); color: var(--sand-dim); margin-top: 4px; }
 #objective.flash { animation: objflash 1.4s ease-out; }
+/* Alfa Timi durumu (hud.updateSquad): can panelinin üstünde; renk, çağrı kodu, emir, can ve zırh */
+#squad { position: absolute; left: 16px; bottom: calc(var(--sqBottom, 104px) + env(safe-area-inset-bottom, 0px)); width: 230px; display: flex; flex-direction: column; gap: 3px; }
+#squad[hidden] { display: none; }
+.sq { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; grid-template-rows: auto 3px 2px; column-gap: 7px; row-gap: 2px; padding: 4px 8px 5px; background: rgba(13,16,19,.55); border-left: 2px solid var(--line); font: 600 12px/1.1 var(--f-ui); letter-spacing: .04em; color: var(--sand); }
+.sq i { grid-row: 1 / 4; width: 8px; height: 8px; border-radius: 50%; align-self: center; }
+.sq b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sq em { font: 500 11px/1.1 var(--f-ui); font-style: normal; color: var(--sand-dim); white-space: nowrap; }
+.sq u { grid-column: 2 / 4; display: block; background: rgba(231,220,196,.14); text-decoration: none; }
+.sq u s { display: block; height: 100%; background: #7fd38a; transform-origin: left center; text-decoration: none; }
+.sq u.ar s { background: var(--steel); }
+.sq u[hidden] { display: none; }
+.sq.down { border-left-color: var(--red); }
+.sq.down em { color: var(--red); }
 /* Bonus görev takipçisi (missionUi.js): hedef panelinin altında; J ile daralır */
 #tracker { position: absolute; top: calc(var(--trTop, 112px) + env(safe-area-inset-top, 0px)); left: 16px; width: min(300px, 36vw); padding: 7px 10px 8px; display: flex; flex-direction: column; gap: 4px; }
 #tracker[hidden] { display: none; }
@@ -529,6 +542,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .rwStars { font-size: 22px; }
   .rwTotal b { font-size: 22px; }
   #tracker { width: 30vw; padding: 5px 8px 6px; }
+  #squad { width: 170px; gap: 2px; }
+  .sq { padding: 2px 6px 3px; font-size: 11px; }
+  .sq em { font-size: 10px; }
   .trRow { font-size: 12px; gap: 6px; }
   #bonusToast { font-size: 14px; top: 44px; }
 }
@@ -759,6 +775,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
     <div id="compass"><div id="compassStrip"></div><div id="compassObj"></div><div id="compassCenter"></div></div>
     <div id="objective" class="panel"><div class="k">Hedef <span id="objNum"></span></div><div class="t" id="objTitle"></div><div class="d" id="objDetail"></div></div>
     <div id="tracker" class="panel" hidden></div>
+    <div id="squad" hidden></div>
     <div id="bonusToast" hidden></div>
     <canvas id="minimap" width="336" height="336"></canvas>
     <div id="score">PUAN <b id="scoreVal">0</b></div>

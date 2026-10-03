@@ -1,10 +1,106 @@
 {
-  "_doc": "Alfa Timi (Operasyon Güncellemesi §8.1). Rütbe seviyenin manga kademesinden (config.js → ALLY_TIERS) gelir; ad, rol ve ses buradan. role: rifleman | medic | gunner. suppressMult: baskı ateşi etkisi çarpanı. voice: seslendirme perdesi ve hızı (speechSynthesis).",
+  "_doc": "Alfa Timi (Operasyon Güncellemesi §8.1, §8.6). Rütbe seviyenin manga kademesinden (config.js → ALLY_TIERS) gelir; ad, rol, renk ve ses buradan. role: rifleman | medic | gunner. roleCombat: role göre silah ayarı (rpm, hasar çarpanı, şarjör, şarjör değiştirme süresi, seri uzunluğu, menzil). squadArmorAbsorb: Tim Zırhı yükseltmesinin hasar emme oranı. orders: komut davranışlarının ayarları (süreler saniye, mesafeler metre).",
   "team": "Alfa Timi",
   "playerCallsign": "Komutan",
   "members": [
-    { "callsign": "Alfa-1", "name": "Demir", "role": "rifleman", "roleLabel": "Tüfekçi · lider yardımcısı", "weaponLabel": "AKMS", "color": "#7fd38a", "voice": { "pitch": 0.85, "rate": 1.05 }, "confirmsFirst": true },
-    { "callsign": "Alfa-2", "name": "Kaya", "role": "medic", "roleLabel": "Sıhhiyeci (Medik)", "weaponLabel": "HK MP5A3", "color": "#9be3b0", "voice": { "pitch": 1.1, "rate": 1.1 }, "reviveTimeSec": 2.0, "healHp": 40, "healTimeSec": 4, "healCooldownSec": 60 },
-    { "callsign": "Alfa-3", "name": "Yıldız", "role": "gunner", "roleLabel": "Makineli tüfekçi", "weaponLabel": "HK MG4", "color": "#b8e68f", "voice": { "pitch": 0.75, "rate": 0.95 }, "suppressMult": 1.5 }
-  ]
+    {
+      "callsign": "Alfa-1",
+      "name": "Demir",
+      "role": "rifleman",
+      "roleLabel": "Tüfekçi · lider yardımcısı",
+      "weaponLabel": "AKMS",
+      "color": "#7fd38a",
+      "voice": {
+        "pitch": 0.85,
+        "rate": 1.05
+      },
+      "confirmsFirst": true
+    },
+    {
+      "callsign": "Alfa-2",
+      "name": "Kaya",
+      "role": "medic",
+      "roleLabel": "Sıhhiyeci (Medik)",
+      "weaponLabel": "HK MP5A3",
+      "color": "#9be3b0",
+      "voice": {
+        "pitch": 1.1,
+        "rate": 1.1
+      },
+      "reviveTimeSec": 2.0,
+      "healHp": 40,
+      "healTimeSec": 4,
+      "healCooldownSec": 60
+    },
+    {
+      "callsign": "Alfa-3",
+      "name": "Yıldız",
+      "role": "gunner",
+      "roleLabel": "Makineli tüfekçi",
+      "weaponLabel": "HK MG4",
+      "color": "#b8e68f",
+      "voice": {
+        "pitch": 0.75,
+        "rate": 0.95
+      },
+      "suppressMult": 1.5
+    }
+  ],
+  "roleCombat": {
+    "rifleman": {
+      "rpm": 560,
+      "damageMult": 1.0,
+      "magSize": 30,
+      "reload": 2.5,
+      "burst": [
+        3,
+        5
+      ],
+      "range": 120,
+      "gun": "rifle"
+    },
+    "medic": {
+      "rpm": 760,
+      "damageMult": 0.8,
+      "magSize": 30,
+      "reload": 2.2,
+      "burst": [
+        4,
+        6
+      ],
+      "range": 80,
+      "gun": "rifle"
+    },
+    "gunner": {
+      "rpm": 720,
+      "damageMult": 0.95,
+      "magSize": 100,
+      "reload": 4.5,
+      "burst": [
+        6,
+        10
+      ],
+      "range": 140,
+      "gun": "lmg"
+    }
+  },
+  "squadArmorAbsorb": 0.5,
+  "orders": {
+    "arriveDist": 1.4,
+    "spread": 1.8,
+    "suppressTime": 10,
+    "suppressRadius": 7,
+    "suppressAimMult": 1.6,
+    "suppressAmmoMult": 1.5,
+    "suppressHold": 1.5,
+    "attackLoseTime": 15,
+    "clearRadius": 6,
+    "clearPoints": 3,
+    "followDoneDist": 4,
+    "selfPreserveHp": 0.25,
+    "selfPreserveHurtSec": 2.5,
+    "selfPreserveCoverSec": 4,
+    "healRange": 1.6,
+    "commandTimeout": 40
+  }
 }

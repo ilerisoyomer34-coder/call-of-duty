@@ -507,7 +507,7 @@ export class Mission {
     g.allies.spawnSquad(L.allies, cp.pos, cp.yaw, L.allyTier || 1);
     this.saveCheckpoint(L.start, true);
     // Açılış telsizi
-    this.radio('YUVA', `Kartal ekibi, burası Yuva. ${L.radioIntro}`, 1.5);
+    this.radio('YUVA', `Alfa Timi, burası Yuva. ${L.radioIntro}`, 1.5);
     this.current.start?.(true);
     if (L.id === 1) this.radio('İPUCU', 'Mavi askerler senin mangan: seni izler, ateş açınca karşılık verir. Onlara ateş etme.', 12);
     g.events.emit('objective', this.currentText());
@@ -967,7 +967,7 @@ export class Mission {
         }
         if (!this.heli && this.defendT > this.defendTime - 22) this.spawnHeli();
         if (this.defendT >= this.defendTime && this.heli && this.heli.landed) {
-          this.radio('PİLOT', 'Yere indik Kartal-1, hemen bin!', 0);
+          this.radio('PİLOT', 'Yere indik komutanım, hemen bin!', 0);
           this.advance();
         }
         break;
@@ -980,7 +980,7 @@ export class Mission {
         else if (o.id === 'extract' && this.heli?.landed && !this.heliWaitSaid) {
           this.heliWaitSaid = true;
           g.events.emit('objective', this.currentText());
-          this.radio('PİLOT', 'Yere indik Kartal-1, hemen bin!', 0);
+          this.radio('PİLOT', 'Yere indik komutanım, hemen bin!', 0);
         }
         break;
       default:
@@ -1003,7 +1003,7 @@ export class Mission {
     h.root.position.set(from.x, 45, from.z);
     h.root.rotation.y = yaw;
     g.audio.startRotor();
-    this.radio('PİLOT', 'Kartal-1, burası Şahin-2. İniş bölgesini görüyorum, alçalıyorum!', 0);
+    this.radio('PİLOT', 'Komutan, burası Şahin-2. İniş bölgesini görüyorum, alçalıyorum!', 0);
     const dust = g.env?.dust ?? 0xcbb08a;
     this.heliDust = g.effects.addEmitter({
       rate: 0,

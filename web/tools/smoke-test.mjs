@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, squad, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -527,7 +527,7 @@ console.log('Seviyeler ve dost manga');
   await waitGame(page, 0.4);
   await page.waitForFunction(() => window.__game.weapons.state === 'idle', null, { timeout: 30000 });
   const hpBefore = await aimAtAlly();
-  check(await page.evaluate(() => [...document.querySelectorAll('.atag')].some((e) => !e.hidden && /KARTAL|Kartal/.test(e.textContent))), 'Dostların üstünde mavi isim etiketi');
+  check(await page.evaluate(() => [...document.querySelectorAll('.atag')].some((e) => !e.hidden && /ALFA-\d|Alfa-\d/.test(e.textContent))), 'Dostların üstünde mavi isim etiketi');
   await page.screenshot({ path: join(shots, '09-allies.png') });
   // Dost yürürken tek mermi ıskalayabilir: dost dursun, en çok üç deneme
   await page.evaluate(() => window.__game.allies.list[0].vel.set(0, 0, 0));
@@ -718,6 +718,150 @@ console.log('Görevler ve bonuslar');
   const fitB = await mp.evaluate(() => ({ over: document.scrollingElement.scrollWidth - innerWidth, next: document.getElementById('btnBriefNext').getBoundingClientRect().bottom <= innerHeight + 1 }));
   check(fitB.over <= 1 && fitB.next, `Telefonda brifing sığıyor (taşma ${fitB.over} px, Teçhizat düğmesi görünür)`);
   await mctx.close();
+}
+
+// ---------------- Alfa Timi ve komut durum katmanı (Operasyon Güncellemesi F6) ----------------
+if (run('squad')) {
+console.log('Alfa Timi ve komutlar');
+
+  const page = await openPage('standalone');
+  // Tim Zırhı Sv. 1 satın alınmış: askerler +50 ZP ile başlar
+  await page.evaluate(() => window.__game.save.update((d) => d.inventory.upgrades.push('squad_armor_1'), { now: true }));
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.cheats.god = true;
+  });
+  await waitGame(page, 0.5);
+  const id = await page.evaluate(() => {
+    const g = window.__game;
+    return {
+      names: g.allies.list.map((a) => `${a.callsign} ${a.person} (${a.role})`),
+      gun: g.allies.list.map((a) => a.C.magSize),
+      armor: g.allies.list.map((a) => a.armor?.points || 0),
+      roster: [...document.querySelectorAll('#squad .sq b')].map((b) => b.textContent),
+      label: document.querySelector('#squad .sq em')?.textContent,
+    };
+  });
+  check(id.names.join(', ') === 'Alfa-1 Demir (rifleman), Alfa-2 Kaya (medic), Alfa-3 Yıldız (gunner)', `Alfa Timi: ${id.names.join(', ')}`);
+  check(id.gun.join(',') === '30,30,100', `Role göre silah: şarjör ${id.gun.join('/')} (makineli tüfekçide 100)`);
+  check(id.armor.every((a) => a === 50), `Tim Zırhı Sv. 1: her askerde ${id.armor[0]} ZP`);
+  check(id.roster.length === 3 && id.label === 'Takip', `HUD tim listesi (${id.roster.join(', ')} · ${id.label})`);
+  // Zırh askerin canını korur
+  const arm = await page.evaluate(() => {
+    const a = window.__game.allies.list[0];
+    const hp0 = a.health.hp;
+    a.takeDamage(30, null, { zone: 'torso', pen: 0.3 });
+    return { hp: hp0 - a.health.hp, ar: 50 - a.armor.points };
+  });
+  check(arm.hp < 30 && arm.ar > 0, `Tim Zırhı hasarı emdi (cana ${arm.hp.toFixed(1)}, zırha ${arm.ar.toFixed(1)})`);
+  await page.screenshot({ path: join(shots, '20-squad-hud.png') });
+
+  const ev = (name) => page.evaluate((n) => (window.__ev ||= {}, window.__ev[n] ||= [], window.__game.events.on(n, (e) => window.__ev[n].push({ id: e.commandId, by: e.by, reason: e.reason, who: e.addressees }))), name);
+  for (const n of ['COMMAND_ISSUED', 'COMMAND_COMPLETED', 'COMMAND_FAILED']) await ev(n);
+  // F4: Siper alın → tüm tim; onay repliği; sipere varınca tamamlanır
+  await page.keyboard.press('F4');
+  await waitGame(page, 0.1);
+  const cov = await page.evaluate(() => {
+    const g = window.__game;
+    const issued = window.__ev.COMMAND_ISSUED.at(-1);
+    const q = g.mission.radioQueue.map((r) => `${r.who}: ${r.text}`);
+    for (const a of g.allies.list) if (a.order.pos) a.pos.copy(a.order.pos);
+    g.allies.update(0.05);
+    return { issued, orders: g.allies.list.map((a) => a.order.id), q, done: window.__ev.COMMAND_COMPLETED.map((e) => e.id) };
+  });
+  check(cov.issued?.id === 'TAKE_COVER' && cov.issued.who.length === 3 && cov.orders.every((o) => o === 'TAKE_COVER'), `F4 "Siper alın": üç asker siper emrinde`);
+  check(cov.q.some((l) => /^Komutan → Alfa Timi: Siper alın!/.test(l)) && cov.q.some((l) => /^Alfa-1 .*Demir: /.test(l)), `Telsizde komut ve Alfa-1'in onayı (${cov.q.slice(0, 2).join(' | ')})`);
+  check(cov.done.includes('TAKE_COVER'), 'Sipere varınca komut tamamlandı');
+  // Oraya git: ulaşılabilir nokta tamamlanır, ulaşılamayan "yol yok" ile başarısız olur
+  const mv = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player.pos;
+    const ok = g.nav.randomPointNear(P.clone().add(new P.constructor(0, 0, -8)), 3);
+    g.commands.issue('MOVE_TO', 'Alfa-1', { pos: ok, inputMethod: 'test' });
+    const a = g.allies.list[0];
+    const pos = a.order.pos?.clone();
+    a.pos.copy(pos);
+    g.allies.update(0.05);
+    const done = window.__ev.COMMAND_COMPLETED.at(-1)?.id;
+    const q = g.mission.radioQueue.at(-1)?.text;
+    g.commands.issue('MOVE_TO', 'Alfa-3', { pos: new P.constructor(9999, 0, 9999), inputMethod: 'test' });
+    return { done, q, failed: window.__ev.COMMAND_FAILED.at(-1), order: a.order.id, arrived: a.order.arrived, o3: g.allies.list[2].order.id };
+  });
+  check(mv.done === 'MOVE_TO' && mv.order === 'MOVE_TO' && mv.arrived && /Pozisyon|Yerim|Hazır/.test(mv.q || ''), `Oraya git: Alfa-1 vardı, bildirdi ("${mv.q}")`);
+  check(mv.failed?.id === 'MOVE_TO' && mv.failed.reason === 'no-path' && mv.o3 !== 'MOVE_TO', `Ulaşılamayan nokta: "yol yok" ile başarısız, emir alınmadı (${JSON.stringify(mv.failed)}, ${mv.o3})`);
+  // F5: Beni iyileştir → yalnız medik; 4 sn'de +40 can; ikinci istek bekleme süresinde
+  await page.evaluate(() => (window.__game.player.health.hp = 50));
+  await page.keyboard.press('F5');
+  await waitGame(page, 0.1);
+  const heal = await page.evaluate(() => {
+    const g = window.__game;
+    const issued = window.__ev.COMMAND_ISSUED.at(-1);
+    const med = g.allies.list[1];
+    const order = med.order.id;
+    med.pos.copy(g.player.pos).add(new g.player.pos.constructor(0.8, 0, 0));
+    g.player.health.hp = 50;
+    for (let i = 0; i < 45; i++) g.allies.update(0.1);
+    const hp = g.player.health.hp;
+    g.commands.issue('HEAL_PLAYER', 'all', { inputMethod: 'test' });
+    return { who: issued.who, order, hp, fail: window.__ev.COMMAND_FAILED.at(-1), back: med.order.id };
+  });
+  check(heal.who.join(',') === 'Alfa-2' && heal.order === 'HEAL_PLAYER', 'F5 "Beni iyileştir": yalnız medik (Alfa-2) gitti');
+  check(heal.hp >= 89 && heal.back !== 'HEAL_PLAYER', `Medik 4 sn'de iyileştirdi (can 50 → ${Math.round(heal.hp)}), önceki emre döndü`);
+  check(heal.fail?.id === 'HEAL_PLAYER' && heal.fail.reason === 'cooldown', 'İkinci istek bekleme süresinde reddedildi');
+  // F8 / F9: ateşi kes, serbest ateş
+  await page.keyboard.press('F8');
+  await waitGame(page, 0.1);
+  const hf = await page.evaluate(() => window.__game.allies.list.map((a) => a.holdFire));
+  await page.keyboard.press('F9');
+  await waitGame(page, 0.1);
+  const ff = await page.evaluate(() => window.__game.allies.list.map((a) => a.holdFire));
+  check(hf.every(Boolean) && ff.every((x) => !x), 'F8 ateşi kes, F9 serbest ateş (tetik disiplini)');
+  // Saldır: işaretli düşmana odak; düşünce "hedef etkisiz" ve tamamlandı
+  const atk = await page.evaluate(() => {
+    const g = window.__game;
+    const e = g.enemies.list.find((x) => x.alive && !x.dummy);
+    g.commands.issue('ATTACK', 'all', { target: e, inputMethod: 'test' });
+    const focus = g.allies.list.every((a) => a.focus === e);
+    e.takeDamage(9999, { zone: 'torso', source: 'ally', attacker: g.allies.list[0], weapon: 'allyRifle', dir: new g.player.pos.constructor(0, 0, -1) });
+    g.allies.update(0.05);
+    return { focus, done: window.__ev.COMMAND_COMPLETED.at(-1)?.id, cleared: g.allies.list.every((a) => !a.focus) };
+  });
+  check(atk.focus && atk.done === 'ATTACK' && atk.cleared, 'Saldır: tim işaretli düşmana odaklandı, düşünce komut tamamlandı');
+  // Baskı ateşi (makineli tüfekçi): alandaki düşmanların isabeti düşer; o sırada öldürülen "baskı altında" sayılır
+  const sup = await page.evaluate(() => {
+    const g = window.__game;
+    const e = g.enemies.list.find((x) => x.alive && !x.dummy);
+    const gun = g.allies.list[2];
+    gun.pos.copy(e.pos).add(new g.player.pos.constructor(14, 0, 0));
+    g.commands.issue('SUPPRESS', 'Alfa-3', { pos: e.pos.clone(), inputMethod: 'test' });
+    for (let i = 0; i < 30; i++) g.allies.update(0.05);
+    const pen = g.allies.isSuppressing(e);
+    let under = null;
+    const off = g.events.on('ENEMY_KILLED', (k) => (under = k.underSuppression));
+    e.takeDamage(9999, { zone: 'torso', source: 'player', weapon: 'rifle', dir: new g.player.pos.constructor(0, 0, -1) });
+    off();
+    return { pen, under, mag: gun.weapon.mag, label: [...document.querySelectorAll('#squad .sq em')].map((x) => x.textContent) };
+  });
+  check(sup.pen && sup.under === true, 'Baskı ateşi: alandaki düşman bastırıldı, öldürme "baskı altında" sayıldı');
+  // Kendini koruma: can %25'in altında ve ateş altında → siper, telsiz
+  const self = await page.evaluate(() => {
+    const g = window.__game;
+    const a = g.allies.list[0];
+    a.order = { id: 'FOLLOW', cmd: null };
+    a.health.hp = a.health.max * 0.15;
+    a.lastHurt = g.time;
+    a.selfCoverUntil = 0;
+    g.allies.update(0.05);
+    return { until: a.selfCoverUntil > g.time, q: g.mission.radioQueue.map((r) => r.text) };
+  });
+  check(self.until && self.q.some((t) => /siper/i.test(t)), 'Kendini koruma: ağır yaralı asker emirden önce sipere geçti');
+  await page.screenshot({ path: join(shots, '20b-squad-orders.png') });
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
 }
 
 // ---------------- Etkileşimler: pompalı, C4, istihbarat, ikmal ----------------

@@ -1053,6 +1053,8 @@ export class Enemy {
     if (suppress) err += 2.5;
     if (this.suppressT > 0) err += HMG.suppressAimDeg;
     if (Math.hypot(this.vel.x, this.vel.z) > 1) err += 1.2;
+    // Timin baskı ateşi altında (ally.js → applySuppression): isabet belirgin düşer
+    if ((this.aimPenaltyUntil || 0) > g.time) err *= this.aimPenalty || 1;
     if (this.type === 'sniper') err = this.T.aimBase * D.aimMult;
     const pellets = W.pellets;
     let hitPlayer = false;

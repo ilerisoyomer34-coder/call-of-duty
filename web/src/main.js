@@ -30,6 +30,7 @@ import { KitSystem } from './kit.js';
 import { setRealNames } from './weaponInfo.js';
 import { levelMission, MissionTracker, computeRewards, mergeRecord } from './missionSystem.js';
 import { MissionHud } from './missionUi.js';
+import { CommandSystem, SHORTCUTS } from './commands.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
@@ -190,6 +191,8 @@ export class Game {
     this.hud = new HUD(this);
     // Bonus görevler (missionSystem.js) ve takipçisi; görev başında kurulur, sonunda ödül hesaplanır
     this.missionHud = new MissionHud(this);
+    // Tim komutları (commands.js): kısayollar F1–F5, F8, F9; çark, işaret ve yazılı komut F8–F9 fazlarında
+    this.commands = new CommandSystem(this);
     this.run = null; // { mission, tracker, record, levelId, difficulty }
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
@@ -496,6 +499,7 @@ export class Game {
 
   // Bonus görev takibi: görev başında kurulur (tekrar oynamada ayara göre farklı bonuslar)
   startRun(mode) {
+    this.commands.clear();
     this.run?.tracker.dispose();
     this.run = null;
     this.missionHud.hide();
@@ -527,6 +531,11 @@ export class Game {
     }, { now: true });
     this.events.emit(EV.MISSION_ENDED, { missionId: R.levelId, success, timeSec, total: rw.total, stars: rw.stars });
     return { ...rw, results };
+  }
+
+  // Bonus görev "Baskı Ustası": düşman timin baskı ateşi altında mı öldü?
+  squadSuppressing(enemy) {
+    return this.allies.isSuppressing(enemy);
   }
 
   // Kayıttaki teçhizat: { primary, secondary, armor, helmet, slots }
@@ -829,6 +838,10 @@ export class Game {
     this.camera.updateMatrixWorld();
     // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur)
     this.kit.update(dt, canAct ? I : NULL_INPUT, canAct);
+    if (canAct && this.mode === 'mission') {
+      for (const action in SHORTCUTS) if (I.pressed(action)) this.commands.issue(SHORTCUTS[action], this.commands.addressee, { inputMethod: 'shortcut' });
+    }
+    this.commands.update();
     const armed = canAct && !this.kit.using;
     this.weapons.update(dt, armed ? I : NULL_INPUT, armed);
     this.enemies.update(dt);
