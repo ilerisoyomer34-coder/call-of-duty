@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -101,6 +101,7 @@ console.log('Görsel kontrol (yüksek kalite)');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum köyü
+  await page.click('#btnBriefNext');
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   await page.evaluate(() => {
@@ -260,6 +261,7 @@ console.log('Bağımsız sürüm (dist/index.html)');
   // Operasyonun tamamı (altı hedef) Karlı Geçit'te
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(5)');
+  await page.click('#btnBriefNext');
   check(await page.isVisible('#loadoutScreen'), 'Teçhizat ekranı açıldı');
   // Teçhizat (Operasyon Güncellemesi §5.5): altı yuva, gerçek adlı kartlar, modelden çizilmiş görseller, 3D önizleme
   const lo = await page.evaluate(() => ({
@@ -486,6 +488,7 @@ console.log('Seviyeler ve dost manga');
   check(locks[0] === false && locks.slice(1).every(Boolean), `Yalnızca Seviye 1 açık (${locks.map((l) => (l ? 'kilitli' : 'açık')).join(', ')})`);
   await page.screenshot({ path: join(shots, '01c-levels.png') });
   await page.click('#levelList .lvl:nth-child(1)');
+  await page.click('#btnBriefNext');
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   await page.evaluate(() => {
@@ -591,6 +594,132 @@ console.log('Seviyeler ve dost manga');
   await page.close();
 }
 
+// ---------------- Görevler, bonuslar, sonuç ekranı (Operasyon Güncellemesi F5) ----------------
+if (run('missions')) {
+console.log('Görevler ve bonuslar');
+
+  const page = await openPage('standalone');
+  await page.click('#btnPlay');
+  await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#levelList .lvl:nth-child(1)');
+  check(await page.isVisible('#briefScreen'), 'Seviye seçince brifing açıldı');
+  const br = await page.evaluate(() => ({
+    rows: [...document.querySelectorAll('#briefRoot .brRow b')].map((b) => b.textContent),
+    kr: [...document.querySelectorAll('#briefRoot .brRow em')].map((e) => e.textContent),
+    objs: document.querySelectorAll('#briefRoot .brObjs li').length,
+    reward: document.querySelector('#briefRoot .brReward')?.textContent,
+    stars: document.querySelector('#briefRoot .brStars')?.textContent,
+  }));
+  check(br.rows.join(',') === 'Keskin Göz,Dokunulmaz,Tutumlu' && br.kr.join(',') === '+200 KR,+500 KR,+200 KR' && br.objs === 2, `Brifing: ana hedef (${br.objs} adım), üç bonus ve ödülleri (${br.rows.join(', ')})`);
+  check(/1\.000 KR/.test(br.reward || '') && br.stars === '☆☆☆', `Brifing ödülü ve yıldızlar (${br.reward} · ${br.stars})`);
+  await page.screenshot({ path: join(shots, '19-briefing.png') });
+  await page.click('#btnBriefNext');
+  check(await page.isVisible('#loadoutScreen'), 'Brifingden teçhizata geçildi');
+  await page.click('#btnDeploy');
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => {
+    window.__game.input.lockFailed = true;
+    window.__game.cheats.god = true;
+  });
+  await waitGame(page, 0.6);
+  const tr0 = await page.evaluate(() => ({ shown: !document.getElementById('tracker').hidden, rows: [...document.querySelectorAll('#tracker .trRow')].map((r) => r.textContent) }));
+  check(tr0.shown && tr0.rows.length === 3 && /Keskin Göz0\/3/.test(tr0.rows[0]), `HUD görev takipçisi (${tr0.rows.join(' | ')})`);
+  // Üç kafa vuruşu (gerçek öldürme yolu: takeDamage → onEnemyKilled → ENEMY_KILLED)
+  const hh = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    for (const e of g.enemies.list.filter((x) => x.alive).slice(0, 3)) e.takeDamage(9999, { zone: 'head', source: 'player', weapon: 'rifle', dir: new V(0, 0, -1) });
+    return { st: g.run.tracker.state[0], toast: document.getElementById('bonusToast').textContent, row: document.querySelector('#tracker .trRow').className };
+  });
+  check(hh.st.done && hh.st.progress === 3 && /done/.test(hh.row), 'Keskin Göz 3/3: satır tamamlandı');
+  check(/GÖREV TAMAMLANDI — Keskin Göz \+200 KR/.test(hh.toast), `Tamamlanma bildirimi ("${hh.toast}")`);
+  await page.keyboard.press('KeyJ');
+  await waitGame(page, 0.1);
+  const col = await page.evaluate(() => document.getElementById('tracker').classList.contains('collapsed'));
+  await page.keyboard.press('KeyJ');
+  await waitGame(page, 0.1);
+  check(col && !(await page.evaluate(() => document.getElementById('tracker').classList.contains('collapsed'))), 'J takipçiyi daraltıp açtı');
+  await page.evaluate(() => window.__game.events.emit('ITEM_USED', { id: 'medkit' }));
+  check(await page.evaluate(() => window.__game.run.tracker.state[2].failed && document.querySelectorAll('#tracker .trRow')[2].classList.contains('failed')), 'Sarf kullanınca "Tutumlu" bozuldu (gri)');
+  await page.screenshot({ path: join(shots, '19b-tracker.png') });
+  // Görev sonu: kredi dökümü, yıldızlar, kayıt
+  const c0 = await page.evaluate(() => window.__game.economy.credits);
+  await page.evaluate(() => window.__game.onMissionComplete());
+  await page.waitForFunction((c) => /1\.700 KR/.test(document.querySelector('#victoryRewards .rwTotal b')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+  const res = await page.evaluate(() => ({
+    rows: [...document.querySelectorAll('#victoryRewards .rwRow')].map((r) => `${r.querySelector('.rwMark').textContent}${r.querySelector('.rwLabel').textContent}=${r.querySelector('b').textContent}`),
+    total: document.querySelector('#victoryRewards .rwTotal b').textContent,
+    stars: document.querySelector('#victoryRewards .rwStars').textContent,
+    credits: window.__game.economy.credits,
+    rec: window.__game.save.data.missions['1'],
+  }));
+  check(res.rows.join(' | ') === '✔Ana hedef=+1.000 KR | ✔Keskin Göz=+200 KR | ✔Dokunulmaz=+500 KR | ✖Tutumlu=—', `Sonuç dökümü (${res.rows.join(' | ')})`);
+  check(res.total === '1.700 KR' && res.credits === c0 + 1700 && res.stars === '★★☆', `Toplam ${res.total}, kredi ${c0} → ${res.credits}, ${res.stars}`);
+  check(res.rec?.completed && res.rec.stars === 2 && res.rec.bonusDone.join(',') === 'headhunter,untouchable', 'Sonuç kayda yazıldı (2 yıldız, tamamlanan bonuslar)');
+  await page.screenshot({ path: join(shots, '19c-results.png') });
+  // Tekrar: ana hedef %50, daha önce alınan bonus %25, ilk kez alınan tam
+  await page.click('#btnAgain');
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => {
+    window.__game.input.lockFailed = true;
+    window.__game.onMissionComplete();
+  });
+  const again = await page.evaluate(() => ({ total: window.__game.save.data.econLog.at(-1)?.delta, rows: [...document.querySelectorAll('#victoryRewards .rwRow b')].map((b) => b.textContent) }));
+  check(again.total === 500 + 125 + 200 && again.rows.join(',') === '+500 KR,—,+125 KR,+200 KR', `Tekrar oranları: ana %50, Dokunulmaz %25, Tutumlu ilk kez tam (${again.rows.join(', ')})`);
+  // Yarıda bırak: bonus yok, öldürme başına teselli
+  await page.click('#btnAgain');
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  const c1 = await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    const V = g.player.pos.constructor;
+    for (const e of g.enemies.list.filter((x) => x.alive).slice(0, 2)) e.takeDamage(9999, { zone: 'torso', source: 'player', weapon: 'rifle', dir: new V(0, 0, -1) });
+    const c = g.economy.credits;
+    g.pause();
+    return c;
+  });
+  await page.click('#btnQuit');
+  await page.waitForFunction(() => !document.getElementById('menuNotice').hidden, null, { timeout: 30000 }).catch(() => {});
+  const q = await page.evaluate(() => ({ notice: document.getElementById('menuNotice').textContent, credits: window.__game.economy.credits, plays: window.__game.save.data.missions['1'].plays }));
+  check(q.credits === c1 + 40 && /teselli ödülü \+40 KR/.test(q.notice) && q.plays === 3, `Yarıda bırakınca teselli: "${q.notice}"`);
+  await page.click('#btnPlay');
+  check(/★★☆/.test(await page.textContent('#levelList .lvl:nth-child(1)')), 'Seviye kartında kazanılan yıldızlar');
+  // Konsol: tüm görevleri tamamla / sıfırla
+  const con = await page.evaluate(() => {
+    const g = window.__game;
+    g.console.run('missions complete');
+    const all = Object.values(g.save.data.missions).every((m) => m.stars === 3);
+    g.console.run('missions reset');
+    return { all, empty: Object.keys(g.save.data.missions).length === 0 };
+  });
+  check(con.all && con.empty, 'Konsol: missions complete (hepsi 3 yıldız) ve missions reset');
+  await page.close();
+
+  // Telefon: brifing ve sonuç ekranı yatayda sığıyor
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+      localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: 6, best: {} }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[missions-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  await mp.tap('#btnPlay');
+  await mp.tap('#diffList .diff:nth-child(2)');
+  await mp.tap('#levelList .lvl:nth-child(3)');
+  await sleep(300);
+  await mp.screenshot({ path: join(shots, '19d-briefing-mobile.png') });
+  const fitB = await mp.evaluate(() => ({ over: document.scrollingElement.scrollWidth - innerWidth, next: document.getElementById('btnBriefNext').getBoundingClientRect().bottom <= innerHeight + 1 }));
+  check(fitB.over <= 1 && fitB.next, `Telefonda brifing sığıyor (taşma ${fitB.over} px, Teçhizat düğmesi görünür)`);
+  await mctx.close();
+}
+
 // ---------------- Etkileşimler: pompalı, C4, istihbarat, ikmal ----------------
 if (run('interact')) {
 console.log('Etkileşimler');
@@ -599,6 +728,7 @@ console.log('Etkileşimler');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum: uçaksavarlar
+  await page.click('#btnBriefNext');
   await page.dblclick('#loadoutRoot .loCard[data-id="mar556"]');
   await page.click('#loadoutRoot .loSlot[data-slot="secondary"]');
   await page.dblclick('#loadoutRoot .loCard[data-id="d50"]');
@@ -1343,6 +1473,7 @@ console.log('Teçhizat ve sarf malzemeleri');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(1)');
+  await page.click('#btnBriefNext');
   await page.click('#loadoutRoot .loSlot[data-slot="slot0"]');
   const cons = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loCard')].map((c) => `${c.dataset.id}:${c.className.includes('shop') ? 'shop' : 'ok'}`));
   check(cons.includes('medkit:ok') && cons.includes('adrenaline:shop') && cons[0] === 'none:ok', `Sarf yuvası: envanterdekiler seçilebilir, olmayanlar mağazada (${cons.join(' ')})`);
@@ -1448,6 +1579,7 @@ console.log('Teçhizat ve sarf malzemeleri');
   await mp.tap('#btnPlay');
   await mp.tap('#diffList .diff:nth-child(2)');
   await mp.tap('#levelList .lvl:nth-child(1)');
+  await mp.tap('#btnBriefNext');
   await mp.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 6, null, { timeout: 60000 }).catch(() => {});
   await sleep(400);
   await mp.screenshot({ path: join(shots, '18c-loadout-mobile.png') });

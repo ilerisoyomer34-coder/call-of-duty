@@ -5,6 +5,7 @@ import { HeavyNest } from './hmg.js';
 import { formatKR } from './economy.js';
 import { ArmorLoadout, ARMOR_DEFS } from './armor.js';
 import { CONSUMABLES } from './loadout.js';
+import { levelMission, RULES } from './missionSystem.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -27,6 +28,7 @@ const HELP = `Komutlar:
   armor <yelek|none> [kask|none]   zırh kuşan (ör. armor armor_plate helmet_tactical), satın almış sayılır
   armorfill           zırhı doldur; armor yazınca kuşanılanı gösterir
   give <sarf> [n]     envantere sarf malzemesi ekle (plate_pack, medkit, adrenaline, smoke, frag)
+  missions [complete|reset]  bonus görev durumu; tümünü 3 yıldızla tamamla / sıfırla
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -249,6 +251,29 @@ export class DevConsole {
         if (id === 'frag') g.weapons.kitFrags = g.kit.count('frag');
         g.kit.emit();
         this.print(`${id}: envanterde ${g.save.data.inventory.consumables[id]}`);
+        break;
+      }
+      case 'missions': {
+        // missions [complete|reset]: bonus görev durumu, hepsini tamamla (3 yıldız) ya da sıfırla
+        const sub = (args[0] || '').toLowerCase();
+        if (sub === 'complete') {
+          g.save.update((d) => {
+            for (const L of LEVELS) {
+              const m = levelMission(L.id);
+              d.missions[String(L.id)] = { completed: true, stars: RULES.starsForBonuses.length, bonusDone: m.bonus.map((b) => b.id), bestTimeSec: m.parTimeSec, plays: 1 };
+            }
+          }, { now: true });
+          g.unlockAllLevels();
+          this.print('Tüm görevler 3 yıldızla tamamlandı, seviyeler açık.');
+        } else if (sub === 'reset') {
+          g.save.update((d) => (d.missions = {}), { now: true });
+          this.print('Görev ilerlemesi sıfırlandı.');
+        } else if (g.run) {
+          g.run.mission.bonus.forEach((b, i) => {
+            const st = g.run.tracker.state[i];
+            this.print(`${b.name}: ${b.type} ${st.progress}/${b.count ?? '-'}${st.done ? ' ✔' : ''}${st.failed ? ' ✖' : ''}`);
+          });
+        } else this.print(`Kayıt: ${JSON.stringify(g.save.data.missions)}`);
         break;
       }
       case 'armorfill':

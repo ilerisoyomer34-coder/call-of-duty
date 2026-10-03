@@ -7,9 +7,10 @@
     "consolationPerKill": 20,
     "starsForBonuses": [0, 2, 3]
   },
+  "objectiveLabels": { "outpost": "Bölgeyi temizle", "aa": "Hedefleri C4 ile imha et", "intel": "İstihbaratı al", "lz": "İniş bölgesine ulaş", "defend": "Helikopter gelene kadar savun", "board": "Helikoptere bin", "extract": "Helikopterle tahliye ol" },
   "bonusPool": {
     "headhunter": { "name": "Keskin Göz", "desc": "{count} kafa vuruşuyla etkisiz hâle getir", "type": "count", "event": "ENEMY_KILLED", "filter": { "headshot": true, "killer": "player" }, "count": 10, "reward": 300 },
-    "untouchable": { "name": "Dokunulmaz", "desc": "Bölümü hiç yere düşmeden bitir", "type": "never", "event": "PLAYER_DOWNED", "reward": 500 },
+    "untouchable": { "name": "Dokunulmaz", "desc": "Bölümü hiç yere düşmeden (ve ölmeden) bitir", "type": "never", "events": ["PLAYER_DOWNED", "PLAYER_DIED"], "reward": 500 },
     "no_one_left": { "name": "Kimse Geride Kalmaz", "desc": "Hiçbir asker kan kaybından ölmeden bitir", "type": "never", "event": "ALLY_DIED", "reward": 450 },
     "brotherhood": { "name": "Kardeşlik", "desc": "{count} kez takım arkadaşını canlandır", "type": "count", "event": "ALLY_REVIVED", "filter": { "by": "player" }, "count": 2, "reward": 250 },
     "commander": { "name": "Komutan", "desc": "{count} komut ver, askerler hepsini tamamlasın", "type": "count", "event": "COMMAND_COMPLETED", "count": 5, "reward": 200 },

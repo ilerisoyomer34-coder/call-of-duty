@@ -18,7 +18,7 @@ import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment } from './models.js';
@@ -28,6 +28,9 @@ import { EconomySystem } from './economy.js';
 import { LoadoutSystem } from './loadout.js';
 import { KitSystem } from './kit.js';
 import { setRealNames } from './weaponInfo.js';
+import { levelMission, MissionTracker, computeRewards, mergeRecord } from './missionSystem.js';
+import { MissionHud } from './missionUi.js';
+import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
 import { Emitter, clamp, rand } from './util.js';
@@ -185,6 +188,9 @@ export class Game {
     this.loadouts = new LoadoutSystem(this.save);
     this.kit = new KitSystem(this);
     this.hud = new HUD(this);
+    // Bonus görevler (missionSystem.js) ve takipçisi; görev başında kurulur, sonunda ödül hesaplanır
+    this.missionHud = new MissionHud(this);
+    this.run = null; // { mission, tracker, record, levelId, difficulty }
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
 
@@ -470,6 +476,8 @@ export class Game {
     this.buildMenuWorld();
     this.menus.show('menu', false);
     this.menus.stack = [];
+    this.menus.notice(this.pendingNotice);
+    this.pendingNotice = null;
   }
 
   buildMenuWorld() {
@@ -484,6 +492,41 @@ export class Game {
     M.radioQueue.length = 0;
     M.interactables.length = 0;
     this.menuT = 0;
+  }
+
+  // Bonus görev takibi: görev başında kurulur (tekrar oynamada ayara göre farklı bonuslar)
+  startRun(mode) {
+    this.run?.tracker.dispose();
+    this.run = null;
+    this.missionHud.hide();
+    if (mode !== 'mission') return;
+    const id = String(this.level.id);
+    const record = this.save.data.missions[id] || null;
+    const mission = levelMission(id, { reroll: !!this.settings.rerollBonuses && !!record?.completed });
+    if (!mission) return;
+    const tracker = new MissionTracker(this.events, mission, (i, kind) => this.missionHud.onChange(i, kind));
+    this.run = { mission, tracker, record, levelId: id, difficulty: this.difficultyKey };
+    this.missionHud.setup(mission, tracker, record, this.difficultyKey);
+    this.events.emit(EV.MISSION_STARTED, { missionId: id, difficulty: this.difficultyKey });
+  }
+
+  // Görev sonu: bonuslar onaylanır, kredi verilir, sonuç kayda yazılır → ödül dökümü
+  settleRun(success) {
+    const R = this.run;
+    if (!R) return null;
+    this.run = null;
+    this.missionHud.hide();
+    const timeSec = this.mission.time;
+    const results = R.tracker.finish(success, timeSec);
+    const rw = computeRewards({ mission: R.mission, success, results, kills: this.stats.kills, difficulty: R.difficulty, record: R.record });
+    if (rw.total > 0) this.economy.add(rw.total, success ? `Görev ${R.levelId} ödülü` : `Görev ${R.levelId} teselli`);
+    this.save.update((d) => {
+      d.missions[R.levelId] = mergeRecord(d.missions[R.levelId], { success, stars: rw.stars, results, timeSec });
+      if (success) d.stats.missionsCompleted = (d.stats.missionsCompleted || 0) + 1;
+      d.stats.kills = (d.stats.kills || 0) + this.stats.kills;
+    }, { now: true });
+    this.events.emit(EV.MISSION_ENDED, { missionId: R.levelId, success, timeSec, total: rw.total, stars: rw.stars });
+    return { ...rw, results };
   }
 
   // Kayıttaki teçhizat: { primary, secondary, armor, helmet, slots }
@@ -520,6 +563,7 @@ export class Game {
       this.mission.build();
       L.step('Teçhizat hazırlanıyor', 0.6);
       await nextPaint();
+      this.startRun(mode);
       // Sarf yuvaları silahlardan önce: satın alınmış el bombaları bomba sayısına eklenir
       this.kit.reset(mode === 'mission' ? this.loadouts.missionKit() : null);
       this.weapons.reset(this.mission.defaultLoadout());
@@ -574,7 +618,10 @@ export class Game {
   }
 
   toMenu() {
+    // Görev yarıda bırakıldı: bonus yok, öldürme başına teselli (§6.3)
+    const rw = this.state !== 'victory' ? this.settleRun(false) : null;
     this.menus.hideAll();
+    this.pendingNotice = rw && rw.total > 0 ? `Görev yarıda kaldı · teselli ödülü +${rw.total.toLocaleString('tr-TR')} KR` : null;
     this.audio.stopAmbient();
     this.audio.startMenuMusic();
     this.showMenu();
@@ -611,10 +658,22 @@ export class Game {
     }
     if (this.mode === 'mission' && Math.random() < 0.5) this.mission.spawnPouch(enemy.pos);
     this.events.emit('enemyKilled', enemy, info);
+    const byPlayer = info.source === 'player';
+    this.events.emit(EV.ENEMY_KILLED, {
+      enemy,
+      weaponId: info.weapon,
+      slot: byPlayer ? WEAPONS[info.weapon]?.category || (info.weapon === 'melee' ? 'melee' : 'other') : null,
+      headshot: info.zone === 'head',
+      distance: enemy.pos.distanceTo(this.player.pos),
+      armorBroken: !!enemy.armorBrokenBy,
+      underSuppression: !!this.squadSuppressing?.(enemy),
+      killer: byPlayer ? 'player' : info.source === 'ally' ? info.attacker?.callsign || 'ally' : info.source,
+    });
   }
 
   onPlayerDeath() {
     this.stats.deaths++;
+    this.events.emit(EV.PLAYER_DIED, {});
     this.state = 'dying';
     this.deathT = 0;
     this.audio.hurt();
@@ -636,7 +695,8 @@ export class Game {
     if (!prev || this.stats.score > prev.score) P.best[lv.id] = { score: this.stats.score, time: Math.round(this.stats.time), diff: this.difficultyKey };
     this.save.update(null, { now: true }); // P, kaydın progress nesnesinin kendisi
     const next = LEVELS.find((l) => l.id === lv.id + 1) || null;
-    this.menus.showVictory(this.stats, DIFFICULTY[this.difficultyKey]?.label || '', lv, next, firstClear);
+    const rewards = this.settleRun(true);
+    this.menus.showVictory(this.stats, DIFFICULTY[this.difficultyKey]?.label || '', lv, next, firstClear, rewards);
   }
 
   // Konsol ve testler için: tüm seviyeleri aç
@@ -780,6 +840,7 @@ export class Game {
     this.effects.setScale(this.height * this.worldPR, this.camera.fov);
     this.viewmodel.update(dt);
     this.hud.update(dt);
+    this.missionHud.update(dt, canAct ? I : NULL_INPUT);
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
     const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !cine;

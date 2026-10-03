@@ -10,6 +10,7 @@ import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
 import { weaponName } from './weaponInfo.js';
+import { EV } from './events.js';
 import { rand, lerp, clamp, smoothstep, pick, dirToYaw, damp } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -796,6 +797,7 @@ export class Mission {
 
   advance() {
     const g = this.game;
+    g.events.emit(EV.OBJECTIVE_COMPLETED, { objectiveId: this.current?.id });
     this.objIdx++;
     g.addScore(SCORE.objective, 'HEDEF TAMAMLANDI');
     g.audio.radio();

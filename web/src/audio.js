@@ -394,6 +394,16 @@ export class Audio {
     this.noiseBurst(dest, t + 0.12, 0.12, { type: 'bandpass', freq: 7000, q: 4, gain: 0.25 });
   }
 
+  // Bonus görev tamamlandı: kısa, yükselen iki nota
+  bonusDone() {
+    if (!this.ctx) return;
+    const t = this.now;
+    const dest = this.out(0, this.ui);
+    dest.gain.value = 0.5;
+    this.tone(dest, t, 0.18, { type: 'triangle', freq: 880, gain: 0.25 });
+    this.tone(dest, t + 0.11, 0.32, { type: 'triangle', freq: 1320, gain: 0.25 });
+  }
+
   // Sis bombası açıldı: kısa pof ve uzun tıslama
   smokePop(pos) {
     if (!this.ctx) return;

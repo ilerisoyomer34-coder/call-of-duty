@@ -9,9 +9,11 @@ import { EV } from './events.js';
 import { StoreScreen } from './storeScreen.js';
 import { LoadoutScreen } from './loadoutScreen.js';
 import { weaponName } from './weaponInfo.js';
+import { levelMission } from './missionSystem.js';
+import { renderBriefing, renderRewards, starsText } from './missionUi.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+const SCREENS = ['menu', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 export class Menus {
   constructor(game) {
@@ -32,6 +34,14 @@ export class Menus {
     // Kredi bakiyesi: her harcama/kazançta güncellenir
     this.updateCredits();
     game.events.on(EV.CREDITS_CHANGED, () => this.updateCredits());
+  }
+
+  // Ana menüde tek satırlık bildirim (ör. görev yarıda kaldı → teselli ödülü)
+  notice(text) {
+    const n = $('menuNotice');
+    if (!n) return;
+    n.textContent = text || '';
+    n.hidden = !text;
   }
 
   updateCredits() {
@@ -101,6 +111,11 @@ export class Menus {
     }
     for (const b of document.querySelectorAll('.mbtn, .btn')) b.addEventListener('mouseenter', () => g.audio.uiHover());
     click('btnPlay', () => this.showLevels());
+    click('btnBriefNext', () => this.showLoadout());
+    click('btnVictoryStore', () => {
+      this.stopCountdown();
+      this.storeScreen.open();
+    });
     click('btnRange', () => g.startMode('range', 'normal'));
     click('btnStore', () => this.storeScreen.open());
     click('btnSettings', () => this.openSettings());
@@ -235,6 +250,13 @@ export class Menus {
           t.textContent = `Manga yeni taktik öğrendi: ${fresh.join(', ')}`;
           m.append(t);
         }
+        const rec = g.save.data.missions[String(L.id)];
+        if (rec?.completed) {
+          const st = document.createElement('strong');
+          st.className = 'stars';
+          st.textContent = starsText(rec.stars);
+          m.append(' · ', st);
+        }
         const best = P.best[L.id];
         if (best) {
           const st = document.createElement('strong');
@@ -248,13 +270,31 @@ export class Menus {
           g.audio.init();
           g.audio.uiClick();
           this.pendingLevel = L.id;
-          this.showLoadout();
+          this.showBriefing();
         });
         b.addEventListener('mouseenter', () => g.audio.uiHover());
       }
       box.appendChild(b);
     }
     this.show('diffScreen');
+  }
+
+  // Brifing (§6.5): ana hedef, üç bonus ve ödülleri, kazanılmış yıldızlar → Teçhizat
+  showBriefing() {
+    const g = this.game;
+    const L = LEVELS.find((l) => l.id === this.pendingLevel) || LEVELS[0];
+    const diff = this.pendingDiff || 'normal';
+    const record = g.save.data.missions[String(L.id)] || null;
+    renderBriefing($('briefRoot'), {
+      level: L,
+      mapName: MAPS[L.map]?.name || '',
+      // Tekrarda farklı bonus ayarı açıksa havuz görev başında karışır; brifing seviyenin kendi listesini gösterir
+      mission: levelMission(L.id),
+      record,
+      difficulty: diff,
+      diffLabel: DIFFICULTY[diff].label,
+    });
+    this.show('briefScreen');
   }
 
   showLoadout() {
@@ -265,7 +305,7 @@ export class Menus {
   buildControls() {
     const groups = [
       ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
-      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'pause']],
+      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'pause']],
     ];
     const box = $('keyTables');
     box.innerHTML = '';
@@ -323,6 +363,7 @@ export class Menus {
     chk('sBlood', S.blood);
     chk('sDmgNum', S.damageNumbers);
     chk('sRealNames', S.realNames);
+    chk('sReroll', S.rerollBonuses);
     this.updateOutputs();
     if (!this.settingsBound) {
       this.settingsBound = true;
@@ -367,6 +408,7 @@ export class Menus {
     S.blood = $('sBlood').checked;
     S.damageNumbers = $('sDmgNum').checked;
     S.realNames = $('sRealNames').checked;
+    S.rerollBonuses = $('sReroll').checked;
   }
 
   saveSettings() {
@@ -426,7 +468,10 @@ export class Menus {
     $('victoryNextText').textContent = 'Otomatik geçiş durduruldu';
   }
 
-  showVictory(stats, diffLabel, level = null, next = null, firstClear = false) {
+  showVictory(stats, diffLabel, level = null, next = null, firstClear = false, rewards = null) {
+    const rb = $('victoryRewards');
+    if (rewards) renderRewards(rb, rewards);
+    else rb.hidden = true;
     $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name} · ${MAPS[level.map]?.name || ''}` : 'Tahliye başarılı';
     $('victoryTitle').textContent = next ? 'Bölüm tamamlandı' : 'Operasyon tamamlandı';
     const un = $('victoryUnlock');

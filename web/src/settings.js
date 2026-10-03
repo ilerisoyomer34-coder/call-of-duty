@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
   damageNumbers: false,
   showFps: false,
   realNames: true, // silahların gerçek adı; kapalıyken kurgusal ad (data/weapons.json → altName)
+  rerollBonuses: false, // bitirilmiş bölüm tekrar oynanınca bonus görevler havuzdan rastgele seçilir
   bindings: {}, // tuş atamaları: eylem → tuş kodları (input.js → BINDINGS'in üstüne yazılır)
 };
 

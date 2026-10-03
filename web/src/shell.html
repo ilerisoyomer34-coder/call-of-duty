@@ -201,6 +201,27 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #objective .t { font: 600 19px/1.15 var(--f-ui); margin-top: 5px; text-wrap: balance; }
 #objective .d { font: 400 15px/1.2 var(--f-num); color: var(--sand-dim); margin-top: 4px; }
 #objective.flash { animation: objflash 1.4s ease-out; }
+/* Bonus görev takipçisi (missionUi.js): hedef panelinin altında; J ile daralır */
+#tracker { position: absolute; top: calc(var(--trTop, 112px) + env(safe-area-inset-top, 0px)); left: 16px; width: min(300px, 36vw); padding: 7px 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+#tracker[hidden] { display: none; }
+.trHead { display: flex; justify-content: space-between; align-items: center; font: 600 11px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand-dim); }
+.trKey { font: 400 10px/1 var(--f-num); color: var(--amber); border: 1px solid var(--line); padding: 1px 4px; }
+#tracker.collapsed .trList { display: none; }
+.trList { display: flex; flex-direction: column; gap: 3px; }
+.trRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: baseline; font: 500 14px/1.2 var(--f-ui); color: var(--sand); padding: 2px 4px; }
+.trRow b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trProg { font: 400 13px/1 var(--f-num); color: var(--sand-dim); }
+.trRow em { font: 400 12px/1 var(--f-num); font-style: normal; color: #ffcf5c; }
+.trRow.done b, .trRow.done .trProg { color: #7fd38a; }
+.trRow.done b::before { content: '✔ '; }
+.trRow.failed { opacity: .45; }
+.trRow.failed b { text-decoration: line-through; }
+.trRow.flash { animation: trFlash 1s ease-out; }
+@keyframes trFlash { from { background: rgba(240,163,58,.45); } to { background: transparent; } }
+#bonusToast { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); padding: 8px 16px; font: 700 17px/1.2 var(--f-ui); letter-spacing: .08em; background: rgba(13,16,19,.82); border: 1px solid #7fd38a; color: #b8f0be; white-space: nowrap; animation: toastIn .25s ease-out; }
+#bonusToast[hidden] { display: none; }
+#bonusToast.fail { border-color: var(--line); color: var(--sand-dim); font-weight: 500; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes objflash { 0%, 30% { background: rgba(240,163,58,.35); } 100% { background: var(--panel); } }
 
 #minimap { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px; width: 168px; height: 168px; border-radius: 50%; border: 2px solid rgba(231,220,196,.35); background: rgba(13,16,19,.62); }
@@ -448,6 +469,69 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .nextBar .btn.small { margin-left: auto; padding: 6px 12px; font-size: .85em; }
 .nextBar i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.08); }
 .nextBar em { display: block; height: 100%; width: 100%; background: var(--accent, #f0a33a); transform-origin: left; }
+/* Sonuç: ✔/✖ satırları, kredi dökümü, yıldızlar (missionUi.renderRewards) */
+.rewards { display: flex; flex-direction: column; gap: 6px; }
+.rewards[hidden] { display: none; }
+.rwStars, .brStars { font: 400 30px/1 var(--f-ui); letter-spacing: .12em; color: #ffcf5c; }
+.rwList { display: flex; flex-direction: column; border: 1px solid var(--line); }
+.rwRow { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 96px; gap: 10px; align-items: baseline; padding: 6px 10px; border-bottom: 1px solid var(--line); font: 500 16px/1.2 var(--f-ui); }
+.rwRow:last-child { border-bottom: 0; }
+.rwMark { color: #7fd38a; font-weight: 700; }
+.rwRow.miss { color: var(--sand-dim); }
+.rwRow.miss .rwMark { color: var(--red); }
+.rwCalc { font: 400 13px/1 var(--f-num); color: var(--sand-dim); }
+.rwRow b { font: 400 15px/1 var(--f-num); text-align: right; color: #ffcf5c; }
+.rwRow.miss b { color: var(--sand-dim); }
+.rwTotal { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 10px; font: 600 15px/1 var(--f-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--sand-dim); }
+.rwTotal b { font: 400 30px/1 var(--f-num); color: #ffcf5c; letter-spacing: 0; }
+/* Brifing */
+#briefScreen .sheet.briefing { width: min(1040px, 100%); }
+.brHead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.brBody { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) and (min-height: 521px) { .brBody { grid-template-columns: 1fr; } }
+.brMap { height: 120px; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 14px; border: 1px solid var(--line); background: linear-gradient(160deg, #6b5a3e, #2a2418 70%); }
+.brMap.map-harbor { background: linear-gradient(160deg, #a35b3a, #1d2a33 70%); }
+.brMap.map-ruins { background: linear-gradient(160deg, #6f6d68, #262624 70%); }
+.brMap.map-pass { background: linear-gradient(160deg, #c9d4dc, #3b4652 70%); }
+.brMap.map-refinery { background: linear-gradient(160deg, #1f2a44, #0b0e16 70%); }
+.brMap b { font: 700 24px/1 var(--f-ui); letter-spacing: .08em; text-transform: uppercase; text-shadow: 0 2px 6px #000; }
+.brMap span { font: 600 12px/1 var(--f-ui); letter-spacing: .16em; color: var(--amber); text-transform: uppercase; margin-top: 4px; }
+.brMain h3, .brBonus h3 { margin: 12px 0 6px; }
+.brText { margin: 0; font: 400 16px/1.4 var(--f-ui); color: var(--sand); }
+.brObjs { margin: 8px 0 0; padding-left: 22px; font: 500 15px/1.5 var(--f-ui); color: var(--sand-dim); }
+.brReward { margin: 8px 0 0; font: 400 14px/1.3 var(--f-num); color: #ffcf5c; }
+.brBonus { background: var(--panel-solid); border: 1px solid var(--line); padding: 4px 14px 12px; }
+.brRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.brRow div { display: flex; flex-direction: column; gap: 2px; }
+.brRow b { font: 700 16px/1.1 var(--f-ui); letter-spacing: .03em; }
+.brRow span { font: 400 14px/1.3 var(--f-ui); color: var(--sand-dim); }
+.brRow em { font: 400 15px/1 var(--f-num); font-style: normal; color: #ffcf5c; white-space: nowrap; }
+.brRow.had b::after { content: ' ✔'; color: #7fd38a; }
+.brNote { margin: 10px 0 0; font: 400 13px/1.4 var(--f-ui); color: var(--sand-dim); }
+.lvl .stars { color: #ffcf5c; letter-spacing: .1em; }
+.menuNotice { margin-top: 10px; font: 600 14px/1.3 var(--f-ui); color: #ffcf5c; }
+.menuNotice[hidden] { display: none; }
+@media (max-height: 520px) {
+  #briefScreen .sheet { padding-block: 10px; gap: 8px; }
+  #briefScreen .sheet h2 { font-size: 26px; }
+  /* Harita kartı yerine başlıktaki ad yeter; hedefler iki sütun */
+  .brMap { display: none; }
+  .brObjs { columns: 2; column-gap: 24px; }
+  .brBody { gap: 12px; }
+  .brBonus { padding: 2px 10px 8px; }
+  .brNote { display: none; }
+  .brText { font-size: 14px; }
+  .brObjs { font-size: 13px; line-height: 1.35; margin-top: 4px; }
+  .brMain h3, .brBonus h3 { margin: 6px 0 4px; }
+  .brRow { padding: 5px 0; }
+  .brRow span { font-size: 12px; }
+  .rwRow { padding: 4px 8px; font-size: 14px; }
+  .rwStars { font-size: 22px; }
+  .rwTotal b { font-size: 22px; }
+  #tracker { width: 30vw; padding: 5px 8px 6px; }
+  .trRow { font-size: 12px; gap: 6px; }
+  #bonusToast { font-size: 14px; top: 44px; }
+}
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stats div { background: var(--panel-solid); padding: 14px; }
@@ -674,6 +758,8 @@ body.touch #reloadHint { top: calc(50% + 34px); }
     <div id="grenadeWarn"></div>
     <div id="compass"><div id="compassStrip"></div><div id="compassObj"></div><div id="compassCenter"></div></div>
     <div id="objective" class="panel"><div class="k">Hedef <span id="objNum"></span></div><div class="t" id="objTitle"></div><div class="d" id="objDetail"></div></div>
+    <div id="tracker" class="panel" hidden></div>
+    <div id="bonusToast" hidden></div>
     <canvas id="minimap" width="336" height="336"></canvas>
     <div id="score">PUAN <b id="scoreVal">0</b></div>
     <div id="health" class="panel">
@@ -721,6 +807,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
         <h1 class="title">DEMİR<br>ŞAFAK</h1>
         <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
         <div class="kr" id="menuCredits" title="Kredi: görevlerden kazanılır, mağazada harcanır"><small>KREDİ</small><b id="menuCreditsVal">0 KR</b></div>
+        <div class="menuNotice" id="menuNotice" hidden></div>
       </div>
       <div class="menuList" id="mainList">
         <button class="mbtn primary" id="btnPlay">Göreve başla<small>Altı seviye, beş harita · kolaydan zora · mavi mangan seninle</small></button>
@@ -744,6 +831,13 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <div class="seg" id="diffList" role="radiogroup" aria-label="Zorluk"></div>
       <p class="tip" id="diffDesc"></p>
       <div class="row"><button class="btn" data-back>Geri</button></div>
+    </div>
+  </section>
+
+  <section id="briefScreen" class="screen panelScreen" hidden>
+    <div class="sheet briefing">
+      <div id="briefRoot"></div>
+      <div class="row"><button class="btn primary" id="btnBriefNext">Teçhizat ▶</button><button class="btn" data-back>Geri</button></div>
     </div>
   </section>
 
@@ -785,6 +879,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
           <div class="set"><label for="sBlood">Kan efektleri</label><input type="checkbox" class="toggle" id="sBlood"></div>
           <div class="set"><label for="sDmgNum">Hasar sayıları</label><input type="checkbox" class="toggle" id="sDmgNum"></div>
           <div class="set"><label for="sRealNames">Gerçek silah adları<small>Kapalıyken kurgusal adlar</small></label><input type="checkbox" class="toggle" id="sRealNames"></div>
+          <div class="set"><label for="sReroll">Tekrarda farklı bonus görevler<small>Bitirilmiş bölümde havuzdan rastgele üç görev</small></label><input type="checkbox" class="toggle" id="sReroll"></div>
         </div>
       </div>
       <div class="row"><button class="btn primary" data-back>Kaydet ve dön</button><button class="btn" id="btnResetSettings">Varsayılana dön</button></div>
@@ -841,8 +936,9 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <div><div class="eyebrow" id="victoryEyebrow">Tahliye başarılı · Kızılkum Vadisi</div><h2 id="victoryTitle">Görev tamamlandı</h2></div>
       <p class="tip" id="victoryRank"></p>
       <p class="tip unlock" id="victoryUnlock" hidden></p>
+      <div class="rewards" id="victoryRewards" hidden></div>
       <div class="stats" id="victoryStats"></div>
-      <div class="row"><button class="btn primary" id="btnNext" hidden>Sonraki bölüme geç</button><button class="btn" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
+      <div class="row"><button class="btn primary" id="btnNext" hidden>Sonraki görev</button><button class="btn" id="btnAgain">Tekrar oyna</button><button class="btn" id="btnVictoryStore">Mağaza</button><button class="btn" id="btnVictoryMenu">Ana menü</button></div>
       <div class="nextBar" id="victoryNext" hidden><span id="victoryNextText">Sonraki bölüme geçiliyor</span><b id="victoryCount">6</b><button class="btn small" id="btnHold">Beklet</button><i><em id="victoryFill"></em></i></div>
     </div>
   </section>
