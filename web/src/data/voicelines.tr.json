@@ -1,7 +1,10 @@
 {
-  "_doc": "Telsiz replikleri (Operasyon Güncellemesi §8.7). Her olayda en az 3 varyasyon. minGapSec: iki replik arası en az süre; sameTypeCooldownSec: aynı türün tekrar bekleme süresi; urgent: kuyruğu atlayan türler. {name} konuşanın adı, {dir} saat yönü, {dist} mesafe ile değişir.",
+  "_doc": "Telsiz replikleri (Operasyon Güncellemesi §8.7). Her olayda en az 3 varyasyon. minGapSec: iki replik arası en az süre; sameTypeCooldownSec: aynı türün tekrar bekleme süresi; afterCommandSec: komutanın sözünden sonra onaya kadar bekleme; hitMinDamage: \"Vuruldum\" için en az hasar; grenadeWarnDist: el bombası uyarısı mesafesi (m); urgent: kuyruğu atlayan türler. {name} konuşanın adı, {dir} saat yönü, {dist} mesafe ile değişir.",
   "minGapSec": 2.5,
   "sameTypeCooldownSec": 10,
+  "afterCommandSec": 0.8,
+  "hitMinDamage": 12,
+  "grenadeWarnDist": 8,
   "urgent": ["playerDowned", "grenade", "cannotReach"],
   "lines": {
     "enemySpotted": ["Düşman görüldü, saat {dir} yönü!", "Temas! Saat {dir}!", "İleride hareket var!", "Düşman, {dist} metre!"],

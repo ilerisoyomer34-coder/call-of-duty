@@ -12,6 +12,7 @@ import { LoadoutScreen } from './loadoutScreen.js';
 import { weaponName } from './weaponInfo.js';
 import { levelMission } from './missionSystem.js';
 import { renderBriefing, renderRewards, starsText } from './missionUi.js';
+import { speechSupported, recognitionCtor } from './radioChat.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['menu', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
@@ -353,6 +354,12 @@ export class Menus {
     chk('sRealNames', S.realNames);
     chk('sReroll', S.rerollBonuses);
     set('sWheelSlow', String(S.wheelSlowMo));
+    set('sChatSlow', String(S.chatSlowMo));
+    chk('sTts', S.tts);
+    chk('sVoiceCmd', S.voiceCommands);
+    // Tarayıcı desteklemiyorsa seslendirme / sesli komut satırı görünmez (§8.3/5)
+    $('sTts').closest('.set').hidden = !speechSupported();
+    $('sVoiceCmd').closest('.set').hidden = !recognitionCtor();
     this.updateOutputs();
     if (!this.settingsBound) {
       this.settingsBound = true;
@@ -399,6 +406,9 @@ export class Menus {
     S.realNames = $('sRealNames').checked;
     S.rerollBonuses = $('sReroll').checked;
     S.wheelSlowMo = parseFloat($('sWheelSlow').value) || 1;
+    S.chatSlowMo = parseFloat($('sChatSlow').value) || 1;
+    S.tts = $('sTts').checked;
+    S.voiceCommands = $('sVoiceCmd').checked;
   }
 
   saveSettings() {

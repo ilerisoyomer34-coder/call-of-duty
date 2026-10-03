@@ -32,6 +32,7 @@ const HELP = `Komutlar:
   missions [complete|reset]  bonus görev durumu; tümünü 3 yıldızla tamamla / sıfırla
   down                oyuncuyu yere düşür; aiscores: askerlerin yardım puanı ve kararı
   cmd <KOMUT> [alfa-n|all]   tim komutu (FOLLOW, HOLD, MOVE_TO, ATTACK, SUPPRESS, TAKE_COVER, HEAL_PLAYER, HOLD_FIRE, FREE_FIRE, CLEAR_AREA)
+  chat <cümle>        Türkçe cümleyi ayrıştırıcıdan geçir ve komut olarak ver ("chat kaya beni iyileştir")
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -276,6 +277,13 @@ export class DevConsole {
         const who = args[1] && args[1].toLowerCase() !== 'all' ? args[1].replace(/^alfa-?/i, 'Alfa-') : 'all';
         const c = g.commands.issue(id, who, { inputMethod: 'console' });
         this.print(c ? `${id} → ${c.addressees.join(', ')}` : `Verilemedi (komutlar: ${Object.keys(COMMANDS).join(', ')})`);
+        break;
+      }
+      case 'chat': {
+        // Yazılı komutu konsoldan dene: ayrıştırma sonucu yazdırılır, komut telsiz kutusunda görünür
+        const text = args.join(' ');
+        const r = g.chat.submit(text);
+        this.print(r ? `${r.commandId} → ${Array.isArray(r.addressees) ? r.addressees.join(', ') : r.addressees}${r.target ? ' · nişangâh' : ''}${r.dir ? ` · saat ${r.dir.clock}` : ''} (puan ${r.score.toFixed(2)})` : 'Boş cümle');
         break;
       }
       case 'missions': {

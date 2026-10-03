@@ -57,6 +57,19 @@ const LINES = {
   bound: ['İlerliyorum, örtün beni!', 'Hareket! Siz örtün!'],
 };
 
+// Replik türü → voicelines.tr.json anahtarı (§8.7). Eşlenmeyen türler (bomba atıyorum, kanada dolanıyorum…)
+// yukarıdaki yerel listeden gelir
+const VOICE_KIND = { contact: 'enemySpotted', reload: 'reloading', kill: 'enemyDown', down: 'down', hit: 'hit', incoming: 'grenade' };
+
+// {dir} saat yönü, {dist} mesafe; bilgi yoksa yer tutuculu satırlar seçilmez
+function voiceLine(kind, ctx) {
+  const lines = VOICE.lines[VOICE_KIND[kind]] || LINES[kind];
+  if (!lines) return null;
+  const usable = ctx ? lines : lines.filter((l) => !l.includes('{'));
+  const line = pick(usable.length ? usable : lines);
+  return ctx ? line.replace('{dir}', ctx.dir).replace('{dist}', ctx.dist) : line;
+}
+
 export class Ally {
   constructor(game, index, pos, yaw) {
     this.game = game;
@@ -186,6 +199,8 @@ export class Ally {
     if (this.armor && this.armor.points > 0 && hit?.zone !== 'leg') amount = computeArmorDamage(amount, hit?.pen ?? 0.3, this.armor).healthDamage;
     this.health.damage(amount);
     this.model.hit('torso');
+    // Ağır isabet ama ayakta: "Vuruldum!" (bekleme süreleri ve aynı tür kuralı geçerli)
+    if (!this.health.dead && amount >= VOICE.hitMinDamage) this.say('hit');
     // Görmediği yerden vurulduysa o yöne döner
     if (fromPos && !this.targetVisible) this.threatYaw = dirToYaw(fromPos.x - this.pos.x, fromPos.z - this.pos.z);
     // Oyuncuyu canlandırırken ağır hasar işlemi keser (§7.5); karar yeniden verilir
@@ -290,21 +305,31 @@ export class Ally {
     this.say('friendly', true);
   }
 
-  // Telsiz: her dost ve tüm manga için ayrı bekleme süresi (ekranı doldurmasın)
-  say(kind, force = false, text = null) {
+  // Telsiz: her dost ve tüm manga için ayrı bekleme süresi, aynı tür replik tüm timde 10 sn'de bir (ekranı
+  // doldurmasın). Acil türler (el bombası, komutan yerde) beklemeye takılmaz ve kuyruğun önüne geçer.
+  // ctx: { dir, dist } → "saat {dir}", "{dist} metre"
+  say(kind, force = false, text = null, ctx = null) {
     const g = this.game;
     const M = g.allies;
-    if (!force && (this.sayT > 0 || M.sayT > 0)) return;
+    const urgent = VOICE.urgent.includes(VOICE_KIND[kind]);
+    if (!force && !urgent) {
+      if (this.sayT > 0 || M.sayT > 0) return;
+      if (g.time - (M.kindAt.get(kind) ?? -1e9) < VOICE.sameTypeCooldownSec) return;
+    }
+    const line = text || voiceLine(kind, ctx);
+    if (!line) return;
+    M.kindAt.set(kind, g.time);
     this.sayT = rand(7, 11);
     M.sayT = 3.5;
-    g.mission?.radio(this.radioLabel, text || pick(LINES[kind]), 0, 'ally');
+    g.mission?.radio(this.radioLabel, line, 0, 'ally', urgent);
   }
 
-  // Komut onayı ve rapor satırı (bekleme süresini atlar)
-  sayLine(text, force = true) {
+  // Komut onayı ve rapor satırı (bekleme süresini atlar). urgent: true kuyruğun önüne geçer (komutan yerde,
+  // ulaşılamıyor); 'reply' komuta cevap olarak acillerin arkasına girer
+  sayLine(text, force = true, urgent = false) {
     if (!text) return;
     if (force) this.sayT = Math.max(this.sayT, 3);
-    this.game.mission?.radio(this.radioLabel, text, 0, 'squad');
+    this.game.mission?.radio(this.radioLabel, text, 0, 'squad', urgent);
   }
 
   voice(kind) {
@@ -830,7 +855,7 @@ export class Ally {
       if (best !== this.target) {
         this.reactT = this.S.reaction * rand(0.8, 1.3);
         if (best.mount && this.has('suppress') && g.allies.weaponsFree) this.say('suppress');
-        else if (!this.target && g.allies.weaponsFree) this.say('contact');
+        else if (!this.target && g.allies.weaponsFree) this.say('contact', false, null, g.allies.clockOf(best.pos));
         if (this.has('callout') && g.allies.weaponsFree) g.allies.callout(this, best);
       }
       this.target = best;
@@ -1236,6 +1261,8 @@ export class AllyManager {
     this.cannotSayT = 0;
     this.smokeT = 0;
     this.reviveTraining = 1;
+    this.kindAt = new Map(); // replik türü → son söylendiği oyun saati (aynı tür 10 sn kuralı)
+    this.warned = new WeakSet(); // uyarısı yapılmış düşman el bombaları
   }
 
   has(tac) {
@@ -1254,6 +1281,7 @@ export class AllyManager {
     this.flanker = null;
     this.rescue = { reviver: null, decision: 'none', best: null, dist: 0 };
     this.rescueT = 0;
+    this.kindAt.clear();
     // Muharebe Medik Eğitimi (mağaza): tüm canlandırma süreleri kısalır
     const up = g.save?.data.inventory.upgrades || [];
     this.reviveTraining = STORE.upgrades.filter((u) => u.reviveTimeMult && up.includes(u.id)).reduce((m, u) => m * u.reviveTimeMult, 1);
@@ -1356,7 +1384,7 @@ export class AllyManager {
       const next = decision === 'direct' ? best : null;
       if (next && next !== R.reviver) {
         // Emrini bırakan asker bunu söyler (§7.4)
-        next.sayLine(next.voice(next.order.id !== 'FOLLOW' ? 'holdOnPlayer' : 'playerDowned'));
+        next.sayLine(next.voice(next.order.id !== 'FOLLOW' ? 'holdOnPlayer' : 'playerDowned'), true, true);
       }
       R.reviver = next;
     }
@@ -1379,7 +1407,7 @@ export class AllyManager {
     }
     if (R.decision === 'cannot' && best && this.cannotSayT <= 0) {
       this.cannotSayT = 8;
-      best.sayLine(best.voice('cannotReach'));
+      best.sayLine(best.voice('cannotReach'), true, true);
     }
   }
 
@@ -1400,6 +1428,25 @@ export class AllyManager {
     for (const a of this.list) a.dispose();
     this.list = [];
     this.flanker = null;
+  }
+
+  // Oyuncuya göre saat yönü ve 5 m'ye yuvarlanmış mesafe (telsiz replikleri için)
+  clockOf(pos) {
+    const P = this.game.player;
+    const rel = angleDiff(P.yaw, dirToYaw(pos.x - P.pos.x, pos.z - P.pos.z));
+    const h = ((Math.round(-rel / (Math.PI / 6)) % 12) + 12) % 12;
+    return { dir: CLOCK[h], dist: Math.max(5, Math.round(pos.distanceTo(P.pos) / 5) * 5) };
+  }
+
+  // Gelen düşman el bombası: en yakın sağlam asker bir kez uyarır (acil replik, kuyruğu atlar)
+  warnGrenades() {
+    const g = this.game;
+    for (const nade of g.grenades.dangerNear(g.player.pos, VOICE.grenadeWarnDist)) {
+      if (this.warned.has(nade)) continue;
+      this.warned.add(nade);
+      const a = this.list.filter((x) => !x.down).sort((x, y) => x.pos.distanceTo(nade.pos) - y.pos.distanceTo(nade.pos))[0];
+      if (a) a.say('incoming');
+    }
   }
 
   // Düşman bildirme: "Kartal-3: Düşman, saat 2 yönünde, 30 metre!" + HUD'da kısa süreli işaret
@@ -1457,6 +1504,7 @@ export class AllyManager {
     this.alert = alert || this.weaponsFree;
     this.calloutT -= dt;
     this.grenadeT -= dt;
+    this.warnGrenades();
     // Sıçramalı ilerleme: çift/tek numaralılar sırayla atılır, diğerleri örter
     if (this.has('bound')) {
       this.boundT -= dt;

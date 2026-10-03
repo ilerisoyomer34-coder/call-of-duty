@@ -23,6 +23,9 @@ export const DEFAULT_SETTINGS = {
   showFps: false,
   realNames: true, // silahların gerçek adı; kapalıyken kurgusal ad (data/weapons.json → altName)
   wheelSlowMo: 0.3, // komut çarkı açıkken oyun saatinin çarpanı (1 = yavaşlatma yok)
+  chatSlowMo: 0.3, // telsiz satırına yazarken oyun saatinin çarpanı
+  tts: false, // askerlerin telsiz repliklerini seslendir (speechSynthesis, tr-TR)
+  voiceCommands: true, // N basılı sesli komut (tarayıcı desteklemiyorsa arayüzde görünmez)
   rerollBonuses: false, // bitirilmiş bölüm tekrar oynanınca bonus görevler havuzdan rastgele seçilir
   bindings: {}, // tuş atamaları: eylem → tuş kodları (input.js → BINDINGS'in üstüne yazılır)
 };

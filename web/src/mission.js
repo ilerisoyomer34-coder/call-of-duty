@@ -12,6 +12,7 @@ import { loadWeaponAsset, assetIdFor } from './assets.js';
 import { weaponName } from './weaponInfo.js';
 import { EV } from './events.js';
 import { rand, lerp, clamp, smoothstep, pick, dirToYaw, damp } from './util.js';
+import VOICE from './data/voicelines.tr.json' with { type: 'json' };
 
 const _v = new THREE.Vector3();
 const _cam = new THREE.Vector3();
@@ -648,11 +649,20 @@ export class Mission {
     return { title: o.text, detail, index: this.objIdx + 1, total: this.objectives.length };
   }
 
-  // kind: HUD'da konuşanın rengi ('ally' mavi, 'enemy' kırmızı); verilmezse komuta sesi
-  radio(who, text, delay = 0, kind = null) {
+  // kind: konuşan ('player' komutan, 'squad' komut onayı/raporu, 'ally' asker repliği, 'system', 'enemy');
+  // verilmezse karargâh. urgent: true → acil (el bombası, komutan yerde; komutanın kendi sözü de) kuyruğun önüne
+  // geçer ve iki satır arası beklemeye takılmaz (§8.7); 'reply' → komuta verilen cevap, acillerin hemen
+  // arkasına girer ama beklemeye uyar (onay karargâh konuşmasının arkasında kalmasın)
+  radio(who, text, delay = 0, kind = null, urgent = false) {
     // Dostların anlık seslenmeleri kuyrukta bayatlamasın: sırada bekleyen varsa atla
-    if (kind === 'ally' && this.radioQueue.length > 1) return;
-    this.radioQueue.push({ who, text, at: this.time + delay, kind });
+    if (kind === 'ally' && !urgent && this.radioQueue.filter((q) => q.at <= this.time).length > 1) return;
+    const pri = delay ? 0 : urgent === true || kind === 'player' ? 2 : urgent === 'reply' ? 1 : 0;
+    const item = { who, text, at: this.time + delay, kind, urgent: pri === 2, pri };
+    if (pri) {
+      let i = 0;
+      while (i < this.radioQueue.length && this.radioQueue[i].pri >= pri) i++;
+      this.radioQueue.splice(i, 0, item);
+    } else this.radioQueue.push(item);
   }
 
   saveCheckpoint(idx, silent = false) {
@@ -891,12 +901,14 @@ export class Mission {
   update(dt) {
     const g = this.game;
     this.time += dt;
-    // Telsiz sırası
-    if (this.radioQueue.length && this.radioQueue[0].at <= this.time && this.radioT <= 0) {
-      const r = this.radioQueue.shift();
+    // Telsiz sırası: ilk hazır satır; gecikmeli (zamanı gelmemiş) karargâh satırı arkasındaki onayları bekletmez
+    const ri = this.radioQueue.length ? this.radioQueue.findIndex((q) => q.at <= this.time && (this.radioT <= 0 || q.urgent)) : -1;
+    if (ri >= 0) {
+      const r = this.radioQueue.splice(ri, 1)[0];
       g.events.emit('radio', `${r.who}: ${r.text}`, r.kind || r.who);
       g.audio.radio();
-      this.radioT = 2.5;
+      // İki satır arası en az 2,5 sn; komutanın sözünden sonra onay hemen gelsin
+      this.radioT = r.kind === 'player' ? VOICE.afterCommandSec : VOICE.minGapSec;
     }
     this.radioT -= dt;
     for (const b of g.barrels) b.update(dt);

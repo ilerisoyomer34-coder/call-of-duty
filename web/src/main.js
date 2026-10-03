@@ -33,6 +33,7 @@ import { MissionHud } from './missionUi.js';
 import { CommandSystem, SHORTCUTS } from './commands.js';
 import { CommandWheel } from './commandWheel.js';
 import { PingSystem } from './ping.js';
+import { RadioChat, VoiceCommand } from './radioChat.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
@@ -197,12 +198,17 @@ export class Game {
     this.commands = new CommandSystem(this);
     this.wheel = new CommandWheel(this);
     this.ping = new PingSystem(this);
+    // Telsiz kutusu (sol alt; Enter ile yazılı komut) ve isteğe bağlı sesli komut (N)
+    this.chat = new RadioChat(this);
+    this.voice = new VoiceCommand(this.chat);
+    this.voice.refresh(this.settings);
     this.run = null; // { mission, tracker, record, levelId, difficulty }
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
 
     this.input.onLockChange = (locked) => {
-      if (!locked && this.state === 'playing' && !this.console.open && !this.input.touch.active) this.pause();
+      // Konsol ve telsiz satırı imleci bilerek serbest bırakır: o zaman duraklatma
+      if (!locked && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active) this.pause();
     };
     this.clickToPlay = document.getElementById('clickToPlay');
     this.clickToPlay.addEventListener('click', () => {
@@ -331,6 +337,7 @@ export class Game {
     if (this.weapons?.current) this.events.emit('weapon', this.weapons.current);
     this.audio.setVolumes({ master: S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume });
     this.hud.applySettings(S);
+    this.voice?.refresh(S);
     if (this.effects) this.effects.bloodOn = S.blood;
     const q = resolveQuality(S.quality, this.isTouch);
     this.renderQuality = q;
@@ -506,6 +513,7 @@ export class Game {
     this.commands.clear();
     this.wheel.close(false);
     this.ping.clear();
+    this.chat.clear();
     this.run?.tracker.dispose();
     this.run = null;
     this.missionHud.hide();
@@ -611,6 +619,9 @@ export class Game {
   pause() {
     if (this.state !== 'playing') return;
     this.state = 'paused';
+    // Açık komut çarkı ve telsiz satırı duraklatma ekranında asılı kalmasın
+    this.wheel.close(false);
+    this.chat.closeChat();
     this.input.exitLock();
     this.clickToPlay.hidden = true;
     this.menus.showPause();
@@ -764,7 +775,9 @@ export class Game {
     this.lastNow = now;
     let dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     // Komut çarkı açıkken oyun yavaşlar (ayar); çarkın kendisi gerçek girdilerle çalışır
-    dt *= this.timeScale * (this.state === 'playing' ? this.wheel.slow : 1);
+    // Telsize yazarken de yavaşlar (ayar)
+    const slow = this.state === 'playing' ? this.wheel.slow * (this.chat.open ? this.settings.chatSlowMo ?? 0.3 : 1) : 1;
+    dt *= this.timeScale * slow;
     const I = this.input;
     try {
       I.pollGamepad(dt, this.settings.sensitivity);
@@ -830,7 +843,9 @@ export class Game {
     }
     // Kalkış sahnesinde oyuncu helikopterin içinde: kontrol yok, kamera kabinden bakar
     const cine = !!this.mission.takeoff;
-    const canAct = this.player.alive && !this.console.open && this.state === 'playing' && !cine;
+    // Telsize yazarken oyuncu durur (tuşlar yazı alanına gider)
+    const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine;
+    if (this.mode === 'mission' && canAct && !this.wheel.open && I.pressed('chat')) this.chat.openChat();
     if (this.console.open || cine) I.consumeLook();
     if (cine) {
       this.player.update(dt, NULL_INPUT);
@@ -854,7 +869,11 @@ export class Game {
       for (const action in SHORTCUTS) if (I.pressed(action)) this.commands.issue(SHORTCUTS[action], this.commands.addressee, { inputMethod: 'shortcut' });
       // Bağlamsal işaret (Z): nişangâhın baktığı şeye göre saldır / git / kaldır / temizle; çift basış iptal
       if (I.pressed('ping') && !this.player.down) this.ping.press();
+      // Sesli komut: N basılıyken dinler, bırakınca tanınan cümle ayrıştırıcıya gider
+      if (this.settings.voiceCommands && I.pressed('voice')) this.voice.start();
     }
+    if (I.released('voice')) this.voice.stop();
+    this.chat.update(dt);
     this.commands.update();
     this.ping.update(dt);
     const armed = canAct && !this.kit.using && !wheelOpen;
@@ -871,7 +890,7 @@ export class Game {
     this.missionHud.update(dt, canAct ? I : NULL_INPUT);
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
-    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !cine;
+    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine;
     this.clickToPlay.hidden = !lockMissing;
     if (this.state === 'dying') {
       this.deathT += dt;

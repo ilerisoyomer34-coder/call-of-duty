@@ -98,9 +98,12 @@ export class CommandWheel {
     hint.textContent = 'Fareyle dilim seç · tekerlek: muhatap · bırakınca verilir';
     this.hint = hint;
     root.append(svg, hint);
+    // Menü ekranlarının (duraklatma vb.) altında, dokunmatik düğmelerin üstünde
+    const touch = document.getElementById('touch');
     // Dokunmatikte çarkın dışına dokunmak kapatır
     root.addEventListener('pointerdown', () => this.close(false));
-    host.appendChild(root);
+    if (touch) touch.after(root);
+    else host.appendChild(root);
     this.root = root;
     this.renderAddr();
   }

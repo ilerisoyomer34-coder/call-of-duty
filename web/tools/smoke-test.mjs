@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -770,7 +770,7 @@ console.log('Alfa Timi ve komutlar');
   const cov = await page.evaluate(() => {
     const g = window.__game;
     const issued = window.__ev.COMMAND_ISSUED.at(-1);
-    const q = g.mission.radioQueue.map((r) => `${r.who}: ${r.text}`);
+    const q = [...g.chat.lines.map((l) => l.el.textContent.replace(/^\[(.*?)\] /, '$1: ')), ...g.mission.radioQueue.map((r) => `${r.who}: ${r.text}`)];
     for (const a of g.allies.list) if (a.order.pos) a.pos.copy(a.order.pos);
     g.allies.update(0.05);
     return { issued, orders: g.allies.list.map((a) => a.order.id), q, done: window.__ev.COMMAND_COMPLETED.map((e) => e.id) };
@@ -789,7 +789,7 @@ console.log('Alfa Timi ve komutlar');
     a.pos.copy(pos);
     g.allies.update(0.05);
     const done = window.__ev.COMMAND_COMPLETED.at(-1)?.id;
-    const q = g.mission.radioQueue.at(-1)?.text;
+    const q = [...g.chat.lines.map((l) => l.el.textContent.replace(/^\[.*?\] /, '')), ...g.mission.radioQueue.map((r) => r.text)].at(-1);
     g.commands.issue('MOVE_TO', 'Alfa-3', { pos: new P.constructor(9999, 0, 9999), inputMethod: 'test' });
     return { done, q, failed: window.__ev.COMMAND_FAILED.at(-1), order: a.order.id, arrived: a.order.arrived, o3: g.allies.list[2].order.id };
   });
@@ -868,7 +868,7 @@ console.log('Alfa Timi ve komutlar');
     a.lastHurt = g.time;
     a.selfCoverUntil = 0;
     g.allies.update(0.05);
-    return { until: a.selfCoverUntil > g.time, q: g.mission.radioQueue.map((r) => r.text) };
+    return { until: a.selfCoverUntil > g.time, q: [...g.chat.lines.map((l) => l.el.textContent), ...g.mission.radioQueue.map((r) => r.text)] };
   });
   check(self.until && self.q.some((t) => /siper/i.test(t)), 'Kendini koruma: ağır yaralı asker emirden önce sipere geçti');
   await page.screenshot({ path: join(shots, '20b-squad-orders.png') });
@@ -1261,6 +1261,184 @@ console.log('Komut çarkı, işaret ve tuş atama');
   // Yeni komut önceki çark komutunu geçersiz kılar (o komut "replaced" ile düşer): işaretten çıkanı ara
   const mpg = await mp.evaluate(() => window.__ev.filter((e) => e.m === 'ping').at(-1));
   check(mpg?.m === 'ping', `İŞARET düğmesi bağlamsal komut verdi (${mpg?.id})`);
+  await mctx.close();
+}
+
+// ---------------- Telsiz kutusu, yazılı ve sesli komut (Operasyon Güncellemesi F9) ----------------
+if (run('radio')) {
+console.log('Telsiz kutusu ve yazılı komut');
+
+  const page = await openPage('standalone');
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.cheats.god = true;
+    g.cheats.aiOff = true;
+    g.player.health.hp = 60;
+    window.__ev = [];
+    for (const n of ['COMMAND_ISSUED', 'COMMAND_FAILED']) g.events.on(n, (e) => window.__ev.push({ n, id: e.commandId, who: e.addressees, m: e.inputMethod, src: e.sourceText }));
+  });
+  await waitGame(page, 0.4);
+  const log = () => page.evaluate(() => window.__game.chat.lines.map((l) => l.el.textContent));
+  // Enter: sohbet satırı açılır, yazı alanı odakta, oyun yavaşlar; "Kaya beni iyileştir" → medike komut + onay
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
+  const o1 = await page.evaluate(() => ({ open: window.__game.chat.open, focus: document.activeElement?.id, slow: window.__game.settings.chatSlowMo, form: !document.querySelector('#radioLog .rlForm').hidden }));
+  check(o1.open && o1.focus === 'chatInput' && o1.form && o1.slow === 0.3, `Enter telsiz satırını açtı (odak ${o1.focus}, yazarken oyun ×${o1.slow})`);
+  await page.keyboard.type('Kaya beni iyileştir');
+  await page.screenshot({ path: join(shots, '23-chat-open.png') });
+  await page.keyboard.press('Enter');
+  // Onay, komutanın sözünden 0,8 sn sonra (önünde hazır bekleyen satır varsa onlardan sonra) gelir
+  await waitGame(page, 4);
+  const h1 = await page.evaluate(() => ({ ev: window.__ev.find((e) => e.n === 'COMMAND_ISSUED' && e.m === 'text'), open: window.__game.chat.open, lines: window.__game.chat.lines.map((l) => l.el.textContent) }));
+  const pi = h1.lines.findIndex((l) => l === '[Komutan → Alfa-2] Kaya beni iyileştir');
+  const ci = h1.lines.findIndex((l, i) => i > pi && /^\[Alfa-2 .*Kaya\] (Geliyorum, dayan!|Medik yolda!|Seni toparlıyorum, kıpırdama!)$/.test(l));
+  check(h1.ev?.id === 'HEAL_PLAYER' && h1.ev.who.join() === 'Alfa-2' && !h1.open, `"Kaya beni iyileştir" → HEAL_PLAYER, Alfa-2 (${JSON.stringify(h1.ev)})`);
+  check(pi >= 0 && ci > pi, `Telsiz kutusunda iki satır: komut ve onay (${pi >= 0 ? h1.lines.slice(pi, ci + 1).join(' | ') : h1.lines.slice(-3).join(' | ')})`);
+  // Anlaşılmayan cümle: asker sorar, üç öneri çıkar, satır açık kalır; öneriye tıklayınca komut verilir
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
+  await page.keyboard.type('pizza ısmarlayın');
+  await page.keyboard.press('Enter');
+  await waitGame(page, 1.5);
+  const u1 = await page.evaluate(() => ({ open: window.__game.chat.open, sugg: [...document.querySelectorAll('#radioLog .rlSugg button')].map((b) => b.textContent), shown: !document.querySelector('#radioLog .rlSugg').hidden, lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-4) }));
+  check(u1.open && u1.shown && u1.sugg.join(',') === 'Siper alın,Takip edin,Pozisyonu koruyun' && u1.lines.some((l) => /Anlaşılmadı komutanım/.test(l)), `"pizza ısmarlayın": asker sordu, öneriler (${u1.sugg.join(', ')}), satır açık`);
+  await page.screenshot({ path: join(shots, '23b-chat-unknown.png') });
+  await page.click('#radioLog .rlSugg button');
+  const u2 = await page.evaluate(() => ({ open: window.__game.chat.open, ev: window.__ev.filter((e) => e.n === 'COMMAND_ISSUED').at(-1) }));
+  check(!u2.open && u2.ev?.id === 'TAKE_COVER' && u2.ev.m === 'text' && u2.ev.who.length === 3, 'Öneriye tıklamak "Siper alın" komutunu tüm time verdi');
+  // Birden fazla muhatap ve nişangâh noktası
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
+  await page.keyboard.type('Demir ve Yıldız oraya gidin');
+  await page.keyboard.press('Enter');
+  const mv = await page.evaluate(() => window.__ev.filter((e) => e.n === 'COMMAND_ISSUED').at(-1));
+  check(mv?.id === 'MOVE_TO' && [...mv.who].sort().join() === 'Alfa-1,Alfa-3', `"Demir ve Yıldız oraya gidin" → MOVE_TO, ${mv?.who?.join(' + ')}`);
+  // Esc yalnız satırı kapatır, oyunu duraklatmaz
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
+  await page.keyboard.press('Escape');
+  const esc = await page.evaluate(() => ({ open: window.__game.chat.open, state: window.__game.state }));
+  check(!esc.open && esc.state === 'playing', 'Esc telsiz satırını kapattı, oyun duraklamadı');
+  // Spam kuralları: aynı tür replik 10 sn'de bir; acil replik (el bombası) beklemeye takılmaz, kuyruğun önüne geçer
+  const sp = await page.evaluate(() => {
+    const g = window.__game;
+    const M = g.allies;
+    const [a1, a2, a3] = M.list;
+    const Q = g.mission.radioQueue;
+    Q.length = 0;
+    M.kindAt.clear();
+    a1.sayT = a2.sayT = a3.sayT = 0;
+    M.sayT = 0;
+    a1.say('reload');
+    a2.sayT = 0;
+    M.sayT = 0;
+    a2.say('reload');
+    const reloads = Q.length;
+    g.mission.radio('YUVA', 'Rutin rapor', 0);
+    a3.sayT = 5;
+    M.sayT = 5;
+    a3.say('incoming');
+    return { reloads, first: Q[0]?.text, urgent: Q[0]?.urgent, who: Q[0]?.who };
+  });
+  check(sp.reloads === 1, 'Aynı tür replik 10 sn içinde tekrarlanmadı');
+  check(sp.urgent && /bomba/i.test(sp.first || '') && /Alfa-3/.test(sp.who || ''), `Acil replik kuyruğun önünde ("${sp.first}")`);
+  // Solma: 8 sn'den eski satırlar kapalıyken gizli; açınca tüm geçmiş görünür
+  const fd = await page.evaluate(() => {
+    const c = window.__game.chat;
+    c.time += 9;
+    c.layout();
+    const closed = c.lines.filter((l) => !l.el.hidden).length;
+    c.openChat();
+    const opened = c.lines.filter((l) => !l.el.hidden).length;
+    c.closeChat();
+    return { closed, opened, n: c.lines.length };
+  });
+  check(fd.closed === 0 && fd.opened === fd.n && fd.n >= 6, `Eski satırlar soldu (${fd.closed} görünür); açınca ${fd.opened}/${fd.n} satır`);
+  // Seslendirme (ayar): askere göre perde; konuşan asker vurgulanır. Ortadaki altyazı yalnız karargâh satırında
+  const tts = await page.evaluate(() => {
+    const g = window.__game;
+    const a1 = g.allies.list[0];
+    const said = [];
+    if (window.speechSynthesis) window.speechSynthesis.speak = (u) => said.push({ t: u.text, l: u.lang, p: u.pitch });
+    g.settings.tts = false;
+    g.events.emit('radio', `${a1.radioLabel}: Sessiz satır`, 'squad');
+    g.settings.tts = true;
+    g.events.emit('radio', `${a1.radioLabel}: Sesli satır`, 'squad');
+    g.settings.tts = false;
+    const sub0 = document.getElementById('radio').textContent;
+    g.hud.radio('Alfa-1: tim satırı', 'squad');
+    const sub1 = document.getElementById('radio').textContent;
+    g.hud.radio('YUVA: karargâh satırı', 'YUVA');
+    const sub2 = document.getElementById('radio').textContent;
+    return { said, has: !!window.speechSynthesis, talk: a1.talkUntil > performance.now() - 2000, sub: sub0 === sub1 && /karargâh/.test(sub2) };
+  });
+  check(!tts.has || (tts.said.length === 1 && tts.said[0].t === 'Sesli satır' && tts.said[0].l === 'tr-TR' && Math.abs(tts.said[0].p - 0.85) < 1e-3), `Seslendirme ayarla açılıp kapanıyor (${JSON.stringify(tts.said)})`);
+  check(tts.talk && tts.sub, 'Konuşan asker vurgulandı; tim satırı ortadaki altyazıya çıkmadı, karargâh satırı çıktı');
+  // Sesli komut: destek yoksa ayar satırı ve düğme görünmez
+  const vc = await page.evaluate(() => {
+    const g = window.__game;
+    const sup = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    g.menus.fillSettings();
+    return { sup, row: !document.getElementById('sVoiceCmd').closest('.set').hidden, body: document.body.classList.contains('voicecmd'), on: g.settings.voiceCommands };
+  });
+  check(vc.row === vc.sup && vc.body === (vc.sup && vc.on), `Sesli komut desteği ${vc.sup ? 'var' : 'yok'}: ayar satırı ${vc.row ? 'görünür' : 'gizli'}, MİKROFON ${vc.body ? 'açık' : 'kapalı'}`);
+  // Sesli komut metni yazılıyla aynı ayrıştırıcıdan geçer (tanıma sonucu taklit edilir)
+  const vtext = await page.evaluate(() => {
+    const g = window.__game;
+    g.chat.submit('herkes siper alsın', 'voice');
+    return window.__ev.filter((e) => e.n === 'COMMAND_ISSUED').at(-1);
+  });
+  check(vtext?.id === 'TAKE_COVER' && vtext.m === 'voice' && /🎤/.test(vtext.src), `Sesli komut: "${vtext?.src}" → ${vtext?.id}`);
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+
+  // Telefon: SOHBET düğmesi satırı üstte açar, yazılan komut verilir; telsiz kutusu panellere ve düğmelere binmez
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+      localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: 6, best: {} }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[radio-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  await mp.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await mp.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await mp.evaluate(() => {
+    const g = window.__game;
+    g.cheats.god = true;
+    window.__ev = [];
+    g.events.on('COMMAND_ISSUED', (e) => window.__ev.push({ id: e.commandId, who: e.addressees, m: e.inputMethod }));
+    for (let i = 0; i < 3; i++) g.events.emit('radio', `YUVA: Deneme satırı ${i + 1}, telsiz kutusu yerleşimi`, 'system');
+  });
+  await waitGame(mp, 0.6);
+  const ml = await mp.evaluate(() => {
+    const r = (el) => el.getBoundingClientRect();
+    const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+    const box = r(document.querySelector('#radioLog .rlList'));
+    const others = ['objective', 'health', 'ammo', 'squad', 'tracker', 'tbSwap', 'tbCrouch', 'tbItem1', 'tbItem2'].map((id) => document.getElementById(id)).filter((el) => el && !el.hidden && getComputedStyle(el).display !== 'none');
+    return { over: others.filter((el) => hit(box, r(el))).map((el) => el.id), box: { l: Math.round(box.left), r: Math.round(box.right), t: Math.round(box.top), b: Math.round(box.bottom) }, chat: getComputedStyle(document.getElementById('tbChat')).display !== 'none' };
+  });
+  check(ml.over.length === 0 && ml.box.b <= 390 && ml.chat, `Telefonda telsiz kutusu boşlukta (${JSON.stringify(ml.box)}${ml.over.length ? ` · çakışan: ${ml.over.join(', ')}` : ''}), SOHBET düğmesi var`);
+  await mp.screenshot({ path: join(shots, '23c-mobile-radio.png') });
+  await mp.tap('#tbChat');
+  await mp.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
+  const mo = await mp.evaluate(() => ({ open: window.__game.chat.open, focus: document.activeElement?.id, top: document.querySelector('#radioLog .rlForm').getBoundingClientRect().bottom }));
+  check(mo.open && mo.focus === 'chatInput' && mo.top < 390 / 2, `SOHBET satırı ekranın üst yarısında açıldı (alt kenar ${Math.round(mo.top)} px), yazı alanı odakta`);
+  await mp.keyboard.type('alfa 3 baskı ateşi aç');
+  await mp.screenshot({ path: join(shots, '23d-mobile-chat.png') });
+  await mp.keyboard.press('Enter');
+  const me = await mp.evaluate(() => ({ ev: window.__ev.at(-1), open: window.__game.chat.open }));
+  check(me.ev?.id === 'SUPPRESS' && me.ev.who.join() === 'Alfa-3' && me.ev.m === 'text' && !me.open, `Telefonda yazılı komut: "alfa 3 baskı ateşi aç" → ${me.ev?.id} ${me.ev?.who?.join()}`);
   await mctx.close();
 }
 

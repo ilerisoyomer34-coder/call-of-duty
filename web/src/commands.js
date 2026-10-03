@@ -91,7 +91,7 @@ export class CommandSystem {
       target = target || a.enemy;
     }
     if (commandId === 'ATTACK' && !target) {
-      g.mission?.radio(list[0].radioLabel, 'Hedef göremiyorum komutanım!', 0, 'ally');
+      g.mission?.radio(list[0].radioLabel, 'Hedef göremiyorum komutanım!', 0, 'squad', 'reply');
       g.events.emit(EV.COMMAND_FAILED, { commandId, addressees: list.map((a) => a.callsign), reason: 'no-target', inputMethod: opts.inputMethod || 'shortcut' });
       return null;
     }
@@ -112,7 +112,7 @@ export class CommandSystem {
     g.save.update((d) => (d.stats.commandsIssued = (d.stats.commandsIssued || 0) + 1));
     // Onay: tim komutunu önce lider yardımcısı (Alfa-1), tek muhatapta kendisi onaylar
     const first = list.find((a) => a.member.confirmsFirst) || list[0];
-    if (!opts.silent) first.sayLine(pick(def.confirm), true);
+    if (!opts.silent) first.sayLine(pick(def.confirm), true, 'reply');
     list.forEach((a, i) => a.setOrder(commandId, cmd, i, list.length));
     return cmd;
   }

@@ -695,6 +695,28 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .kslot.busy { border-color: var(--amber); }
 .kslot u { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--amber); transform-origin: left center; transform: scaleX(0); }
 
+/* ---------- Telsiz kutusu (radioChat.js): sol alt, tim listesinin üstünde; Enter ile yazılı komut ---------- */
+body:not(.playing) #radioLog { display: none; }
+#radioLog { position: absolute; left: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); width: min(400px, 42vw); display: flex; flex-direction: column; gap: 4px; }
+.rlList { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.rl { font: 500 14px/1.25 var(--f-ui); color: var(--sand); text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); transition: opacity .3s; }
+.rl[hidden] { display: none; }
+.rl b { font-weight: 700; letter-spacing: .02em; }
+#radioLog.open { background: rgba(13,16,19,.86); border: 1px solid var(--line); padding: 8px 10px; pointer-events: auto; }
+#radioLog.open .rlList { max-height: 38vh; overflow-y: auto; }
+.rlForm { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+.rlForm[hidden] { display: none; }
+.rlForm b { font: 700 13px/1 var(--f-ui); color: #5ee7ff; white-space: nowrap; }
+.rlForm input { flex: 1; min-width: 0; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); font: 500 15px/1.2 var(--f-ui); padding: 6px 8px; outline: none; }
+.rlForm input:focus { border-color: #5ee7ff; }
+.rlClose { background: none; border: 1px solid var(--line); color: var(--sand-dim); font: 600 13px/1 var(--f-ui); padding: 6px 8px; cursor: pointer; }
+.rlSugg { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
+.rlSugg[hidden] { display: none; }
+.rlSugg button { background: rgba(13,16,19,.85); border: 1px solid #7fd38a; color: #7fd38a; font: 600 13px/1 var(--f-ui); padding: 6px 10px; cursor: pointer; }
+/* Konuşan asker: tim listesindeki satırı ve başındaki etiket 1 sn parlar */
+.sq.talk { background: rgba(127,211,138,.22); box-shadow: inset 3px 0 0 #7fd38a; }
+.atag.talk span::after { content: ''; display: inline-block; width: 9px; height: 7px; margin-left: 5px; background: #7fd38a; border-radius: 3px 3px 3px 0; vertical-align: 1px; }
+
 /* ---------- Komut çarkı (T basılı; dokunmatikte TELSİZ) ---------- */
 #wheel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: none; background: radial-gradient(circle at center, rgba(8,10,12,.4) 0, rgba(8,10,12,0) 55%); }
 #wheel[hidden] { display: none; }
@@ -757,7 +779,14 @@ body.downed #touch .tb.dn { display: flex; }
 .tb.sq2 { width: 54px; height: 40px; border-radius: 6px; font-size: 10px; border-color: rgba(127,211,138,.6); }
 #tbWheel { right: calc(186px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); }
 #tbPing { right: calc(248px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); }
-body:not(.squad) #tbWheel, body:not(.squad) #tbPing { display: none; }
+#tbChat { right: calc(248px + env(safe-area-inset-right, 0px)); top: calc(114px + env(safe-area-inset-top, 0px)); }
+#tbVoice { right: calc(310px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); font-size: 9px; }
+body:not(.squad) #tbWheel, body:not(.squad) #tbPing, body:not(.squad) #tbChat, body:not(.voicecmd) #tbVoice, body:not(.squad) #tbVoice { display: none; }
+/* Telefonda telsiz kutusu altta, sol sütunla sağdaki düğmeler arasında; yazarken klavye altı kapattığı için üstte */
+body.touch #radioLog { bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+body.touch .rl { font-size: 12px; }
+body.touch #radioLog.open { left: 50%; width: min(560px, 82vw); transform: translateX(-50%); top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; }
+body.touch #radioLog.open .rlList { max-height: 26vh; }
 #rotateHint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; background: var(--ink); font: 700 20px/1.4 var(--f-ui); letter-spacing: .12em; padding: 24px; pointer-events: auto; }
 @media (orientation: portrait) and (pointer: coarse) { body.playing #rotateHint { display: flex; } }
 
@@ -880,6 +909,8 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
     <div class="tb" id="tbUse" data-action="interact" hidden>KULLAN</div>
     <div class="tb sq2" id="tbWheel" data-action="wheel">TELSİZ</div>
     <div class="tb sq2" id="tbPing" data-action="ping">İŞARET</div>
+    <div class="tb sq2" id="tbChat" data-action="chat">SOHBET</div>
+    <div class="tb sq2" id="tbVoice" data-action="voice">MİKROFON</div>
     <div class="tb" id="tbPause" data-action="pause">II</div>
   </div>
 
@@ -946,11 +977,14 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
           <div class="set"><label for="sAdsMode">Nişan alma</label><select id="sAdsMode"><option value="hold">Basılı tut</option><option value="toggle">Aç / kapa</option></select></div>
           <div class="set"><label for="sCrouchMode">Çömelme</label><select id="sCrouchMode"><option value="toggle">Aç / kapa</option><option value="hold">Basılı tut</option></select></div>
           <div class="set"><label for="sSprintMode">Koşma</label><select id="sSprintMode"><option value="hold">Basılı tut</option><option value="toggle">Aç / kapa</option></select></div>
+          <div class="set"><label for="sChatSlow">Telsize yazarken oyun hızı<small>Enter ile açılan komut satırı</small></label><select id="sChatSlow"><option value="1">Normal (yavaşlatma yok)</option><option value="0.5">%50</option><option value="0.3">%30</option><option value="0.15">%15</option></select></div>
+          <div class="set"><label for="sVoiceCmd">Sesli komut (N basılı)<small>Mikrofon izni ister; Türkçe konuş</small></label><input type="checkbox" class="toggle" id="sVoiceCmd"></div>
           <div class="set"><label for="sWheelSlow">Komut çarkında oyun hızı<small>Çark açıkken zaman yavaşlar</small></label><select id="sWheelSlow"><option value="1">Normal (yavaşlatma yok)</option><option value="0.5">%50</option><option value="0.3">%30</option><option value="0.15">%15</option></select></div>
           <h3>Ses</h3>
           <div class="set"><label for="sMaster">Ana ses</label><input type="range" id="sMaster" min="0" max="1" step="0.05"><output id="oMaster"></output></div>
           <div class="set"><label for="sSfx">Efektler</label><input type="range" id="sSfx" min="0" max="1" step="0.05"><output id="oSfx"></output></div>
           <div class="set"><label for="sAmb">Ortam ve müzik</label><input type="range" id="sAmb" min="0" max="1" step="0.05"><output id="oAmb"></output></div>
+          <div class="set"><label for="sTts">Telsizi seslendir<small>Askerlerin replikleri Türkçe sesle okunur; altyazı hep açık</small></label><input type="checkbox" class="toggle" id="sTts"></div>
         </div>
         <div>
           <h3>Görüntü</h3>
@@ -978,7 +1012,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       <div class="grid2" id="keyTables"></div>
       <p class="keyNote" id="keyNote" aria-live="polite"></p>
       <p class="tip"><b>Gamepad:</b> sol çubuk hareket, sağ çubuk bakış, RT ateş, LT nişan, A zıpla, B çömel, X şarjör, Y silah, RB el bombası, LB etkileşim, sağ çubuğa basma bıçak.</p>
-      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. TELSİZ komut çarkını açar (komuta dokun, ortaya dokunarak muhatabı değiştir); İŞARET nişangâhın baktığı yere göre komut verir (düşman → saldır, zemin → git, yaralı → kaldır), hızlı iki dokunuş iptal eder.</p>
+      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. TELSİZ komut çarkını açar (komuta dokun, ortaya dokunarak muhatabı değiştir); İŞARET nişangâhın baktığı yere göre komut verir (düşman → saldır, zemin → git, yaralı → kaldır), hızlı iki dokunuş iptal eder. SOHBET yazılı komut satırını açar ("Kaya beni iyileştir", "Herkes siper alsın!"); MİKROFON basılıyken Türkçe konuşarak komut verilir (tarayıcı destekliyorsa).</p>
       <div class="row"><button class="btn primary" data-back>Geri</button><button class="btn" id="btnKeysReset">Varsayılan tuşlar</button></div>
     </div>
   </section>

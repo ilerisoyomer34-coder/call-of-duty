@@ -320,7 +320,10 @@ export class HUD {
     d.ang = ang;
   }
 
+  // Ortadaki altyazı yalnız karargâh ve düşman telsizi için; komutan, tim ve sistem satırları sol alttaki
+  // telsiz kutusunda (radioChat.js)
   radio(text, who) {
+    if (who === 'player' || who === 'squad' || who === 'ally' || who === 'system') return;
     const i = text.indexOf(':');
     const el = this.el.radio;
     el.innerHTML = '';
@@ -539,6 +542,8 @@ export class HUD {
         row.ord.textContent = label;
       }
       row.r.classList.toggle('down', a.down);
+      // Konuşan asker 1 sn parlar (§8.4)
+      row.r.classList.toggle('talk', (a.talkUntil || 0) > performance.now());
       row.hpI.style.transform = `scaleX(${a.down ? 0 : clamp(a.health.hp / a.health.max, 0, 1)})`;
       row.ar.hidden = !a.armor;
       if (a.armor) row.arI.style.transform = `scaleX(${clamp(a.armor.points / a.armor.max, 0, 1)})`;
@@ -721,6 +726,7 @@ export class HUD {
       at++;
       el.hidden = false;
       el.classList.toggle('down', a.down);
+      el.classList.toggle('talk', (a.talkUntil || 0) > performance.now());
       const txt = a.down ? `${a.callsign} · YARALI` : `${a.callsign} · ${a.rankName}`;
       if (el.firstChild.textContent !== txt) el.firstChild.textContent = txt;
       const ct = this.cmdTags.get(a.callsign);
