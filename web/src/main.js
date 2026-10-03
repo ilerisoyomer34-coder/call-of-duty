@@ -31,6 +31,8 @@ import { setRealNames } from './weaponInfo.js';
 import { levelMission, MissionTracker, computeRewards, mergeRecord } from './missionSystem.js';
 import { MissionHud } from './missionUi.js';
 import { CommandSystem, SHORTCUTS } from './commands.js';
+import { CommandWheel } from './commandWheel.js';
+import { PingSystem } from './ping.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
@@ -191,8 +193,10 @@ export class Game {
     this.hud = new HUD(this);
     // Bonus görevler (missionSystem.js) ve takipçisi; görev başında kurulur, sonunda ödül hesaplanır
     this.missionHud = new MissionHud(this);
-    // Tim komutları (commands.js): kısayollar F1–F5, F8, F9; çark, işaret ve yazılı komut F8–F9 fazlarında
+    // Tim komutları (commands.js): kısayollar F1–F5, F8, F9; komut çarkı (T) ve bağlamsal işaret (Z)
     this.commands = new CommandSystem(this);
+    this.wheel = new CommandWheel(this);
+    this.ping = new PingSystem(this);
     this.run = null; // { mission, tracker, record, levelId, difficulty }
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
@@ -500,6 +504,8 @@ export class Game {
   // Bonus görev takibi: görev başında kurulur (tekrar oynamada ayara göre farklı bonuslar)
   startRun(mode) {
     this.commands.clear();
+    this.wheel.close(false);
+    this.ping.clear();
     this.run?.tracker.dispose();
     this.run = null;
     this.missionHud.hide();
@@ -757,7 +763,8 @@ export class Game {
     const last = this.lastNow ?? now;
     this.lastNow = now;
     let dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-    dt *= this.timeScale;
+    // Komut çarkı açıkken oyun yavaşlar (ayar); çarkın kendisi gerçek girdilerle çalışır
+    dt *= this.timeScale * (this.state === 'playing' ? this.wheel.slow : 1);
     const I = this.input;
     try {
       I.pollGamepad(dt, this.settings.sensitivity);
@@ -832,17 +839,25 @@ export class Game {
       const c = this.camera.position;
       this.audio.setListener(c.x, c.y, c.z, this.player.yaw);
     } else {
+      // Komut çarkı (T): açıkken fare dilim seçer (bakış dönmez), 1–4 ve tekerlek muhatap seçer
+      const cmdOk = canAct && this.mode === 'mission';
+      if (cmdOk) this.wheel.update(dt, I);
+      else if (this.wheel.open) this.wheel.close(false);
       this.player.update(dt, canAct ? I : NULL_INPUT);
       this.player.applyCamera(this.camera, dt);
     }
     this.camera.updateMatrixWorld();
-    // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur)
-    this.kit.update(dt, canAct ? I : NULL_INPUT, canAct);
-    if (canAct && this.mode === 'mission') {
+    const wheelOpen = this.wheel.open;
+    // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur); çark açıkken 3/4 muhatap seçer
+    this.kit.update(dt, canAct && !wheelOpen ? I : NULL_INPUT, canAct);
+    if (canAct && this.mode === 'mission' && !wheelOpen) {
       for (const action in SHORTCUTS) if (I.pressed(action)) this.commands.issue(SHORTCUTS[action], this.commands.addressee, { inputMethod: 'shortcut' });
+      // Bağlamsal işaret (Z): nişangâhın baktığı şeye göre saldır / git / kaldır / temizle; çift basış iptal
+      if (I.pressed('ping') && !this.player.down) this.ping.press();
     }
     this.commands.update();
-    const armed = canAct && !this.kit.using;
+    this.ping.update(dt);
+    const armed = canAct && !this.kit.using && !wheelOpen;
     this.weapons.update(dt, armed ? I : NULL_INPUT, armed);
     this.enemies.update(dt);
     this.allies.update(dt);

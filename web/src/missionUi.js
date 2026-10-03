@@ -75,8 +75,9 @@ export class MissionHud {
   // Satır metinleri: count → "6/10", never → "korunuyor", timer → kalan süre
   refresh() {
     if (!this.mission) return;
-    // Hedef panelinin yüksekliği metne göre değişir: takipçi hep hemen altında dursun
-    const obj = $('objective');
+    // Hedef panelinin yüksekliği metne göre değişir: takipçi hep hemen altında dursun. Dokunmatikte can ve silah
+    // panelleri de sol sütunda (hedefin altında): takipçi silah panelinin altına iner
+    const obj = this.game.input.touch.active ? $('ammo') : $('objective');
     if (obj && this.root && obj.offsetHeight) this.root.style.top = `${obj.offsetTop + obj.offsetHeight + 8}px`;
     const t = this.game.mission?.time || 0;
     this.rows.forEach((row, i) => {

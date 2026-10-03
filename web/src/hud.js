@@ -7,6 +7,11 @@ import { weaponName, weaponShortName } from './weaponInfo.js';
 import { itemIcon } from './storeIcons.js';
 import { BINDINGS, keyName } from './input.js';
 import { REVIVE } from './downed.js';
+import { EV } from './events.js';
+import { COMMANDS } from './commands.js';
+import { CMD_ICONS } from './commandWheel.js';
+
+const CMD_ICON_SEC = 3; // komut simgesinin askerin başında kalma süresi (oyun saati)
 
 const REVIVE_DARK = REVIVE.darkenLastSec; // son saniyelerde ekran kararır
 
@@ -101,6 +106,13 @@ export class HUD {
     // Mevzi ateş açtı: bir kez büyük uyarı; mini haritada kalıcı işaret
     E.on('hmgFire', (m) => this.message(m?.warnText || 'AĞIR MAKİNELİ ATEŞİ · SİPER AL', 'warn'));
     E.on('tankSpotted', () => this.message('TANK! · ROKETATAR YA DA C4 KULLAN', 'warn'));
+    // Komutu alan askerin başında kısa süre komut simgesi (çağrı kodu → { text, until })
+    this.cmdTags = new Map();
+    E.on(EV.COMMAND_ISSUED, (p) => {
+      const text = `${CMD_ICONS[p.commandId] || '•'} ${COMMANDS[p.commandId]?.label || ''}`;
+      const until = this.game.time + CMD_ICON_SEC;
+      for (const cs of p.addressees || []) this.cmdTags.set(cs, { text, until });
+    });
     // Dostun bildirdiği düşman kısa süre işaretli kalır
     this.marks = new Map();
     E.on('allyMark', (enemy, time) => this.marks.set(enemy, this.game.time + time));
@@ -122,6 +134,7 @@ export class HUD {
     this.el.radio.className = '';
     this.el.message.className = '';
     this.marks.clear();
+    this.cmdTags.clear();
     for (const el of [...this.allyPool, ...this.iconPool, ...this.markerPool]) el.hidden = true;
   }
 
@@ -459,6 +472,18 @@ export class HUD {
   }
 
   // Alfa Timi durumu (§8.1): renk, çağrı kodu ve ad, can ve zırh çubuğu, son emir. Saniyede dört kez.
+  // Dokunmatikte paneller sol sütunda alt alta: can paneli zırh satırıyla uzayınca silah paneli (ve onun altındaki
+  // bonus takipçisi) aşağı kayar, üst üste binmez. Masaüstünde CSS konumu geçerlidir
+  layoutColumn(dt) {
+    this.colT = (this.colT || 0) - dt;
+    if (this.colT > 0) return;
+    this.colT = 0.25;
+    const am = this.el.ammo;
+    const hp = this.el.health;
+    const want = this.game.input.touch.active && hp.offsetHeight ? `${hp.offsetTop + hp.offsetHeight + 6}px` : '';
+    if (am.style.top !== want) am.style.top = want;
+  }
+
   updateSquad(dt) {
     const box = this.el.squad;
     if (!box) return;
@@ -467,10 +492,21 @@ export class HUD {
     this.squadT = 0.25;
     const list = this.game.allies.list;
     box.hidden = !list.length || this.game.mode !== 'mission';
+    // Tim varken dokunmatik TELSİZ/İŞARET düğmeleri görünür
+    document.body.classList.toggle('squad', !box.hidden);
     if (box.hidden) return;
-    // Can paneli zırh satırıyla uzayıp kısalır: liste hep hemen üstünde dursun
+    // Can paneli zırh satırıyla uzayıp kısalır: liste hep hemen üstünde dursun. Dokunmatikte sol sütun dolu:
+    // liste can panelinin sağında (CSS), alttan konum verilmez
     const hp = this.el.health;
-    if (hp?.offsetHeight) box.style.bottom = `${hp.offsetParent ? hp.offsetParent.clientHeight - hp.offsetTop + 6 : 104}px`;
+    if (!this.game.input.touch.active && box.style.top) box.style.top = box.style.left = '';
+    if (this.game.input.touch.active) {
+      box.style.bottom = '';
+      // Hedef panelinin altında, can ve silah panellerinin sağında (silah adı uzunsa panel genişler)
+      const o = this.el.objective;
+      const am = this.el.ammo;
+      box.style.top = `${Math.max(o.offsetTop + o.offsetHeight + 6, hp.offsetTop)}px`;
+      box.style.left = `${Math.max(hp.offsetLeft + hp.offsetWidth, am.offsetLeft + am.offsetWidth) + 8}px`;
+    } else if (hp?.offsetHeight) box.style.bottom = `${hp.offsetParent ? hp.offsetParent.clientHeight - hp.offsetTop + 6 : 104}px`;
     if (!this.sqRows || this.sqRows.length !== list.length || this.sqRows.some((r, i) => r.ally !== list[i])) {
       box.innerHTML = '';
       this.sqRows = list.map((a) => {
@@ -519,6 +555,7 @@ export class HUD {
     const height = g.height;
     this.updateSquad(dt);
     this.updateDowned(dt);
+    this.layoutColumn(dt);
 
     // Dokunmatik NİŞAN aç/kapa çalışır: nişandayken düğme parmak kalksa da yanık kalsın (DOM'a yalnız değişince yaz)
     const adsLatched = g.input.touch.active && P.adsToggle;
@@ -677,7 +714,7 @@ export class HUD {
       if (!el) {
         el = document.createElement('div');
         el.className = 'atag';
-        el.innerHTML = '<span></span><i></i>';
+        el.innerHTML = '<span></span><i></i><b hidden></b>';
         this.el.icons.appendChild(el);
         this.allyPool.push(el);
       }
@@ -686,6 +723,11 @@ export class HUD {
       el.classList.toggle('down', a.down);
       const txt = a.down ? `${a.callsign} · YARALI` : `${a.callsign} · ${a.rankName}`;
       if (el.firstChild.textContent !== txt) el.firstChild.textContent = txt;
+      const ct = this.cmdTags.get(a.callsign);
+      const showCmd = !!ct && !a.down && g.time < ct.until;
+      const cb = el.lastChild;
+      if (cb.hidden === showCmd) cb.hidden = !showCmd;
+      if (showCmd && cb.textContent !== ct.text) cb.textContent = ct.text;
       el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -100%)`;
       el.style.opacity = String(clamp(1.2 - d / ALLY_TAG_RANGE, 0.4, 1));
     }

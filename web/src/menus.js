@@ -1,6 +1,7 @@
 // Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
 import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS, EXTRACT } from './config.js';
-import { BINDINGS, ACTION_LABELS, keyName } from './input.js';
+import { applyBindingOverrides } from './input.js';
+import { BindingsEditor } from './bindingsUi.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
 import { PROP_ASSETS, WEAPON_ASSETS } from './assets.js';
@@ -73,6 +74,14 @@ export class Menus {
 
   show(id, push = true) {
     if (id !== 'victoryScreen') this.stopCountdown();
+    // Tuş bekleyen yuva ekrandan çıkınca bırakılır; dönüşte tablo güncel atamalarla yeniden çizilir
+    if (this.bindings) {
+      this.bindings.stop();
+      if (id === 'controlsScreen') {
+        this.bindings.build();
+        this.bindings.say('');
+      }
+    }
     if (push && this.current && this.current !== id) this.stack.push(this.current);
     // Mağazadan teçhizata dönünce sahiplik ve kredi değişmiş olabilir
     if (!push && id === 'loadoutScreen') this.loadoutScreen?.refresh();
@@ -142,7 +151,9 @@ export class Menus {
       g.toMenu();
     });
     click('btnResetSettings', () => {
-      Object.assign(g.settings, DEFAULT_SETTINGS);
+      // Tuş atamaları Kontroller ekranındaki kendi düğmesiyle sıfırlanır
+      Object.assign(g.settings, DEFAULT_SETTINGS, { bindings: g.settings.bindings });
+      applyBindingOverrides(g.settings.bindings);
       this.fillSettings();
       g.applySettings();
     });
@@ -302,38 +313,14 @@ export class Menus {
     this.loadoutScreen.open(`Teçhizat · Seviye ${L.id} · ${MAPS[L.map]?.name || L.name} · ${DIFFICULTY[this.pendingDiff || 'normal'].label}`);
   }
 
+  // Kontroller: her eylemin iki tuş yuvası; tıkla → yeni tuşa bas (bindingsUi.js). Kayıt yalnız farkları tutar
   buildControls() {
-    const groups = [
-      ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
-      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'pause']],
-      ['Tim komutları', ['cmdFollow', 'cmdHold', 'cmdSuppress', 'cmdCover', 'cmdHeal', 'cmdHoldFire', 'cmdFreeFire']],
-    ];
-    const box = $('keyTables');
-    box.innerHTML = '';
-    for (const [title, actions] of groups) {
-      const wrap = document.createElement('div');
-      const h = document.createElement('h3');
-      h.textContent = title;
-      wrap.appendChild(h);
-      const t = document.createElement('table');
-      t.className = 'keys';
-      for (const a of actions) {
-        const tr = document.createElement('tr');
-        const td1 = document.createElement('td');
-        td1.textContent = ACTION_LABELS[a];
-        const td2 = document.createElement('td');
-        for (const c of BINDINGS[a].slice(0, 2)) {
-          const k = document.createElement('kbd');
-          k.textContent = keyName(c);
-          td2.appendChild(k);
-          td2.appendChild(document.createTextNode(' '));
-        }
-        tr.append(td1, td2);
-        t.appendChild(tr);
-      }
-      wrap.appendChild(t);
-      box.appendChild(wrap);
-    }
+    this.bindings = new BindingsEditor(this.game, $('keyTables'), $('keyNote'));
+    this.bindings.build();
+    $('btnKeysReset')?.addEventListener('click', () => {
+      this.game.audio.uiClick();
+      this.bindings.resetDefaults();
+    });
   }
 
   openSettings() {
@@ -365,6 +352,7 @@ export class Menus {
     chk('sDmgNum', S.damageNumbers);
     chk('sRealNames', S.realNames);
     chk('sReroll', S.rerollBonuses);
+    set('sWheelSlow', String(S.wheelSlowMo));
     this.updateOutputs();
     if (!this.settingsBound) {
       this.settingsBound = true;
@@ -410,6 +398,7 @@ export class Menus {
     S.damageNumbers = $('sDmgNum').checked;
     S.realNames = $('sRealNames').checked;
     S.rerollBonuses = $('sReroll').checked;
+    S.wheelSlowMo = parseFloat($('sWheelSlow').value) || 1;
   }
 
   saveSettings() {

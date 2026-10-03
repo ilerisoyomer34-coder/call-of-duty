@@ -34,6 +34,9 @@ export const BINDINGS = {
   useItem1: ['Digit3'],
   useItem2: ['Digit4'],
   tracker: ['KeyJ'], // bonus görev takipçisini daralt/aç
+  // Komut çarkı (basılı tut, bırakınca verilir) ve bağlamsal işaret (Operasyon Güncellemesi §8.3)
+  wheel: ['KeyT'],
+  ping: ['KeyZ'],
   // Tim komutları (Operasyon Güncellemesi §8.2): F6/F7 bazı tarayıcılarda engellenemediği için F8/F9
   cmdFollow: ['F1'],
   cmdHold: ['F2'],
@@ -78,6 +81,7 @@ export const ACTION_LABELS = {
   holdBreath: 'Nefesini tut (dürbün)', useItem1: 'Sarf yuvası 1', useItem2: 'Sarf yuvası 2', tracker: 'Görev takipçisi',
   cmdFollow: 'Takip edin', cmdHold: 'Pozisyonu koruyun', cmdSuppress: 'Baskı ateşi (nişangâhın baktığı yere)', cmdCover: 'Siper alın',
   cmdHeal: 'Beni iyileştir (medik)', cmdHoldFire: 'Ateşi kesin', cmdFreeFire: 'Serbest ateş',
+  wheel: 'Komut çarkı (basılı tut)', ping: 'İşaretle (çift basış: iptal)',
 };
 
 const KEY_NAMES = {

@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -804,8 +804,11 @@ console.log('Alfa Timi ve komutlar');
     const issued = window.__ev.COMMAND_ISSUED.at(-1);
     const med = g.allies.list[1];
     const order = med.order.id;
-    // Tedavi süresi ölçülür: düşmanlar dondurulur (vurulan medik kendini korumak için sipere kaçmasın)
+    // Tedavi süresi ölçülür: düşmanlar dondurulur (vurulan medik kendini korumak için sipere kaçmasın); çatışmada
+    // yere düşen asker varsa kaldırılır (medik önce yerdeki dosta koşar, bu doğru davranış ama burada ölçümü bozar)
     g.cheats.aiOff = true;
+    for (const a of g.allies.list) if (a.down && !a.dead) a.reviveBy('test');
+    med.reviving = null;
     med.health.hp = med.health.max;
     med.lastHurt = -99;
     med.selfCoverUntil = 0;
@@ -813,7 +816,7 @@ console.log('Alfa Timi ve komutlar');
     g.player.health.hp = 50;
     for (let i = 0; i < 45; i++) g.allies.update(0.1);
     const hp = g.player.health.hp;
-    const st = { t: med.order.t, d: +med.pos.distanceTo(g.player.pos).toFixed(2), mhp: Math.round(med.health.hp), self: med.selfCoverUntil > g.time };
+    const st = { t: med.order.t, d: +med.pos.distanceTo(g.player.pos).toFixed(2), mhp: Math.round(med.health.hp), self: med.selfCoverUntil > g.time, rev: med.reviving?.callsign || null, down: g.allies.list.filter((a) => a.down).map((a) => a.callsign) };
     g.commands.issue('HEAL_PLAYER', 'all', { inputMethod: 'test' });
     g.cheats.aiOff = false;
     return { who: issued.who, order, hp, fail: window.__ev.COMMAND_FAILED.at(-1), back: med.order.id, st };
@@ -1041,6 +1044,226 @@ console.log('Yere düşme ve canlandırma');
 }
 
 // ---------------- Etkileşimler: pompalı, C4, istihbarat, ikmal ----------------
+// ---------------- Komut çarkı, bağlamsal işaret, tuş atama (Operasyon Güncellemesi F8) ----------------
+if (run('commands')) {
+console.log('Komut çarkı, işaret ve tuş atama');
+
+  const page = await openPage('standalone');
+  // Kontroller ekranı: yuvaya tıkla → tuşa bas → atanır; çakışan tuş öbür eylemden alınır; varsayılana dönüş
+  await page.click('#btnControls');
+  await page.click('.kbind[data-action="reload"][data-slot="0"]');
+  const wait = await page.evaluate(() => document.querySelector('.kbind.wait')?.dataset.action);
+  await page.keyboard.press('KeyY');
+  const kb1 = await page.evaluate(() => {
+    return { reload: [...document.querySelectorAll('.kbind[data-action="reload"]')].map((b) => b.textContent), saved: window.__game.save.data.settings.bindings, note: document.getElementById('keyNote').textContent };
+  });
+  check(wait === 'reload' && kb1.reload[0] === 'Y' && JSON.stringify(kb1.saved) === '{"reload":["KeyY"]}', `Şarjör tuşu R → Y (kayıtta yalnız fark: ${JSON.stringify(kb1.saved)})`);
+  await page.click('.kbind[data-action="reload"][data-slot="0"]');
+  await page.keyboard.press('KeyT');
+  const kb2 = await page.evaluate(() => ({ wheel: document.querySelector('.kbind[data-action="wheel"][data-slot="0"]').textContent, note: document.getElementById('keyNote').textContent, warn: document.getElementById('keyNote').classList.contains('warn') }));
+  check(kb2.wheel === '—' && /önce Komut çarkı/.test(kb2.note) && kb2.warn, `Çakışma: T komut çarkından alındı, uyarı ("${kb2.note}")`);
+  // Başka yere sol tık bekleyen yuvayı iptal eder (sol tık atanmaz)
+  await page.click('.kbind[data-action="jump"][data-slot="0"]');
+  await page.click('#controlsScreen h2');
+  const kb3 = await page.evaluate(() => ({ jump: document.querySelector('.kbind[data-action="jump"][data-slot="0"]').textContent, waiting: !!document.querySelector('.kbind.wait') }));
+  check(kb3.jump === 'Boşluk' && !kb3.waiting, 'Başka yere tıklamak bekleyen yuvayı iptal etti');
+  await page.screenshot({ path: join(shots, '22-controls-bind.png') });
+  await page.click('#btnKeysReset');
+  const kb4 = await page.evaluate(() => ({ saved: window.__game.save.data.settings.bindings, wheel: document.querySelector('.kbind[data-action="wheel"][data-slot="0"]').textContent, reload: document.querySelector('.kbind[data-action="reload"][data-slot="0"]').textContent }));
+  check(JSON.stringify(kb4.saved) === '{}' && kb4.wheel === 'T' && kb4.reload === 'R', 'Varsayılan tuşlar geri geldi (T çark, R şarjör)');
+  await page.click('#controlsScreen [data-back]');
+
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.cheats.god = true;
+    g.cheats.aiOff = true;
+    window.__ev = [];
+    g.events.on('COMMAND_ISSUED', (e) => window.__ev.push({ id: e.commandId, who: e.addressees, m: e.inputMethod, src: e.sourceText }));
+  });
+  await waitGame(page, 0.4);
+  // T basılı: çark açılır, oyun %30'a yavaşlar; dilim seçmeden bırakınca komut verilmez
+  await page.keyboard.down('KeyT');
+  await page.waitForFunction(() => window.__game.wheel.open, null, { timeout: 30000 }).catch(() => {});
+  const w1 = await page.evaluate(() => ({ open: window.__game.wheel.open, shown: !document.getElementById('wheel').hidden, slow: window.__game.wheel.slow, n: document.querySelectorAll('#wheel .wSlice').length, addr: document.querySelector('#wheel .wAddr').textContent }));
+  await page.screenshot({ path: join(shots, '22b-wheel.png') });
+  await page.keyboard.up('KeyT');
+  await page.waitForFunction(() => !window.__game.wheel.open, null, { timeout: 30000 }).catch(() => {});
+  check(w1.open && w1.shown && w1.n === 8 && Math.abs(w1.slow - 0.3) < 1e-6 && w1.addr === 'TÜM TİM', `T basılı: 8 dilimli çark, oyun hızı ×${w1.slow}, muhatap ${w1.addr}`);
+  check(await page.evaluate(() => !window.__game.wheel.open && !window.__ev.length), 'Dilim seçmeden bırakınca komut verilmedi');
+  // Fare yönü dilimi seçer (sağ → Oraya git), 2 muhatabı Alfa-1 yapar, bırakınca o askere verilir; askerin başında simge
+  const w2 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const a1 = g.allies.list[0];
+    // Alfa-1 oyuncunun 6 m önünde: etiketi ekranda görünsün
+    a1.pos.set(P.pos.x - Math.sin(P.yaw) * 6, P.pos.y, P.pos.z - Math.cos(P.yaw) * 6);
+    const fake = (look, pressed, down) => ({ pressed: (a) => pressed.includes(a), isDown: (a) => down.includes(a), consumeLook: () => look, touch: { active: false } });
+    g.wheel.show(false);
+    g.wheel.update(0.016, fake({ dx: 45, dy: 4 }, ['weapon2'], ['wheel']));
+    const sel = g.wheel.sel;
+    const addr = document.querySelector('#wheel .wAddr').textContent;
+    const lit = document.querySelector('#wheel .wSlice.on text')?.textContent;
+    // Nişangâh oyuncunun 5 m önündeki yürünebilir bir noktada (komut noktası nişangâhtan alınır)
+    const V = P.pos.constructor;
+    const tgt = g.nav.randomPointNear(P.pos.clone().add(new V(-Math.sin(P.yaw) * 5, 0, -Math.cos(P.yaw) * 5)), 2);
+    const eye = P.pos.clone().add(new V(0, 1.6, 0));
+    g.camera.position.copy(eye);
+    g.camera.lookAt(tgt.x, 0, tgt.z);
+    g.camera.updateMatrixWorld();
+    g.wheel.update(0.016, fake({ dx: 0, dy: 0 }, [], []));
+    return { sel, addr, lit, open: g.wheel.open, ev: window.__ev.at(-1), order: a1.order.id, others: g.allies.list.slice(1).map((a) => a.order.id) };
+  });
+  check(w2.sel === 2 && w2.addr === 'ALFA-1' && /Oraya/.test(w2.lit || ''), `Fare sağa: "Oraya git" dilimi yandı, 2 → ${w2.addr}`);
+  check(!w2.open && w2.ev?.id === 'MOVE_TO' && w2.ev.m === 'wheel' && w2.ev.who.join() === 'Alfa-1' && w2.order === 'MOVE_TO' && w2.others.every((o) => o !== 'MOVE_TO'), `Bırakınca komut yalnız Alfa-1'e gitti (${JSON.stringify(w2.ev)})`);
+  await waitGame(page, 0.3);
+  const tag = await page.evaluate(() => [...document.querySelectorAll('.atag b')].filter((b) => !b.hidden).map((b) => b.textContent));
+  check(tag.some((t) => /➤ Oraya git/.test(t)), `Komutu alan askerin başında simge (${tag.join(', ')})`);
+  // Ayar: çark yavaşlatması kapalı → tam hız
+  const slow1 = await page.evaluate(() => {
+    const g = window.__game;
+    g.settings.wheelSlowMo = 1;
+    g.wheel.show(false);
+    const s = g.wheel.slow;
+    g.wheel.close(false);
+    g.settings.wheelSlowMo = 0.3;
+    return s;
+  });
+  check(slow1 === 1, 'Ayar: çarkta yavaşlatma kapatılabiliyor');
+
+  // Z: düşmana bakınca saldır (kırmızı elmas), zemine bakınca git (halka), iki hızlı basış iptal → takip
+  const pg = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    g.ping.lastT = -10;
+    // Görüş hattı açık bir noktadan düşmanın göğsüne bak
+    const e = g.enemies.list.find((x) => x.alive && !x.dummy);
+    const chest = e.pos.clone().add(new V(0, 1.2, 0));
+    let eye = null;
+    for (let k = 0; k < 16 && !eye; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const c = chest.clone().add(new V(Math.sin(a) * 6, 0.4, Math.cos(a) * 6));
+      if (g.world.lineOfSight(c, chest)) eye = c;
+    }
+    g.camera.position.copy(eye);
+    g.camera.lookAt(chest);
+    g.camera.updateMatrixWorld();
+    // Seçili muhatap çarkta Alfa-1 yapılmıştı: işaret testleri tüm time
+    g.wheel.addr = 0;
+    g.wheel.renderAddr();
+    const kind1 = g.ping.press();
+    const atk = window.__ev.at(-1);
+    const focus = g.allies.list.every((a) => a.focus === e);
+    g.ping.update(0.016);
+    const diamond = g.ping.diamond.visible && g.ping.diamond.position.distanceTo(e.pos) < 3;
+    // Zemin: oyuncunun gözünden 6 m ileriye, yere
+    g.ping.lastT = -10;
+    const P = g.player;
+    const eye2 = P.pos.clone().add(new V(0, 1.6, 0));
+    const tgt = g.nav.randomPointNear(P.pos.clone().add(new V(-Math.sin(P.yaw) * 5, 0, -Math.cos(P.yaw) * 5)), 2);
+    g.camera.position.copy(eye2);
+    g.camera.lookAt(tgt.x, 0, tgt.z);
+    g.camera.updateMatrixWorld();
+    const kind2 = g.ping.press();
+    const mv = window.__ev.at(-1);
+    const ring = g.ping.ring.visible;
+    // Hemen ikinci basış: iptal → aynı muhataplar takibe
+    const kind3 = g.ping.press();
+    const cancel = window.__ev.at(-1);
+    return { kind1, atk, focus, diamond, kind2, mv, ring, kind3, cancel, ringAfter: g.ping.ring.visible, orders: g.allies.list.map((a) => a.order.id) };
+  });
+  check(pg.kind1 === 'enemy' && pg.atk?.id === 'ATTACK' && pg.atk.m === 'ping' && pg.focus && pg.diamond, 'Z düşmanda: tim saldırıya geçti, düşmanın üstünde kırmızı elmas');
+  check((pg.kind2 === 'ground' && pg.mv?.id === 'MOVE_TO') || (pg.kind2 === 'room' && pg.mv?.id === 'CLEAR_AREA'), `Z zeminde: ${pg.kind2} → ${pg.mv?.id}, yerde halka (${pg.ring})`);
+  check(pg.ring, 'Oraya git noktasında halka görünüyor');
+  check(pg.kind3 === undefined && pg.cancel?.id === 'FOLLOW' && !pg.ringAfter && pg.orders.every((o) => o === 'FOLLOW'), 'İki hızlı Z: işaret iptal, tim takibe döndü');
+  // Z yaralı askerde: en yakın sağlam asker gidip kaldırır
+  const rv = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    g.ping.lastT = -10;
+    const [a1, a2, a3] = g.allies.list;
+    const P = g.player;
+    const fwd = new V(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+    a1.pos.copy(g.nav.randomPointNear(P.pos.clone().addScaledVector(fwd, 5), 2));
+    a1.takeDamage(9999, null, { zone: 'torso' });
+    a2.pos.copy(g.nav.randomPointNear(a1.pos, 3));
+    a3.pos.copy(g.nav.randomPointNear(P.pos.clone().addScaledVector(fwd, -15), 3));
+    const eye = P.pos.clone().add(new V(0, 1.6, 0));
+    g.camera.position.copy(eye);
+    g.camera.lookAt(a1.pos.clone().add(new V(0, 0.3, 0)));
+    g.camera.updateMatrixWorld();
+    const kind = g.ping.press();
+    const ev = window.__ev.at(-1);
+    return { down: a1.down, kind, ev, helper: a2.reviving === a1, far: a3.reviving === a1 };
+  });
+  check(rv.down && rv.kind === 'downed' && rv.ev?.id === 'MOVE_TO' && rv.ev.who.join() === 'Alfa-2' && rv.helper && !rv.far, `Z yaralı askerde: en yakın asker (Alfa-2) kaldırmaya gitti (${rv.ev?.src})`);
+  await page.screenshot({ path: join(shots, '22c-ping.png') });
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+
+  // Telefon: TELSİZ düğmesi çarkı açar, dilime dokununca komut; İŞARET düğmesi; paneller üst üste binmez
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+      localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: 6, best: {} }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[commands-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  await mp.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await mp.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await mp.evaluate(() => {
+    const g = window.__game;
+    g.cheats.god = true;
+    window.__ev = [];
+    g.events.on('COMMAND_ISSUED', (e) => window.__ev.push({ id: e.commandId, who: e.addressees, m: e.inputMethod }));
+    g.events.on('COMMAND_FAILED', (e) => window.__ev.push({ id: e.commandId, who: e.addressees, m: e.inputMethod, failed: e.reason }));
+  });
+  await waitGame(mp, 0.6);
+  const lay = await mp.evaluate(() => {
+    const r = (id) => document.getElementById(id).getBoundingClientRect();
+    const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+    const ids = ['objective', 'health', 'ammo', 'squad', 'tracker'].filter((id) => !document.getElementById(id).hidden);
+    const over = [];
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) if (hit(r(ids[i]), r(ids[j]))) over.push(`${ids[i]}/${ids[j]}`);
+    const btn = ['tbWheel', 'tbPing'].map((id) => document.getElementById(id)).map((b) => getComputedStyle(b).display !== 'none' && b.getBoundingClientRect().bottom <= innerHeight);
+    return { ids, over, btn, tr: r('tracker').bottom, h: innerHeight };
+  });
+  check(lay.over.length === 0 && lay.ids.length >= 4 && lay.tr <= lay.h, `Telefonda HUD panelleri üst üste binmiyor (${lay.ids.join(', ')}${lay.over.length ? ` · çakışan: ${lay.over.join(', ')}` : ''})`);
+  check(lay.btn.every(Boolean), 'Telefonda TELSİZ ve İŞARET düğmeleri görünüyor');
+  await mp.screenshot({ path: join(shots, '22d-mobile-squad.png') });
+  await mp.tap('#tbWheel');
+  await mp.waitForFunction(() => window.__game.wheel.open, null, { timeout: 30000 }).catch(() => {});
+  const mw = await mp.evaluate(() => ({ open: window.__game.wheel.open, touch: document.getElementById('wheel').classList.contains('touch') }));
+  await mp.screenshot({ path: join(shots, '22e-mobile-wheel.png') });
+  // Ortaya dokun: muhatap değişir; "Siper al" dilimine dokun: komut verilir
+  await mp.tap('#wheel .wCenter');
+  const addr = await mp.evaluate(() => document.querySelector('#wheel .wAddr').textContent);
+  const box = await mp.evaluate(() => {
+    const p = document.querySelector('#wheel .wSlice path[data-cmd="TAKE_COVER"]').getBoundingClientRect();
+    return { x: p.left + p.width / 2, y: p.top + p.height / 2 };
+  });
+  await mp.touchscreen.tap(box.x, box.y);
+  await waitGame(mp, 0.1);
+  const mw2 = await mp.evaluate(() => ({ open: window.__game.wheel.open, ev: window.__ev.at(-1) }));
+  check(mw.open && mw.touch && addr === 'ALFA-1' && !mw2.open && mw2.ev?.id === 'TAKE_COVER' && mw2.ev.m === 'wheel' && mw2.ev.who.join() === 'Alfa-1', `Dokunmatik çark: ortaya dokunuş muhatabı ${addr} yaptı, dilim komutu verdi (${JSON.stringify(mw2.ev)})`);
+  await mp.tap('#tbPing');
+  await waitGame(mp, 0.1);
+  // Yeni komut önceki çark komutunu geçersiz kılar (o komut "replaced" ile düşer): işaretten çıkanı ara
+  const mpg = await mp.evaluate(() => window.__ev.filter((e) => e.m === 'ping').at(-1));
+  check(mpg?.m === 'ping', `İŞARET düğmesi bağlamsal komut verdi (${mpg?.id})`);
+  await mctx.close();
+}
+
 if (run('interact')) {
 console.log('Etkileşimler');
 
