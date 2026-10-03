@@ -6,6 +6,9 @@ import { WEAPONS, MAPS, ALLY_TIERS } from './config.js';
 import { weaponName, weaponShortName } from './weaponInfo.js';
 import { itemIcon } from './storeIcons.js';
 import { BINDINGS, keyName } from './input.js';
+import { REVIVE } from './downed.js';
+
+const REVIVE_DARK = REVIVE.darkenLastSec; // son saniyelerde ekran kararır
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -39,7 +42,8 @@ export class HUD {
       markers: $('markers'), icons: $('icons'), dmgNums: $('dmgNums'), dmgDirs: $('dmgDirs'), grenadeWarn: $('grenadeWarn'),
       compassStrip: $('compassStrip'), compassObj: $('compassObj'), compass: $('compass'),
       minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'), tbAds: $('tbAds'),
-      slots: $('slots'), kit: $('kit'), squad: $('squad'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
+      slots: $('slots'), kit: $('kit'), squad: $('squad'), downed: $('downed'), dnRing: $('dnRing'), dnRevive: $('dnRevive'), dnTime: $('dnTime'),
+      dnStatus: $('dnStatus'), dnHint: $('dnHint'), dnPulse: $('dnPulse'), dnDark: $('dnDark'), game: $('game'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
     };
     this.ch = {
       t: this.el.crosshair.querySelector('.t'), b: this.el.crosshair.querySelector('.b'),
@@ -394,6 +398,66 @@ export class HUD {
   }
 
   // Kare başına güncelleme
+  // Yere düşme ekranı (§7.3): ortada kan kaybı halkası ve süre, gelen asker ve mesafesi, canlandırma halkası;
+  // renkler sayaçla solar, kenarda kırmızı nabız, son saniyelerde kararır (tuvale CSS süzgeci: ek çizim geçişi yok)
+  updateDowned(dt) {
+    const g = this.game;
+    const P = g.player;
+    const E = this.el;
+    if (!E.downed) return;
+    if (!P.down) {
+      if (this.wasDown) {
+        this.wasDown = false;
+        E.downed.hidden = true;
+        E.game.style.filter = '';
+        E.dnPulse.style.opacity = '0';
+        E.dnDark.style.opacity = '0';
+        document.body.classList.remove('downed');
+      }
+      return;
+    }
+    if (!this.wasDown) {
+      this.wasDown = true;
+      E.downed.hidden = false;
+      document.body.classList.add('downed');
+      const kit = g.kit.slots.findIndex((s) => s?.id === 'adrenaline' && s.left > 0);
+      E.dnHint.innerHTML = '';
+      const add = (key, text) => {
+        const k = document.createElement('kbd');
+        k.textContent = key;
+        E.dnHint.append(k, document.createTextNode(` ${text}  `));
+      };
+      add(keyName(BINDINGS.interact[0] || 'KeyE'), 'basılı: yardım çağır');
+      add(keyName(BINDINGS.swapWeapon[0] || 'KeyX'), 'basılı: pes et');
+      if (kit >= 0) add(keyName(BINDINGS[`useItem${kit + 1}`]?.[0] || ''), 'adrenalin');
+    }
+    const B = P.bleed;
+    const f = B.frac;
+    const C = 2 * Math.PI * 46;
+    E.dnRing.style.strokeDashoffset = String(C * (1 - f));
+    E.dnRevive.style.strokeDashoffset = String(C * (1 - (P.reviver ? P.reviveK : 0)));
+    E.dnTime.textContent = String(Math.ceil(B.left));
+    const R = g.allies.rescue;
+    let st;
+    if (P.reviver) st = `${P.reviver.rankName} seni kaldırıyor`;
+    else if (R.reviver) st = `${R.reviver.rankName} geliyor — ${Math.round(R.reviver.pos.distanceTo(P.pos))} m`;
+    else if (!g.allies.list.some((a) => !a.down)) st = 'Kurtarma yok — tim yerde';
+    else if (R.decision === 'clearFirst') st = 'Tim önce bölgeyi temizliyor…';
+    else st = 'Yardım yolda değil — bölge çok sıcak';
+    if (st !== this.dnSt) {
+      this.dnSt = st;
+      E.dnStatus.textContent = st;
+    }
+    // Ekran: canlandırılırken renk hızla geri gelir
+    const k = P.reviver ? 0.2 : 1;
+    const desat = (0.45 + (1 - f) * 0.55) * k;
+    const dark = B.left < REVIVE_DARK ? (1 - B.left / REVIVE_DARK) * 0.8 * k : 0;
+    E.game.style.filter = `grayscale(${desat.toFixed(2)}) brightness(${(1 - dark).toFixed(2)})`;
+    const beat = 0.5 + 0.5 * Math.sin(P.time * (4 + (1 - f) * 6));
+    E.dnPulse.style.opacity = String(((0.35 + (1 - f) * 0.5) * beat * k).toFixed(2));
+    E.dnDark.style.opacity = String(dark.toFixed(2));
+  }
+
   // Alfa Timi durumu (§8.1): renk, çağrı kodu ve ad, can ve zırh çubuğu, son emir. Saniyede dört kez.
   updateSquad(dt) {
     const box = this.el.squad;
@@ -454,6 +518,7 @@ export class HUD {
     const width = g.width;
     const height = g.height;
     this.updateSquad(dt);
+    this.updateDowned(dt);
 
     // Dokunmatik NİŞAN aç/kapa çalışır: nişandayken düğme parmak kalksa da yanık kalsın (DOM'a yalnız değişince yaz)
     const adsLatched = g.input.touch.active && P.adsToggle;

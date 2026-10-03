@@ -671,6 +671,9 @@ export class Mission {
     };
     if (!silent) {
       g.events.emit('message', 'KONTROL NOKTASI', 'checkpoint');
+      // Kan kaybından ölen askerler burada tekrar katılır (revive.json → allyRespawnAtCheckpoint)
+      const back = g.allies.respawnDead(g.player.pos, g.player.yaw);
+      if (back) this.radio('YUVA', back > 1 ? `${back} takviye asker yanınızda.` : 'Takviye asker yanınızda.', 0.5);
     }
   }
 

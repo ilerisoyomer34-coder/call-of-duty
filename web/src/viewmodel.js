@@ -227,6 +227,8 @@ export class Viewmodel {
     const W = g.weapons;
     const w = W.current;
     this.time += dt;
+    // Yerdeyken eller ve silah görünmez (sürünme, silah yok)
+    this.holder.visible = !P.down;
     if (!w) return;
     const d = w.data;
     const m = this.models[w.id];
@@ -236,7 +238,7 @@ export class Viewmodel {
     }
     // Dürbünlü silahta tam nişanda model gizlenir, dürbün kaplaması görünür
     this.scoped = !!d.scope && P.adsT > 0.86;
-    this.holder.visible = P.alive && !this.scoped;
+    this.holder.visible = P.alive && !P.down && !this.scoped;
     const handgun = d.category === 'secondary' && !d.projectile;
 
     // --- Temel poz: kalça ↔ nişan ---

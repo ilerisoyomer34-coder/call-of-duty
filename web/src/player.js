@@ -6,6 +6,7 @@ import { DEG, clamp, damp, lerp, smoothstep, yawToDir } from './util.js';
 import { Health } from './health.js';
 import { ArmorLoadout, computeArmorDamage, playerZoneMult, ARMOR_DATA } from './armor.js';
 import { EV } from './events.js';
+import { REVIVE, BleedOut, bleedOutFor } from './downed.js';
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -54,6 +55,16 @@ export class Player {
     this.interactTarget = null;
     this.interacting = false;
     this.usingItem = false; // sarf malzemesi takılıyor (kit.js): silah iner, koşulamaz, nişan alınamaz
+    // Yere düşme (Modül D): ölümcül hasarda ölmek yerine kan kaybı sayacıyla yerde kalır
+    this.down = false;
+    this.bleed = null;
+    this.reviver = null; // canlandıran asker (ally.js her karede bildirir)
+    this.reviveK = 0; // canlandırma ilerlemesi 0–1
+    this.protectUntil = -1; // kalkıştan sonra kısa süre hasar azalır
+    this.helpHoldT = 0;
+    this.giveUpT = 0;
+    this.calledHelpUntil = -1;
+    this.helpReadyAt = 0;
     this.interactT = 0;
     this.horizSpeed = 0;
     this.groundSurface = 'sand';
@@ -113,6 +124,14 @@ export class Player {
     // Bölge çarpanı, sonra zırh (belge §4.5): zırh emdiği kadar aşınır, kalan cana gider
     const zone = hit?.zone || 'torso';
     const raw = amount * playerZoneMult(zone);
+    // Yerdeyken alınan her hasar puanı kan kaybı süresinden düşer (§7.3)
+    if (this.down) {
+      g.audio.hurt();
+      if (this.bleed.damage(raw)) this.die();
+      return;
+    }
+    // Kalkıştan sonra kısa süre hasar azalır (§7.5)
+    if (this.time < this.protectUntil) amount *= 1 - REVIVE.postReviveDamageReduction;
     const piece = this.armor.pieceFor(zone);
     const res = computeArmorDamage(raw, hit?.pen ?? ARMOR_DATA.defaultPen, piece);
     if (res.absorbed > 0) {
@@ -126,6 +145,13 @@ export class Player {
       g.events.emit(EV.ARMOR_BROKEN, { target: this, targetType: 'player', piece: piece.id, by: hit?.source || 'enemy' });
     }
     amount = res.healthDamage;
+    // Tek seferde çok büyük hasar (patlamanın merkezi, tank topu): yere düşme yok, doğrudan ölüm (§7.7).
+    // Saniyelik hasar tavanından önce bakılır; yoksa tavan büyük vuruşu yumuşatıp ölümü önlerdi.
+    if (amount >= REVIVE.instantDeathThreshold && g.mode === 'mission') {
+      this.health.damage(this.health.hp);
+      this.die();
+      return;
+    }
     // Son 1 saniyede alınan hasar zorluk sınırını aşmasın: çapraz ateşte bile tepki süresi kalır
     const cap = g.difficulty.dpsCap || 60;
     this.dmgWindow = (this.dmgWindow || []).filter((d) => this.time - d.t < 1);
@@ -146,13 +172,125 @@ export class Player {
     this.recoil.tp += (Math.random() - 0.3) * 1.2 * DEG;
     this.recoil.ty += (Math.random() - 0.5) * 1.2 * DEG;
     this.recoil.last = this.time;
-    if (this.health.dead) this.die();
+    if (this.health.dead) {
+      // Tek seferde büyük hasar (patlamanın merkezi) ya da görev dışı: doğrudan ölüm
+      if (raw >= REVIVE.instantDeathThreshold || g.mode !== 'mission') this.die();
+      else this.goDown();
+    }
+  }
+
+  // Yere düş: kan kaybı sayacı görevdeki kaçıncı düşüş olduğuna ve zorluğa göre
+  goDown() {
+    const g = this.game;
+    this.down = true;
+    g.stats.downs = (g.stats.downs || 0) + 1;
+    this.bleed = new BleedOut(bleedOutFor(g.stats.downs, g.difficultyKey));
+    this.reviver = null;
+    this.reviveK = 0;
+    this.helpHoldT = 0;
+    this.giveUpT = 0;
+    this.interacting = false;
+    this.usingItem = false;
+    this.adsToggle = false;
+    this.stopSprint();
+    this.crouched = true;
+    // Elde pimi çekilmiş bomba ya da yarım şarjör değişimi kalmasın
+    const W = g.weapons;
+    W.cancelReload();
+    if (W.state === 'cooking' || W.state === 'throwing') {
+      W.state = 'idle';
+      W.cookT = 0;
+    }
+    g.save?.update((d) => (d.stats.timesDowned = (d.stats.timesDowned || 0) + 1));
+    g.events.emit(EV.PLAYER_DOWNED, { downCount: g.stats.downs, bleedSec: this.bleed.total });
+    g.events.emit('message', 'YERE DÜŞTÜN', 'warn');
+  }
+
+  // Kalk: canlandıran asker ya da adrenalin; can %35, kısa süre hasar azalır
+  revive(by) {
+    const g = this.game;
+    if (!this.down) return;
+    this.down = false;
+    this.bleed = null;
+    this.reviver = null;
+    this.reviveK = 0;
+    this.health.hp = 0.001;
+    this.health.heal(this.health.max * REVIVE.reviveHealthPct);
+    this.lastDamage = this.time;
+    this.protectUntil = this.time + REVIVE.postReviveProtectionSec;
+    this.crouchToggle = false;
+    g.audio.setMuffle(0);
+    g.events.emit(EV.PLAYER_REVIVED, { by });
+  }
+
+  // Yerdeyken: sürünme, etrafa bakma, yardım çağırma (E basılı), pes etme (X basılı); silah yok
+  updateDowned(dt, input) {
+    const g = this.game;
+    const S = g.settings;
+    const look = input.consumeLook();
+    const k = 0.0022 * S.sensitivity;
+    this.yaw -= look.dx * k;
+    this.pitch = clamp(this.pitch - look.dy * k * (S.invertY ? -1 : 1), -60 * DEG, 60 * DEG);
+    const mv = input.move();
+    yawToDir(this.yaw, _fwd);
+    _right.set(-_fwd.z, 0, _fwd.x);
+    _wish.set(0, 0, 0).addScaledVector(_fwd, mv.y).addScaledVector(_right, mv.x);
+    if (_wish.lengthSq() > 1) _wish.normalize();
+    // Canlandırılırken kıpırdamaz
+    const speed = this.reviver ? 0 : REVIVE.crawlSpeed;
+    this.vel.x = damp(this.vel.x, _wish.x * speed, 8, dt);
+    this.vel.z = damp(this.vel.z, _wish.z * speed, 8, dt);
+    this.state.height = M.crouchHeight;
+    this.crouchT = 1;
+    g.world.moveCharacter(this.state, dt, M.stepHeight);
+    this.horizSpeed = Math.hypot(this.vel.x, this.vel.z);
+    this.camY = damp(this.camY, this.pos.y + REVIVE.downedEyeHeight, 8, dt);
+    this.adsT = 0;
+    this.lean = damp(this.lean, 0, 10, dt);
+    // Sayaç: canlandırılırken durur
+    if (this.bleed.tick(dt, !!this.reviver)) {
+      this.die();
+      return;
+    }
+    // Yardım çağır: E basılı 0,5 sn → telsiz, askerlerin yardım puanı artar; 8 sn bekleme
+    if (input.isDown('interact') && this.time >= this.helpReadyAt) {
+      this.helpHoldT += dt;
+      if (this.helpHoldT >= REVIVE.helpCallHoldSec) {
+        this.helpHoldT = 0;
+        this.helpReadyAt = this.time + REVIVE.helpCallCooldownSec;
+        this.calledHelpUntil = this.time + REVIVE.helpCallCooldownSec;
+        g.mission?.radio('Komutan', 'Yardım lazım! Yerdeyim!', 0, 'player');
+        g.events.emit('helpCalled');
+      }
+    } else this.helpHoldT = 0;
+    // Pes et: X basılı 2 sn → son kontrol noktasından devam
+    if (input.isDown('swapWeapon')) {
+      this.giveUpT += dt;
+      if (this.giveUpT >= REVIVE.giveUpHoldSec) {
+        this.die();
+        return;
+      }
+    } else this.giveUpT = 0;
+    // Ses: kalp atışı sayaç azaldıkça hızlanır, ortam boğuklaşır
+    const f = this.bleed.frac;
+    g.audio.setMuffle(0.55 + (1 - f) * 0.45, REVIVE.muffleHz);
+    this.hbTimer -= dt;
+    if (this.hbTimer <= 0) {
+      const [slow, fast] = REVIVE.heartbeatSec;
+      this.hbTimer = fast + (slow - fast) * f;
+      g.audio.heartbeat();
+    }
+    this.trauma = Math.max(0, this.trauma - dt * 1.6);
+    this.shakeT += dt;
   }
 
   die() {
     this.alive = false;
     this.deathT = 0;
     this.interacting = false;
+    this.down = false;
+    this.reviver = null;
+    this.game.audio.setMuffle(0);
     this.game.onPlayerDeath();
   }
 
@@ -169,6 +307,10 @@ export class Player {
       this.vel.z = damp(this.vel.z, 0, 5, dt);
       g.world.moveCharacter(this.state, dt, M.stepHeight);
       this.trauma = damp(this.trauma, 0, 2, dt);
+      return;
+    }
+    if (this.down) {
+      this.updateDowned(dt, input);
       return;
     }
 
@@ -461,6 +603,7 @@ export class Player {
     const leanX = this.lean * M.leanOffset;
     let y = this.camY + bobY + this.landDip;
     let roll = -this.lean * M.leanRoll * DEG + sr;
+    if (this.down) roll += REVIVE.downedRollDeg * DEG; // yerde: kamera yere yakın, hafif yan yatık
     if (!this.alive) {
       // Ölüm kamerası: yana devril
       const k = smoothstep(clamp(this.deathT / 0.9, 0, 1));

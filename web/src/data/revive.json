@@ -22,6 +22,11 @@
   "helpCallHoldSec": 0.5,
   "giveUpHoldSec": 2.0,
   "instantDeathThreshold": 150,
+  "downedEyeHeight": 0.42,
+  "downedRollDeg": 12,
+  "muffleHz": 650,
+  "heartbeatSec": [0.95, 0.4],
+  "darkenLastSec": 5,
   "assist": {
     "base": 100,
     "perMeter": 1.2,

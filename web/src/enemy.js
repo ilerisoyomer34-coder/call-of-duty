@@ -22,7 +22,8 @@ const _fc = new THREE.Vector3(); // uçaksavar hedefinin göğsü
 const _hit = {};
 const _ray = new THREE.Raycaster();
 const UP = new THREE.Vector3(0, 1, 0);
-const FOE_PLAYER_BIAS = 1.25; // oyuncu, dosttan bu kat uzakta olsa bile hedef seçilir
+const FOE_PLAYER_BIAS = 1.25;
+const DOWNED_PLAYER_BIAS = 0.35; // yerdeki oyuncu, dosttan ancak çok daha yakınsa seçilir // oyuncu, dosttan bu kat uzakta olsa bile hedef seçilir
 
 let nextId = 1;
 
@@ -318,7 +319,8 @@ export class Enemy {
     const seen = g.allies.visibleTo(this, eye, range, fovHalf, inCombat);
     let foe = null;
     let dist = 0;
-    if (seeP && (!seen || distP <= seen.dist * FOE_PLAYER_BIAS)) {
+    // Yere düşmüş oyuncu düşük öncelikli: ayakta bir dost görünüyorsa önce o
+    if (seeP && (!seen || distP <= seen.dist * (P.down ? DOWNED_PLAYER_BIAS : FOE_PLAYER_BIAS))) {
       foe = P;
       dist = distP;
     } else if (seen) {

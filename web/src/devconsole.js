@@ -30,6 +30,7 @@ const HELP = `Komutlar:
   armorfill           zırhı doldur; armor yazınca kuşanılanı gösterir
   give <sarf> [n]     envantere sarf malzemesi ekle (plate_pack, medkit, adrenaline, smoke, frag)
   missions [complete|reset]  bonus görev durumu; tümünü 3 yıldızla tamamla / sıfırla
+  down                oyuncuyu yere düşür; aiscores: askerlerin yardım puanı ve kararı
   cmd <KOMUT> [alfa-n|all]   tim komutu (FOLLOW, HOLD, MOVE_TO, ATTACK, SUPPRESS, TAKE_COVER, HEAL_PLAYER, HOLD_FIRE, FREE_FIRE, CLEAR_AREA)
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
@@ -253,6 +254,20 @@ export class DevConsole {
         if (id === 'frag') g.weapons.kitFrags = g.kit.count('frag');
         g.kit.emit();
         this.print(`${id}: envanterde ${g.save.data.inventory.consumables[id]}`);
+        break;
+      }
+      case 'down': {
+        // Oyuncuyu yere düşür (Modül D denemesi)
+        if (g.player.down || !g.player.alive) break;
+        g.player.health.hp = 0;
+        g.player.goDown();
+        this.print(`Yerde: kan kaybı ${g.player.bleed.total.toFixed(1)} sn (${g.stats.downs}. düşüş)`);
+        break;
+      }
+      case 'aiscores': {
+        // Askerlerin yardım puanı ve kararı (her 0,5 sn güncellenir)
+        for (const a of g.allies.list) this.print(`${a.callsign}: ${a.assist ? `${a.assist.score.toFixed(0)} → ${a.assist.decision}` : a.dead ? 'öldü' : a.down ? 'yerde' : '-'}`);
+        this.print(`Karar: ${g.allies.rescue.decision}${g.allies.rescue.reviver ? ` · canlandıran ${g.allies.rescue.reviver.callsign}` : ''}`);
         break;
       }
       case 'cmd': {

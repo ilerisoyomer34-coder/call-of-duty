@@ -252,6 +252,8 @@ export class PlayerWeapons {
     const d = w.data;
     this.stateT += dt;
     w.cooldown -= dt;
+    // Yerdeyken silah kullanılmaz (Modül D)
+    if (P.down) canAct = false;
     if (w.pumpT >= 0) {
       w.pumpT += dt;
       if (w.pumpT > d.pumpDelay && !w.pumpSfx) {

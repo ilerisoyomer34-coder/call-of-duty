@@ -26,6 +26,8 @@ import SQUAD from './data/squad.json' with { type: 'json' };
 import STORE from './data/store.json' with { type: 'json' };
 import VOICE from './data/voicelines.tr.json' with { type: 'json' };
 import { computeArmorDamage } from './armor.js';
+import { EV } from './events.js';
+import { REVIVE, BleedOut, allyBleedOutFor, allyCanDie, assistScore, assistDecision, reviveTime } from './downed.js';
 
 const O = SQUAD.orders;
 // Tim Zırhı yükseltmeleri (mağaza): sahip olunan en yüksek seviyenin ZP'si
@@ -129,6 +131,13 @@ export class Ally {
     this.holdFire = false;
     this.healCooldownUntil = this.healCooldownUntil || 0;
     this.selfCoverUntil = 0;
+    // Modül D: kan kaybı (Normal/Zor'da kaldırılmazsa ölür), kalıcı ölüm, oyuncuyu canlandırma
+    this.dead = false;
+    this.bleed = null;
+    this.revivedBy = null; // onu kaldırmakta olan (asker ya da 'player')
+    this.rescueT = 0; // oyuncuyu canlandırma süresi
+    this.rescueDmg = 0;
+    this.assist = null; // son yardım puanı ve kararı (geliştirici görünümü)
     this.weapon.burstLeft = 0;
     this.peekPhase = 'show';
     this.peekT = 0;
@@ -179,9 +188,28 @@ export class Ally {
     this.model.hit('torso');
     // Görmediği yerden vurulduysa o yöne döner
     if (fromPos && !this.targetVisible) this.threatYaw = dirToYaw(fromPos.x - this.pos.x, fromPos.z - this.pos.z);
+    // Oyuncuyu canlandırırken ağır hasar işlemi keser (§7.5); karar yeniden verilir
+    if (this.rescueT > 0) {
+      this.rescueDmg += amount;
+      if (this.rescueDmg >= REVIVE.reviveInterruptDamage) {
+        this.rescueT = 0;
+        this.rescueDmg = 0;
+        if (g.player.reviver === this) g.player.reviver = null;
+        g.allies.rescueT = 0;
+        this.sayLine('Ateş altındayım, bırakmak zorundayım!');
+      }
+    }
     if (this.health.dead) {
       this.down = true;
       this.downT = this.S.downTime;
+      // Kolay'da bir süre sonra kendi kalkar; Normal/Zor'da kan kaybı sayacı dolarsa ölür
+      this.bleed = allyCanDie(g.difficultyKey) ? new BleedOut(allyBleedOutFor(g.difficultyKey)) : null;
+      if (this.bleed) this.downT = Infinity;
+      this.revivedBy = null;
+      this.rescueT = 0;
+      if (g.player.reviver === this) g.player.reviver = null;
+      g.events.emit(EV.ALLY_DOWNED, { allyId: this.callsign, ally: this });
+      this.registerReviveInteract();
       this.target = null;
       this.throwAnim = null;
       this.reviving = null;
@@ -197,6 +225,64 @@ export class Ally {
       this.say('down', true);
       g.events.emit('allyDown', this);
     }
+  }
+
+  // Oyuncu yanına gelip E'yi basılı tutarak kaldırır (3 sn, Muharebe Medik Eğitimi ile kısa)
+  registerReviveInteract() {
+    const g = this.game;
+    const M = g.mission;
+    if (!M) return;
+    const self = this;
+    this.reviveIa ||= {
+      id: `revive-${this.callsign}`,
+      pos: new THREE.Vector3(),
+      radius: 1.8,
+      time: REVIVE.playerReviveHoldSec,
+      get prompt() {
+        return `${self.callsign} ${self.person}: ayağa kaldır`;
+      },
+      enabled: () => self.down && !self.dead && g.player.alive && !g.player.down,
+      action: () => self.reviveBy('player'),
+    };
+    this.reviveIa.time = REVIVE.playerReviveHoldSec * g.allies.reviveTraining;
+    this.reviveIa.pos.set(this.pos.x, this.pos.y + 0.6, this.pos.z);
+    if (!M.interactables.includes(this.reviveIa)) M.interactables.push(this.reviveIa);
+  }
+
+  // Kalk: başka bir asker ya da oyuncu kaldırdı (by: çağrı kodu | 'player'), ya da Kolay'da kendiliğinden (null)
+  reviveBy(by) {
+    const g = this.game;
+    if (!this.down || this.dead) return;
+    this.down = false;
+    this.downT = 0;
+    this.bleed = null;
+    this.revivedBy = null;
+    this.health.hp = this.health.max * ALLY.reviveHp;
+    this.say('up', true);
+    if (by) g.events.emit(EV.ALLY_REVIVED, { allyId: this.callsign, by });
+    if (by === 'player') g.save?.update((d) => (d.stats.revivesGiven = (d.stats.revivesGiven || 0) + 1));
+  }
+
+  // Kan kaybından öldü: görevin geri kalanında kayıp; bir sonraki kontrol noktasında geri gelir (ayar)
+  die() {
+    const g = this.game;
+    this.dead = true;
+    this.down = true;
+    this.bleed = null;
+    this.revivedBy = null;
+    this.releaseCover();
+    this.deathT = 0;
+    this.model.die({ zone: 'torso', dir: _d.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)), source: 'enemy' }, g);
+    g.mission?.radio('TELSİZ', `${this.radioLabel} kaybedildi.`, 0, 'system');
+    g.events.emit(EV.ALLY_DIED, { allyId: this.callsign, ally: this });
+  }
+
+  updateDeath(dt) {
+    if (this.deathT > 2.5) return;
+    this.deathT += dt;
+    const A = (this._deathAnim ||= { deathT: 0, fallDir: 1, fallSide: 0 });
+    A.deathT = this.deathT;
+    this.model.updateDeath?.(dt, A, this.pos, this.yaw);
   }
 
   // Oyuncunun mermisi değdi: hasar yok, uyarı var
@@ -441,16 +527,23 @@ export class Ally {
     const g = this.game;
     const P = g.player;
     this.sayT -= dt;
+    if (this.dead) {
+      this.updateDeath(dt);
+      return;
+    }
     if (this.down) {
       this.downT -= dt;
       this.vel.x = damp(this.vel.x, 0, 10, dt);
       this.vel.z = damp(this.vel.z, 0, 10, dt);
       this.crouch = true;
-      if (this.downT <= 0) {
-        this.down = false;
-        this.health.hp = this.health.max * ALLY.reviveHp;
-        this.say('up', true);
+      // Biri kaldırırken (asker ya da E basılı oyuncu) sayaç durur
+      if (this.reviveIa) this.reviveIa.pos.set(this.pos.x, this.pos.y + 0.6, this.pos.z);
+      const byPlayer = !!this.reviveIa && P.interacting && P.interactTarget === this.reviveIa;
+      if (this.bleed && this.bleed.tick(dt, !!this.revivedBy || byPlayer)) {
+        this.die();
+        return;
       }
+      if (this.downT <= 0) this.reviveBy(null);
       g.world.moveCharacter(this.state, dt, 0.45);
       this.animate(dt, 'relaxed');
       return;
@@ -498,6 +591,11 @@ export class Ally {
     const tac = this.order.id === 'FOLLOW' ? this.tacticGoal(dt, weaponsFree) : this.reviving ? this.tacticGoal(dt, weaponsFree) : null;
     if (tac) {
       goal = tac;
+      this.releaseCover();
+    }
+    // Oyuncuyu canlandırma (§7.4–7.5): seçilen asker emri ne olursa olsun komutana koşar
+    if (g.allies.rescue.reviver === this && P.down) {
+      goal = P.pos;
       this.releaseCover();
     }
     // Kendini koruma: can çok düşük ve ateş altında → kısa süre en yakın sipere (emirden önce gelir)
@@ -557,6 +655,22 @@ export class Ally {
         this.crouch = true;
         hiding = true;
       }
+      // Komutanın yanında: çömel, sayaç durur, süre dolunca kaldır
+      if (g.allies.rescue.reviver === this && P.down && this.pos.distanceTo(P.pos) < REVIVE.reviveRange + 0.4) {
+        this.crouch = true;
+        hiding = true;
+        P.reviver = this;
+        this.rescueT += dt;
+        const need = reviveTime({ medic: this.role === 'medic', training: g.allies.reviveTraining });
+        P.reviveK = Math.min(1, this.rescueT / need);
+        if (this.rescueT >= need) {
+          this.rescueT = 0;
+          this.rescueDmg = 0;
+          g.allies.rescue.reviver = null;
+          this.sayLine(this.voice('reviving'));
+          P.revive(this.callsign);
+        }
+      }
       // Eğilip çıkma: siperde saklan / kalk ve ateş et döngüsü (düşman görüşünden çıkar)
       if (this.cover && this.target && this.has('peek')) {
         this.peekT -= dt;
@@ -575,8 +689,9 @@ export class Ally {
         this.crouch = true;
         hiding = true;
         this.reviveT += dt;
-        if (this.reviveT >= ALLY.revive.time) {
-          this.reviving.downT = 0;
+        this.reviving.revivedBy = this;
+        if (this.reviveT >= reviveTime({ medic: this.role === 'medic', training: g.allies.reviveTraining })) {
+          this.reviving.reviveBy(this.callsign);
           this.reviving = null;
           this.reviveT = 0;
         }
@@ -1116,6 +1231,11 @@ export class AllyManager {
     this.grenadeT = 0;
     this.calloutT = 0;
     this.flanker = null;
+    this.rescue = { reviver: null, decision: 'none', best: null, dist: 0 };
+    this.rescueT = 0;
+    this.cannotSayT = 0;
+    this.smokeT = 0;
+    this.reviveTraining = 1;
   }
 
   has(tac) {
@@ -1132,6 +1252,11 @@ export class AllyManager {
     this.grenadeT = 0;
     this.calloutT = 0;
     this.flanker = null;
+    this.rescue = { reviver: null, decision: 'none', best: null, dist: 0 };
+    this.rescueT = 0;
+    // Muharebe Medik Eğitimi (mağaza): tüm canlandırma süreleri kısalır
+    const up = g.save?.data.inventory.upgrades || [];
+    this.reviveTraining = STORE.upgrades.filter((u) => u.reviveTimeMult && up.includes(u.id)).reduce((m, u) => m * u.reviveTimeMult, 1);
     for (let i = 0; i < n; i++) {
       const [ox, oz] = ALLY.slots[i % ALLY.slots.length];
       const c = Math.cos(yaw);
@@ -1139,6 +1264,122 @@ export class AllyManager {
       _v.set(pos.x + c * ox + s * oz, pos.y, pos.z - s * ox + c * oz);
       if (g.nav && !g.nav.isWalkable(_v.x, _v.z)) _v.copy(pos);
       this.list.push(new Ally(g, i, _v, yaw));
+    }
+  }
+
+  // Kan kaybından ölen askerler bir sonraki kontrol noktasında geri gelir (revive.json → allyRespawnAtCheckpoint)
+  respawnDead(pos, yaw) {
+    if (!REVIVE.allyRespawnAtCheckpoint) return 0;
+    let n = 0;
+    this.list.forEach((a, i) => {
+      if (!a.dead) return;
+      const [ox, oz] = ALLY.slots[i % ALLY.slots.length];
+      _v.set(pos.x + Math.cos(yaw) * ox + Math.sin(yaw) * oz, pos.y, pos.z - Math.sin(yaw) * ox + Math.cos(yaw) * oz);
+      if (!this.game.nav.isWalkable(_v.x, _v.z)) _v.copy(pos);
+      a.reset(_v, yaw);
+      n++;
+    });
+    return n;
+  }
+
+  // Oyuncu yerdeyken (§7.4): her 0,5 sn'de her asker için yardım puanı; en iyisi kararına göre canlandırır,
+  // diğerleri tehdidi bastırır. Kimse gelemiyorsa telsizle bildirir.
+  updateRescue(dt) {
+    const g = this.game;
+    const P = g.player;
+    const R = this.rescue;
+    if (!P.down) {
+      R.reviver = null;
+      R.decision = 'none';
+      for (const a of this.list) a.rescueT = 0;
+      return;
+    }
+    // Canlandırıcı uzaklaştıysa ya da değiştiyse sayaç yeniden işler
+    if (P.reviver && (P.reviver !== R.reviver || P.reviver.down || P.reviver.pos.distanceTo(P.pos) > REVIVE.reviveRange + 0.8)) {
+      P.reviver.rescueT = 0;
+      P.reviver = null;
+      P.reviveK = 0;
+    }
+    this.rescueT -= dt;
+    this.cannotSayT -= dt;
+    this.smokeT -= dt;
+    if (this.rescueT > 0) return;
+    this.rescueT = REVIVE.reevaluateIntervalSec;
+    // Yerdekini gören düşmanlar (tehdit)
+    const threats = [];
+    const head = P.headPos(_v2);
+    for (const e of g.enemies.list) {
+      if (!e.alive || e.dummy || e.pos.distanceTo(P.pos) > REVIVE.assist.threatRange) continue;
+      if (threats.length < 5 && g.world.lineOfSight(e.eyePos(_v3), head)) threats.push(e);
+    }
+    let best = null;
+    let bestScore = -Infinity;
+    for (const a of this.list) {
+      if (a.down || a.dead) {
+        a.assist = null;
+        continue;
+      }
+      const path = g.nav.findPath(a.pos, P.pos);
+      let len = null;
+      let exposed = 0;
+      if (path?.length) {
+        len = 0;
+        let prev = a.pos;
+        for (const p of path) {
+          len += Math.hypot(p.x - prev.x, p.z - prev.z);
+          prev = p;
+          if (threats.some((e) => g.world.lineOfSight(e.eyePos(_v3), _v.set(p.x, 1.2, p.z)))) exposed++;
+        }
+        const end = path[path.length - 1];
+        if (Math.hypot(end.x - P.pos.x, end.z - P.pos.z) > 2.5) len = null;
+      }
+      const score = assistScore({
+        pathLen: len,
+        threats: threats.length,
+        exposure: path?.length ? exposed / path.length : 0,
+        underFire: g.time - a.lastHurt < 2,
+        healthPct: a.health.hp / a.health.max,
+        medic: a.role === 'medic',
+        calledHelp: P.time < P.calledHelpUntil,
+        bleedLeft: P.bleed?.left ?? Infinity,
+      });
+      a.assist = { score, decision: assistDecision(score) };
+      if (score > bestScore) {
+        bestScore = score;
+        best = a;
+      }
+    }
+    const decision = best ? assistDecision(bestScore) : 'none';
+    // Canlandırıcı değişmedikçe (ve kesilmedikçe) aynı kalır: yolun yarısında başkası seçilmesin
+    const keep = R.reviver && !R.reviver.down && R.reviver.assist?.decision === 'direct';
+    if (!keep) {
+      const next = decision === 'direct' ? best : null;
+      if (next && next !== R.reviver) {
+        // Emrini bırakan asker bunu söyler (§7.4)
+        next.sayLine(next.voice(next.order.id !== 'FOLLOW' ? 'holdOnPlayer' : 'playerDowned'));
+      }
+      R.reviver = next;
+    }
+    R.decision = R.reviver ? 'direct' : decision;
+    R.best = best;
+    R.dist = best ? best.pos.distanceTo(P.pos) : 0;
+    // Diğerleri tehdidi bastırır; önce temizlemek gerekiyorsa bir sis bombası komutanın yanına
+    for (const a of this.list) {
+      if (a.down || a === R.reviver || !threats.length) continue;
+      const t = threats[0];
+      a.suppress = { pos: t.pos.clone().setY(1.2), until: g.time + REVIVE.reevaluateIntervalSec * 2, cmd: null };
+    }
+    if (threats.length && (R.decision === 'clearFirst' || R.reviver) && this.smokeT <= 0 && best) {
+      this.smokeT = 15;
+      const from = best.headPos(new THREE.Vector3());
+      const to = P.pos.clone();
+      const t = clamp(from.distanceTo(to) / 14, 0.6, 1.6);
+      g.grenades.spawn(from, new THREE.Vector3((to.x - from.x) / t, (to.y - from.y) / t + 0.5 * 15 * t, (to.z - from.z) / t), 1.2, 'ally', 'smoke');
+      best.say('grenade', true, 'Sis atıyorum, komutanın yanına!');
+    }
+    if (R.decision === 'cannot' && best && this.cannotSayT <= 0) {
+      this.cannotSayT = 8;
+      best.sayLine(best.voice('cannotReach'));
     }
   }
 
@@ -1224,14 +1465,16 @@ export class AllyManager {
         this.boundTurn = 1 - this.boundTurn;
       }
     }
-    // Ayıltma: yerdeki her dosta en yakın sağlam dost atanır
-    if (this.has('revive')) {
+    // Kurtarma: oyuncu yerdeyse canlandırıcı seçimi
+    this.updateRescue(dt);
+    // Ayıltma: yerdeki her dosta en yakın sağlam dost atanır (komutanı canlandıran hariç)
+    {
       for (const d of this.list) {
-        if (!d.down || this.list.some((a) => a.reviving === d)) continue;
+        if (!d.down || d.dead || this.list.some((a) => a.reviving === d)) continue;
         let best = null;
         let bestD = ALLY.revive.range;
         for (const a of this.list) {
-          if (a.down || a.reviving || a.flanking) continue;
+          if (a.down || a.reviving || a.flanking || a === this.rescue.reviver) continue;
           const dd = a.pos.distanceTo(d.pos);
           if (dd < bestD) {
             bestD = dd;

@@ -25,6 +25,7 @@ export class KitSystem {
     this.active = !!kit;
     this.slots = (kit || []).map((s) => (s ? { id: s.id, def: CONSUMABLES.get(s.id), left: s.count } : null));
     this.using = null;
+    this.adrenalineUsed = 0;
     this.game.player.usingItem = false;
     this.game.weapons.kitFrags = this.count('frag');
     this.emit();
@@ -56,8 +57,8 @@ export class KitSystem {
     const P = g.player;
     if (this.using) {
       const u = this.using;
-      // İptal: ölüm, ateş, aynı yuvanın tuşu ya da silah değiştirme
-      if (!canAct || !P.alive || input.pressed('fire') || input.pressed(KIT_ACTIONS[u.slot]) || input.pressed('swapWeapon')) {
+      // İptal: ölüm, yere düşme, ateş, aynı yuvanın tuşu ya da silah değiştirme
+      if (!canAct || !P.alive || P.down || input.pressed('fire') || input.pressed(KIT_ACTIONS[u.slot]) || input.pressed('swapWeapon')) {
         this.cancel();
         return;
       }
@@ -82,6 +83,10 @@ export class KitSystem {
       this.say(s ? `${s.def.name}: kalmadı` : 'Bu yuva boş');
       return;
     }
+    if (P.down && s.id !== 'adrenaline') {
+      this.say('Yerdeyken yalnız adrenalin kullanılabilir');
+      return;
+    }
     switch (s.id) {
       case 'plate_pack':
         if (!P.armor.body) return this.say('Gövde zırhın yok');
@@ -91,7 +96,15 @@ export class KitSystem {
         if (P.health.hp >= P.health.max) return this.say('Can zaten dolu');
         return this.begin(i, s);
       case 'adrenaline':
-        return this.say('Adrenalin yalnız yere düştüğünde kullanılır');
+        // Yere düşmüşken kendini kaldırır (Modül D); görev başına sınırlı
+        if (!P.down) return this.say('Adrenalin yalnız yere düştüğünde kullanılır');
+        if (this.adrenalineUsed >= (s.def.perMission || 1)) return this.say('Bu görevde adrenalin hakkın doldu');
+        this.adrenalineUsed++;
+        P.revive('adrenaline');
+        g.audio.mech('equip');
+        this.say('ADRENALİN');
+        g.events.emit(EV.ITEM_USED, { id: 'adrenaline' });
+        return;
       case 'smoke':
         g.weapons.startThrow('smoke', KIT_ACTIONS[i]);
         return;

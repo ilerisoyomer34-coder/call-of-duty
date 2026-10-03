@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -646,6 +646,8 @@ console.log('Görevler ve bonuslar');
   const c0 = await page.evaluate(() => window.__game.economy.credits);
   await page.evaluate(() => window.__game.onMissionComplete());
   await page.waitForFunction((c) => /1\.700 KR/.test(document.querySelector('#victoryRewards .rwTotal b')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+  // Bölüm kartının geri sayımı gerçek saatle işler: yavaş makinede "Tekrar oyna"dan önce sonraki bölümü açmasın
+  await page.evaluate(() => window.__game.menus.stopCountdown());
   const res = await page.evaluate(() => ({
     rows: [...document.querySelectorAll('#victoryRewards .rwRow')].map((r) => `${r.querySelector('.rwMark').textContent}${r.querySelector('.rwLabel').textContent}=${r.querySelector('b').textContent}`),
     total: document.querySelector('#victoryRewards .rwTotal b').textContent,
@@ -663,6 +665,7 @@ console.log('Görevler ve bonuslar');
   await page.evaluate(() => {
     window.__game.input.lockFailed = true;
     window.__game.onMissionComplete();
+    window.__game.menus.stopCountdown();
   });
   const again = await page.evaluate(() => ({ total: window.__game.save.data.econLog.at(-1)?.delta, rows: [...document.querySelectorAll('#victoryRewards .rwRow b')].map((b) => b.textContent) }));
   check(again.total === 500 + 125 + 200 && again.rows.join(',') === '+500 KR,—,+125 KR,+200 KR', `Tekrar oranları: ana %50, Dokunulmaz %25, Tutumlu ilk kez tam (${again.rows.join(', ')})`);
@@ -801,15 +804,22 @@ console.log('Alfa Timi ve komutlar');
     const issued = window.__ev.COMMAND_ISSUED.at(-1);
     const med = g.allies.list[1];
     const order = med.order.id;
+    // Tedavi süresi ölçülür: düşmanlar dondurulur (vurulan medik kendini korumak için sipere kaçmasın)
+    g.cheats.aiOff = true;
+    med.health.hp = med.health.max;
+    med.lastHurt = -99;
+    med.selfCoverUntil = 0;
     med.pos.copy(g.player.pos).add(new g.player.pos.constructor(0.8, 0, 0));
     g.player.health.hp = 50;
     for (let i = 0; i < 45; i++) g.allies.update(0.1);
     const hp = g.player.health.hp;
+    const st = { t: med.order.t, d: +med.pos.distanceTo(g.player.pos).toFixed(2), mhp: Math.round(med.health.hp), self: med.selfCoverUntil > g.time };
     g.commands.issue('HEAL_PLAYER', 'all', { inputMethod: 'test' });
-    return { who: issued.who, order, hp, fail: window.__ev.COMMAND_FAILED.at(-1), back: med.order.id };
+    g.cheats.aiOff = false;
+    return { who: issued.who, order, hp, fail: window.__ev.COMMAND_FAILED.at(-1), back: med.order.id, st };
   });
   check(heal.who.join(',') === 'Alfa-2' && heal.order === 'HEAL_PLAYER', 'F5 "Beni iyileştir": yalnız medik (Alfa-2) gitti');
-  check(heal.hp >= 89 && heal.back !== 'HEAL_PLAYER', `Medik 4 sn'de iyileştirdi (can 50 → ${Math.round(heal.hp)}), önceki emre döndü`);
+  check(heal.hp >= 89 && heal.back !== 'HEAL_PLAYER', `Medik 4 sn'de iyileştirdi (can 50 → ${Math.round(heal.hp)}), önceki emre döndü${heal.hp < 89 ? ` ${JSON.stringify(heal.st)}` : ''}`);
   check(heal.fail?.id === 'HEAL_PLAYER' && heal.fail.reason === 'cooldown', 'İkinci istek bekleme süresinde reddedildi');
   // F8 / F9: ateşi kes, serbest ateş
   await page.keyboard.press('F8');
@@ -859,6 +869,172 @@ console.log('Alfa Timi ve komutlar');
   });
   check(self.until && self.q.some((t) => /siper/i.test(t)), 'Kendini koruma: ağır yaralı asker emirden önce sipere geçti');
   await page.screenshot({ path: join(shots, '20b-squad-orders.png') });
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+}
+
+// ---------------- Yere düşme ve canlandırma (Operasyon Güncellemesi F7) ----------------
+if (run('downed')) {
+console.log('Yere düşme ve canlandırma');
+
+  const page = await openPage('standalone');
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 3));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    window.__ev = [];
+    for (const n of ['PLAYER_DOWNED', 'PLAYER_REVIVED', 'ALLY_DOWNED', 'ALLY_REVIVED', 'ALLY_DIED']) g.events.on(n, (e) => window.__ev.push(`${n}:${e.by || e.allyId || e.downCount || ''}`));
+    // Düşmanlar uzakta kalsın: ölçümler doğrudan çağrıyla yapılır
+    for (const e of g.enemies.list) e.pos.y = -500;
+  });
+  await waitGame(page, 0.3);
+  // 1) Ölümcül hasar: ölmez, yere düşer; sayaç 30 sn; ekran ve HUD
+  const d1 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    P.health.hp = 12;
+    P.takeDamage(40, null, { zone: 'torso', pen: 1 });
+    g.hud.update(0.016);
+    return { down: P.down, alive: P.alive, total: P.bleed?.total, shown: !document.getElementById('downed').hidden, time: document.getElementById('dnTime').textContent, filter: document.getElementById('game').style.filter, ev: window.__ev.slice() };
+  });
+  check(d1.down && d1.alive && d1.total === 30 && d1.ev.includes('PLAYER_DOWNED:1'), `Ölümcül hasarda yere düştü (kan kaybı ${d1.total} sn)`);
+  check(d1.shown && d1.time === '30' && /grayscale/.test(d1.filter), `Yerde ekranı: halka ve süre (${d1.time}), renkler soluyor (${d1.filter})`);
+  // 2) Yerdeyken hasar süreden düşer; silah kullanılmaz
+  const d2 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const l0 = P.bleed.left;
+    P.takeDamage(20, null, { zone: 'torso' });
+    g.viewmodel.update(0.016);
+    return { drop: l0 - P.bleed.left, vm: g.viewmodel.holder.visible };
+  });
+  check(Math.abs(d2.drop - 5) < 0.01 && !d2.vm, `Yerdeyken 20 hasar süreden ${d2.drop.toFixed(2)} sn düşürdü, silah görünmüyor (${!d2.vm})`);
+  // 3) Asker gelir ve canlandırır (medik 2 sn); kalkınca can %35
+  const d3 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const med = g.allies.list[1];
+    med.pos.copy(P.pos).add(new P.pos.constructor(1, 0, 0));
+    for (const a of [g.allies.list[0], g.allies.list[2]]) a.pos.copy(P.pos).add(new P.pos.constructor(14, 0, 0));
+    g.allies.rescueT = 0;
+    g.allies.update(0.05);
+    g.hud.update(0.016);
+    const status = document.getElementById('dnStatus').textContent;
+    const reviver = g.allies.rescue.reviver?.callsign;
+    const scores = g.allies.list.map((a) => Math.round(a.assist?.score ?? -1));
+    let paused = null;
+    for (let i = 0; i < 40 && P.down; i++) {
+      const l = P.bleed.left;
+      g.allies.update(0.1);
+      if (P.reviver && paused === null) paused = Math.abs(P.bleed.left - l) < 1e-9;
+    }
+    return { reviver, scores, status, up: !P.down, hp: Math.round(P.health.hp), ev: window.__ev.slice() };
+  });
+  check(d3.reviver === 'Alfa-2' && /Kaya/.test(d3.status), `En yüksek yardım puanlı asker seçildi: ${d3.reviver} (${d3.scores.join(' / ')}) · "${d3.status}"`);
+  check(d3.up && d3.hp === 35 && d3.ev.includes('PLAYER_REVIVED:Alfa-2'), `Medik canlandırdı, %35 canla kalktı (${d3.hp})`);
+  // 4) İkinci düşüş daha kısa (20 sn); pes et (X basılı 2 sn) → ölüm
+  const d4 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    P.health.hp = 5;
+    P.protectUntil = -1;
+    P.takeDamage(50, null, { zone: 'torso', pen: 1 });
+    const total = P.bleed.total;
+    const hold = { pressed: () => false, isDown: (a) => a === 'swapWeapon', consumeLook: () => ({ dx: 0, dy: 0 }), move: () => ({ x: 0, y: 0 }), touch: { active: false } };
+    for (let i = 0; i < 25 && P.alive; i++) P.update(0.1, hold);
+    return { total, dead: !P.alive };
+  });
+  check(d4.total === 20 && d4.dead, `İkinci düşüşte kan kaybı ${d4.total} sn; X basılı tutunca pes etti`);
+  await page.evaluate(() => window.__game.respawn());
+  await waitGame(page, 0.2);
+  // 5) Adrenalin: yerdeyken kendini kaldırır, görev başına bir
+  const d5 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    g.save.update((d) => (d.inventory.consumables.adrenaline = 1), { now: true });
+    g.kit.reset([{ id: 'adrenaline', count: 1 }]);
+    P.health.hp = 5;
+    P.takeDamage(50, null, { zone: 'torso', pen: 1 });
+    const down = P.down;
+    g.kit.use(0);
+    return { down, up: !P.down, by: window.__ev.at(-1), inv: g.save.data.inventory.consumables.adrenaline };
+  });
+  check(d5.down && d5.up && d5.by === 'PLAYER_REVIVED:adrenaline' && d5.inv === 0, 'Adrenalin Şırıngası yerdeyken kaldırdı, envanterden düştü');
+  // 6) Anında ölüm: tek seferde 150+ hasar
+  const d6 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    P.protectUntil = -1;
+    P.health.hp = P.health.max;
+    P.takeDamage(200, null, { zone: 'torso', pen: 1 });
+    return { down: P.down, dead: !P.alive };
+  });
+  check(!d6.down && d6.dead, 'Tek seferde 150+ hasar: yere düşmeden ölüm');
+  await page.evaluate(() => window.__game.respawn());
+  await waitGame(page, 0.2);
+  // 7) Asker yere düşer (Normal: 45 sn kan kaybı); oyuncu E basılı 3 sn kaldırır → Kardeşlik bonusu
+  const d7 = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const a = g.allies.list[0];
+    a.takeDamage(9999, null, { zone: 'torso' });
+    const bleed = a.bleed?.total;
+    P.reset(a.pos.clone().add(new P.pos.constructor(0.4, 0, 0)), 0);
+    P.pitch = -1.2;
+    const hold = { pressed: (x) => x === 'interact', isDown: (x) => x === 'interact' };
+    const f0 = new P.pos.constructor();
+    g.camera.getWorldDirection(f0);
+    const dbg = { en: a.reviveIa?.enabled(), found: g.findInteractable(P.eyePos.clone(), f0)?.id, alive: P.alive, pdown: P.down, ws: g.weapons.state, d: a.reviveIa?.pos.distanceTo(P.eyePos) };
+    for (let i = 0; i < 40 && a.down; i++) {
+      // Oyuncu yerdeki askere bakar (etkileşim yüzü dönük ister)
+      g.camera.position.copy(P.eyePos);
+      g.camera.lookAt(a.reviveIa.pos);
+      g.camera.updateMatrixWorld();
+      P.updateInteraction(0.1, hold);
+      g.allies.update(0.05);
+    }
+    const bro = g.run.mission.bonus.findIndex((b) => b.id === 'brotherhood');
+    return { bleed, up: !a.down, ev: window.__ev.slice(-3), given: g.save.data.stats.revivesGiven, bro: bro >= 0 ? g.run.tracker.state[bro].done : null, ia: !!a.reviveIa, inList: g.mission.interactables.includes(a.reviveIa), tgt: P.interactTarget?.id, it: P.interactT, dbg };
+  });
+  check(d7.bleed === 45 && d7.up && d7.ev.includes('ALLY_REVIVED:player'), `Asker yere düştü (kan kaybı ${d7.bleed} sn), oyuncu E basılı tutup kaldırdı (${JSON.stringify(d7)})`);
+  check(d7.given >= 1 && d7.bro === true, `Canlandırma istatistiği ve "Kardeşlik" bonusu (${d7.given})`);
+  // 8) Asker kan kaybından ölür; kontrol noktasında geri gelir
+  const d8 = await page.evaluate(() => {
+    const g = window.__game;
+    const a = g.allies.list[2];
+    a.takeDamage(9999, null, { zone: 'torso' });
+    // Diğer askerler uzakta: yanına gelen olursa sayaç (doğru olarak) durur
+    for (const o of g.allies.list) if (o !== a) o.pos.copy(a.pos).add(new a.pos.constructor(60, 0, 0));
+    a.bleed.left = 0.05;
+    for (let i = 0; i < 3; i++) g.allies.update(0.1);
+    const dead = a.dead;
+    g.mission.saveCheckpoint(g.mission.checkpoint?.idx ?? 0);
+    return { dead, ev: window.__ev.includes('ALLY_DIED:Alfa-3'), back: !a.dead && !a.down, by: a.revivedBy?.callsign || a.revivedBy, left: a.bleed?.left, down: a.down };
+  });
+  check(d8.dead && d8.ev && d8.back, `Asker kan kaybından öldü (ALLY_DIED), kontrol noktasında geri geldi (${JSON.stringify(d8)})`);
+  // 9) Kolay'da asker ölmez: kan kaybı sayacı yok, kendi kalkar
+  const d9 = await page.evaluate(() => {
+    const g = window.__game;
+    const k = g.difficultyKey;
+    g.difficultyKey = 'easy';
+    const a = g.allies.list[1];
+    a.takeDamage(9999, null, { zone: 'torso' });
+    const r = { down: a.down, bleed: a.bleed };
+    g.difficultyKey = k;
+    a.reviveBy(null);
+    return r;
+  });
+  check(d9.down && d9.bleed === null, 'Kolay: yere düşen asker kan kaybından ölmez (kendi kalkar)');
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.player.health.hp = 5;
+    g.player.protectUntil = -1;
+    g.player.takeDamage(50, null, { zone: 'torso', pen: 1 });
+    g.hud.update(0.016);
+  });
+  await page.screenshot({ path: join(shots, '21-downed.png') });
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();

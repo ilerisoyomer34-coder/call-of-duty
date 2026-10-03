@@ -29,10 +29,15 @@ export class Audio {
     this.master = ctx.createGain();
     this.master.connect(this.comp);
     this.comp.connect(ctx.destination);
+    // Efekt ve ortam sesi boğuklaştırıcıdan geçer (yere düşünce kısılır); arayüz ve telsiz net kalır
+    this.muffle = ctx.createBiquadFilter();
+    this.muffle.type = 'lowpass';
+    this.muffle.frequency.value = 20000;
+    this.muffle.connect(this.master);
     this.sfx = ctx.createGain();
-    this.sfx.connect(this.master);
+    this.sfx.connect(this.muffle);
     this.amb = ctx.createGain();
-    this.amb.connect(this.master);
+    this.amb.connect(this.muffle);
     this.ui = ctx.createGain();
     this.ui.connect(this.master);
     // Kısa "yankı": dış mekân slapback'i için geri beslemeli gecikme
@@ -424,6 +429,13 @@ export class Audio {
     this.noiseBurst(dest, t, 0.18, { type: 'highpass', freq: 1800, gain: 0.9, freqEnd: 600 });
     this.noiseBurst(dest, t + 0.05, 0.25, { type: 'bandpass', freq: 2600, q: 0.8, gain: 0.5 });
     this.tone(dest, t, 0.12, { type: 'sawtooth', freq: 320, freqEnd: 90, gain: 0.3 });
+  }
+
+  // Yere düşme: k 0 (net) … 1 (tam boğuk); hz en boğuk kesim frekansı
+  setMuffle(k, hz = 650) {
+    if (!this.ctx) return;
+    const f = 20000 * Math.pow(hz / 20000, Math.min(1, Math.max(0, k)));
+    this.muffle.frequency.setTargetAtTime(f, this.now, 0.15);
   }
 
   heartbeat() {
