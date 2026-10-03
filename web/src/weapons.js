@@ -3,7 +3,9 @@
 // sapma (bloom), geri tepme, cephane, ateş modları, el bombası ve bıçak.
 import * as THREE from 'three';
 import { WEAPONS, GRENADE, MELEE, SCORE } from './config.js';
-import { DEG, clamp, randomInCone, rand } from './util.js';
+import { DEG, clamp, rand } from './util.js';
+import { Rng, inCone } from '../shared/sim/rng.js';
+import { fireInterval, recoverBloom, spreadDeg, triggerShots, recordShot, addBloom, recoilKick, pelletDir } from '../shared/sim/weapon.js';
 import { EV } from './events.js';
 import { CONSUMABLES } from './loadout.js';
 
@@ -27,7 +29,7 @@ export class Weapon {
     return this.data.fireModes[this.modeIdx];
   }
   get interval() {
-    return 60 / this.data.rpm;
+    return fireInterval(this.data);
   }
 }
 
@@ -40,6 +42,7 @@ const _muz = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
 const _hit = {};
 const _hit2 = {};
+const _kick = [0, 0];
 
 export class PlayerWeapons {
   constructor(game) {
@@ -62,9 +65,16 @@ export class PlayerWeapons {
     this.reload = null; // { t, dur, empty, inserted, phase }
     this.fireBuffer = 0;
     this.time = 0;
+    // Saçılma ve geri tepmenin rastgele payı tohumlu üreteçten (shared/sim/weapon.js; sunucu da aynısını kullanır)
+    this.rng = new Rng(1);
+    // Tempo kuralına verilen geri çağrılar bir kez kurulur (her kare kapanış ayırmasın)
+    this.hasAmmo = () => this.current.mag > 0 || this.game.cheats.infiniteAmmo;
+    this.fireOnce = () => this.fire();
   }
 
   reset(loadout) {
+    // Tek oyunculuda tohum her görev başında yeni; çevrim içide sunucu verir
+    this.rng.seed((Math.random() * 4294967296) >>> 0);
     this.owned = {};
     this.slots = (loadout.slots || Object.keys(loadout.weapons)).filter((id) => WEAPONS[id]);
     for (const [id, ammo] of Object.entries(loadout.weapons)) {
@@ -264,7 +274,7 @@ export class PlayerWeapons {
       if (w.pumpT > d.pumpDelay + 0.35) w.pumpT = -1;
     }
     // Sapma toparlanması
-    if (this.time - w.lastShot > 0.06) w.bloom = Math.max(0, w.bloom - d.spread.recovery * dt);
+    recoverBloom(w, d, this.time, dt);
     if (this.fireBuffer > 0) this.fireBuffer -= dt;
 
     if (!canAct) {
@@ -379,53 +389,16 @@ export class PlayerWeapons {
     }
     if (blocked) return;
 
-    const mode = w.mode;
-    let shots = 0;
-    if (mode === 'auto') {
-      while (held && w.cooldown <= 0 && (w.mag > 0 || g.cheats.infiniteAmmo) && shots < 4) {
-        this.fire();
-        w.cooldown += w.interval;
-        shots++;
-      }
-    } else if (mode === 'semi') {
-      if (this.fireBuffer > 0 && w.cooldown <= 0) {
-        this.fireBuffer = 0;
-        this.fire();
-        w.cooldown = Math.max(w.cooldown, 0) + w.interval;
-      }
-    } else if (mode === 'burst') {
-      if (this.fireBuffer > 0 && w.cooldown <= 0 && w.burstLeft === 0) {
-        this.fireBuffer = 0;
-        w.burstLeft = d.burstCount;
-      }
-      while (w.burstLeft > 0 && w.cooldown <= 0 && (w.mag > 0 || g.cheats.infiniteAmmo) && shots < 4) {
-        this.fire();
-        w.burstLeft--;
-        w.cooldown += 60 / d.burstRpm;
-        if (w.burstLeft === 0) w.cooldown += d.burstDelay;
-        shots++;
-      }
-      if (w.mag <= 0) w.burstLeft = 0;
-    }
+    // Tempo (otomatik / tek / seri) paylaşılan kuralda; her atış fire()
+    const r = triggerShots(w, d, w.mode, held, this.fireBuffer > 0, this.hasAmmo, this.fireOnce);
+    if (r.usedBuffer) this.fireBuffer = 0;
   }
 
   // Anlık sapma (derece): kalçadan/ADS, hareket, çömelme, havada olma ve bloom
   currentSpread() {
-    const g = this.game;
-    const P = g.player;
     const w = this.current;
     if (!w) return 0;
-    const s = w.data.spread;
-    let base = s.hip;
-    const ads = P.adsT;
-    const speed = P.horizSpeed;
-    let mult = 1;
-    if (P.crouched) mult *= s.crouchMult;
-    mult *= 1 + clamp(speed / 4, 0, 1.4) * (s.moveMult - 1);
-    if (!P.grounded) mult *= s.airMult;
-    const hipSpread = (base + w.bloom) * mult;
-    const adsSpread = (base * s.adsMult + w.bloom * 0.45) * (P.grounded ? 1 : s.airMult * 0.6) * (1 + clamp(speed / 4, 0, 1.4) * (s.moveMult - 1) * 0.6);
-    return hipSpread + (adsSpread - hipSpread) * ads;
+    return spreadDeg(w.data.spread, w.bloom, this.game.player);
   }
 
   fire() {
@@ -434,8 +407,7 @@ export class PlayerWeapons {
     const w = this.current;
     const d = w.data;
     if (!g.cheats.infiniteAmmo) w.mag--;
-    w.shotIndex = this.time - w.lastShot > 0.35 ? 0 : w.shotIndex + 1;
-    w.lastShot = this.time;
+    recordShot(w, this.time);
     g.lastPlayerShot = g.time; // oyun saatinde: düşman ve dost tepkileri bununla ölçülür
     if (d.pump) {
       w.pumpT = 0;
@@ -447,7 +419,7 @@ export class PlayerWeapons {
     cam.getWorldDirection(_fwd);
     _right.set(1, 0, 0).applyQuaternion(cam.quaternion);
     _up.set(0, 1, 0).applyQuaternion(cam.quaternion);
-    const spreadDeg = this.currentSpread();
+    const spread = this.currentSpread();
     // Namlu yaklaşık konumu (dünya): iz ve engel doğrulaması için
     const ads = P.adsT;
     _muz.copy(_o)
@@ -455,7 +427,7 @@ export class PlayerWeapons {
       .addScaledVector(_right, 0.12 * (1 - ads))
       .addScaledVector(_up, -0.08 * (1 - ads) - 0.03);
     if (d.projectile === 'rocket') {
-      this.fireRocket(w, _muz, _fwd, _right, _up, spreadDeg);
+      this.fireRocket(w, _muz, _fwd, _right, _up, spread);
       return;
     }
     const pellets = d.pellets;
@@ -467,8 +439,7 @@ export class PlayerWeapons {
     let armorHit = false;
     let armorBroken = false;
     for (let p = 0; p < pellets; p++) {
-      if (pellets > 1) randomInCone(_fwd, (d.pelletSpread + spreadDeg * 0.35) * DEG, _d, 0.8);
-      else randomInCone(_fwd, spreadDeg * DEG, _d, 1.3);
+      pelletDir(_fwd, d, spread, this.rng, _d);
       const res = this.trace(_o, _d, d.range, _muz);
       if (res.enemy) {
         const dmg = d.damage * this.falloff(res.dist) * (d.zones[res.zone] || 1);
@@ -521,13 +492,9 @@ export class PlayerWeapons {
       if (armorBroken && !kill) g.events.emit('pickup', 'ZIRH KIRILDI');
     }
     // Bloom, geri tepme, görsel tepme, ses, ışık
-    w.bloom = Math.min(d.spread.max, w.bloom + d.spread.perShot);
-    const pat = d.recoil.pattern;
-    const idx = w.shotIndex < pat.length ? w.shotIndex : pat.length - 4 + (w.shotIndex % 4);
-    const [rx, ry] = pat[Math.max(0, idx)];
-    const rm = 1 + (d.recoil.adsMult - 1) * ads;
-    const rnd = d.recoil.random;
-    P.addRecoil((ry + rand(-rnd, rnd) * 0.5) * rm * (P.crouched ? 0.85 : 1), (rx + rand(-rnd, rnd)) * rm);
+    addBloom(w, d);
+    recoilKick(d, w.shotIndex, ads, P.crouched, this.rng, _kick);
+    P.addRecoil(_kick[0], _kick[1]);
     g.viewmodel.onFire(w);
     g.audio.gunshot(d.sound);
     g.effects.flashLight(_muz, 0xffb566, 12 + Math.random() * 6, 7, 0.05);
@@ -540,12 +507,12 @@ export class PlayerWeapons {
   }
 
   // Roket: mermi yerine uçan cisim; arkaya geri alev ve duman
-  fireRocket(w, muzzle, fwd, right, up, spreadDeg) {
+  fireRocket(w, muzzle, fwd, right, up, spread) {
     const g = this.game;
     const P = g.player;
     const d = w.data;
     // Nişangahın gösterdiği noktayı bul, roketi namludan oraya yönelt (namlu kameranın yanında)
-    const aimDir = randomInCone(fwd, spreadDeg * DEG, new THREE.Vector3(), 1.3);
+    const aimDir = inCone(fwd, spread * DEG, new THREE.Vector3(), 1.3, this.rng);
     const cam = g.camera.getWorldPosition(new THREE.Vector3());
     const wh = g.world.raycast(cam, aimDir, d.range, _hit);
     const eh = g.enemies.raycast(cam, aimDir, wh ? wh.dist : d.range);
@@ -563,7 +530,7 @@ export class PlayerWeapons {
     }
     g.effects.flashLight(rear, 0xffa050, 40, 8, 0.12);
     const pat = d.recoil.pattern[0];
-    P.addRecoil(pat[1] + rand(-0.3, 0.3), rand(-0.6, 0.6));
+    P.addRecoil(pat[1] + this.rng.range(-0.3, 0.3), this.rng.range(-0.6, 0.6));
     g.viewmodel.onFire(w);
     g.audio.gunshot(d.sound);
     P.shake(d.recoil.shake);

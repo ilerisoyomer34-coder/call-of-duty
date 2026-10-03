@@ -1,7 +1,10 @@
 // Oyuncu karakteri (AShooterCharacter karşılığı): hareket, bakış, geri tepme telafisi,
 // nişan alma, çömelme, eğilme, koşma, ayak sesleri, sağlık/yenilenme, kamera sarsıntısı ve etkileşim.
 import * as THREE from 'three';
-import { MOVEMENT as M, KIT, BALANCE } from './config.js';
+import { MOVEMENT as M, KIT, BALANCE, SIM } from './config.js';
+import { TICK_DT } from '../shared/constants.js';
+import { createPlayerState, resetPlayerState, createInputCmd, stepPlayer, SIM_EV, BTN } from '../shared/sim/movement.js';
+import { updateInputCmd } from './inputCmd.js';
 import { DEG, clamp, damp, lerp, smoothstep, yawToDir } from './util.js';
 import { Health } from './health.js';
 import { ArmorLoadout, computeArmorDamage, playerZoneMult, ARMOR_DATA } from './armor.js';
@@ -13,13 +16,22 @@ const _right = new THREE.Vector3();
 const _wish = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
 const _hit = {};
+const MAX_TICKS_PER_FRAME = SIM.maxTicksPerFrame;
+const RENDER_SNAP_DIST = SIM.renderSnapDist;
 
 export class Player {
   constructor(game) {
     this.game = game;
     this.pos = new THREE.Vector3();
     this.vel = new THREE.Vector3();
-    this.state = { pos: this.pos, vel: this.vel, radius: M.radius, height: M.standHeight, grounded: true, gravity: M.gravity, hitWall: false, landSpeed: 0 };
+    // Hareket durumu paylaşılan simülasyonun biçiminde (shared/sim/movement.js); pos/vel aynı nesneler
+    this.state = createPlayerState(M, this.pos, this.vel);
+    this.cmd = createInputCmd();
+    // Sabit adım: biriken süre ve çizim için önceki/aralanmış konum
+    this.fixedStep = true;
+    this.simAcc = 0;
+    this.prevPos = new THREE.Vector3();
+    this.renderPos = new THREE.Vector3();
     this.health = new Health(M.maxHealth);
     this.health.on('changed', (hp, max) => game.events.emit('health', hp, max));
     this.reset(new THREE.Vector3(0, 0, 0), 0);
@@ -33,6 +45,9 @@ export class Player {
     this.dmgLog.length = 0;
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);
+    resetPlayerState(this.state, M);
+    this.syncRender();
+    this.cmd.buttons = 0;
     this.yaw = yaw;
     this.pitch = 0;
     this.recoil = { tp: 0, ty: 0, cp: 0, cy: 0, last: -10 };
@@ -90,6 +105,79 @@ export class Player {
 
   get grounded() {
     return this.state.grounded;
+  }
+
+  // Hareket alanları simülasyon durumunda yaşar; eski adlar (silah, HUD, yapay zekâ okur) erişimciyle sürer
+  get crouched() {
+    return this.state.crouched;
+  }
+  set crouched(v) {
+    this.state.crouched = v;
+  }
+  get crouchT() {
+    return this.state.crouchT;
+  }
+  set crouchT(v) {
+    this.state.crouchT = v;
+  }
+  get sprinting() {
+    return this.state.sprinting;
+  }
+  set sprinting(v) {
+    this.state.sprinting = v;
+  }
+  get sprintOut() {
+    return this.state.sprintOut;
+  }
+  set sprintOut(v) {
+    this.state.sprintOut = v;
+  }
+  get adsT() {
+    return this.state.adsT;
+  }
+  set adsT(v) {
+    this.state.adsT = v;
+  }
+  get horizSpeed() {
+    return this.state.horizSpeed;
+  }
+  set horizSpeed(v) {
+    this.state.horizSpeed = v;
+  }
+  get groundSurface() {
+    return this.state.groundSurface;
+  }
+  set groundSurface(v) {
+    this.state.groundSurface = v;
+  }
+
+  // Çizim konumu simülasyona eşitlenir (ışınlanma, yeniden doğuş, yerde/ölü iken kare adımlı hareket)
+  syncRender() {
+    this.simAcc = 0;
+    // Yerde/ölüyken basılan zıplama kalkınca tetiklenmesin
+    this.cmd.buttons &= ~BTN.JUMP;
+    this.prevPos.copy(this.pos);
+    this.renderPos.copy(this.pos);
+  }
+
+  // Simülasyon olaylarının yan etkileri: ses, yapay zekâ gürültüsü, şarjör iptali, aç/kapa düğmeleri
+  onSimEvents(ev, cmd) {
+    if (!ev) return;
+    const g = this.game;
+    if (ev & SIM_EV.SPRINT_START) g.weapons.cancelReload();
+    if (ev & SIM_EV.SPRINT_STOP) this.sprintToggle = false;
+    if (ev & SIM_EV.UNCROUCH) {
+      this.crouchToggle = false;
+      cmd.buttons &= ~BTN.CROUCH;
+    }
+    if (ev & SIM_EV.CROUCH_BLOCKED) this.crouchToggle = true;
+    if (ev & SIM_EV.JUMP) g.audio.footstep(this.groundSurface, 0.8);
+    if (ev & SIM_EV.LAND) {
+      const ls = this.state.landSpeed;
+      this.landVel -= Math.min(ls, 10) * 0.18;
+      g.audio.land(clamp(ls / 8, 0.3, 1));
+      g.makeNoise(this.pos, 10, 'footstep');
+    }
   }
 
   get eyePos() {
@@ -264,6 +352,7 @@ export class Player {
     this.state.height = M.crouchHeight;
     this.crouchT = 1;
     g.world.moveCharacter(this.state, dt, M.stepHeight);
+    this.syncRender();
     this.horizSpeed = Math.hypot(this.vel.x, this.vel.z);
     this.camY = damp(this.camY, this.pos.y + REVIVE.downedEyeHeight, 8, dt);
     this.adsT = 0;
@@ -328,6 +417,7 @@ export class Player {
       this.vel.x = damp(this.vel.x, 0, 5, dt);
       this.vel.z = damp(this.vel.z, 0, 5, dt);
       g.world.moveCharacter(this.state, dt, M.stepHeight);
+      this.syncRender();
       this.trauma = damp(this.trauma, 0, 2, dt);
       return;
     }
@@ -362,110 +452,39 @@ export class Player {
     R.cp = damp(R.cp, R.tp, 30, dt);
     R.cy = damp(R.cy, R.ty, 30, dt);
 
-    // --- Durumlar: çömelme, koşma, nişan ---
-    const mv = input.move();
-    const moving = Math.abs(mv.x) + Math.abs(mv.y) > 0.1;
-    if (S.crouchMode === 'toggle') {
-      if (input.pressed('crouch')) this.crouchToggle = !this.crouchToggle;
-    } else this.crouchToggle = input.isDown('crouch');
-    let wantCrouch = this.crouchToggle;
-
-    const sprintInput = S.sprintMode === 'toggle' ? (input.pressed('sprint') ? (this.sprintToggle = !this.sprintToggle) : this.sprintToggle) : input.isDown('sprint') || input.touch.sprint;
-    const weaponBlocksSprint = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing';
-    // Ağır Saldırı Zırhı'nda koşu kapalı
-    let wantSprint = sprintInput && mv.y > 0.35 && this.grounded && !weaponBlocksSprint && !this.interacting && !this.usingItem && !this.armor.noSprint;
-    // Dokunmatikte NİŞAN hep aç/kapa: başparmaklar bakış ve ateşle meşgulken düğme basılı tutulamaz
-    if (input.touch.active || S.adsMode === 'toggle') {
-      if (input.pressed('ads')) this.adsToggle = !this.adsToggle;
-    } else this.adsToggle = input.isDown('ads');
-    const wantAds = this.adsToggle && W.canAds && !this.interacting && !this.usingItem;
-    if (wantAds && input.pressed('ads')) wantSprint = false;
-    if (wantAds && !this.sprinting) wantSprint = false;
-    if (wantSprint && wantCrouch) {
-      this.crouchToggle = false;
-      wantCrouch = false;
-    }
-    if (wantSprint && !this.sprinting) {
-      this.sprinting = true;
-      W.cancelReload();
-    } else if (!wantSprint && this.sprinting) {
-      this.stopSprint();
-    }
-    if (!moving || mv.y < 0.2) {
-      if (this.sprinting) this.stopSprint();
-      this.sprintToggle = false;
-    }
-    if (this.sprintOut > 0) this.sprintOut -= dt;
-
-    if (wantCrouch !== this.crouched) {
-      if (wantCrouch) this.crouched = true;
-      else if (g.world.canStand(this.pos, M.radius, M.crouchHeight, M.standHeight)) this.crouched = false;
-      else this.crouchToggle = true;
-    }
-    this.crouchT = damp(this.crouchT, this.crouched ? 1 : 0, 12, dt);
-    this.state.height = lerp(M.standHeight, M.crouchHeight, this.crouchT);
-
-    const adsTime = w ? w.data.ads.time : 0.2;
-    const adsTarget = wantAds && !this.sprinting ? 1 : 0;
-    // Zırhın hız cezası nişan alma süresine de işler
-    this.adsT = clamp(this.adsT + (adsTarget ? 1 : -1) * (dt / (adsTime / this.armor.speedMult)), 0, 1);
-
-    // --- Hareket ---
-    yawToDir(this.yaw, _fwd);
-    _right.set(-_fwd.z, 0, _fwd.x);
-    _wish.set(0, 0, 0).addScaledVector(_fwd, mv.y).addScaledVector(_right, mv.x);
-    let maxSpeed = this.sprinting ? M.sprintSpeed : this.crouched ? M.crouchSpeed : M.walkSpeed;
-    if (w) maxSpeed *= lerp(w.data.mobility || 1, w.data.ads.moveMult, this.adsT);
-    maxSpeed *= this.armor.speedMult; // zırhın hız cezası (belge §4.7)
-    if (this.interacting) maxSpeed *= 0.2;
-    else if (this.usingItem) maxSpeed *= KIT.useMoveMult;
-    if (this.grounded) {
-      const tx = _wish.x * maxSpeed;
-      const tz = _wish.z * maxSpeed;
-      let dx = tx - this.vel.x;
-      let dz = tz - this.vel.z;
-      const dl = Math.hypot(dx, dz);
-      const acc = (moving ? M.groundAccel : M.friction * 6) * dt;
-      if (dl > acc) {
-        dx *= acc / dl;
-        dz *= acc / dl;
+    // --- Hareket: girdi → komut → sabit adımlı paylaşılan simülasyon (shared/sim/movement.js) ---
+    // Aç/kapa ayarları komutta çözülür; silah, zırh ve eylem hareketi mods ile etkiler (sunucu da aynısını doldurur)
+    const cmd = updateInputCmd(this.cmd, input, S, this);
+    const md = this.state.mods;
+    md.mobility = w ? w.data.mobility || 1 : 1;
+    md.adsMoveMult = w ? w.data.ads.moveMult : 1;
+    md.adsTime = w ? w.data.ads.time : 0.2;
+    md.armorSpeed = this.armor.speedMult;
+    md.actionMult = this.interacting ? 0.2 : this.usingItem ? KIT.useMoveMult : 1;
+    md.sprintBlocked = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing' || this.interacting || this.usingItem;
+    md.noSprint = this.armor.noSprint; // Ağır Saldırı Zırhı'nda koşu kapalı
+    md.adsAllowed = W.canAds && !this.interacting && !this.usingItem;
+    let alpha = 1;
+    if (this.fixedStep) {
+      // Sabit 64 Hz: kare süresi biriktirilir, her tick aynı dt ile ilerler (çok oyunculu tahminle aynı sonuç).
+      // Üst sınır: çok uzun karede (sekme geri gelince) tick yağmuru olmasın
+      this.simAcc = Math.min(this.simAcc + dt, TICK_DT * MAX_TICKS_PER_FRAME);
+      while (this.simAcc >= TICK_DT) {
+        this.prevPos.copy(this.pos);
+        this.onSimEvents(stepPlayer(this.state, cmd, g.world, TICK_DT, M, true), cmd);
+        cmd.buttons &= ~BTN.JUMP;
+        this.simAcc -= TICK_DT;
       }
-      this.vel.x += dx;
-      this.vel.z += dz;
-      if (input.pressed('jump')) {
-        if (this.crouched) {
-          if (g.world.canStand(this.pos, M.radius, M.crouchHeight, M.standHeight)) {
-            this.crouched = false;
-            this.crouchToggle = false;
-          }
-        } else {
-          this.vel.y = M.jumpVelocity;
-          this.state.grounded = false;
-          g.audio.footstep(this.groundSurface, 0.8);
-        }
-      }
+      alpha = this.simAcc / TICK_DT;
     } else {
-      this.vel.x += _wish.x * M.airAccel * dt;
-      this.vel.z += _wish.z * M.airAccel * dt;
-      const hs = Math.hypot(this.vel.x, this.vel.z);
-      const cap = Math.max(maxSpeed, 0.1);
-      if (hs > cap * 1.05) {
-        this.vel.x *= (cap * 1.05) / hs;
-        this.vel.z *= (cap * 1.05) / hs;
-      }
+      // Eski yol (konsol cl_fixedstep 0): kare süresiyle tek adım, nicemleme yok
+      this.prevPos.copy(this.pos);
+      this.onSimEvents(stepPlayer(this.state, cmd, g.world, dt, M, false), cmd);
+      cmd.buttons &= ~BTN.JUMP;
     }
-    const wasGrounded = this.grounded;
-    this.state.landSpeed = 0;
-    const steps = dt > 0.02 ? 2 : 1;
-    let groundC = null;
-    for (let i = 0; i < steps; i++) groundC = g.world.moveCharacter(this.state, dt / steps, M.stepHeight);
-    this.groundSurface = groundC ? groundC.surface : g.world.floorSurface || 'sand';
-    if (!wasGrounded && this.grounded && this.state.landSpeed > 2.5) {
-      this.landVel -= Math.min(this.state.landSpeed, 10) * 0.18;
-      g.audio.land(clamp(this.state.landSpeed / 8, 0.3, 1));
-      g.makeNoise(this.pos, 10, 'footstep');
-    }
-    this.horizSpeed = Math.hypot(this.vel.x, this.vel.z);
+    // Çizim konumu iki tick arasında aralanır (ekran tazeleme hızı 64 Hz'in katı değil); ışınlanmada atlanır
+    if (this.prevPos.distanceToSquared(this.pos) > RENDER_SNAP_DIST * RENDER_SNAP_DIST) this.prevPos.copy(this.pos);
+    this.renderPos.lerpVectors(this.prevPos, this.pos, alpha);
 
     // Ayak sesleri
     if (this.grounded && this.horizSpeed > 0.6) {
@@ -482,6 +501,8 @@ export class Player {
     }
 
     // Eğilme (Q/E)
+    yawToDir(this.yaw, _fwd);
+    _right.set(-_fwd.z, 0, _fwd.x);
     let leanTarget = 0;
     if (!this.sprinting) {
       if (input.isDown('leanLeft')) leanTarget -= 1;
@@ -498,7 +519,7 @@ export class Player {
 
     // Kamera yüksekliği (merdivenlerde yumuşatılır)
     const eyeH = lerp(M.eyeStand, M.eyeCrouch, this.crouchT);
-    const targetY = this.pos.y + eyeH;
+    const targetY = this.renderPos.y + eyeH;
     this.camY = Math.abs(targetY - this.camY) > 1.5 ? targetY : damp(this.camY, targetY, 22, dt);
     // İniş çöküşü yayı
     this.landVel += (-this.landDip * 90 - this.landVel * 12) * dt;
@@ -624,16 +645,17 @@ export class Player {
     yawToDir(this.yaw, _fwd);
     _right.set(-_fwd.z, 0, _fwd.x);
     const leanX = this.lean * M.leanOffset;
+    const rp = this.renderPos;
     let y = this.camY + bobY + this.landDip;
     let roll = -this.lean * M.leanRoll * DEG + sr;
     if (this.down) roll += REVIVE.downedRollDeg * DEG; // yerde: kamera yere yakın, hafif yan yatık
     if (!this.alive) {
       // Ölüm kamerası: yana devril
       const k = smoothstep(clamp(this.deathT / 0.9, 0, 1));
-      y = lerp(this.camY, this.pos.y + 0.35, k);
+      y = lerp(this.camY, rp.y + 0.35, k);
       roll += k * 1.1;
     }
-    camera.position.set(this.pos.x + _right.x * (leanX + bobX), y, this.pos.z + _right.z * (leanX + bobX));
+    camera.position.set(rp.x + _right.x * (leanX + bobX), y, rp.z + _right.z * (leanX + bobX));
     camera.rotation.set(this.pitch + this.recoil.cp + sp + (this.scopeSwayP || 0), this.yaw + this.recoil.cy + sy + (this.scopeSwayY || 0), roll, 'YXZ');
     g.audio.setListener(camera.position.x, camera.position.y, camera.position.z, this.yaw);
   }

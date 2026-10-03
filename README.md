@@ -20,7 +20,7 @@ Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcı
   npm install
   npm run build     # dist/index.html, dist/artifact.html ve dist/pwa/ üretir
   npm run serve     # http://localhost:8080
-  npm test          # başsız Chromium'da duman testi + ekran görüntüleri
+  npm test          # birim testleri + başsız Chromium'da duman testi + ekran görüntüleri
   ```
 
 Masaüstünde Chrome, Edge veya Firefox önerilir. Telefonda yatay tut; dokunmatik kontroller otomatik açılır.
@@ -136,6 +136,23 @@ Seviye ayarları `web/src/config.js` → `LEVELS`; harita ortamları → `MAPS`;
 
   Seviyelerin kendi çarpanları bunun üstüne uygulanır. Asker zorluğunda, Hafif Taktik Yelek'le açıkta tek düşmana karşı yere düşme süresi en az 4 sn, ikiye karşı en az 2,5 sn olacak şekilde ölçülür (duman testinin "balance" bölümü). Konsolda `dmgpanel` son 10 saniyede alınan isabetleri gösterir; görev sonunda ortalama yere düşme süresi kayda yazılır.
 
+## Çok oyunculu güncelleme (yapım aşamasında)
+
+Plan `Docs/MULTIPLAYER_PROMPT.md` (fazlar M0–M13). Kararlar ve belgeden sapmalar `Docs/DECISIONS.md`'de.
+Kısaca: otoriter Node sunucusu VPS'te koşacak; çok oyunculu PC'de ve telefonda oynanacak; mod sırası Takım Ölüm Maçı / Ölüm Maçı → Rekabetçi → Co-op. Tek oyunculu kampanya olduğu gibi kalıyor.
+
+- **M1 (tamamlandı): paylaşılan simülasyon çekirdeği.**
+  - Hareket, çarpışma, silah kuralları ve vuruş kutuları `web/shared/sim/` altına taşındı. İstemci ve sunucu aynı dosyaları çalıştırır; DOM, THREE ve `Math.random` yok.
+  - Oyuncu hareketi sabit 64 Hz tick'le ilerler, kamera tick'ler arasında aralanır. Tek oyunculu davranış referans ölçümlerle aynı (`Docs/BASELINE.md`).
+  - Aynı 10.000 komutluk kayıt Node'da ve Chromium'da aynı konumu verir (`Docs/NETCODE.md`).
+  - Konsol: `cl_fixedstep 0|1` sabit adımı aç/kapa, `sv_showhitboxes 1` vuruş kutularını tel kafes çizer.
+- Araçlar (`web` klasöründe çalıştırılır):
+
+  ```bash
+  node tools/baseline.mjs [--compare]          # tek oyunculu hareket/silah ölçümleri ↔ Docs/baseline.json
+  node tools/export-collision.mjs [--check]    # haritaların çarpışma verisi → shared/maps/*.collision.json
+  ```
+
 ## Proje yapısı
 
 ```
@@ -151,7 +168,9 @@ web/
     soldier.js     asker görünümü: iskeletli model, animasyon karışımı, IK, vuruş kutuları
     assets.js      GLB ve doku yükleme (gömülü ya da yanındaki dosyadan)
     nav.js         ızgara navigasyonu, A*, siper noktaları
-    world.js       çarpışma dünyası, ışın testi, geometri birleştirme
+    world.js       görsel dünya: malzemeler, geometri birleştirme (çarpışma shared/sim/collision.js'ten)
+    inputCmd.js    girdiden InputCmd (aç/kapa ayarları, analog hareket, zıplama basışı)
+    hitboxDebug.js sv_showhitboxes: pozdan vuruş kutularının tel kafesi
     level.js       harita seçimi ve atış poligonu
     maps/          görev haritaları (kizilkum, harbor, ruins, pass, refinery) ve ortak yapı takımı (kit.js)
     hmg.js         ağır makineli mevzi: silah modeli, zırh, susturma
@@ -163,6 +182,10 @@ web/
     pwa.js         yüklenebilir uygulama: hizmet çalışanı kaydı, yükleme düğmesi, güncelleme satırı
     pwa/           hizmet çalışanı şablonu (sw.js), simge çizimi (icon.svg) ve PNG simgeler
     shell.html     sayfa iskeleti ve arayüz stilleri
+  shared/        istemci ve sunucunun ortak saf kodu (çok oyunculu)
+    constants.js   tick hızı (64), nicemleme adımları
+    sim/           math, rng (tohumlu), collision (CollisionWorld), movement (stepPlayer), weapon, hitboxes, replay
+    maps/          haritaların çarpışma verisi (*.collision.json; tools/export-collision.mjs üretir)
   assets/        silah GLB'leri, asker GLB'si ve dokuları, hazır araç modelleri (props/)
   tools/build.mjs  paketleme: tek dosya (dist/index.html), Artifact ve PWA (dist/pwa/)
   tools/make-icons.mjs  PWA simgelerini icon.svg'den üretme
@@ -171,7 +194,10 @@ web/
   tools/prepare-prop.mjs  hazır araç modelini (Sketchfab) sadeleştirme, parça adlandırma, lisans kaydı
   tools/prepare-weapon-glb.mjs  Sketchfab silahını oyunun silah düzenine çevirme (weapon-glb-map.json)
   tools/smoke-test.mjs  otomatik oynanış testi
+  tools/baseline.mjs    tek oyunculu referans ölçümleri (Docs/BASELINE.md)
+  tools/export-collision.mjs  haritaların çarpışma verisini dışa aktarma
 Docs/MASTER_PROMPT.md  Unreal Engine 5 ana planı
+Docs/MULTIPLAYER_PROMPT.md  çok oyunculu güncelleme planı; DECISIONS.md, NETCODE.md, BASELINE.md
 Docs/import_reports/   her içe aktarılan model için rapor ve önizleme
 SourceAssets/Weapons/  özgün .blend dosyaları ve asset_info.json (lisans kaydı)
 SourceAssets/Characters/  özgün karakter dosyası ve asset_info.json

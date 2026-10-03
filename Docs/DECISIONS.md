@@ -1,0 +1,46 @@
+# Çok oyunculu güncelleme — kararlar
+
+`Docs/MULTIPLAYER_PROMPT.md` belgesinden bilinçli olarak ayrılan noktalar ve nedenleri. Her yeni sapma buraya tarih ve fazla eklenir.
+
+## Kullanıcı kararları (M0 sonrası)
+
+| Konu | Karar | Neden / etkisi |
+|---|---|---|
+| Barındırma | Kullanıcı bir VPS alacak | Geliştirme ve testler yerelde koşar; M12'de Docker + Caddy ile VPS kurulum belgesi (`Docs/DEPLOY.md`). |
+| Platform | Çok oyunculu hem PC'de hem telefonda (dokunmatik) | Belgedeki "mobil kapsam dışı" maddesi geçersiz. Her yeni ekran ve kontrol dokunmatikte çalışır. `InputCmd` analog hareket taşır (aşağıda). |
+| Mod sırası | Takım Ölüm Maçı / Ölüm Maçı → Rekabetçi (bomba, round ekonomisi) → Co-op | İlk oynanabilir çevrim içi sürüm M5'te TDM/DM ile çıkar; Rekabetçi aynı fazın ikinci yarısı. |
+| Tek oyunculu | Olduğu gibi kalır | Kampanya Web Worker'a ya da LoopbackTransport'a taşınmaz (belge §4.5 uygulanmaz). Yalnız hareket, çarpışma ve silah çekirdeği paylaşılan koda taşınır; tek oyunculu da bu kodu kullanır. Görev, düşman, dost ve tank yapay zekâsı tek oyunculuda istemcide kalır; sunucu botları M7'de ayrı yazılır (mevcut durum makinesinden uyarlanarak). |
+
+## Teknik sapmalar
+
+| Belge | Uygulanan | Neden |
+|---|---|---|
+| Vite'a geçiş (M1) | esbuild kalır (`web/tools/build.mjs`) | Mevcut derleme üç çıktı üretiyor (bağımsız tek dosya, Artifact, PWA) ve testler bunlara bağlı. Vite bu üç çıktıyı yeniden kurmayı gerektirir, kazanç yok. `web/shared/` göreli içe aktarmayla paketlenir. |
+| TypeScript / Vitest | JSDoc + `node:test` | Proje düz JS; mevcut 65+ birim testi `node --test` ile koşuyor. Yeni bağımlılık yok. |
+| `three-mesh-bvh` | Kullanılmaz | Dünyanın çarpışması zaten eksen hizalı kutulardan oluşan bir ızgara (`CollisionWorld`, DDA ışın testi). Üçgen ağına gerek yok; sunucu aynı kutuları okur. |
+| Klasör yapısı (`client/`, `server/`, `shared/` kökte) | `web/src/` (istemci), `web/shared/`, `web/server/` (M2) | Depo kökü UE5 planını da taşıyor; web projesi `web/` altında tek `package.json` ile kalır. npm workspaces gerekmez. |
+| `docs/` | `Docs/` | Depoda mevcut klasör adı. |
+| `shared/data/` | Veri `web/src/data/*.json`'da kalır | Esbuild ve Node testleri aynı JSON'u zaten okuyor; taşımak yalnız içe aktarma yollarını değiştirir. Sunucu aynı dosyaları içe aktarır. |
+| Çapraz motor determinizm testi (Chromium, Firefox, WebKit) | Node + Chromium | Ortamda yalnız Chromium kurulu. Nicemleme (tick sonu) motorlar arası farkları zaten keser. |
+| Tick sonu nicemleme: konum 1/1024 m, hız 1/256 m/s | Aynen | `web/shared/constants.js`. |
+| `stepPlayer(s, cmd, world, dt)` yeni durum döndürür | Durumu yerinde günceller ve olay listesini döndürür | Çalışma sırasında bellek ayırmama kuralı (CLAUDE.md). Sunucu ve istemci tahmini gerektiğinde `clonePlayerState` ile kopya alır. |
+
+## Tuş atamaları (çakışma taraması)
+
+Mevcut atamalar: Z bağlamsal işaret, X silah takası, C çömelme, T komut çarkı, Enter telsiz satırı, N sesli komut, F1–F5/F8/F9 tim komutları.
+
+| Belge önerisi | Uygulanacak | Neden |
+|---|---|---|
+| Telsiz komutları Z / X / C menüleri | T komut çarkı (PvP'de telsiz dilimleri) | Z, X, C dolu. Çark dokunmatikte de çalışıyor. |
+| Sohbet (herkese / takıma) | Y herkese, U takıma; dokunmatikte SOHBET düğmesi | Y ve U boş. |
+| İşaret (ping) | Orta fare tuşu ve Z | Z zaten bağlamsal işaret; orta tuş boş. |
+
+## Ağ protokolü uyarlamaları
+
+- `InputCmd` dokunmatik ve gamepad için analog hareket taşır: `moveX`, `moveY` (i8, −127…127). Klavye ±127 gönderir. Belgedeki yalnız düğme bitleri telefonda yürüme hızını kaybettirirdi.
+- Aç/kapa (çömelme, koşu, nişan) istemcinin girdi katmanında çözülür; komut, istenen durumu taşır (sunucu ayar bilmez).
+
+## Rastgelelik (M1)
+
+- Oyuncu silahının saçılması, saçma taneleri, geri tepmenin rastgele payı ve roket sapması tohumlu `Rng`'den gelir (`web/shared/sim/rng.js`). Tek oyunculuda tohum görev başında üretilir; çevrim içide sunucu `hash(serverSecret, matchId, playerId, seq)` kullanır (M4).
+- Düşman, dost, el bombası, efekt, ses ve oyuncu vurulunca kameranın sarsılması tek oyunculuda `Math.random` ile kalır: bunlar sunucuya taşınmıyor (sunucu botları M7'de kendi tohumlu üreteciyle yazılır).

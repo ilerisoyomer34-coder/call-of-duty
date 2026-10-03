@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, determinism
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1318,10 +1318,10 @@ console.log('Telsiz kutusu ve yazılı komut');
   check(mv?.id === 'MOVE_TO' && [...mv.who].sort().join() === 'Alfa-1,Alfa-3', `"Demir ve Yıldız oraya gidin" → MOVE_TO, ${mv?.who?.join(' + ')}`);
   // Esc yalnız satırı kapatır, oyunu duraklatmaz
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
+  const opened = await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).then(() => true).catch(() => false);
   await page.keyboard.press('Escape');
   const esc = await page.evaluate(() => ({ open: window.__game.chat.open, state: window.__game.state }));
-  check(!esc.open && esc.state === 'playing', 'Esc telsiz satırını kapattı, oyun duraklamadı');
+  check(opened && !esc.open && esc.state === 'playing', `Esc telsiz satırını kapattı, oyun duraklamadı (açıldı: ${opened}, açık: ${esc.open}, durum: ${esc.state})`);
   // Spam kuralları: aynı tür replik 10 sn'de bir; acil replik (el bombası) beklemeye takılmaz, kuyruğun önüne geçer
   const sp = await page.evaluate(() => {
     const g = window.__game;
@@ -1882,9 +1882,13 @@ console.log('Haritalar, mevziler ve manga kademeleri');
         tanks: g.mission.tanks.length,
         state: g.state, map: g.level.map, gunners: g.enemies.list.filter((e) => e.type === 'gunner' && e.mount).length,
         rank: g.allies.list[0]?.S.rank, tag: g.allies.list[0]?.rankName, issues, fog: g.scene.fog.color.getHexString(),
+        // Tarayıcıda kurulan haritanın çarpıştırıcı özeti (sunucunun yükleyeceği dosyayla aynı olmalı)
+        colHash: g.world.toJSON(g.level.map, g.world.mapColliders).hash,
       };
     });
     const [map, hmg, rank] = expect[id];
+    const colFile = JSON.parse(readFileSync(join(root, `shared/maps/${map}.collision.json`), 'utf8'));
+    check(r.colHash === colFile.hash, `Seviye ${id}: tarayıcıdaki çarpışma dünyası shared/maps/${map}.collision.json ile aynı (${r.colHash})`);
     check(r.state === 'playing' && r.map === map, `Seviye ${id}: ${map} haritası açıldı`);
     check(r.gunners === hmg, `Seviye ${id}: ${hmg} ağır makineli mevzi (${r.gunners})`);
     check(r.rank === rank, `Seviye ${id}: manga kademesi ${rank} (etiket "${r.tag}")`);
@@ -2113,10 +2117,13 @@ console.log('Haritalar, mevziler ve manga kademeleri');
       bursts++;
       fb(p);
     };
-    for (let i = 0; i < 450 && g.player.alive; i++) {
+    // Nişan hatası rastgele: tek parça patlaması ~%9 olasılıklı, 15 sn'de (~23 mermi) hiç olmaması %10'a yakın.
+    // En az 15 sn, en çok 45 sn: isabet ve parça patlaması görülünce erken biter (yanlış alarm olasılığı ‰2'nin altında)
+    for (let i = 0; i < 1350 && g.player.alive; i++) {
       g.time += 1 / 30;
       g.enemies.update(1 / 30);
       g.mission.update(1 / 30);
+      if (i >= 450 && bursts > 0 && g.player.health.hp < hp0) break;
     }
     const res = { gunner: e.type, fired: e.shotCount - s0, bursts, dmg: Math.round(hp0 - g.player.health.hp), warned: a.warned };
     g.cheats.god = true;
@@ -2319,10 +2326,19 @@ console.log('Atış poligonu');
   for (let i = 1; i <= 9; i++) {
     await page.keyboard.press(`Digit${i}`);
     // Ağır silahlarda bırakma + kuşanma 1,2 sn'yi bulur
-    await page.waitForFunction((k) => {
-      const W = window.__game.weapons;
-      return W.currentId === W.slots[k - 1] && W.state === 'idle';
-    }, i, { timeout: 120000, polling: 50 });
+    await page
+      .waitForFunction((k) => {
+        const W = window.__game.weapons;
+        return W.currentId === W.slots[k - 1] && W.state === 'idle';
+      }, i, { timeout: 120000, polling: 50 })
+      .catch(async (e) => {
+        // Teşhis: oyun durumu, silah durumu, kilit
+        const st = await page.evaluate(() => {
+          const g = window.__game;
+          return { state: g.state, cur: g.weapons.currentId, slots: g.weapons.slots, w: g.weapons.state, locked: g.input.locked, lockFailed: g.input.lockFailed, alive: g.player.alive, time: g.time };
+        });
+        throw new Error(`Silah ${i} seçilemedi: ${JSON.stringify(st)} (${e.message})`);
+      });
     await waitGame(page, 0.3);
     const before = await page.evaluate(() => window.__game.stats.shots);
     await page.mouse.down();
@@ -2858,6 +2874,33 @@ console.log('PWA sürümü (dist/pwa)');
 
   await ctx.close();
   server.close();
+}
+
+// ---------------- Determinizm: aynı girdi kaydı Node'da ve Chromium'da (belge §5.2/7) ----------------
+if (run('determinism')) {
+  console.log('Paylaşılan simülasyon: Node ↔ Chromium determinizmi');
+  const { build } = await import('esbuild');
+  const { replay } = await import('../shared/sim/replay.js');
+  const { buildMission } = await import('../src/level.js');
+  const { CollisionWorld } = await import('../shared/sim/collision.js');
+  // Tarayıcı paketi: yalnız paylaşılan simülasyon (THREE yok), tek IIFE
+  const out = await build({ entryPoints: [join(root, 'shared/sim/replay.js')], bundle: true, format: 'iife', globalName: '__sim', write: false, platform: 'browser', loader: { '.json': 'json' } });
+  const code = out.outputFiles[0].text;
+  const N = 10000;
+  const page = await browser.newPage();
+  await page.setContent('<!doctype html><html><body></body></html>');
+  await page.addScriptTag({ content: code });
+  for (const map of ['kizilkum', 'ruins']) {
+    const data = JSON.parse(readFileSync(join(root, `shared/maps/${map}.collision.json`), 'utf8'));
+    const start = buildMission(new CollisionWorld(), map).playerStart.pos;
+    const s0 = { x: start.x, y: start.y, z: start.z };
+    const node = replay(data, s0, N, 12345);
+    const web = await page.evaluate(([d, st, n]) => window.__sim.replay(d, st, n, 12345), [data, s0, N]);
+    const diff = Math.hypot(node.pos.x - web.pos.x, node.pos.y - web.pos.y, node.pos.z - web.pos.z);
+    check(diff <= 0.001, `${map}: ${N} komut sonrası Node–Chromium konum farkı ${(diff * 1000).toFixed(3)} mm (≤ 1 mm; yol ${node.dist.toFixed(0)} m, ${node.wallHits} duvar teması)`);
+    check(node.checkpoints.join() === web.checkpoints.join(), `${map}: her 1000 tick'in konum özeti aynı (${web.checkpoints.slice(-1)[0]})`);
+  }
+  await page.close();
 }
 
 await browser.close();

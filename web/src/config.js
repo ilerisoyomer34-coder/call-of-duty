@@ -32,6 +32,12 @@ export const MOVEMENT = {
   stepDistCrouch: 1.4,
 };
 
+// Sabit adımlı oyuncu simülasyonu (çok oyunculu M1; tick hızı shared/constants.js → TICK_RATE)
+export const SIM = {
+  maxTicksPerFrame: 10, // tek karede en çok bu kadar tick (uzun karede tick yağmuru olmasın; fazlası atılır)
+  renderSnapDist: 2, // iki tick arası bundan uzunsa ışınlanma sayılır, kamera aralanmaz (m)
+};
+
 // Silah veri varlıkları. fireModes: 'auto' | 'burst' | 'semi'.
 export const WEAPONS = {
   rifle: {

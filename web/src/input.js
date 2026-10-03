@@ -188,7 +188,11 @@ export class Input {
       const was = this.locked;
       this.locked = document.pointerLockElement === this.canvas;
       if (this.locked) this.ignoreMoveUntil = performance.now() + 150;
-      if (was !== this.locked && this.onLockChange) this.onLockChange(this.locked);
+      // Kilidi oyun kendisi bıraktıysa (telsiz satırı, konsol) bu bırakma duraklatmaz: olay eşzamansız gelir,
+      // satır o arada kapanmış olabilir (hızlı Enter → Esc)
+      const self = !this.locked && this.selfExit;
+      this.selfExit = false;
+      if (was !== this.locked && this.onLockChange) this.onLockChange(this.locked, self);
     });
     document.addEventListener('pointerlockerror', () => {
       this.lockFailed = true;
@@ -210,6 +214,7 @@ export class Input {
   exitLock() {
     if (document.pointerLockElement) {
       try {
+        this.selfExit = true;
         document.exitPointerLock();
       } catch {
         /* yoksay */

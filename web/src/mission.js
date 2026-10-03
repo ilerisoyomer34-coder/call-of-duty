@@ -397,6 +397,8 @@ export class Mission {
     const g = this.game;
     const W = g.world;
     this.data = this.mode === 'range' ? buildRange(W) : buildMission(W, this.level.map);
+    // Haritanın kendi çarpıştırıcıları (shared/maps/<harita>.collision.json ile aynı olmalı; sonrakiler görevin)
+    W.mapColliders = W.colliders.length;
     const D = this.data;
     // Ağır makineli mevzileri: seviyenin istediği kadarı, haritanın listesinden sırayla (kum torbaları dünyaya
     // birleştirilmeden önce eklenmeli)

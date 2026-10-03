@@ -206,7 +206,7 @@ export class Game {
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
 
-    this.input.onLockChange = (locked) => {
+    this.input.onLockChange = (locked, selfExit) => {
       // Telsiz satırı kapanırken istenen kilit satır yeniden açıldıktan sonra gelebilir: yazarken imleç serbest
       // kalsın (kilitliyken Esc tarayıcıya gider, satırı kapatamaz)
       if (locked && this.chat?.open) {
@@ -214,7 +214,7 @@ export class Game {
         return;
       }
       // Konsol ve telsiz satırı imleci bilerek serbest bırakır: o zaman duraklatma
-      if (!locked && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active) this.pause();
+      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active) this.pause();
     };
     this.clickToPlay = document.getElementById('clickToPlay');
     this.clickToPlay.addEventListener('click', () => {
@@ -895,6 +895,7 @@ export class Game {
     this.grenades.update(dt);
     this.mission.update(dt);
     this.updateDebris(dt);
+    if (this.hitboxDebug?.on) this.hitboxDebug.update();
     this.effects.update(dt, this.camera.position);
     this.effects.setScale(this.height * this.worldPR, this.camera.fov);
     this.viewmodel.update(dt);

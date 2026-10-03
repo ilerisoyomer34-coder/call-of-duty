@@ -1,16 +1,12 @@
 // Genel matematik ve yardımcı fonksiyonlar. Her modül buradan içe aktarır.
 import * as THREE from 'three';
+import { inCone } from '../shared/sim/rng.js';
+// Saf matematik paylaşılan simülasyonda (sunucu da aynısını kullanır)
+export { DEG, clamp, lerp, smoothstep, damp, quantize } from '../shared/sim/math.js';
 
-export const DEG = Math.PI / 180;
-export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const lerp = (a, b, t) => a + (b - a) * t;
-export const smoothstep = (t) => t * t * (3 - 2 * t);
 export const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 export const randSign = () => (Math.random() < 0.5 ? -1 : 1);
 export const pick = (arr) => arr[(Math.random() * arr.length) | 0];
-
-// Kare hızından bağımsız üstel yaklaşım: "hız" saniyede kapanan oranı belirler.
-export const damp = (a, b, speed, dt) => lerp(a, b, 1 - Math.exp(-speed * dt));
 
 export function angleDiff(a, b) {
   let d = b - a;
@@ -33,22 +29,10 @@ export function dirToYaw(dx, dz) {
 }
 
 // Koni içinde rastgele yön: merkeze hafif yığılmalı dağılım (gerçekçi saçılma).
-const _tmpA = new THREE.Vector3();
-const _tmpB = new THREE.Vector3();
+// Kozmetik/yapay zekâ kullanımı Math.random ile; oyuncu silahı tohumlu Rng ile (shared/sim/rng.js inCone)
+const MATH_RNG = { next: () => Math.random() };
 export function randomInCone(dir, halfAngleRad, out = new THREE.Vector3(), centerBias = 1.0) {
-  if (halfAngleRad <= 0) return out.copy(dir);
-  const r = Math.pow(Math.random(), centerBias) * Math.tan(halfAngleRad);
-  const phi = Math.random() * Math.PI * 2;
-  // dir'e dik iki eksen
-  _tmpA.set(0, 1, 0);
-  if (Math.abs(dir.y) > 0.95) _tmpA.set(1, 0, 0);
-  _tmpB.crossVectors(dir, _tmpA).normalize();
-  _tmpA.crossVectors(_tmpB, dir).normalize();
-  return out
-    .copy(dir)
-    .addScaledVector(_tmpB, Math.cos(phi) * r)
-    .addScaledVector(_tmpA, Math.sin(phi) * r)
-    .normalize();
+  return inCone(dir, halfAngleRad, out, centerBias, MATH_RNG);
 }
 
 // Işın - dikey silindir kesişimi (oyuncu vuruş kutusu)

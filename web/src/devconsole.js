@@ -7,6 +7,7 @@ import { ArmorLoadout, ARMOR_DEFS } from './armor.js';
 import { CONSUMABLES } from './loadout.js';
 import { levelMission, RULES } from './missionSystem.js';
 import { COMMANDS } from './commands.js';
+import { HitboxDebug } from './hitboxDebug.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -34,6 +35,8 @@ const HELP = `Komutlar:
   cmd <KOMUT> [alfa-n|all]   tim komutu (FOLLOW, HOLD, MOVE_TO, ATTACK, SUPPRESS, TAKE_COVER, HEAL_PLAYER, HOLD_FIRE, FREE_FIRE, CLEAR_AREA)
   chat <cümle>        Türkçe cümleyi ayrıştırıcıdan geçir ve komut olarak ver ("chat kaya beni iyileştir")
   dmgpanel            hasar paneli: son 10 sn'deki isabetler (kaynak, mesafe, zırh, can); ttd: yere düşme süreleri
+  sv_showhitboxes [0|1]  sunucu vuruş kutularını (pozdan) tel kafes çiz: kırmızı baş, sarı gövde, mavi kol/bacak
+  cl_fixedstep [0|1]  oyuncu hareketi sabit 64 Hz tick (1, varsayılan) ya da eski kare adımı (0)
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -278,6 +281,21 @@ export class DevConsole {
         const who = args[1] && args[1].toLowerCase() !== 'all' ? args[1].replace(/^alfa-?/i, 'Alfa-') : 'all';
         const c = g.commands.issue(id, who, { inputMethod: 'console' });
         this.print(c ? `${id} → ${c.addressees.join(', ')}` : `Verilemedi (komutlar: ${Object.keys(COMMANDS).join(', ')})`);
+        break;
+      }
+      case 'sv_showhitboxes': {
+        if (!g.hitboxDebug) g.hitboxDebug = new HitboxDebug(g);
+        const on = args[0] === undefined ? !g.hitboxDebug.on : args[0] !== '0';
+        g.hitboxDebug.set(on);
+        this.print(`Vuruş kutuları: ${on ? 'AÇIK' : 'KAPALI'}`);
+        break;
+      }
+      case 'cl_fixedstep': {
+        // Sabit adımlı hareket (çok oyunculu M1) ile eski kare adımı arasında A/B karşılaştırması
+        const P = g.player;
+        P.fixedStep = args[0] === undefined ? !P.fixedStep : args[0] !== '0';
+        P.syncRender();
+        this.print(`Sabit adımlı hareket: ${P.fixedStep ? 'AÇIK (64 Hz)' : 'KAPALI (kare adımı)'}`);
         break;
       }
       case 'dmgpanel':
