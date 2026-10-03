@@ -4,6 +4,7 @@ import { WEAPON_ORDER, LEVELS, ALLY_TIERS } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { formatKR } from './economy.js';
 import { ArmorLoadout, ARMOR_DEFS } from './armor.js';
+import { CONSUMABLES } from './loadout.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -25,6 +26,7 @@ const HELP = `Komutlar:
   econlog             son kredi hareketleri
   armor <yelek|none> [kask|none]   zırh kuşan (ör. armor armor_plate helmet_tactical), satın almış sayılır
   armorfill           zırhı doldur; armor yazınca kuşanılanı gösterir
+  give <sarf> [n]     envantere sarf malzemesi ekle (plate_pack, medkit, adrenaline, smoke, frag)
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -232,6 +234,21 @@ export class DevConsole {
         g.player.armor = new ArmorLoadout(body, helmet);
         g.events.emit('armor', g.player.armor);
         this.print(`Kuşanıldı: ${body || 'yeleksiz'} / ${helmet || 'kasksız'}`);
+        break;
+      }
+      case 'give': {
+        // give <sarf kimliği> [adet]: envantere ekler (görevdeyse yuvalar da dolar)
+        const id = args[0];
+        const n = Math.max(1, parseInt(args[1] || '1', 10) || 1);
+        if (!CONSUMABLES.has(id)) {
+          this.print(`Kimlikler: ${[...CONSUMABLES.keys()].join(', ')}`);
+          break;
+        }
+        g.save.update((d) => (d.inventory.consumables[id] = (d.inventory.consumables[id] || 0) + n), { now: true });
+        for (const s of g.kit.slots) if (s?.id === id) s.left = Math.min(s.def.maxStack, s.left + n);
+        if (id === 'frag') g.weapons.kitFrags = g.kit.count('frag');
+        g.kit.emit();
+        this.print(`${id}: envanterde ${g.save.data.inventory.consumables[id]}`);
         break;
       }
       case 'armorfill':

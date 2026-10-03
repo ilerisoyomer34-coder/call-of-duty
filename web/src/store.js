@@ -5,6 +5,7 @@
 import ARMOR from './data/armor.json' with { type: 'json' };
 import STORE from './data/store.json' with { type: 'json' };
 import WEAPON_META from './data/weapons.json' with { type: 'json' };
+import { weaponName } from './weaponInfo.js';
 
 export const CATEGORIES = STORE.categories;
 
@@ -16,7 +17,8 @@ export const ITEMS = [
   ...STORE.upgrades.map((d) => ({ id: d.id, category: 'squad', name: d.name, desc: d.desc, price: d.price, def: d })),
   ...Object.entries(WEAPON_META)
     .filter(([, m]) => (m.unlockCost || 0) > 0)
-    .map(([id, m]) => ({ id, category: 'weapon', name: m.displayName, desc: `${m.class} · ${m.caliber}`, price: m.unlockCost, def: m })),
+    // Ad ayara bağlı (Gerçek silah adları): her okumada güncel
+    .map(([id, m]) => ({ id, category: 'weapon', get name() { return weaponName(id); }, desc: `${m.class} · ${m.caliber}`, price: m.unlockCost, def: m })),
 ];
 export const ITEM_BY_ID = new Map(ITEMS.map((i) => [i.id, i]));
 

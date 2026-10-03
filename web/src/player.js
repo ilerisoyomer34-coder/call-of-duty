@@ -1,7 +1,7 @@
 // Oyuncu karakteri (AShooterCharacter karşılığı): hareket, bakış, geri tepme telafisi,
 // nişan alma, çömelme, eğilme, koşma, ayak sesleri, sağlık/yenilenme, kamera sarsıntısı ve etkileşim.
 import * as THREE from 'three';
-import { MOVEMENT as M } from './config.js';
+import { MOVEMENT as M, KIT } from './config.js';
 import { DEG, clamp, damp, lerp, smoothstep, yawToDir } from './util.js';
 import { Health } from './health.js';
 import { ArmorLoadout, computeArmorDamage, playerZoneMult, ARMOR_DATA } from './armor.js';
@@ -53,6 +53,7 @@ export class Player {
     this.time = 0;
     this.interactTarget = null;
     this.interacting = false;
+    this.usingItem = false; // sarf malzemesi takılıyor (kit.js): silah iner, koşulamaz, nişan alınamaz
     this.interactT = 0;
     this.horizSpeed = 0;
     this.groundSurface = 'sand';
@@ -208,12 +209,12 @@ export class Player {
     const sprintInput = S.sprintMode === 'toggle' ? (input.pressed('sprint') ? (this.sprintToggle = !this.sprintToggle) : this.sprintToggle) : input.isDown('sprint') || input.touch.sprint;
     const weaponBlocksSprint = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing';
     // Ağır Saldırı Zırhı'nda koşu kapalı
-    let wantSprint = sprintInput && mv.y > 0.35 && this.grounded && !weaponBlocksSprint && !this.interacting && !this.armor.noSprint;
+    let wantSprint = sprintInput && mv.y > 0.35 && this.grounded && !weaponBlocksSprint && !this.interacting && !this.usingItem && !this.armor.noSprint;
     // Dokunmatikte NİŞAN hep aç/kapa: başparmaklar bakış ve ateşle meşgulken düğme basılı tutulamaz
     if (input.touch.active || S.adsMode === 'toggle') {
       if (input.pressed('ads')) this.adsToggle = !this.adsToggle;
     } else this.adsToggle = input.isDown('ads');
-    const wantAds = this.adsToggle && W.canAds && !this.interacting;
+    const wantAds = this.adsToggle && W.canAds && !this.interacting && !this.usingItem;
     if (wantAds && input.pressed('ads')) wantSprint = false;
     if (wantAds && !this.sprinting) wantSprint = false;
     if (wantSprint && wantCrouch) {
@@ -253,6 +254,7 @@ export class Player {
     if (w) maxSpeed *= lerp(w.data.mobility || 1, w.data.ads.moveMult, this.adsT);
     maxSpeed *= this.armor.speedMult; // zırhın hız cezası (belge §4.7)
     if (this.interacting) maxSpeed *= 0.2;
+    else if (this.usingItem) maxSpeed *= KIT.useMoveMult;
     if (this.grounded) {
       const tx = _wish.x * maxSpeed;
       const tz = _wish.z * maxSpeed;

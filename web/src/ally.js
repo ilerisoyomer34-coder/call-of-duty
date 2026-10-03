@@ -398,7 +398,7 @@ export class Ally {
     if (gunner) {
       best = gunner;
       bestD = 0;
-    } else if (T && T.alive && eye.distanceTo(T.pos) < ALLY.viewRange && g.world.lineOfSight(eye, T.chestPos(_v2))) {
+    } else if (T && T.alive && eye.distanceTo(T.pos) < ALLY.viewRange && g.world.canSee(eye, T.chestPos(_v2))) {
       best = T;
       bestD = eye.distanceTo(T.pos) * 0.8; // hedef değiştirmek için belirgin biçimde daha yakın biri gerekir
       tests++;
@@ -409,7 +409,7 @@ export class Ally {
       if (d >= bestD) continue;
       if (tests >= 3) break;
       tests++;
-      if (g.world.lineOfSight(eye, e.chestPos(_v2))) {
+      if (g.world.canSee(eye, e.chestPos(_v2))) {
         best = e;
         bestD = d;
       }
@@ -440,7 +440,7 @@ export class Ally {
       if (!e.alive || e.mount !== n || e.aiState !== 'combat') continue;
       const d = eye.distanceTo(e.pos);
       if (d >= bestD) continue;
-      if (!g.world.lineOfSight(eye, e.eyePos(_v2))) continue;
+      if (!g.world.canSee(eye, e.eyePos(_v2))) continue;
       best = e;
       bestD = d;
     }
@@ -950,7 +950,7 @@ export class AllyManager {
       bestD = d;
     }
     if (!best) return null;
-    if (!g.world.lineOfSight(eye, best.headPos(_v2)) && !g.world.lineOfSight(eye, best.chestPos(_v2))) return null;
+    if (!g.world.canSee(eye, best.headPos(_v2)) && !g.world.canSee(eye, best.chestPos(_v2))) return null;
     this._seen.ally = best;
     this._seen.dist = bestD;
     return this._seen;

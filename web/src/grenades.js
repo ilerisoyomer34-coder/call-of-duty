@@ -1,9 +1,13 @@
 // El bombaları ve patlamalar: sekme fiziği, fitil, alan hasarı (görüş hattı kontrollü), sarsıntı.
 import * as THREE from 'three';
 import { GRENADE, ALLY } from './config.js';
-import { buildGrenade, buildRocket } from './models.js';
+import { buildGrenade, buildSmokeGrenade, buildRocket } from './models.js';
 import { clamp, rand, rayCylinder } from './util.js';
 import { ARMOR_DATA } from './armor.js';
+import { CONSUMABLES } from './loadout.js';
+
+// Sis bombası ayarları (data/store.json → consumables.smoke)
+const SMOKE = CONSUMABLES.get('smoke');
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -91,12 +95,13 @@ export class GrenadeSystem {
     return best;
   }
 
-  spawn(pos, vel, fuse, owner) {
-    const mesh = buildGrenade();
+  // kind: 'frag' (parça tesirli) | 'smoke' (sis: patlamaz, fitil bitince bulut açar)
+  spawn(pos, vel, fuse, owner, kind = 'frag') {
+    const mesh = kind === 'smoke' ? buildSmokeGrenade() : buildGrenade();
     mesh.position.copy(pos);
     mesh.traverse((o) => o.isMesh && (o.castShadow = true));
     this.game.scene.add(mesh);
-    const g = { mesh, pos: mesh.position, vel: vel.clone(), fuse, owner, spin: new THREE.Vector3(Math.random() * 10, Math.random() * 10, 0), rest: false, bounces: 0 };
+    const g = { mesh, kind, pos: mesh.position, vel: vel.clone(), fuse, owner, spin: new THREE.Vector3(Math.random() * 10, Math.random() * 10, 0), rest: false, bounces: 0 };
     this.list.push(g);
     return g;
   }
@@ -106,10 +111,43 @@ export class GrenadeSystem {
     for (const r of this.rockets) r.mesh.removeFromParent();
     this.list = [];
     this.rockets = [];
+    this.game.world.smokes.length = 0;
+  }
+
+  // Sis bulutu: yoğunluğu önce artar, süre sonunda azalır; görüş engeli world.smokes'tan okunur
+  popSmoke(pos) {
+    const W = this.game.world;
+    W.smokes.push({ pos: new THREE.Vector3(pos.x, Math.max(pos.y, 0) + SMOKE.height, pos.z), base: pos.clone(), r: SMOKE.radius, density: 0, age: 0, emitT: 0 });
+    this.game.audio.smokePop?.(pos);
+  }
+
+  updateSmokes(dt) {
+    const list = this.game.world.smokes;
+    const fx = this.game.effects;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i];
+      s.age += dt;
+      if (s.age >= SMOKE.duration) {
+        list.splice(i, 1);
+        continue;
+      }
+      const left = SMOKE.duration - s.age;
+      s.density = Math.min(1, s.age / SMOKE.grow) * Math.min(1, left / SMOKE.fade);
+      // Yerden kabaran gri bulut: ilk saniyelerde fışkırma, sonra bulutu ayakta tutan seyrek puflar
+      s.emitT -= dt * SMOKE.puffsPerSec * (s.age < SMOKE.grow ? 2 : 1) * (left > SMOKE.fade ? 1 : 0.3);
+      while (s.emitT < 0) {
+        s.emitT += 1;
+        const a = Math.random() * Math.PI * 2;
+        const d = Math.sqrt(Math.random()) * s.r * 0.75 * Math.min(1, 0.35 + s.age / SMOKE.grow);
+        const shade = rand(0.62, 0.78);
+        fx.smoke.spawn(s.base.x + Math.cos(a) * d, s.base.y + rand(0.2, 1.4), s.base.z + Math.sin(a) * d, rand(-0.25, 0.25), rand(0.05, 0.3), rand(-0.25, 0.25), rand(3.5, 5), rand(1.6, 2.4), rand(3.4, 4.6), fx._c.setRGB(shade, shade, shade * 0.97), 0.55, -0.02, 0.3, rand(-0.3, 0.3), 0.5);
+      }
+    }
   }
 
   update(dt) {
     this.updateRockets(dt);
+    if (this.game.world.smokes.length) this.updateSmokes(dt);
     const W = this.game.world;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const g = this.list[i];
@@ -117,7 +155,8 @@ export class GrenadeSystem {
       if (g.fuse <= 0) {
         this.list.splice(i, 1);
         g.mesh.removeFromParent();
-        this.game.explode(g.pos.clone().setY(g.pos.y + 0.1), GRENADE.radius, GRENADE.damage, g.owner, 1);
+        if (g.kind === 'smoke') this.popSmoke(g.pos);
+        else this.game.explode(g.pos.clone().setY(g.pos.y + 0.1), GRENADE.radius, GRENADE.damage, g.owner, 1);
         continue;
       }
       if (g.rest) continue;
@@ -158,7 +197,7 @@ export class GrenadeSystem {
   dangerNear(pos, radius) {
     const out = [];
     for (const g of this.list) {
-      if (g.owner === 'player' || g.owner === 'ally') continue;
+      if (g.owner === 'player' || g.owner === 'ally' || g.kind === 'smoke') continue;
       if (g.pos.distanceTo(pos) < radius) out.push(g);
     }
     return out;

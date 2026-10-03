@@ -15,7 +15,7 @@
     { "id": "plate_pack", "name": "Zırh Plakası (3'lü)", "desc": "Görevde 2 sn'de takılır, +50 ZP (zırhın azami değerine kadar).", "price": 600, "perBuy": 3, "maxStack": 3, "useTime": 2, "armor": 50 },
     { "id": "medkit", "name": "İlk Yardım Kiti", "desc": "3 sn'de +50 can.", "price": 400, "perBuy": 1, "maxStack": 2, "useTime": 3, "heal": 50 },
     { "id": "adrenaline", "name": "Adrenalin Şırıngası", "desc": "Yere düşmüşken kendini ayağa kaldırır. Görev başına en fazla 1.", "price": 1200, "perBuy": 1, "maxStack": 1, "perMission": 1 },
-    { "id": "smoke", "name": "Sis Bombası", "desc": "15 sn görüş engeli. Askerler canlandırmaya giderken kendileri de kullanabilir.", "price": 300, "perBuy": 1, "maxStack": 2, "duration": 15 },
+    { "id": "smoke", "name": "Sis Bombası", "desc": "15 sn görüş engeli. Askerler canlandırmaya giderken kendileri de kullanabilir.", "price": 300, "perBuy": 1, "maxStack": 2, "duration": 15, "fuse": 1.6, "radius": 5.5, "height": 1.6, "grow": 1.8, "fade": 3, "puffsPerSec": 14 },
     { "id": "frag", "name": "El Bombası", "desc": "Standart parça tesirli el bombası.", "price": 400, "perBuy": 1, "maxStack": 2 }
   ],
   "upgrades": [

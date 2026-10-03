@@ -311,7 +311,7 @@ export class Enemy {
       if (distP < range) {
         const off = Math.abs(angleDiff(this.lookYaw, dirToYaw(toP.x, toP.z)));
         if (off < fovHalf || distP < 3.5 || (inCombat && distP < 30)) {
-          seeP = g.world.lineOfSight(eye, head) || g.world.lineOfSight(eye, P.chestPos(_v3));
+          seeP = g.world.canSee(eye, head) || g.world.canSee(eye, P.chestPos(_v3));
         }
       }
     }

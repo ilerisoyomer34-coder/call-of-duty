@@ -479,19 +479,72 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #clickToPlay small { display: block; font: 400 15px/1.3 var(--f-ui); letter-spacing: .02em; color: var(--sand-dim); margin-top: 6px; }
 
 /* ---------- Teçhizat ---------- */
-.guns { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
-.gun { appearance: none; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 12px 14px 13px; cursor: pointer; display: flex; flex-direction: column; gap: 7px; font-family: var(--f-ui); }
-.gun:hover, .gun:focus-visible { border-color: var(--amber); outline: none; }
-.gun.sel { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); background: #1b2126; }
-.gun .top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.gun b { font: 700 19px/1 var(--f-ui); letter-spacing: .06em; text-transform: uppercase; }
-.gun .badge { font: 600 10px/1 var(--f-ui); letter-spacing: .14em; color: var(--ink); background: var(--olive); padding: 3px 5px; text-transform: uppercase; white-space: nowrap; }
-.gun .kind { font: 500 14px/1 var(--f-ui); color: var(--sand-dim); }
-.gun .bars { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; margin-top: 2px; }
-.gun .bars span { font: 600 11px/1 var(--f-ui); letter-spacing: .1em; color: var(--sand-dim); text-transform: uppercase; }
-.gun .bars i { display: block; height: 4px; background: rgba(231,220,196,.12); position: relative; }
-.gun .bars i::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v); background: var(--sand); }
-.gun.sel .bars i::after { background: var(--amber); }
+/* Teçhizat ekranı (loadoutScreen.js): solda yuvalar, ortada kartlar, sağda ayrıntı + dönen önizleme */
+#loadoutScreen .sheet.loadout { width: min(1240px, 100%); }
+.loBody { display: grid; grid-template-columns: 186px minmax(0, 1fr) minmax(270px, 330px); gap: 14px; align-items: start; }
+.loNav { display: flex; flex-direction: column; gap: 6px; }
+.loSlot { appearance: none; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 9px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; font-family: var(--f-ui); min-width: 0; }
+.loSlot small { font: 600 11px/1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--sand-dim); }
+.loSlot b { font: 600 15px/1.15 var(--f-ui); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loSlot:hover, .loSlot:focus-visible { border-color: var(--amber); outline: none; }
+.loSlot.sel { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); background: #1b2126; }
+.loSlot.sel small { color: var(--amber); }
+.loGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; max-height: min(66vh, 660px); overflow: auto; align-content: start; }
+.loGrid.armor, .loGrid.helmet, .loGrid.consumable { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.loCard { appearance: none; position: relative; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 8px 10px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 5px; font-family: var(--f-ui); }
+.loCard:hover, .loCard:focus-visible { border-color: var(--amber); outline: none; }
+.loCard.sel { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 0 18px rgba(240,163,58,.28); background: #1b2126; }
+.loCard.locked, .loCard.shop { opacity: .62; }
+.loCard b { font: 700 17px/1.1 var(--f-ui); letter-spacing: .03em; padding-right: 20px; }
+.loImg { width: 100%; aspect-ratio: 2 / 1; object-fit: contain; display: block; background: radial-gradient(ellipse at center, rgba(141,184,216,.12), transparent 70%); opacity: .75; transition: opacity .25s; }
+.loImg.ready { opacity: 1; }
+.loClass { font: 600 10px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand-dim); }
+.loInfo { font: 400 12px/1.3 var(--f-ui); color: var(--sand-dim); }
+.loBars { display: grid; grid-template-columns: auto 1fr 24px; gap: 4px 8px; align-items: center; }
+.loBars span { font: 600 10px/1 var(--f-ui); letter-spacing: .1em; color: var(--sand-dim); text-transform: uppercase; }
+.loBars i { display: block; height: 4px; background: rgba(231,220,196,.12); position: relative; }
+.loBars i::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v); background: var(--sand); }
+.loBars em { font: 400 11px/1 var(--f-num); font-style: normal; color: var(--sand-dim); text-align: right; }
+.loCard.sel .loBars i::after, .loDetail .loBars i::after { background: var(--amber); }
+.loBadges { display: flex; flex-wrap: wrap; gap: 4px; }
+.loCheck { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font: 700 15px/1 var(--f-ui); color: var(--ink); background: var(--amber); }
+.loLock { font: 600 11px/1.2 var(--f-ui); letter-spacing: .1em; color: #ffcf5c; }
+.loDetail { max-height: min(70vh, 700px); overflow: auto; }
+.loPreview { width: 100%; aspect-ratio: 16 / 10; display: block; cursor: grab; touch-action: none; object-fit: contain; background: radial-gradient(ellipse at 50% 60%, rgba(141,184,216,.16), transparent 70%); }
+.loPreview:active { cursor: grabbing; }
+.loActions #btnDeploy { order: 3; margin-left: auto; }
+.set label small { display: block; margin-top: 2px; font: 400 12px/1.2 var(--f-ui); letter-spacing: 0; text-transform: none; color: var(--sand-dim); }
+@media (max-width: 1100px) { .loBody { grid-template-columns: 150px minmax(0, 1fr) minmax(240px, 280px); gap: 10px; } .loGrid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
+/* Dar (dikey) ekran: yuvalar üstte yatay şerit, ayrıntı kartların altında */
+@media (max-width: 700px) and (min-height: 521px) { .loBody { grid-template-columns: 1fr; } .loNav { flex-direction: row; overflow-x: auto; } .loSlot { min-width: 118px; } }
+/* Alçak dizüstü ekranı: başlık küçülür, kart ve ayrıntı kaydırmadan ekrana sığar */
+@media (max-height: 640px) and (min-height: 521px) {
+  #loadoutScreen .sheet { padding-block: 14px; gap: 10px; }
+  #loadoutScreen .sheet h2 { font-size: 34px; }
+  .loGrid, .loDetail { max-height: calc(100vh - 170px); }
+  .loPreview { aspect-ratio: 2 / 1; }
+  .loDetail { gap: 6px; padding: 10px; }
+  .loDetail .stName { font-size: 19px; }
+}
+/* Yatay telefon: üç sütun korunur; kartlarda bilgi satırı ve çubuklar gizlenir (ayrıntıda görünür) */
+@media (max-height: 520px) {
+  #loadoutScreen .sheet { padding-block: 10px; gap: 8px; }
+  #loadoutScreen .sheet h2 { font-size: 26px; }
+  #loadoutScreen .eyebrow { font-size: 11px; }
+  .loBody { grid-template-columns: 124px minmax(0, 1fr) minmax(200px, 240px); gap: 8px; }
+  .loNav { gap: 4px; }
+  .loSlot { padding: 5px 8px; gap: 2px; }
+  .loSlot b { font-size: 13px; }
+  .loGrid { max-height: calc(100vh - 136px); grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+  .loGrid.armor, .loGrid.helmet, .loGrid.consumable { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .loCard .stImg { height: 40px; }
+  .loCard { padding: 6px 8px 8px; gap: 3px; }
+  .loCard b { font-size: 14px; }
+  .loCard .loBars, .loCard .loInfo, .loCard .loBadges { display: none; }
+  .loDetail { max-height: calc(100vh - 136px); padding: 8px; gap: 6px; }
+  .loDetail .stName { font-size: 17px; }
+  .loPreview { aspect-ratio: 2 / 1; }
+}
 
 /* ---------- Dürbün ---------- */
 #scope { position: absolute; inset: 0; pointer-events: none; --r: min(40vh, 34vw); background: radial-gradient(circle at 50% 50%, rgba(20,40,40,.06) 0, rgba(20,40,40,.06) calc(var(--r) - 12px), rgba(0,0,0,.6) calc(var(--r) - 2px), #000 calc(var(--r) + 3px)); }
@@ -503,6 +556,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #slots { margin-top: 7px; display: flex; justify-content: flex-end; gap: 10px; font: 500 12px/1 var(--f-ui); letter-spacing: .06em; color: var(--sand-dim); white-space: nowrap; }
 #slots span.on { color: var(--sand); }
 #slots kbd { font: 400 11px/1 var(--f-num); color: var(--amber); margin-right: 3px; }
+/* Sarf yuvaları (kit.js): tuş, simge, adet; takılırken alttaki çubuk dolar */
+#kit { margin-top: 7px; display: flex; justify-content: flex-end; gap: 8px; }
+#kit[hidden], .kslot[hidden] { display: none; }
+.kslot { position: relative; display: flex; align-items: center; gap: 5px; padding: 3px 6px 4px; border: 1px solid var(--line); background: rgba(10,12,14,.35); color: var(--sand); }
+.kslot kbd { font: 400 11px/1 var(--f-num); color: var(--amber); }
+.kslot i { width: 20px; height: 20px; display: block; }
+.kslot i svg { width: 100%; height: 100%; }
+.kslot b { font: 400 12px/1 var(--f-num); }
+.kslot.empty { opacity: .4; }
+.kslot.busy { border-color: var(--amber); }
+.kslot u { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--amber); transform-origin: left center; transform: scaleX(0); }
 
 /* ---------- Geliştirici konsolu ---------- */
 #console { position: absolute; left: 0; right: 0; top: 0; background: rgba(8,10,12,.92); border-bottom: 1px solid var(--line); font: 400 14px/1.4 var(--f-num); pointer-events: auto; padding: 10px 16px; max-height: 40vh; display: flex; flex-direction: column; }
@@ -531,6 +595,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #tbMelee { right: calc(186px + env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
 #tbUse { left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); margin-left: -34px; width: 68px; height: 68px; border-color: var(--amber); }
 #tbUse[hidden] { display: none; }
+/* Sarf yuvaları: simge + kalan adet */
+.tb.item { width: 48px; height: 48px; flex-direction: column; gap: 1px; color: var(--sand); }
+.tb.item[hidden] { display: none; }
+.tb.item svg { width: 26px; height: 26px; }
+.tb.item b { font: 400 10px/1 var(--f-num); }
+.tb.item.empty { opacity: .35; }
+#tbItem1 { right: calc(262px + env(safe-area-inset-right, 0px)); bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+#tbItem2 { right: calc(254px + env(safe-area-inset-right, 0px)); bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 #tbPause { right: calc(196px + env(safe-area-inset-right, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; border-radius: 6px; }
 #rotateHint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; background: var(--ink); font: 700 20px/1.4 var(--f-ui); letter-spacing: .12em; padding: 24px; pointer-events: auto; }
 @media (orientation: portrait) and (pointer: coarse) { body.playing #rotateHint { display: flex; } }
@@ -612,7 +684,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
       <div class="row"><span class="lbl">SAĞLIK</span><span class="val" id="hpVal">100</span></div><div class="bar"><i id="hpBar"></i></div>
     </div>
     <div id="visor" hidden></div>
-    <div id="ammo" class="panel"><div class="w" id="wName"></div><div class="m" id="wMode"></div><div class="n"><span class="mag" id="aMag">30</span><span class="res" id="aRes">/ 150</span></div><div class="g" id="nades"></div><div id="slots"></div></div>
+    <div id="ammo" class="panel"><div class="w" id="wName"></div><div class="m" id="wMode"></div><div class="n"><span class="mag" id="aMag">30</span><span class="res" id="aRes">/ 150</span></div><div class="g" id="nades"></div><div id="slots"></div><div id="kit" hidden></div></div>
     <div id="reloadHint">R · ŞARJÖR DEĞİŞTİR</div>
     <div id="interact" class="panel"><kbd id="interactKey">F</kbd><span id="interactText"></span><span class="p"><i id="interactBar"></i></span></div>
     <div id="feed"></div>
@@ -634,6 +706,8 @@ body.touch #reloadHint { top: calc(50% + 34px); }
     <div class="tb" id="tbNade" data-action="grenade">BOMBA</div>
     <div class="tb" id="tbSwap" data-action="swapWeapon">SİLAH</div>
     <div class="tb" id="tbMelee" data-action="melee">BIÇAK</div>
+    <div class="tb item" id="tbItem1" data-action="useItem1" hidden></div>
+    <div class="tb item" id="tbItem2" data-action="useItem2" hidden></div>
     <div class="tb" id="tbUse" data-action="interact" hidden>KULLAN</div>
     <div class="tb" id="tbPause" data-action="pause">II</div>
   </div>
@@ -674,15 +748,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
   </section>
 
   <section id="loadoutScreen" class="screen panelScreen" hidden>
-    <div class="sheet">
-      <div><div class="eyebrow">Teçhizat · <span id="loadoutDiff">Asker</span></div><h2>Silahını seç</h2></div>
-      <h3>Ana silah</h3>
-      <div class="guns" id="primaryList"></div>
-      <h3>Yan silah</h3>
-      <div class="guns" id="secondaryList"></div>
-      <p class="tip">Harita boyunca yedi silah daha bulacaksın. Yerdeki silahı <b>F</b> ile alırsan aynı türdeki silahının yerine geçer; bıraktığını istersen geri alabilirsin.</p>
-      <div class="row"><button class="btn primary" id="btnDeploy">Göreve başla</button><button class="btn" id="btnLoadoutStore">Mağaza</button><button class="btn" data-back>Geri</button></div>
-    </div>
+    <div class="sheet loadout" id="loadoutRoot"></div>
   </section>
 
   <section id="storeScreen" class="screen panelScreen" hidden>
@@ -718,6 +784,7 @@ body.touch #reloadHint { top: calc(50% + 34px); }
           <div class="set"><label for="sCh">Nişangah rengi</label><select id="sCh"><option value="#ffffff">Beyaz</option><option value="#7dff6a">Yeşil</option><option value="#ffe14d">Sarı</option><option value="#5ee7ff">Camgöbeği</option><option value="#ff5ee1">Pembe</option></select></div>
           <div class="set"><label for="sBlood">Kan efektleri</label><input type="checkbox" class="toggle" id="sBlood"></div>
           <div class="set"><label for="sDmgNum">Hasar sayıları</label><input type="checkbox" class="toggle" id="sDmgNum"></div>
+          <div class="set"><label for="sRealNames">Gerçek silah adları<small>Kapalıyken kurgusal adlar</small></label><input type="checkbox" class="toggle" id="sRealNames"></div>
         </div>
       </div>
       <div class="row"><button class="btn primary" data-back>Kaydet ve dön</button><button class="btn" id="btnResetSettings">Varsayılana dön</button></div>

@@ -3,7 +3,7 @@
 // prosedürel reload, equip/unequip, pompa/sürgü hareketi, bıçak, el bombası.
 // Ayrı sahnede çizilir: silah duvarların içine girmez.
 import * as THREE from 'three';
-import { buildWeapon, buildArms, poseArm, buildGrenade } from './models.js';
+import { buildWeapon, buildArms, poseArm, buildGrenade, buildSmokeGrenade } from './models.js';
 import { WEAPONS, WEAPON_ORDER } from './config.js';
 import { preloadWeapons, rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
 import { clamp, damp, lerp, smoothstep, Spring, rand, warnOnce } from './util.js';
@@ -63,6 +63,10 @@ export class Viewmodel {
     this.grenade.scale.setScalar(0.7);
     this.grenade.visible = false;
     this.holder.add(this.grenade);
+    this.smokeNade = buildSmokeGrenade();
+    this.smokeNade.scale.setScalar(0.7);
+    this.smokeNade.visible = false;
+    this.holder.add(this.smokeNade);
     // Yakın dövüş bıçağı (Sketchfab, sol elde savrulur). Yüklenemezse eski dipçik darbesi kalır.
     this.knife = null;
     this.knifeWarm = false;
@@ -332,8 +336,8 @@ export class Viewmodel {
     rx -= e * 0.9;
     rz += e * 0.25;
 
-    // Etkileşimde silahı indir
-    this.interactT = damp(this.interactT || 0, P.interacting ? 1 : 0, 10, dt);
+    // Etkileşimde ve sarf malzemesi takılırken silahı indir
+    this.interactT = damp(this.interactT || 0, P.interacting || P.usingItem ? 1 : 0, 10, dt);
     _p.y -= this.interactT * 0.14;
     rx -= this.interactT * 0.6;
 
@@ -472,7 +476,10 @@ export class Viewmodel {
     // El bombası
     const cooking = W.state === 'cooking';
     const throwing = W.state === 'throwing';
-    this.grenade.visible = cooking || (throwing && W.stateT < 0.12);
+    // Eldeki bomba: el bombası ya da sis (sarf yuvasından)
+    const nade = W.throwKind === 'smoke' ? this.smokeNade : this.grenade;
+    (nade === this.grenade ? this.smokeNade : this.grenade).visible = false;
+    nade.visible = cooking || (throwing && W.stateT < 0.12);
     if (cooking || throwing) {
       const k = cooking ? smoothstep(clamp(W.stateT / 0.2, 0, 1)) : 1 - smoothstep(clamp(W.stateT / 0.42, 0, 1));
       _p.y -= 0.18 * k;
@@ -480,8 +487,8 @@ export class Viewmodel {
       rx -= 0.5 * k;
       const gx = throwing ? lerp(-0.2, 0.0, clamp(W.stateT / 0.12, 0, 1)) : -0.2;
       const gz = throwing ? lerp(-0.45, -0.8, clamp(W.stateT / 0.12, 0, 1)) : -0.45 + Math.sin(this.time * 3) * 0.005;
-      this.grenade.position.set(gx, -0.13 + (throwing ? 0.1 : 0), gz);
-      this.grenade.rotation.set(0.3, 0.4, 0);
+      nade.position.set(gx, -0.13 + (throwing ? 0.1 : 0), gz);
+      nade.rotation.set(0.3, 0.4, 0);
     }
 
     // --- Uygula ---
@@ -508,7 +515,7 @@ export class Viewmodel {
         ? new THREE.Vector3(_p.x - 0.2, _p.y - 0.28, _p.z + 0.22)
         : new THREE.Vector3(_p.x - 0.22, _p.y - 0.32, leftHand.z + 0.36);
     if (cooking || throwing) {
-      leftHand.copy(this.grenade.position).add(_v.set(0.01, -0.04, 0.05));
+      leftHand.copy((W.throwKind === 'smoke' ? this.smokeNade : this.grenade).position).add(_v.set(0.01, -0.04, 0.05));
       elbowL.set(-0.3, -0.35, leftHand.z + 0.3);
     }
     if (knifeOn) {

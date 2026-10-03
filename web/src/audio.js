@@ -394,6 +394,17 @@ export class Audio {
     this.noiseBurst(dest, t + 0.12, 0.12, { type: 'bandpass', freq: 7000, q: 4, gain: 0.25 });
   }
 
+  // Sis bombası açıldı: kısa pof ve uzun tıslama
+  smokePop(pos) {
+    if (!this.ctx) return;
+    const sp = this.spatial(pos, 8, 140);
+    const t = this.now;
+    const dest = this.out(sp.pan * 0.6);
+    dest.gain.value = Math.max(0.05, sp.gain) * 0.7;
+    this.noiseBurst(dest, t, 0.12, { type: 'lowpass', freq: 900, gain: 0.8 });
+    this.noiseBurst(dest, t + 0.05, 2.6, { type: 'bandpass', freq: 4200, q: 0.7, gain: 0.35, freqEnd: 2400 });
+  }
+
   // Zırh kırıldı: belirgin çatlama ve dağılan parçalar
   armorBreak() {
     if (!this.ctx) return;

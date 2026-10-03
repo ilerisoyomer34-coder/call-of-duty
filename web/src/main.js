@@ -18,13 +18,16 @@ import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, DEFAULT_LOADOUT, WEAPONS, LEVELS, MAPS, RENDER } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment } from './models.js';
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
 import { EconomySystem } from './economy.js';
+import { LoadoutSystem } from './loadout.js';
+import { KitSystem } from './kit.js';
+import { setRealNames } from './weaponInfo.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
 import { Emitter, clamp, rand } from './util.js';
@@ -127,12 +130,6 @@ function levelDifficulty(base, level) {
   };
 }
 
-function loadLoadout(save) {
-  const s = save.data.loadout;
-  const ok = s && WEAPONS[s.primary]?.category === 'primary' && WEAPONS[s.secondary]?.category === 'secondary';
-  return ok ? { primary: s.primary, secondary: s.secondary } : { ...DEFAULT_LOADOUT };
-}
-
 export class Game {
   constructor() {
     this.events = new Emitter();
@@ -184,7 +181,9 @@ export class Game {
     this.player = new Player(this);
     this.viewmodel = new Viewmodel(this, this.textures);
     this.applyEnvironment('kizilkum');
-    this.loadout = loadLoadout(this.save);
+    // Teçhizat (silahlar, zırh, kask, sarf yuvaları) kayıtta; kurallar loadout.js. Sarf yuvaları görevde kit.js.
+    this.loadouts = new LoadoutSystem(this.save);
+    this.kit = new KitSystem(this);
     this.hud = new HUD(this);
     this.menus = new Menus(this);
     this.console = new DevConsole(this);
@@ -315,6 +314,8 @@ export class Game {
 
   applySettings() {
     const S = this.settings;
+    setRealNames(S.realNames);
+    if (this.weapons?.current) this.events.emit('weapon', this.weapons.current);
     this.audio.setVolumes({ master: S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume });
     this.hud.applySettings(S);
     if (this.effects) this.effects.bloodOn = S.blood;
@@ -485,9 +486,14 @@ export class Game {
     this.menuT = 0;
   }
 
+  // Kayıttaki teçhizat: { primary, secondary, armor, helmet, slots }
+  get loadout() {
+    return this.save.data.loadout;
+  }
+
   setLoadout(primary, secondary) {
-    this.loadout = { primary, secondary };
-    this.save.update((d) => Object.assign(d.loadout, this.loadout), { now: true });
+    this.loadouts.selectWeapon('primary', primary);
+    this.loadouts.selectWeapon('secondary', secondary);
   }
 
   async startMode(mode, diffKey = 'normal', levelId = this.level.id) {
@@ -514,6 +520,8 @@ export class Game {
       this.mission.build();
       L.step('Teçhizat hazırlanıyor', 0.6);
       await nextPaint();
+      // Sarf yuvaları silahlardan önce: satın alınmış el bombaları bomba sayısına eklenir
+      this.kit.reset(mode === 'mission' ? this.loadouts.missionKit() : null);
       this.weapons.reset(this.mission.defaultLoadout());
       // Seviyenin başlangıç kontrol noktasını teçhizatla birlikte sessizce yeniden kaydet
       this.mission.saveCheckpoint(this.mission.checkpoint?.idx ?? 0, true);
@@ -759,7 +767,10 @@ export class Game {
       this.player.applyCamera(this.camera, dt);
     }
     this.camera.updateMatrixWorld();
-    this.weapons.update(dt, canAct ? I : NULL_INPUT, canAct);
+    // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur)
+    this.kit.update(dt, canAct ? I : NULL_INPUT, canAct);
+    const armed = canAct && !this.kit.using;
+    this.weapons.update(dt, armed ? I : NULL_INPUT, armed);
     this.enemies.update(dt);
     this.allies.update(dt);
     this.grenades.update(dt);

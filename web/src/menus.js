@@ -7,6 +7,8 @@ import { PROP_ASSETS, WEAPON_ASSETS } from './assets.js';
 import { formatKR } from './economy.js';
 import { EV } from './events.js';
 import { StoreScreen } from './storeScreen.js';
+import { LoadoutScreen } from './loadoutScreen.js';
+import { weaponName } from './weaponInfo.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['menu', 'diffScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
@@ -25,6 +27,8 @@ export class Menus {
     this.buildPropCredits();
     // Mağaza: ana menü, teçhizat ve bölüm sonu ekranından açılır (görevde açılmaz)
     this.storeScreen = new StoreScreen(game, this);
+    // Teçhizat: yuvalar, gerçek adlı silah kartları, dönen önizleme (loadoutScreen.js)
+    this.loadoutScreen = new LoadoutScreen(game, this, this.storeScreen.store);
     // Kredi bakiyesi: her harcama/kazançta güncellenir
     this.updateCredits();
     game.events.on(EV.CREDITS_CHANGED, () => this.updateCredits());
@@ -39,9 +43,10 @@ export class Menus {
   buildPropCredits() {
     const box = $('propCredits');
     if (!box) return;
+    box.innerHTML = '';
     const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı' };
     // Sketchfab silahları: oyundaki kurgusal adıyla
-    for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = d.name;
+    for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = weaponName(d.id);
     const entries = [...Object.entries(PROP_ASSETS), ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];
     for (const [id, a] of entries) {
       const c = a.credit || {};
@@ -59,6 +64,8 @@ export class Menus {
   show(id, push = true) {
     if (id !== 'victoryScreen') this.stopCountdown();
     if (push && this.current && this.current !== id) this.stack.push(this.current);
+    // Mağazadan teçhizata dönünce sahiplik ve kredi değişmiş olabilir
+    if (!push && id === 'loadoutScreen') this.loadoutScreen?.refresh();
     for (const s of SCREENS) $(s).hidden = s !== id;
     this.current = id;
     const first = $(id)?.querySelector('button, .diff');
@@ -96,10 +103,12 @@ export class Menus {
     click('btnPlay', () => this.showLevels());
     click('btnRange', () => g.startMode('range', 'normal'));
     click('btnStore', () => this.storeScreen.open());
-    click('btnLoadoutStore', () => this.storeScreen.open());
     click('btnSettings', () => this.openSettings());
     click('btnControls', () => this.show('controlsScreen'));
-    click('btnCredits', () => this.show('creditsScreen'));
+    click('btnCredits', () => {
+      this.buildPropCredits();
+      this.show('creditsScreen');
+    });
     click('btnResume', () => g.resume());
     click('btnPauseSettings', () => this.openSettings());
     click('btnPauseControls', () => this.show('controlsScreen'));
@@ -116,11 +125,6 @@ export class Menus {
     click('btnVictoryMenu', () => {
       this.stopCountdown();
       g.toMenu();
-    });
-    click('btnDeploy', () => {
-      const L = this.selLoadout;
-      this.game.setLoadout(L.primary, L.secondary);
-      this.game.startMode('mission', this.pendingDiff || 'normal', this.pendingLevel);
     });
     click('btnResetSettings', () => {
       Object.assign(g.settings, DEFAULT_SETTINGS);
@@ -253,72 +257,15 @@ export class Menus {
     this.show('diffScreen');
   }
 
-  // Silah kartı için 0–1 arası özet değerler
-  static gunStats(d) {
-    const dmg = d.projectile ? 1 : Math.min(1, Math.pow((d.damage * d.pellets) / 150, 0.6));
-    const rate = Math.min(1, d.rpm / 1000);
-    const range = d.projectile ? 0.6 : Math.min(1, d.falloff.end / 220);
-    const pat = d.recoil.pattern;
-    const avg = pat.reduce((s, p) => s + Math.abs(p[1]) + Math.abs(p[0]) * 0.5, 0) / pat.length;
-    const control = Math.max(0.06, Math.min(1, 1 - (avg * (1 + d.recoil.random)) / 7));
-    const move = Math.min(1, ((d.mobility || 1) * (0.55 + 0.45 * d.ads.moveMult)) / 1.0);
-    return [['Hasar', dmg], ['Atış hızı', rate], ['Menzil', range], ['Kontrol', control], ['Hareket', move]];
-  }
-
   showLoadout() {
-    const g = this.game;
-    this.selLoadout = { ...g.loadout };
     const L = LEVELS.find((l) => l.id === this.pendingLevel) || LEVELS[0];
-    document.getElementById('loadoutDiff').textContent = `Seviye ${L.id} · ${L.name} · ${DIFFICULTY[this.pendingDiff || 'normal'].label}`;
-    for (const [cat, listId] of [['primary', 'primaryList'], ['secondary', 'secondaryList']]) {
-      const box = document.getElementById(listId);
-      box.innerHTML = '';
-      for (const id of WEAPON_ORDER) {
-        const d = WEAPONS[id];
-        if (d.category !== cat) continue;
-        const b = document.createElement('button');
-        b.className = `gun${this.selLoadout[cat] === id ? ' sel' : ''}`;
-        b.dataset.id = id;
-        const top = document.createElement('div');
-        top.className = 'top';
-        const name = document.createElement('b');
-        name.textContent = d.name;
-        top.appendChild(name);
-        if (d.model === 'glb') {
-          const badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.textContent = d.source === 'sketchfab' ? 'Sketchfab' : 'Blender';
-          top.appendChild(badge);
-        }
-        const kind = document.createElement('div');
-        kind.className = 'kind';
-        kind.textContent = d.kind;
-        const bars = document.createElement('div');
-        bars.className = 'bars';
-        for (const [label, v] of Menus.gunStats(d)) {
-          const s = document.createElement('span');
-          s.textContent = label;
-          const i = document.createElement('i');
-          i.style.setProperty('--v', `${Math.round(v * 100)}%`);
-          bars.append(s, i);
-        }
-        b.append(top, kind, bars);
-        b.addEventListener('click', () => {
-          g.audio.uiClick();
-          this.selLoadout[cat] = id;
-          for (const x of box.children) x.classList.toggle('sel', x.dataset.id === id);
-        });
-        b.addEventListener('mouseenter', () => g.audio.uiHover());
-        box.appendChild(b);
-      }
-    }
-    this.show('loadoutScreen');
+    this.loadoutScreen.open(`Teçhizat · Seviye ${L.id} · ${MAPS[L.map]?.name || L.name} · ${DIFFICULTY[this.pendingDiff || 'normal'].label}`);
   }
 
   buildControls() {
     const groups = [
       ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
-      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'holdBreath', 'pause']],
+      ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'pause']],
     ];
     const box = $('keyTables');
     box.innerHTML = '';
@@ -375,6 +322,7 @@ export class Menus {
     set('sCh', S.crosshairColor);
     chk('sBlood', S.blood);
     chk('sDmgNum', S.damageNumbers);
+    chk('sRealNames', S.realNames);
     this.updateOutputs();
     if (!this.settingsBound) {
       this.settingsBound = true;
@@ -418,6 +366,7 @@ export class Menus {
     S.crosshairColor = $('sCh').value;
     S.blood = $('sBlood').checked;
     S.damageNumbers = $('sDmgNum').checked;
+    S.realNames = $('sRealNames').checked;
   }
 
   saveSettings() {

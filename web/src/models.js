@@ -883,6 +883,19 @@ export function buildGrenade() {
   return g;
 }
 
+// Sis bombası: silindir gövde, üstte fünye; el bombasından ayırt edilsin diye açık gri ve renk bantlı
+export function buildSmokeGrenade() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.11, 12), mat(0x8c8f88, 0.6, 0.3));
+  g.add(body);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0335, 0.0335, 0.018, 12), mat(0xd8d2c0, 0.6, 0.1));
+  band.position.y = 0.025;
+  g.add(band);
+  B(g, 0.022, 0.03, 0.022, mat(0x6d7072, 0.4, 0.8), 0, 0.07, 0);
+  B(g, 0.012, 0.06, 0.02, mat(0x6d7072, 0.4, 0.8), 0.02, 0.05, 0);
+  return g;
+}
+
 export function buildC4() {
   const g = new THREE.Group();
   B(g, 0.22, 0.08, 0.14, mat(0xcfc6a8, 0.9, 0), 0, 0.04, 0);

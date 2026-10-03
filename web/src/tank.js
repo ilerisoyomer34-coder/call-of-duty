@@ -112,7 +112,7 @@ export class Tank {
       if (!f.alive || f.down) return;
       const d = f.pos.distanceTo(this.pos);
       if (d > range || d * bias >= bestScore) return;
-      if (!g.world.lineOfSight(eye, f.chestPos(_v2))) return;
+      if (!g.world.canSee(eye, f.chestPos(_v2))) return;
       best = f;
       bestScore = d * bias;
     };

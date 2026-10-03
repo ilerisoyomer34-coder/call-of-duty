@@ -18,7 +18,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 
 const errors = [];
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, interact, maps, range, armor, artifact, mobile, pwa
+// Bölümler: visual, save, store, mission, levels, interact, maps, range, armor, loadout, artifact, mobile, pwa
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -261,9 +261,50 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(5)');
   check(await page.isVisible('#loadoutScreen'), 'Teçhizat ekranı açıldı');
-  check((await page.$$('#primaryList .gun')).length === 10 && (await page.$$('#secondaryList .gun')).length === 3, 'Teçhizatta 10 ana + 3 yan silah');
-  const badges = await page.evaluate(() => [...document.querySelectorAll('#primaryList .gun .badge')].map((b) => b.textContent));
-  check(badges.filter((b) => b === 'Sketchfab').length === 4, `Sketchfab silahları teçhizatta rozetli (${badges.join(', ')})`);
+  // Teçhizat (Operasyon Güncellemesi §5.5): altı yuva, gerçek adlı kartlar, modelden çizilmiş görseller, 3D önizleme
+  const lo = await page.evaluate(() => ({
+    slots: [...document.querySelectorAll('#loadoutRoot .loSlot small')].map((s) => s.textContent),
+    names: [...document.querySelectorAll('#loadoutRoot .loCard b')].map((b) => b.textContent),
+    bars: document.querySelectorAll('#loadoutRoot .loCard[data-id="rifle"] .loBars i').length,
+    info: document.querySelector('#loadoutRoot .loCard[data-id="rifle"] .loInfo')?.textContent,
+    sniper: [...document.querySelectorAll('#loadoutRoot .loCard[data-id="sniper"] .stBadge')].map((b) => b.textContent),
+    deploy: !document.getElementById('btnDeploy').disabled,
+  }));
+  check(lo.slots.length === 6 && lo.names.length === 10, `Teçhizatta 6 yuva, ana silah yuvasında 10 kart (${lo.slots.join(' · ')})`);
+  check(['AKMS', 'Barrett M82A1', 'HK MG4', 'Colt M4A1'].every((n) => lo.names.includes(n)), `Silahlar gerçek adlarıyla (${lo.names.slice(0, 5).join(', ')}…)`);
+  check(lo.bars === 6 && /7,62×39 mm · 30 mermi/.test(lo.info || ''), `Kartta altı istatistik çubuğu ve bilgi satırı (${lo.info})`);
+  check(lo.sniper.includes('ÇATAL AYAK') && lo.sniper.includes('ZIRH DELİCİ'), `M82A1 rozetleri: ${lo.sniper.join(', ')}`);
+  check(lo.deploy, 'GÖREVE BAŞLA etkin (ana silah seçili)');
+  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 10, null, { timeout: 90000 }).catch(() => {});
+  const icons = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loImg')].map((i) => ({ ready: i.classList.contains('ready'), w: i.naturalWidth, src: i.src.slice(0, 5) })));
+  check(icons.filter((i) => i.ready && i.w === 512).length === 10, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready).length}/10, 512×256)`);
+  // Önizleme dönüyor ve boş değil: iki ayrı anda tuvalde farklı, saydam olmayan pikseller
+  const px = () =>
+    page.evaluate(() => {
+      const c = document.querySelector('#loadoutRoot canvas.loPreview');
+      if (!c || !c.width) return null;
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      let sum = 0;
+      for (let i = 3; i < d.length; i += 16) {
+        if (d[i] === 0) continue;
+        n++;
+        sum += (d[i - 3] + d[i - 2] * 3) * (i % 997);
+      }
+      return { n, sum };
+    });
+  const px1 = await px();
+  await sleep(1500);
+  const px2 = await px();
+  check(!!px1 && px1.n > 200 && px2 && px2.sum !== px1.sum, `Sağ panelde 3D önizleme çiziliyor ve dönüyor (${px1?.n} piksel)`);
+  await page.click('#loadoutRoot .loCard[data-id="lmg"]');
+  check((await page.textContent('#loadoutRoot .loDetail .stName')) === 'HK MG4' && (await page.evaluate(() => window.__game.loadout.primary)) === 'rifle', 'Tıklamak yalnız seçer (ayrıntı değişti, teçhizat aynı)');
+  await page.dblclick('#loadoutRoot .loCard[data-id="lmg"]');
+  check((await page.evaluate(() => window.__game.save.data.loadout.primary)) === 'lmg' && (await page.isVisible('#loadoutRoot .loCard[data-id="lmg"] .loCheck')), 'Çift tıklama kuşandı (✓) ve kayda yazıldı');
+  await page.click('#loadoutRoot .loSlot[data-slot="secondary"]');
+  check((await page.$$('#loadoutRoot .loCard')).length === 3, 'Yan silah yuvasında yalnız 3 yan silah');
+  await page.click('#loadoutRoot .loSlot[data-slot="primary"]');
+  await page.dblclick('#loadoutRoot .loCard[data-id="rifle"]');
   await page.screenshot({ path: join(shots, '01b-loadout.png') });
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
@@ -279,14 +320,15 @@ console.log('Bağımsız sürüm (dist/index.html)');
       enemies: g.enemies.list.length,
       colliders: g.world.colliders.length,
       covers: g.nav.covers.length,
-      weapon: g.weapons.current?.data.name,
+      weapon: g.weapons.current?.data.id,
+      hudName: document.getElementById('wName').textContent,
       calls: g.renderer.info.render.calls,
     };
   });
   console.log('   ', JSON.stringify(info));
   check(info.enemies >= 25, `Düşmanlar yerleşti (${info.enemies})`);
   check(info.covers > 100, `Siper noktaları üretildi (${info.covers})`);
-  check(info.weapon === 'AR-7 Vanguard', 'Başlangıç silahı AR-7');
+  check(info.weapon === 'rifle' && info.hudName === 'AKMS', `Başlangıç silahı ${info.hudName} (gerçek ad)`);
   await sleep(1500);
   await page.screenshot({ path: join(shots, '02-start.png') });
 
@@ -557,8 +599,9 @@ console.log('Etkileşimler');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum: uçaksavarlar
-  await page.click('#primaryList .gun[data-id="mar556"]');
-  await page.click('#secondaryList .gun[data-id="d50"]');
+  await page.dblclick('#loadoutRoot .loCard[data-id="mar556"]');
+  await page.click('#loadoutRoot .loSlot[data-slot="secondary"]');
+  await page.dblclick('#loadoutRoot .loCard[data-id="d50"]');
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
   check((await page.evaluate(() => window.__game.weapons.slots.join(','))) === 'mar556,d50', 'Seçilen teçhizatla başladı (MAR-556 + D-50)');
@@ -1283,6 +1326,150 @@ console.log('Zırh');
   await page.close();
 }
 
+// ---------------- Teçhizat ve sarf malzemeleri (Operasyon Güncellemesi F4) ----------------
+if (run('loadout')) {
+console.log('Teçhizat ve sarf malzemeleri');
+
+  const page = await openPage('standalone');
+  // Envanter: 2 ilk yardım, 3 plaka, 1 sis, Hafif Taktik Yelek
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.save.update((d) => {
+      Object.assign(d.inventory.consumables, { medkit: 2, plate_pack: 3, smoke: 1 });
+      d.inventory.armor.push('armor_light');
+      d.loadout.armor = 'armor_light';
+    }, { now: true });
+  });
+  await page.click('#btnPlay');
+  await page.click('#diffList .diff:nth-child(2)');
+  await page.click('#levelList .lvl:nth-child(1)');
+  await page.click('#loadoutRoot .loSlot[data-slot="slot0"]');
+  const cons = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loCard')].map((c) => `${c.dataset.id}:${c.className.includes('shop') ? 'shop' : 'ok'}`));
+  check(cons.includes('medkit:ok') && cons.includes('adrenaline:shop') && cons[0] === 'none:ok', `Sarf yuvası: envanterdekiler seçilebilir, olmayanlar mağazada (${cons.join(' ')})`);
+  await page.dblclick('#loadoutRoot .loCard[data-id="medkit"]');
+  await page.click('#loadoutRoot .loSlot[data-slot="slot1"]');
+  await page.dblclick('#loadoutRoot .loCard[data-id="plate_pack"]');
+  check((await page.evaluate(() => window.__game.save.data.loadout.slots.join(','))) === 'medkit,plate_pack', 'Sarf yuvaları kayda yazıldı (medkit, plate_pack)');
+  check(/İlk Yardım Kiti ×2/.test(await page.textContent('#loadoutRoot .loSlot[data-slot="slot0"] b')), 'Yuva satırında taşınan adet (×2)');
+  await page.screenshot({ path: join(shots, '18-loadout-kit.png') });
+  // Gerçek ad ayarı kapalı → kurgusal adlar (kart, ayrıntı); açınca geri gelir
+  const fict = await page.evaluate(() => {
+    const g = window.__game;
+    g.settings.realNames = false;
+    g.applySettings();
+    g.menus.loadoutScreen.slot = { id: 'primary', label: 'Ana silah', kind: 'weapon' };
+    g.menus.loadoutScreen.render();
+    const names = [...document.querySelectorAll('#loadoutRoot .loCard b')].map((b) => b.textContent);
+    g.settings.realNames = true;
+    g.applySettings();
+    g.menus.loadoutScreen.render();
+    return { names, back: document.querySelector('#loadoutRoot .loCard[data-id="sniper"] b').textContent };
+  });
+  check(fict.names.includes('AR-7 Vanguard') && fict.names.includes('MR-82 Marret') && fict.back === 'Barrett M82A1', `realNames kapalıyken kurgusal adlar (${fict.names.slice(0, 3).join(', ')}), açınca gerçek`);
+  await page.click('#btnDeploy');
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await page.evaluate(() => (window.__game.input.lockFailed = true));
+  const hud = await page.evaluate(() => ({ shown: !document.getElementById('kit').hidden, slots: [...document.querySelectorAll('#kit .kslot:not([hidden]) b')].map((b) => b.textContent), keys: [...document.querySelectorAll('#kit .kslot kbd')].map((k) => k.textContent) }));
+  check(hud.shown && hud.slots.join(',') === '×2,×3' && hud.keys.join(',') === '3,4', `HUD'da sarf yuvaları (${hud.keys.join('/')} → ${hud.slots.join(' ')})`);
+  // Süreli kullanım: oyun saati yazılımsal GPU'da yavaş, süre doğrudan ilerletilir
+  const use = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player;
+    const idle = { pressed: () => false, isDown: () => false };
+    const fire = { pressed: (a) => a === 'fire', isDown: () => false };
+    P.health.hp = 40;
+    g.kit.use(0);
+    const started = !!g.kit.using && P.usingItem;
+    g.kit.update(1, fire, true); // ateş → iptal, harcanmaz
+    const cancelled = !g.kit.using && P.health.hp === 40 && g.save.data.inventory.consumables.medkit === 2;
+    g.kit.use(0);
+    g.kit.update(3.05, idle, true);
+    const healed = P.health.hp;
+    P.armor.body.points = 10;
+    g.kit.use(1);
+    g.kit.update(2.05, idle, true);
+    const full = { pts: P.armor.body.points, msg: document.getElementById('message').textContent };
+    P.health.hp = P.health.max;
+    g.kit.use(0); // can dolu → başlamaz
+    return { started, cancelled, healed, full, notStarted: !g.kit.using, inv: { ...g.save.data.inventory.consumables }, hud: [...document.querySelectorAll('#kit .kslot b')].map((b) => b.textContent).join(',') };
+  });
+  check(use.started && use.cancelled, 'İlk yardım başladı (silah indi); ateş edince iptal oldu, harcanmadı');
+  check(use.healed === 90 && use.inv.medkit === 1, `İlk Yardım Kiti 3 sn'de +50 can (40 → ${use.healed}), envanterde ${use.inv.medkit} kaldı`);
+  check(use.full.pts === 50 && use.inv.plate_pack === 2, `Zırh Plakası +50 ZP, azamide durdu (10 → ${use.full.pts}), envanterde ${use.inv.plate_pack}`);
+  check(use.notStarted && use.hud === '×1,×2', `Can doluyken kit kullanılmaz; HUD adetleri güncel (${use.hud})`);
+  // Tuşla kullanım (3)
+  await page.evaluate(() => (window.__game.player.health.hp = 50));
+  await page.keyboard.press('Digit3');
+  await waitGame(page, 0.05);
+  check(await page.evaluate(() => !!window.__game.kit.using), '3 tuşu sarf yuvası 1’i kullandı');
+  // Sis bombası: görüşü keser, mermi/patlama yolunu kesmez
+  const smoke = await page.evaluate(() => {
+    const g = window.__game;
+    const V = g.player.pos.constructor;
+    const at = g.player.pos.clone().add(new V(0, 0, -8));
+    g.grenades.spawn(at.clone().setY(0.2), new V(0, 0, 0), 0.01, 'player', 'smoke');
+    g.grenades.update(0.05);
+    const opened = g.world.smokes.length;
+    g.grenades.update(2.5);
+    const a = at.clone().add(new V(0, 1.5, 7));
+    const b = at.clone().add(new V(0, 1.5, -7));
+    const r = { opened, density: g.world.smokes[0]?.density, see: g.world.canSee(a, b), los: g.world.lineOfSight(a, b) };
+    for (let i = 0; i < 20; i++) g.grenades.update(1);
+    r.gone = g.world.smokes.length === 0 && g.world.canSee(a, b) === r.los;
+    return r;
+  });
+  check(smoke.opened === 1 && smoke.density === 1 && !smoke.see && smoke.los, `Sis bulutu görüşü kesti (yoğunluk ${smoke.density}), duvar hattı açık`);
+  check(smoke.gone, '15 sn sonra sis dağıldı, görüş geri geldi');
+  await page.screenshot({ path: join(shots, '18b-kit-hud.png') });
+  await page.close();
+
+  // Telefon (yatay): teçhizat ekranı sığıyor, görevde sarf düğmesi dokununca çalışıyor
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+      localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: 6, best: {} }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[loadout-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  await mp.evaluate(() => {
+    const g = window.__game;
+    g.save.update((d) => {
+      d.inventory.consumables.medkit = 2;
+      d.loadout.slots = ['medkit', null];
+    }, { now: true });
+  });
+  await mp.tap('#btnPlay');
+  await mp.tap('#diffList .diff:nth-child(2)');
+  await mp.tap('#levelList .lvl:nth-child(1)');
+  await mp.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 6, null, { timeout: 60000 }).catch(() => {});
+  await sleep(400);
+  await mp.screenshot({ path: join(shots, '18c-loadout-mobile.png') });
+  const fit = await mp.evaluate(() => {
+    const b = document.getElementById('btnDeploy').getBoundingClientRect();
+    const d = document.querySelector('#loadoutRoot .loDetail').getBoundingClientRect();
+    // Ayrıntı paneli kartların yanında (aşağı kaymadan görünür), en az bir kart sırası tam görünür
+    return { over: document.scrollingElement.scrollWidth - innerWidth, deploy: b.bottom <= innerHeight + 1 && b.right <= innerWidth + 1, detail: d.width > 180 && d.right <= innerWidth + 1 && d.top < innerHeight / 2 };
+  });
+  check(fit.over <= 1 && fit.detail, `Telefonda teçhizat ekranı yatayda sığıyor (taşma ${fit.over} px, ayrıntı paneli görünür)`);
+  await mp.tap('#btnDeploy');
+  await mp.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  const tb = await mp.evaluate(() => ({ one: !document.getElementById('tbItem1').hidden, two: !document.getElementById('tbItem2').hidden, n: document.querySelector('#tbItem1 b')?.textContent }));
+  check(tb.one && !tb.two && tb.n === '2', `Dokunmatikte dolu yuvanın düğmesi var, boşun yok (adet ${tb.n})`);
+  await mp.evaluate(() => (window.__game.player.health.hp = 40));
+  await mp.tap('#tbItem1');
+  await mp.waitForFunction(() => !!window.__game.kit.using, null, { timeout: 15000 }).catch(() => {});
+  check(await mp.evaluate(() => !!window.__game.kit.using), 'Sarf düğmesine dokununca ilk yardım başladı');
+  await mp.screenshot({ path: join(shots, '18d-kit-touch.png') });
+  await mctx.close();
+}
+
 // ---------------- Artifact sürümü ----------------
 if (run('artifact')) {
 console.log('Artifact sürümü (dist/artifact.html)');
@@ -1464,7 +1651,12 @@ console.log('PWA sürümü (dist/pwa)');
 
   // Çevrimdışı: ağ kesikken sayfa önbellekten açılır, modeller ve dokular yine yüklenir
   await ctx.setOffline(true);
-  await page.reload();
+  // Yükleme isteminden hemen sonra yeniden yükleme ara sıra "ERR_ABORTED" ile kesiliyor (sayfa o anda başka bir
+  // gezinmede); yükleme yine tamamlanır, beklenir
+  await page.reload().catch(async (e) => {
+    if (!/ERR_ABORTED|detached/.test(e.message)) throw e;
+    await page.waitForLoadState('load');
+  });
   await menuReady();
   const off = await page.evaluate(() => ({ status: document.getElementById('pwaStatusText').textContent, heli: !!window.__game.mission.heliSpare?.prop }));
   check(/Çevrimdışısın/.test(off.status) && off.heli, `Çevrimdışı açıldı: menü, helikopter modeli, "${off.status}"`);

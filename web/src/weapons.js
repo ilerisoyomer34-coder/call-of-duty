@@ -4,6 +4,8 @@
 import * as THREE from 'three';
 import { WEAPONS, GRENADE, MELEE, SCORE } from './config.js';
 import { DEG, clamp, randomInCone, rand } from './util.js';
+import { EV } from './events.js';
+import { CONSUMABLES } from './loadout.js';
 
 export class Weapon {
   constructor(id) {
@@ -50,6 +52,11 @@ export class PlayerWeapons {
     this.pending = null;
     this.lastId = null;
     this.grenades = GRENADE.startCount;
+    // Teçhizattan gelen (satın alınmış) el bombaları toplamın içindedir ve en son atılır: önce görevin verdiği
+    // bombalar harcanır, satın alınanlar yalnız gerekince envanterden düşer (kit.js)
+    this.kitFrags = 0;
+    this.throwKind = 'frag'; // 'frag' | 'smoke'
+    this.cookAction = 'grenade'; // pimi çekilen bombayı tutan tuş (el bombası ya da sarf yuvası)
     this.cookT = 0;
     this.meleeHitDone = false;
     this.reload = null; // { t, dur, empty, inserted, phase }
@@ -69,7 +76,7 @@ export class PlayerWeapons {
       }
       this.owned[id] = w;
     }
-    this.grenades = loadout.grenades ?? GRENADE.startCount;
+    this.grenades = (loadout.grenades ?? GRENADE.startCount) + this.kitFrags;
     this.currentId = loadout.current && this.owned[loadout.current] ? loadout.current : Object.keys(this.owned)[0];
     this.lastId = null;
     this.state = 'equipping';
@@ -84,7 +91,7 @@ export class PlayerWeapons {
   snapshot() {
     const weapons = {};
     for (const [id, w] of Object.entries(this.owned)) weapons[id] = { mag: w.mag, reserve: w.reserve };
-    return { weapons, slots: [...this.slots], grenades: this.grenades, current: this.currentId };
+    return { weapons, slots: [...this.slots], grenades: Math.max(0, this.grenades - this.kitFrags), current: this.currentId };
   }
 
   // Görevde iki slot (ana + yan). Aynı türden bir silah alınınca eldeki düşer.
@@ -164,14 +171,14 @@ export class PlayerWeapons {
     for (const w of Object.values(this.owned)) {
       w.reserve = w.data.reserveMax;
     }
-    this.grenades = GRENADE.maxCount;
+    this.grenades = GRENADE.maxCount + this.kitFrags;
     this.game.events.emit('ammo', this.current);
     this.game.events.emit('grenades', this.grenades);
   }
 
   addGrenade(n = 1) {
     const before = this.grenades;
-    this.grenades = Math.min(GRENADE.maxCount, this.grenades + n);
+    this.grenades = Math.min(GRENADE.maxCount + this.kitFrags, this.grenades + n);
     this.game.events.emit('grenades', this.grenades);
     return this.grenades > before;
   }
@@ -298,7 +305,7 @@ export class PlayerWeapons {
         return;
       case 'cooking':
         this.cookT += dt;
-        if (!input.isDown('grenade') || this.cookT >= GRENADE.fuse - 0.05) this.releaseGrenade();
+        if (!input.isDown(this.cookAction) || this.cookT >= GRENADE.fuse - 0.05) this.releaseGrenade();
         return;
       case 'throwing':
         if (this.stateT >= 0.42) {
@@ -319,15 +326,7 @@ export class PlayerWeapons {
       g.audio.mech('melee');
       return;
     }
-    if (input.pressed('grenade') && this.grenades > 0 && (this.state === 'idle' || this.state === 'reloading')) {
-      this.cancelReload();
-      this.state = 'cooking';
-      this.stateT = 0;
-      this.cookT = 0;
-      g.audio.mech('pin');
-      P.stopSprint();
-      return;
-    }
+    if (input.pressed('grenade') && this.grenades > 0 && this.startThrow('frag', 'grenade')) return;
     if (input.pressed('reload')) this.startReload();
     if (input.pressed('fireMode') && d.fireModes.length > 1 && this.state === 'idle') {
       w.modeIdx = (w.modeIdx + 1) % d.fireModes.length;
@@ -765,6 +764,21 @@ export class PlayerWeapons {
     }
   }
 
+  // Pimi çek: kind 'frag' el bombası, 'smoke' sis bombası; action bırakılınca atılır (basılı tutulan tuş)
+  startThrow(kind, action) {
+    if (this.state !== 'idle' && this.state !== 'reloading') return false;
+    if (kind === 'frag' && this.grenades <= 0) return false;
+    this.cancelReload();
+    this.state = 'cooking';
+    this.stateT = 0;
+    this.cookT = 0;
+    this.throwKind = kind;
+    this.cookAction = action;
+    this.game.audio.mech('pin');
+    this.game.player.stopSprint();
+    return true;
+  }
+
   releaseGrenade() {
     const g = this.game;
     const cam = g.camera;
@@ -776,9 +790,21 @@ export class PlayerWeapons {
     vel.y += GRENADE.upBoost;
     vel.x += g.player.vel.x * 0.6;
     vel.z += g.player.vel.z * 0.6;
-    g.grenades.spawn(_o, vel, GRENADE.fuse - this.cookT, 'player');
-    this.grenades--;
-    g.events.emit('grenades', this.grenades);
+    if (this.throwKind === 'smoke') {
+      // Sis bombası pişirilmez: fitili yere düştükten sonra açılacak kadar
+      g.grenades.spawn(_o, vel, CONSUMABLES.get('smoke').fuse, 'player', 'smoke');
+      g.events.emit(EV.ITEM_USED, { id: 'smoke' });
+    } else {
+      g.grenades.spawn(_o, vel, GRENADE.fuse - this.cookT, 'player');
+      if (this.grenades <= this.kitFrags) {
+        this.kitFrags--;
+        g.events.emit(EV.ITEM_USED, { id: 'frag' });
+      }
+      this.grenades--;
+      g.events.emit('grenades', this.grenades);
+    }
+    // throwKind atış bitene kadar kalır (görünüm modeli elde doğru bombayı gösterir); sonraki pim yeniden kurar
+    this.cookAction = 'grenade';
     this.state = 'throwing';
     this.stateT = 0;
     this.cookT = 0;

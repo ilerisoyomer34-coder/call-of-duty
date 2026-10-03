@@ -9,6 +9,7 @@ import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN, TANK, EXTRACT } 
 import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
+import { weaponName } from './weaponInfo.js';
 import { rand, lerp, clamp, smoothstep, pick, dirToYaw, damp } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -756,9 +757,10 @@ export class Mission {
   pickupPrompt(p) {
     const g = this.game;
     const d = p.data;
-    if (g.weapons.owned[p.id]) return `${d.name} · cephane al`;
+    const name = weaponName(p.id);
+    if (g.weapons.owned[p.id]) return `${name} · cephane al`;
     const same = g.weapons.slots.find((s) => WEAPONS[s].category === d.category);
-    return same && this.mode === 'mission' ? `${d.name} al (${WEAPONS[same].name} bırakılır)` : `${d.name} al`;
+    return same && this.mode === 'mission' ? `${name} al (${weaponName(same)} bırakılır)` : `${name} al`;
   }
 
   takePickup(p) {
@@ -766,7 +768,8 @@ export class Mission {
     const res = g.weapons.pickUp(p.id, p.ammo);
     p.remove();
     g.audio.mech('pickup');
-    g.events.emit('message', res.refilled ? `${p.data.name} · CEPHANE` : `${p.data.name.toUpperCase()} ALINDI`, 'info');
+    const name = weaponName(p.id);
+    g.events.emit('message', res.refilled ? `${name} · CEPHANE` : `${name.toLocaleUpperCase('tr-TR')} ALINDI`, 'info');
     if (res.dropped) {
       // Bırakılan silah oyuncunun önüne düşer, geri alınabilir
       const P = g.player;

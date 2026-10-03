@@ -44,6 +44,8 @@ export class World {
     this._q = [];
     this._v = new THREE.Vector3();
     this._losHit = {};
+    // Etkin sis bulutları { pos, r, density 0–1 } (grenades.js yönetir): yalnız görüşü keser
+    this.smokes = [];
   }
 
   createMaterials() {
@@ -426,6 +428,31 @@ export class World {
     if (len < 1e-4) return true;
     d.divideScalar(len);
     return !this.raycast(a, d, len - 0.05, this._losHit);
+  }
+
+  // Görüş hattı: duvarlar ve etkin sis bulutları. Sis yalnız görmeyi keser (mermi, patlama ve yol bulma
+  // lineOfSight/raycast kullanır); asker ve tank algısı bunu kullanır.
+  canSee(a, b) {
+    if (this.smokes.length && this.smokeBlocks(a, b)) return false;
+    return this.lineOfSight(a, b);
+  }
+
+  // Doğru parçası yoğun bir bulutun içinden geçiyor mu? (en yakın nokta kürenin etkin yarıçapında)
+  smokeBlocks(a, b) {
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const abz = b.z - a.z;
+    const len2 = abx * abx + aby * aby + abz * abz || 1;
+    for (const s of this.smokes) {
+      const r = s.r * s.density;
+      if (r <= 0.3) continue;
+      const t = Math.max(0, Math.min(1, ((s.pos.x - a.x) * abx + (s.pos.y - a.y) * aby + (s.pos.z - a.z) * abz) / len2));
+      const dx = a.x + abx * t - s.pos.x;
+      const dy = a.y + aby * t - s.pos.y;
+      const dz = a.z + abz * t - s.pos.z;
+      if (dx * dx + dy * dy + dz * dz < r * r) return true;
+    }
+    return false;
   }
 
   groundSurface(x, z) {

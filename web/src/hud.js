@@ -3,6 +3,9 @@
 import * as THREE from 'three';
 import { DEG, clamp } from './util.js';
 import { WEAPONS, MAPS, ALLY_TIERS } from './config.js';
+import { weaponName, weaponShortName } from './weaponInfo.js';
+import { itemIcon } from './storeIcons.js';
+import { BINDINGS, keyName } from './input.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -28,7 +31,7 @@ export class HUD {
       markers: $('markers'), icons: $('icons'), dmgNums: $('dmgNums'), dmgDirs: $('dmgDirs'), grenadeWarn: $('grenadeWarn'),
       compassStrip: $('compassStrip'), compassObj: $('compassObj'), compass: $('compass'),
       minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'), tbAds: $('tbAds'),
-      slots: $('slots'), scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
+      slots: $('slots'), kit: $('kit'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
     };
     this.ch = {
       t: this.el.crosshair.querySelector('.t'), b: this.el.crosshair.querySelector('.b'),
@@ -68,6 +71,7 @@ export class HUD {
     E.on('slots', () => this.setSlots());
     E.on('fireMode', (w) => this.setAmmo(w));
     E.on('grenades', (n) => this.setNades(n));
+    E.on('kit', (slots, using) => this.setKit(slots, using));
     E.on('hitmarker', (kind, headKill) => this.hitmarker(kind, headKill));
     E.on('damageDir', (ang) => this.damageDir(ang));
     E.on('objective', (o) => this.setObjective(o));
@@ -176,7 +180,7 @@ export class HUD {
     if (!w) return;
     const d = w.data;
     const inf = this.game.cheats.infiniteAmmo;
-    this.el.wName.textContent = d.name;
+    this.el.wName.textContent = weaponName(d.id);
     this.el.wMode.textContent = `${d.kind} · ${MODE_LABEL[w.mode]}`;
     this.el.aMag.textContent = inf ? '∞' : w.mag;
     this.el.aRes.textContent = `/ ${w.reserve}`;
@@ -209,15 +213,62 @@ export class HUD {
       if (id === W.currentId) s.className = 'on';
       const k = document.createElement('kbd');
       k.textContent = i + 1;
-      s.append(k, document.createTextNode(WEAPONS[id].name.split(' ')[0]));
+      s.append(k, document.createTextNode(weaponShortName(id)));
       box.appendChild(s);
+    });
+  }
+
+  // Sarf yuvaları (kit.js): tuş, simge, ad ve adet; takılırken dolan çubuk. Dokunmatikte iki düğme.
+  setKit(slots, using) {
+    const box = this.el.kit;
+    if (!box) return;
+    if (!this.kitBuilt) {
+      this.kitBuilt = true;
+      this.kitEls = [0, 1].map((i) => {
+        const s = document.createElement('div');
+        s.className = 'kslot';
+        const k = document.createElement('kbd');
+        const ic = document.createElement('i');
+        const n = document.createElement('b');
+        const bar = document.createElement('u');
+        s.append(k, ic, n, bar);
+        box.appendChild(s);
+        return { s, k, ic, n, bar, id: null };
+      });
+    }
+    const any = slots.some(Boolean);
+    box.hidden = !any;
+    slots.forEach((slot, i) => {
+      const e = this.kitEls[i];
+      if (!e) return;
+      e.s.hidden = !slot;
+      const tb = this.el.tbItems[i];
+      if (tb) tb.hidden = !slot;
+      if (!slot) return;
+      if (e.id !== slot.id) {
+        e.id = slot.id;
+        e.ic.innerHTML = itemIcon(slot.id, 'consumable');
+        e.s.title = slot.def.name;
+        if (tb) tb.innerHTML = `${itemIcon(slot.id, 'consumable')}<b></b>`;
+      }
+      e.k.textContent = keyName(BINDINGS[`useItem${i + 1}`]?.[0] || '');
+      e.n.textContent = `×${slot.left}`;
+      e.s.classList.toggle('empty', slot.left <= 0);
+      const busy = using && using.slot === i;
+      e.s.classList.toggle('busy', !!busy);
+      e.bar.style.transform = `scaleX(${busy ? Math.min(1, using.t / using.dur) : 0})`;
+      if (tb) {
+        tb.querySelector('b').textContent = slot.left;
+        tb.classList.toggle('empty', slot.left <= 0);
+      }
     });
   }
 
   setNades(n) {
     const box = this.el.nades;
     box.innerHTML = '';
-    for (let i = 0; i < 4; i++) {
+    // Satın alınmış bombalar görevin verdiği dört taneyi aşabilir
+    for (let i = 0; i < Math.max(4, n); i++) {
       const g = document.createElement('i');
       if (i >= n) g.className = 'off';
       box.appendChild(g);

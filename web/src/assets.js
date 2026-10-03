@@ -49,6 +49,14 @@ function parseGltf(buffer) {
   return new Promise((resolve, reject) => loader.parse(buffer, '', resolve, reject));
 }
 
+// Hazır görsel (ör. assets/ui/weapons/<id>.png): pakette varsa <img> adresi, yoksa null
+export function assetImageUrl(path) {
+  const src = GAME_ASSETS.files[path];
+  if (!src) return null;
+  if (GAME_ASSETS.mode !== 'embed') return src;
+  return `data:${/\.png$/i.test(path) ? 'image/png' : 'image/jpeg'};base64,${src}`;
+}
+
 // Doku <img> ile yüklenir (blob/fetch gerektirmez): gömülüde data: adresi, Artifact'ta göreli dosya
 export function loadTexture(path, { srgb = true, flipY = false } = {}) {
   const src = GAME_ASSETS.files[path];

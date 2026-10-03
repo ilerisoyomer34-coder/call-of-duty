@@ -139,9 +139,9 @@ export const WEAPONS = {
     damage: 34,
     falloff: { start: 14, end: 40, min: 0.55 },
     zones: { head: 2.2, torso: 1.0, limb: 0.8 },
-    magSize: 12,
-    reserveMax: 96,
-    reserveStart: 48,
+    magSize: 17, // Glock 17: 17'lik şarjör (gerçek adla tutarlı)
+    reserveMax: 102,
+    reserveStart: 51,
     reloadType: 'mag',
     reloadTactical: 1.35,
     reloadEmpty: 1.7,
@@ -660,6 +660,11 @@ export const GRENADE = {
   cookable: true,
 };
 
+// Görevde sarf malzemesi kullanımı (değerler data/store.json → consumables; burada yalnız his ayarı)
+export const KIT = {
+  useMoveMult: 0.55, // plaka/ilk yardım takılırken yürüme hızı çarpanı
+};
+
 export const MELEE = { range: 2.1, damage: 140, cooldown: 0.75, hitTime: 0.14 };
 
 export const C4 = { plantTime: 2.2, fuse: 5.0, radius: 9, damage: 400 };
@@ -1096,6 +1101,23 @@ export const RENDER = {
   touchWorldPixelRatio: { high: 1.5, medium: 1.15, low: 0.85 }, // dokunmatik cihazlarda
   msaa: { high: 4, medium: 4, low: 2 }, // dünya hedefinin kenar yumuşatma örnek sayısı
   anisotropy: { high: 16, medium: 8, low: 4 }, // doku süzme üst sınırı (cihazın izin verdiğiyle sınırlı)
+};
+
+// Teçhizat ekranındaki silah görselleri (Operasyon Güncellemesi §5.4): oyunun kendi modelinden stüdyo
+// çizimi (kart simgesi) ve sağ paneldeki dönen, sürüklenebilen önizleme
+export const WEAPON_VIEW = {
+  icon: { width: 512, height: 256, supersample: 2 }, // simge boyutu; iki kat büyük çizilip küçültülür (kenar yumuşatma)
+  yawDeg: 14, // namlu sağa bakarken kameranın hafif önden açısı (perspektif)
+  pitchDeg: 7,
+  fov: 24, // dar görüş açısı: uzun namlu bozulmadan sığar
+  fill: 0.9, // simgede modelin kapladığı en büyük oran
+  exposure: 1.1,
+  envIntensity: 0.65, // stüdyo ortam yansıması (metal yüzeyler okunur olsun)
+  previewSpin: 0.45, // önizlemenin kendi dönüş hızı (rad/sn)
+  previewResume: 1.6, // sürükleme bitince kendiliğinden dönmeye başlamadan önce bekleme (sn)
+  dragSens: 0.012, // sürüklemede piksel başına dönüş (rad)
+  maxPitchDeg: 30,
+  previewMaxPx: 900, // önizleme çizim tamponunun uzun kenarı en fazla
 };
 
 // Yüklenebilir uygulama (PWA, dist/pwa): hizmet çalışanı ve menüdeki yükleme/güncelleme satırı
