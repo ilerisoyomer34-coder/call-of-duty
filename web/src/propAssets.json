@@ -27,5 +27,34 @@
     },
     "tris": 49084,
     "bytes": 771628
+  },
+  "pine": {
+    "file": "assets/props/pine.glb",
+    "kind": "tree",
+    "rotors": null,
+    "axes": null,
+    "forward": null,
+    "length": null,
+    "bounds": {
+      "min": [
+        -1.077,
+        0,
+        -1.051
+      ],
+      "max": [
+        1.106,
+        5.315,
+        1.115
+      ]
+    },
+    "tint": {},
+    "credit": {
+      "title": "Pine Tree",
+      "author": "evolveduk (https://sketchfab.com/evolveduk)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9"
+    },
+    "tris": 2340,
+    "bytes": 536156
   }
 }

@@ -23,6 +23,7 @@ Mixamo koşulları özetle: karakter ve animasyonlar kişisel ve ticari projeler
 
 | Oyunda | Kaynak | Yazar | Lisans | Değişiklik |
 |---|---|---|---|---|
+| Ağaçlar (çam) | [Pine Tree — Sketchfab](https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9) | [evolveduk](https://sketchfab.com/evolveduk) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 5,6 bin → 2,3 bin üçgen (yaprak kartları korunarak), dokular 512 px'e küçültüldü, konumlar nicemlendi (`web/tools/prepare-prop.mjs`) |
 | Tahliye helikopteri (Şahin-2) | [HELICOPTER — Sketchfab](https://sketchfab.com/3d-models/helicopter-c33f1be4708b422e8750d9b1db9894bf) | [pranav27](https://sketchfab.com/pranav27) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 290 bin → 49 bin üçgene sadeleştirildi, konumlar nicemlendi, gövde rengi askerî yeşile çevrildi, pervaneler dönecek şekilde ayrıldı (`web/tools/prepare-prop.mjs`) |
 
 ## Silah modelleri (SourceAssets/Sketchfab)

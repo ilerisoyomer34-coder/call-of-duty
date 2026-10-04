@@ -1,0 +1,16 @@
+{
+  "title": "Pine Tree",
+  "author": "evolveduk",
+  "author_url": "https://sketchfab.com/evolveduk",
+  "source_url": "https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-04",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (a36fd4f0-pine_tree.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), 2 mesh (gövde/dallar opak, yapraklar alfa maskeli kartlar), 6 PNG doku (taban rengi, metal/pürüz, normal), 5 627 üçgen, 5,3 m",
+  "category": "Nature",
+  "intended_use": "Haritalardaki tüm ağaçların görünümü (çam ve palmiye yerine); çarpışma kodla kurulan gövde kutusu olarak kalır",
+  "original_file": "original/pine_tree.glb",
+  "sha256": "409cb9bb1a479b8b6482b2875402e6d1b25bf90a33182e38737257924a1b0fa6",
+  "modifications": "web/tools/prepare-prop.mjs: dedup + weld + meshoptimizer sadeleştirme (açık kenarlar korunarak; gövde 4 539 → 1 354, yapraklar 1 088 → 986 üçgen), dokular 512 px'e küçültüldü (yaprak taban rengi PNG, diğerleri JPEG; 4,46 MB → 0,43 MB), KHR_mesh_quantization ile nicemleme (4,7 MB → 0,51 MB).",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir."
+}
