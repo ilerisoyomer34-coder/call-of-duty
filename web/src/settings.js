@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   tts: false, // askerlerin telsiz repliklerini seslendir (speechSynthesis, tr-TR)
   voiceCommands: true, // N basılı sesli komut (tarayıcı desteklemiyorsa arayüzde görünmez)
   rerollBonuses: false, // bitirilmiş bölüm tekrar oynanınca bonus görevler havuzdan rastgele seçilir
+  serverUrl: '', // çevrim içi sunucu adresi; boşsa config.js → NET.serverUrl (geliştirme ve test için)
   bindings: {}, // tuş atamaları: eylem → tuş kodları (input.js → BINDINGS'in üstüne yazılır)
 };
 

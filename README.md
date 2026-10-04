@@ -141,6 +141,14 @@ Seviye ayarları `web/src/config.js` → `LEVELS`; harita ortamları → `MAPS`;
 Plan `Docs/MULTIPLAYER_PROMPT.md` (fazlar M0–M13). Kararlar ve belgeden sapmalar `Docs/DECISIONS.md`'de.
 Kısaca: otoriter Node sunucusu VPS'te koşacak; çok oyunculu PC'de ve telefonda oynanacak; mod sırası Takım Ölüm Maçı / Ölüm Maçı → Rekabetçi → Co-op. Tek oyunculu kampanya olduğu gibi kalıyor.
 
+- **Oyuncu adı (S1):** ilk açılışta adını girersin; her oyunda o ad kullanılır (telsizde, görev raporunda, çevrim içi). Menüdeki "değiştir" ya da Ayarlar'dan değişir.
+- **Arkadaşlar ve parti (S2–S3):** ana menüde **Çevrim içi**.
+  - **Oyuncu ara:** adıyla (gerekirse `Ad#1234` etiketiyle) bulup **İstek gönder**.
+  - **Bildirim:** karşı tarafa oyunda kart olarak düşer, **Kabul et / Reddet** ile yanıtlar. Oyun kapalıyken gelenler açılışta **İstekler** sekmesinde bekler.
+  - **Durum:** arkadaşının çevrim içi mi, menüde mi, oyunda mı olduğunu görürsün.
+  - **Parti:** çevrim içi arkadaşını **Davet et** ile partiye çağırırsın; parti lideri modu seçer.
+  - **Maç ara:** modlar oynanabilir olunca (S6) karışık oyuncularla eşleşir, eksik yerleri yapay zekâ doldurur.
+- **Sunucu:** `web/server/` (Node 22, `ws`, yerleşik SQLite). Yerelde `cd web && npm run server`, oyunda adresin sonuna `?server=http://localhost:8790`. VPS'e kurulum: `Docs/DEPLOY.md`. Sunucu kurulana kadar canlı sitede çevrim içi ekranı "Sunucu henüz kurulmadı" der.
 - **M1 (tamamlandı): paylaşılan simülasyon çekirdeği.**
   - Hareket, çarpışma, silah kuralları ve vuruş kutuları `web/shared/sim/` altına taşındı. İstemci ve sunucu aynı dosyaları çalıştırır; DOM, THREE ve `Math.random` yok.
   - Oyuncu hareketi sabit 64 Hz tick'le ilerler, kamera tick'ler arasında aralanır. Tek oyunculu davranış referans ölçümlerle aynı (`Docs/BASELINE.md`).
@@ -169,6 +177,9 @@ web/
     assets.js      GLB ve doku yükleme (gömülü ya da yanındaki dosyadan)
     nav.js         ızgara navigasyonu, A*, siper noktaları
     world.js       görsel dünya: malzemeler, geometri birleştirme (çarpışma shared/sim/collision.js'ten)
+    nameScreen.js  oyuncu adı ekranı
+    net/social.js  çevrim içi istemci (kimlik, arkadaşlar, bildirimler, parti)
+    onlineScreen.js  çevrim içi ekranı ve bildirim kartları
     inputCmd.js    girdiden InputCmd (aç/kapa ayarları, analog hareket, zıplama basışı)
     hitboxDebug.js sv_showhitboxes: pozdan vuruş kutularının tel kafesi
     level.js       harita seçimi ve atış poligonu
@@ -182,7 +193,8 @@ web/
     pwa.js         yüklenebilir uygulama: hizmet çalışanı kaydı, yükleme düğmesi, güncelleme satırı
     pwa/           hizmet çalışanı şablonu (sw.js), simge çizimi (icon.svg) ve PNG simgeler
     shell.html     sayfa iskeleti ve arayüz stilleri
-  shared/        istemci ve sunucunun ortak saf kodu (çok oyunculu)
+  server/        çevrim içi sunucu: REST + WebSocket, arkadaşlar, bildirimler, parti (Docs/DEPLOY.md)
+  shared/        istemci ve sunucunun ortak saf kodu (çok oyunculu; names.js oyuncu adı kuralları)
     constants.js   tick hızı (64), nicemleme adımları
     sim/           math, rng (tohumlu), collision (CollisionWorld), movement (stepPlayer), weapon, hitboxes, replay
     maps/          haritaların çarpışma verisi (*.collision.json; tools/export-collision.mjs üretir)
@@ -197,7 +209,7 @@ web/
   tools/baseline.mjs    tek oyunculu referans ölçümleri (Docs/BASELINE.md)
   tools/export-collision.mjs  haritaların çarpışma verisini dışa aktarma
 Docs/MASTER_PROMPT.md  Unreal Engine 5 ana planı
-Docs/MULTIPLAYER_PROMPT.md  çok oyunculu güncelleme planı; DECISIONS.md, NETCODE.md, BASELINE.md
+Docs/MULTIPLAYER_PROMPT.md  çok oyunculu güncelleme planı; DECISIONS.md, NETCODE.md, BASELINE.md, DEPLOY.md
 Docs/import_reports/   her içe aktarılan model için rapor ve önizleme
 SourceAssets/Weapons/  özgün .blend dosyaları ve asset_info.json (lisans kaydı)
 SourceAssets/Characters/  özgün karakter dosyası ve asset_info.json

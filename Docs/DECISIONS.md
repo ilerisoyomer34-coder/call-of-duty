@@ -44,3 +44,21 @@ Mevcut atamalar: Z bağlamsal işaret, X silah takası, C çömelme, T komut ça
 
 - Oyuncu silahının saçılması, saçma taneleri, geri tepmenin rastgele payı ve roket sapması tohumlu `Rng`'den gelir (`web/shared/sim/rng.js`). Tek oyunculuda tohum görev başında üretilir; çevrim içide sunucu `hash(serverSecret, matchId, playerId, seq)` kullanır (M4).
 - Düşman, dost, el bombası, efekt, ses ve oyuncu vurulunca kameranın sarsılması tek oyunculuda `Math.random` ile kalır: bunlar sunucuya taşınmıyor (sunucu botları M7'de kendi tohumlu üreteciyle yazılır).
+
+## Sosyal katman ve yol haritası (S1–S3, kullanıcı isteği)
+
+Kullanıcı önce ad, sonra arkadaş sistemi, sonra birlikte oynama ve karışık eşleşme istedi. Faz sırası buna göre: **S1** oyuncu adı → **S2** sunucu, kimlik, arkadaşlar, bildirimler → **S3** davet ve parti → S4 (M2) → S5 (M3+M4) → S6 TDM/DM + hızlı maç + botla doldurma (M5 ilk yarı + M7) → S7+ Rekabetçi, Co-op, M8–M12.
+
+| Konu | Karar | Neden |
+|---|---|---|
+| Sunucu | Henüz VPS yok; `web/server/` yerelde geliştirilir ve test edilir, kurulum `Docs/DEPLOY.md` (Caddy + sslip.io) | Kullanıcı VPS alınca yayına geçer; `NET.serverUrl` boşken canlı sitede "Sunucu henüz kurulmadı" |
+| Ad | Ad + 4 haneli etiket ("Ömer#4821"); aynı adı birçok kişi alabilir | Kullanıcı seçimi; arama ada göre, etiketle daraltılır |
+| Ad kuralları | Türkçe dahil Latin harfleri, rakam, boşluk, `_`, `-`; 3–16 karakter; rakam hileli küfür filtresi (`shared/names.js`, `data/profanity.tr.json`) | Belge §9.1; başka alfabeler, görünüşü aynı harflerle taklidi zorlaştırmak için kapalı |
+| Kimlik | Misafir; 32 baytlık rastgele opak belirteç, veritabanında yalnız SHA-256 özeti (belgedeki JWT yerine) | Gizli anahtar yönetimi gerekmez; belirteç iptali veritabanından |
+| Veritabanı | Node'un yerleşik `node:sqlite`'ı (Node ≥ 22.13) | Yerel derleme gerektiren paket (better-sqlite3) yok; tek yeni bağımlılık `ws` |
+| Sosyal protokol | REST (JSON) + tek WebSocket (JSON iletiler) | Az ve seyrek ileti; ikili codec oyun trafiği içindir (S4) |
+| Köken | İzin listesi (Pages + localhost) ve yerel dosya (`null`) | Kimlik çerez değil taşıyıcı belirteç: tarayıcı kendiliğinden göndermez, CSRF kapısı açılmaz |
+| Bildirim | Yalnız oyun içinde (açıkken anında; kapalıyken gelenler açılışta rozet ve İstekler sekmesinde). Web Push yok | Kullanıcı seçimi |
+| Parti | Bellekte (en çok 5, 60 sn davet, kopan üye 60 sn bekler); kalıcı değil | Sunucu yeniden başlarsa partiler kurulur; arkadaşlıklar kalıcı |
+| Reddetme | İstek silinir, gönderene anlık "reddetti" kartı (kalıcı bildirim değil) | Kullanıcı reddetme düğmesi istedi; geri bildirim görünür olsun |
+| Karşılıklı istek | İki taraf birbirine istek gönderirse kendiliğinden arkadaş olur | Gereksiz ikinci adım yok |

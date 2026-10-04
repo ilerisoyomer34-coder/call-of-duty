@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import { readFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
 import { dirname, join, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -91,7 +92,7 @@ async function openPage(kind, quality = 'low', opts = {}) {
     });
     await page.goto('https://artifact.test/');
   } else {
-    await page.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+    await page.goto(pathToFileURL(join(root, 'dist/index.html')).href + (opts.query || ''));
   }
   // Açılış tamamen bitsin (menü görünür olsa da gölgelendirici ön derlemesi sürüyor olabilir)
   if (!opts.noWait) await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
@@ -832,15 +833,19 @@ console.log('Alfa Timi ve komutlar');
     med.selfCoverUntil = 0;
     med.pos.copy(g.player.pos).add(new g.player.pos.constructor(0.8, 0, 0));
     g.player.health.hp = 50;
-    for (let i = 0; i < 45; i++) g.allies.update(0.1);
+    const trace = [];
+    for (let i = 0; i < 45; i++) {
+      g.allies.update(0.1);
+      if (i % 4 === 0) trace.push(`${i}:${med.pos.distanceTo(g.player.pos).toFixed(2)}/${med.order.id}/${(med.order.t || 0).toFixed(1)}/v${Math.hypot(med.vel.x, med.vel.z).toFixed(1)}`);
+    }
     const hp = g.player.health.hp;
     const st = { t: med.order.t, d: +med.pos.distanceTo(g.player.pos).toFixed(2), mhp: Math.round(med.health.hp), self: med.selfCoverUntil > g.time, rev: med.reviving?.callsign || null, down: g.allies.list.filter((a) => a.down).map((a) => a.callsign) };
     g.commands.issue('HEAL_PLAYER', 'all', { inputMethod: 'test' });
     g.cheats.aiOff = false;
-    return { who: issued.who, order, hp, fail: window.__ev.COMMAND_FAILED.at(-1), back: med.order.id, st };
+    return { who: issued.who, order, hp, fail: window.__ev.COMMAND_FAILED.at(-1), back: med.order.id, st, trace };
   });
   check(heal.who.join(',') === 'Alfa-2' && heal.order === 'HEAL_PLAYER', 'F5 "Beni iyileştir": yalnız medik (Alfa-2) gitti');
-  check(heal.hp >= 89 && heal.back !== 'HEAL_PLAYER', `Medik 4 sn'de iyileştirdi (can 50 → ${Math.round(heal.hp)}), önceki emre döndü${heal.hp < 89 ? ` ${JSON.stringify(heal.st)}` : ''}`);
+  check(heal.hp >= 89 && heal.back !== 'HEAL_PLAYER', `Medik 4 sn'de iyileştirdi (can 50 → ${Math.round(heal.hp)}), önceki emre döndü${heal.hp < 89 ? ` ${JSON.stringify(heal.st)} ${heal.trace.join(' ')}` : ''}`);
   check(heal.fail?.id === 'HEAL_PLAYER' && heal.fail.reason === 'cooldown', 'İkinci istek bekleme süresinde reddedildi');
   // F8 / F9: ateşi kes, serbest ateş
   await page.keyboard.press('F8');
@@ -2967,6 +2972,123 @@ if (run('profile')) {
   await mp.screenshot({ path: join(shots, '30-name-mobile.png') });
   check(fit.screen && fit.inView, 'Telefonda ad ekranı ekrana sığdı, düğme dokunmaya uygun');
   await mctx.close();
+}
+
+// ---------------- Çevrim içi: arkadaş isteği, bildirim, kabul, durum, parti (çok oyunculu S2–S3) ----------------
+if (run('online')) {
+  console.log('Çevrim içi: arkadaşlar, bildirimler, parti');
+  // Sunucu ayrı süreçte, bellek içi veritabanıyla
+  const PORT = 8792;
+  const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1' },
+    stdio: 'ignore',
+  });
+  // Betik hata verip çıksa da sunucu süreci kalmasın
+  process.on('exit', () => srv.kill());
+  const base = `http://127.0.0.1:${PORT}`;
+  for (let i = 0; i < 50; i++) {
+    const ok = await fetch(`${base}/api/health`).then((r) => r.ok, () => false);
+    if (ok) break;
+    await sleep(100);
+  }
+  const q = `?server=${encodeURIComponent(base)}`;
+  const online = (pg) => pg.waitForFunction(() => window.__game.social.status === 'online', null, { timeout: 30000 });
+  const A = await openPage('online-A', 'low', { name: 'Ayla', query: q });
+  const B = await openPage('online-B', 'low', { name: 'Barış', query: q });
+  await Promise.all([online(A), online(B)]);
+  const ids = await Promise.all([A, B].map((pg) => pg.evaluate(() => ({ ...window.__game.save.data.profile, hello: document.getElementById('menuHelloName').textContent }))));
+  check(ids.every((p) => /^\d{4}$/.test(p.tag) && p.token && p.hello === `${p.name}#${p.tag}`), `İki oyuncu bağlandı, etiket aldı (${ids.map((p) => p.hello).join(', ')})`);
+  // A: Çevrim içi → Oyuncu ara → "bar" → İstek gönder
+  await A.click('#btnOnline');
+  await A.click('.onTab[data-tab="search"]');
+  await A.fill('#onSearchInput', 'bar');
+  await A.waitForSelector('#onResults .onRow', { timeout: 10000 });
+  const res = await A.evaluate(() => [...document.querySelectorAll('#onResults .onRow')].map((r) => r.textContent));
+  check(res.length === 1 && /Barış/.test(res[0]) && /İstek gönder/.test(res[0]), `Arama "bar" → ${res.join(' | ')}`);
+  await A.click('#onResults .onRow .btn.primary');
+  await A.waitForFunction(() => /İstek gönderildi/.test(document.querySelector('#onResults .onRow')?.textContent || ''), null, { timeout: 10000 });
+  // B: bildirim kartı, rozet, Kabul et
+  await B.waitForSelector('#socialToasts .sToast[data-kind="friend_request"]', { timeout: 10000 });
+  const bt = await B.evaluate(() => ({ toast: document.querySelector('#socialToasts .sToast').textContent, badge: document.getElementById('onBadge').textContent, hidden: document.getElementById('onBadge').hidden }));
+  check(/Ayla#\d{4} arkadaşlık isteği gönderdi/.test(bt.toast) && !bt.hidden && bt.badge === '1', `B'ye anında bildirim düştü ("${bt.toast.replace(/Kabul et|Reddet/g, '').trim()}"), rozet ${bt.badge}`);
+  await B.screenshot({ path: join(shots, '31-friend-request.png') });
+  await B.click('#socialToasts .sToast .btn.primary');
+  await A.waitForSelector('#socialToasts .sToast[data-kind="friend_accepted"]', { timeout: 10000 });
+  await A.click('.onTab[data-tab="friends"]');
+  await A.waitForFunction(() => /Barış/.test(document.getElementById('onFriends').textContent) && !!document.querySelector('#onFriends .dot.menu'), null, { timeout: 10000 });
+  check(true, "B kabul etti: A'ya kabul bildirimi geldi, Barış arkadaş listesinde çevrim içi (Menüde)");
+  // B oyuna girer → A "Oyunda" görür
+  await B.evaluate(() => window.__game.startMode('range', 'normal'));
+  await A.waitForFunction(() => /Oyunda/.test(document.getElementById('onFriends').textContent) && !!document.querySelector('#onFriends .dot.playing'), null, { timeout: 60000 });
+  check(true, 'B poligona girince A onu "Oyunda" gördü');
+  // Parti: A davet eder, B oyundayken kartla katılır; A modu değiştirir, B'ye yansır
+  await A.click('#onFriends .onRow .btn');
+  const invMsg = await A.waitForFunction(() => /davet/.test(document.getElementById('onMsg').textContent) && document.getElementById('onMsg').textContent, null, { timeout: 10000 }).then((h) => h.jsonValue(), () => '');
+  // B oyunda: yazılımsal GPU'da kareler çok yavaş, kare tabanlı bekleme/tıklama yerine zaman aralıklı yoklama
+  const invOk = await B.waitForFunction(() => !!document.querySelector('#socialToasts .sToast[data-kind="party_invite"]'), null, { timeout: 20000, polling: 100 }).then(() => true, () => false);
+  check(invOk && /davet edildi/.test(invMsg), `Davet gitti ("${invMsg}"), B oyundayken kart çıktı`);
+  await B.evaluate(() => document.querySelector('#socialToasts .sToast[data-kind="party_invite"] .btn.primary').click());
+  await A.waitForFunction(() => !document.getElementById('partyPanel').hidden && document.querySelectorAll('#ppMembers .onRow').length === 2, null, { timeout: 10000 });
+  const pp = await A.evaluate(() => ({ count: document.getElementById('ppCount').textContent, lead: document.querySelector('#ppMembers .onRow').textContent, find: document.getElementById('btnPartyFind').disabled, note: document.getElementById('ppNote').textContent }));
+  check(/2 kişi/.test(pp.count) && /Lider/.test(pp.lead) && pp.find && /yakında/.test(pp.note), `Parti kuruldu: ${pp.count}; "Maç ara" mod açılana dek kapalı`);
+  await A.click('.ppMode:nth-child(2)');
+  await B.waitForFunction(() => window.__game.social.party?.mode === 'dm', null, { timeout: 10000, polling: 100 });
+  // B oyunda ve yavaş: bekleyen HTTP yanıtları da işlensin (eski parti görünümü yenisini ezmemeli)
+  await waitGame(B, 0.5);
+  const bMode = await B.evaluate(() => ({ mode: window.__game.social.party.mode, leaderId: window.__game.social.party.leader, me: window.__game.save.data.profile.id, members: window.__game.social.party.members.map((m) => m.name) }));
+  const modeOk = bMode.mode === 'dm' && bMode.leaderId && bMode.leaderId !== bMode.me;
+  check(modeOk, `Lider modu "Ölüm Maçı" yaptı, üyeye yansıdı${modeOk ? '' : ` ${JSON.stringify(bMode)}`}`);
+  await A.screenshot({ path: join(shots, '32-party.png') });
+  // B kapanınca A onu çevrim dışı görür
+  await B.close();
+  await A.waitForFunction(() => !!document.querySelector('#onFriends .dot.offline'), null, { timeout: 15000 });
+  check(true, 'B kapanınca A onu çevrim dışı gördü');
+  // Çevrim dışıyken gelen istek: açılışta rozet ve İstekler sekmesinde
+  const aId = ids[0].id;
+  const c = await fetch(`${base}/api/session`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Cem' }) }).then((r) => r.json());
+  await A.evaluate(() => window.__game.social.stop());
+  await fetch(`${base}/api/friends/request`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${c.token}` }, body: JSON.stringify({ id: aId }) });
+  await A.evaluate(() => window.__game.social.start());
+  await online(A);
+  await A.click('.onTab[data-tab="requests"]');
+  const req = await A.evaluate(() => ({ text: document.getElementById('onRequests').textContent, badge: document.getElementById('cntRequests').textContent }));
+  check(/Cem/.test(req.text) && /Kabul et/.test(req.text) && req.badge === '1', `Çevrim dışıyken gelen istek açılışta bekliyordu (rozet ${req.badge})`);
+  await A.close();
+  // Telefon: çevrim içi ekranı taşmaz, düğmeler dokunmaya uygun
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx, 'Defne');
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[online-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href + q);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
+  await online(mp);
+  await mp.tap('#btnOnline');
+  await mp.tap('.onTab[data-tab="search"]');
+  await mp.fill('#onSearchInput', 'cem');
+  await mp.waitForSelector('#onResults .onRow', { timeout: 10000 });
+  const fit = await mp.evaluate(() => {
+    const sc = document.getElementById('onlineScreen');
+    const btn = document.querySelector('#onResults .onRow .btn').getBoundingClientRect();
+    return { overflow: sc.scrollWidth > sc.clientWidth + 1, btnOk: btn.right <= innerWidth && btn.height >= 36 };
+  });
+  await mp.screenshot({ path: join(shots, '33-online-mobile.png') });
+  check(!fit.overflow && fit.btnOk, 'Telefonda çevrim içi ekranı yatay taşmadı, düğmeler dokunmaya uygun');
+  await mctx.close();
+  // Sunucu adresi yokken: "Sunucu henüz kurulmadı"
+  const N = await openPage('online-none');
+  await N.click('#btnOnline');
+  const none = await N.evaluate(() => ({ off: !document.getElementById('onOff').hidden, text: document.getElementById('onOffTitle').textContent, status: window.__game.social.status }));
+  check(none.off && /henüz kurulmadı/.test(none.text) && none.status === 'off', `Sunucu adresi yokken: "${none.text}"`);
+  await N.close();
+  srv.kill();
 }
 
 // ---------------- Determinizm: aynı girdi kaydı Node'da ve Chromium'da (belge §5.2/7) ----------------

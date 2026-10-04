@@ -16,7 +16,7 @@ import { speechSupported, recognitionCtor } from './radioChat.js';
 import { NameScreen, playerDisplay } from './nameScreen.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'nameScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 export class Menus {
   constructor(game) {
@@ -375,6 +375,7 @@ export class Menus {
     chk('sReroll', S.rerollBonuses);
     set('sWheelSlow', String(S.wheelSlowMo));
     set('sChatSlow', String(S.chatSlowMo));
+    set('sServerUrl', S.serverUrl || '');
     chk('sTts', S.tts);
     chk('sVoiceCmd', S.voiceCommands);
     // Tarayıcı desteklemiyorsa seslendirme / sesli komut satırı görünmez (§8.3/5)
@@ -405,6 +406,10 @@ export class Menus {
 
   readSettings() {
     const S = this.game.settings;
+    const prevServer = S.serverUrl || '';
+    S.serverUrl = $('sServerUrl').value.trim();
+    // Sunucu adresi değiştiyse çevrim içi bağlantı yeni adrese kurulur
+    if (S.serverUrl !== prevServer) queueMicrotask(() => this.game.social?.restart());
     S.sensitivity = parseFloat($('sSens').value);
     S.adsSensitivity = parseFloat($('sAdsSens').value);
     S.invertY = $('sInvert').checked;

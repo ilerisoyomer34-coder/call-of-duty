@@ -7,9 +7,10 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "serve": "node tools/build.mjs && npx --yes http-server dist -p 8080 -c-1",
-    "test": "node --test tests/*.test.mjs && node tools/build.mjs && node tools/smoke-test.mjs",
-    "test:unit": "node --test tests/*.test.mjs",
-    "deploy:pages": "node tools/deploy-pages.mjs"
+    "test": "node --test --disable-warning=ExperimentalWarning tests/*.test.mjs && node tools/build.mjs && node tools/smoke-test.mjs",
+    "test:unit": "node --test --disable-warning=ExperimentalWarning tests/*.test.mjs",
+    "deploy:pages": "node tools/deploy-pages.mjs",
+    "server": "node --disable-warning=ExperimentalWarning server/index.js"
   },
   "devDependencies": {
     "@gltf-transform/core": "4.5.0",
@@ -18,5 +19,8 @@
     "meshoptimizer": "^0.22.0",
     "playwright": "1.56.1",
     "three": "0.170.0"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
   }
 }

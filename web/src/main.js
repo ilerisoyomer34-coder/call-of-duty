@@ -37,6 +37,8 @@ import { RadioChat, VoiceCommand } from './radioChat.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
+import { SocialClient } from './net/social.js';
+import { OnlineScreen } from './onlineScreen.js';
 import { Emitter, clamp, rand } from './util.js';
 
 const SKY_VERT = /* glsl */ `
@@ -203,7 +205,10 @@ export class Game {
     this.voice = new VoiceCommand(this.chat);
     this.voice.refresh(this.settings);
     this.run = null; // { mission, tracker, record, levelId, difficulty }
+    // Çevrim içi sosyal katman (arkadaşlar, bildirimler, parti): menülerden önce, ekranlar olayları dinler
+    this.social = new SocialClient(this);
     this.menus = new Menus(this);
+    this.online = new OnlineScreen(this, this.menus);
     this.console = new DevConsole(this);
 
     this.input.onLockChange = (locked, selfExit) => {
@@ -497,6 +502,7 @@ export class Game {
     this.menus.show('menu', false);
     this.menus.stack = [];
     this.menus.needName();
+    this.social.setPresence('menu');
     this.menus.notice(this.pendingNotice);
     this.pendingNotice = null;
   }
@@ -577,6 +583,8 @@ export class Game {
 
   async startMode(mode, diffKey = 'normal', levelId = this.level.id) {
     await this.compiling;
+    // Arkadaşlar "oyunda" görür
+    this.social.setPresence('playing');
     this.audio.init();
     this.audio.stopMenuMusic();
     this.menus.hideAll();
@@ -1042,6 +1050,8 @@ async function boot() {
     L.step('Harita inşa ediliyor', 0.6);
     await nextPaint();
     game.showMenu();
+    // Çevrim içi: sunucu adresi ve ad varsa bağlan (yoksa durum "kapalı"; ad girilince kendiliğinden başlar)
+    game.social.start();
     L.step('Gölgelendiriciler derleniyor', 0.85);
     await nextPaint();
     await game.precompile();

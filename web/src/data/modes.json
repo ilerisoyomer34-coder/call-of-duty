@@ -1,0 +1,9 @@
+{
+  "_": "Çevrim içi oyun modları (çok oyunculu §8.1). available: oynanabilir mi (fazlar ilerledikçe açılır: S6 TDM/DM, S7 Rekabetçi ve Co-op). Sıra: parti panelindeki ve hızlı maçtaki sıra; ilk mod yeni partinin varsayılanı.",
+  "modes": [
+    { "id": "tdm", "name": "Takım Ölüm Maçı", "short": "TÖM", "desc": "İki takım, süre ya da skor sınırı; eksik oyuncu yerine yapay zekâ", "players": "5v5", "available": false },
+    { "id": "dm", "name": "Ölüm Maçı", "short": "ÖM", "desc": "Herkes herkese karşı; anında yeniden doğma", "players": "8", "available": false },
+    { "id": "competitive", "name": "Rekabetçi", "short": "REK", "desc": "Bomba kur / imha et, round ekonomisi", "players": "5v5", "available": false },
+    { "id": "coop", "name": "Co-op Görev", "short": "CO-OP", "desc": "Kampanya haritalarında arkadaşlarla birlikte, Alfa Timi yanında", "players": "1–4", "available": false }
+  ]
+}

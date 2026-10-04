@@ -37,7 +37,11 @@ const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _d = new THREE.Vector3();
+const _la = new THREE.Vector3();
+const _lb = new THREE.Vector3();
 const _hit = {};
+// Doğrudan yaklaşmada engel denetimi: diz ve göğüs hizası
+const DIRECT_HEIGHTS = [0.4, 1.2];
 const _ray = new THREE.Raycaster();
 // Görünüm katmanına her karede aktarılan durum (bellek ayırmamak için tek nesne)
 const ANIM = { pos: null, yaw: 0, vel: null, crouch: false, aimPitch: 0, stance: 'relaxed', reload: -1, throw: -1, dist: 0, mount: null, hideGun: false };
@@ -660,6 +664,9 @@ export class Ally {
 
     let dist = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z);
     this.updateStuck(dt, dist);
+    // Oyuncunun yanında tedavi ederken ya da kaldırırken önceki "takıldım" sapması iptal: yoksa medik
+    // menzilden çıkıp tedaviyi yarıda bırakır
+    if (tending && dist < 0.9) this.detour = null;
     if (this.detour && g.time < this.detourUntil) {
       goal = this.detour;
       dist = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z);
@@ -1079,9 +1086,32 @@ export class Ally {
     return (dx * fx + dz * fz) / d > Math.cos(ALLY.fireLaneDeg * DEG);
   }
 
+  // Hedefe arada çarpıştırıcı olmadan düz gidilebilir mi (yakın mesafe, iki yükseklikte ışın)
+  directClear(goal) {
+    const W = this.game.world;
+    for (const h of DIRECT_HEIGHTS) {
+      _la.set(this.pos.x, this.pos.y + h, this.pos.z);
+      _lb.set(goal.x, this.pos.y + h, goal.z);
+      if (!W.lineOfSight(_la, _lb)) return false;
+    }
+    return true;
+  }
+
   followPath(goal, dt, speed) {
     const g = this.game;
     this.repathT -= dt;
+    // Son birkaç metre: engel yoksa yol ağına sormadan düz yürü
+    const gx = goal.x - this.pos.x;
+    const gz = goal.z - this.pos.z;
+    if (gx * gx + gz * gz < ALLY.directDist * ALLY.directDist && this.directClear(goal)) {
+      this.path = null;
+      this.repathT = 0;
+      const d = Math.hypot(gx, gz);
+      const s = d < 0.3 ? 0 : Math.min(speed, d * 4);
+      this.vel.x = damp(this.vel.x, d > 1e-4 ? (gx / d) * s : 0, 8, dt);
+      this.vel.z = damp(this.vel.z, d > 1e-4 ? (gz / d) * s : 0, 8, dt);
+      return;
+    }
     if (!this.path || (this.repathT <= 0 && this.pathGoal.distanceToSquared(goal) > 2.25)) {
       if (g.enemies.requestPath()) {
         this.path = g.nav.findPath(this.pos, goal);

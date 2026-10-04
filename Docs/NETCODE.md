@@ -83,6 +83,47 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 - Çarpanlar mevcut veriden gelir (`weapons.zones`, `armor.json → playerZones`), belgedeki CS:GO değerleri değil.
 - Konsolda `sv_showhitboxes 1`, asker ve dostların kutularını tel kafes çizer.
 
+## Sosyal katman (S2–S3): REST + WebSocket
+
+- **Sunucu:** `web/server/` (tek süreç).
+  - `index.js`: HTTP ve `/ws` aynı port.
+  - `api.js`: REST uçları.
+  - `hub.js`: çevrim içi bağlantılar, durum.
+  - `party.js`: parti ve davet, bellekte.
+  - `db.js`: `node:sqlite`.
+  - `limits.js`: sınırlar.
+  - `ratelimit.js`, `backup.mjs`.
+- **Kimlik:**
+  - `POST /api/session { name }` → `{ id, name, tag, token }`.
+  - Sonraki istekler `Authorization: Bearer <token>`.
+  - İstemci belirteci kayıtta tutar (`save.data.profile.token`).
+  - 401 alırsa (sunucu veritabanı sıfırlandı) yeni kimlik alır.
+- **REST:**
+  - Profil: `GET/PATCH /api/me`.
+  - Arama: `GET /api/players?q=ad[#etiket]` (önek, Türkçe katlama, en az 2 harf).
+  - Arkadaşlık:
+    - `GET /api/friends` → `{ friends[{status}], incoming, outgoing }`.
+    - `POST /api/friends/request|respond|remove`.
+  - Bildirim: `GET /api/notifications`, `POST /api/notifications/seen`.
+  - Parti: `GET /api/party`, `POST /api/party/invite|respond|leave|kick|mode`.
+  - Sağlık: `GET /api/health`.
+  - Hatalar `{ error: kod }`; Türkçe metinler `src/net/social.js → ERRORS`.
+- **WebSocket `/ws`:**
+  - İstemci → sunucu:
+    - İlk ileti `{ t: 'hello', token, status }` (5 sn içinde); sonra `{ t: 'status', status: 'menu'|'playing' }` ve `{ t: 'ping' }`.
+    - En çok 2 KB, saniyede 20 ileti.
+    - Yanlış kimlik `4001` ile kapanır.
+  - Sunucu → istemci:
+    - Açılış: `welcome` (ad, listeler, parti, son bildirimler).
+    - Liste ve durum: `friends` (ilişki değişince), `presence` (arkadaşın durumu).
+    - Arkadaşlık: `notification` (`friend_request`, `friend_accepted`), `friend_declined`.
+    - Parti: `party`, `party_invite`, `party_invite_declined`.
+- **İstemci `SocialClient`** (`game.social`):
+  - Adres önceliği: `?server=` › Ayarlar "Çevrim içi sunucu" › `config.js → NET.serverUrl`.
+  - Kopunca `NET.reconnectSec` aralıklarıyla yeniden bağlanır; 25 sn'de bir `ping` gönderir.
+  - Olaylar: `EV.SOCIAL_STATUS`, `FRIENDS_CHANGED`, `NOTIFICATION`, `PARTY_CHANGED`, `PROFILE_CHANGED`.
+- **Ekran:** `src/onlineScreen.js` (Arkadaşlar / Oyuncu ara / İstekler, parti paneli) ve `#socialToasts` bildirim kartları (menüde ve oyunda; yanıt düğmeli kartlar 30 sn kalır).
+
 ## Testler
 
 - Birim:
@@ -93,5 +134,8 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - `tests/hitboxes.test.mjs`
   - `tests/collision-export.test.mjs`
   - `tests/determinism.test.mjs`
+  - `tests/names.test.mjs`
+  - `tests/server.test.mjs` (sunucu bellek içi veritabanıyla; kimlik, arama, istek, anlık bildirim, durum, parti, dayanıklılık)
+- Duman `online`: sunucu alt süreçte; iki sayfa arasında arama, istek, kart, kabul, "Oyunda" durumu, davet, mod, çevrim dışı istek ve telefon görünümü.
 - Duman `determinism`: `shared/sim/replay.js` esbuild ile paketlenip Chromium'da koşar. Kızılkum ve Yıkık Şehir'de 10.000 komut sonrası konum Node ile karşılaştırılır (≤ 1 mm) ve her 1000 tick'in özeti eşleşmelidir.
 - Davranış referansı: `Docs/BASELINE.md` (`node tools/baseline.mjs --compare`).

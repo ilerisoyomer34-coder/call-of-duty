@@ -32,6 +32,19 @@ export const MOVEMENT = {
   stepDistCrouch: 1.4,
 };
 
+// Çevrim içi (çok oyunculu S2–S3). serverUrl boşsa çevrim içi kapalı ("Sunucu henüz kurulmadı"); VPS kurulunca
+// buraya adres yazılıp derlenir (Docs/DEPLOY.md). Geliştirmede ?server=http://localhost:8790 ya da Ayarlar.
+export const NET = {
+  serverUrl: '',
+  reconnectSec: [1, 2, 4, 8, 16, 30], // bağlantı koparsa yeniden deneme aralıkları
+  pingSec: 25, // bağlantı canlı kalsın (vekiller boştaki bağlantıyı keser)
+  searchMin: 2,
+  searchDebounceMs: 300,
+  toastSec: 12, // bildirim kartı ekranda kalma süresi (yanıt düğmeli kartlar daha uzun)
+  toastActionSec: 30,
+  toastMax: 3,
+};
+
 // Sabit adımlı oyuncu simülasyonu (çok oyunculu M1; tick hızı shared/constants.js → TICK_RATE)
 export const SIM = {
   maxTicksPerFrame: 10, // tek karede en çok bu kadar tick (uzun karede tick yağmuru olmasın; fazlası atılır)
@@ -915,6 +928,9 @@ export const ALLY = {
   damageTaken: 0.6, // düşman mermisinin dosta etkisi (oyuncuya göre)
   walk: 2.2,
   run: 4.6,
+  // Hedef bu kadar yakın ve arada engel yoksa yol ağı yerine doğrudan yürü: yol ağı duvar dibindeki hücreleri
+  // kapalı sayar, duvara yaslanmış oyuncuya (tedavi, canlandırma) ancak son birkaç metre düz gidilerek ulaşılır
+  directDist: 4,
   viewRange: 60,
   thinkInterval: 0.15,
   loseTargetTime: 2.5,
