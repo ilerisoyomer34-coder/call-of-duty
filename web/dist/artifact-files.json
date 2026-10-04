@@ -3,6 +3,7 @@
   "assets/characters/soldier_diffuse.jpg": "web/assets/characters/soldier_diffuse.jpg",
   "assets/characters/soldier_normal.jpg": "web/assets/characters/soldier_normal.jpg",
   "assets/props/helicopter.glb.txt": "web/dist/artifact-assets/assets/props/helicopter.glb.txt",
+  "assets/props/pine.glb.txt": "web/dist/artifact-assets/assets/props/pine.glb.txt",
   "assets/weapons/d50.glb.txt": "web/dist/artifact-assets/assets/weapons/d50.glb.txt",
   "assets/weapons/k8.glb.txt": "web/dist/artifact-assets/assets/weapons/k8.glb.txt",
   "assets/weapons/knife.glb.txt": "web/dist/artifact-assets/assets/weapons/knife.glb.txt",

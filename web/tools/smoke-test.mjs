@@ -1910,6 +1910,13 @@ console.log('Haritalar, mevziler ve manga kademeleri');
         rank: g.allies.list[0]?.S.rank, tag: g.allies.list[0]?.rankName, issues, fog: g.scene.fog.color.getHexString(),
         // Tarayıcıda kurulan haritanın çarpıştırıcı özeti (sunucunun yükleyeceği dosyayla aynı olmalı)
         colHash: g.world.toJSON(g.level.map, g.world.mapColliders).hash,
+        // Ağaçlar hazır modelle: harita ağacı sayısı kadar örnekli gövde ve yaprak (InstancedMesh)
+        trees: g.world.trees.length,
+        treeInst: (() => {
+          const n = [];
+          g.scene.traverse((o) => o.isInstancedMesh && o.count === g.world.trees.length && g.world.trees.length > 0 && n.push(o.material.alphaTest > 0));
+          return n;
+        })(),
       };
     });
     const [map, hmg, rank] = expect[id];
@@ -1921,6 +1928,7 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     const tanks = { 4: 1, 5: 2, 6: 2 }[id] || 0;
     check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
+    if (id === 1 || id === 5) check(r.trees > 0 && r.treeInst.length === 2 && r.treeInst.includes(true), `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, 2 çizim çağrısı)`);
     if (id >= 3) {
       await waitGame(page, 1.0);
       await page.screenshot({ path: join(shots, `14-map-${map}.png`) });

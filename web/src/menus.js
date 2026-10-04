@@ -76,7 +76,7 @@ export class Menus {
     const box = $('propCredits');
     if (!box) return;
     box.innerHTML = '';
-    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı' };
+    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar' };
     // Sketchfab silahları: oyundaki kurgusal adıyla
     for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = weaponName(d.id);
     const entries = [...Object.entries(PROP_ASSETS), ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];

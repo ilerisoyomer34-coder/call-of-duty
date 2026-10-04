@@ -18,10 +18,10 @@ import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
-import { setHelicopterProp, setPropEnvironment } from './models.js';
+import { setHelicopterProp, setPropEnvironment, setTreeProp } from './models.js';
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
 import { EconomySystem } from './economy.js';
@@ -263,6 +263,13 @@ export class Game {
       setHelicopterProp(scene, PROP_ASSETS.helicopter);
     } catch (err) {
       warnOnce('heli-model', `Helikopter modeli yüklenemedi, basit model kullanılıyor (${err.message})`);
+    }
+    // Ağaç (Sketchfab çamı): haritalardaki tüm ağaçlar; gelmezse prosedürel ağaç
+    try {
+      const scene = await Promise.race([loadPropAsset('pine'), timeout]);
+      setTreeProp(scene, PROP_ASSETS.pine, TREES.alphaTest);
+    } catch (err) {
+      warnOnce('tree-model', `Ağaç modeli yüklenemedi, basit ağaç kullanılıyor (${err.message})`);
     }
   }
 

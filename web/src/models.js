@@ -940,6 +940,34 @@ export function hasHelicopterProp() {
 export function setPropEnvironment(tex) {
   propEnv = tex;
   heliProp?.scene.traverse((o) => o.isMesh && applyPropEnv(o.material));
+  for (const p of treeProp?.parts || []) applyPropEnv(p.material);
+}
+
+// Ağaç şablonu (Sketchfab çamı): her mesh'i ve model içindeki dönüşümü bir kez çıkarılır; harita ağaçları bunlarla
+// InstancedMesh olarak çizilir (world.js → addTree). Yaprak kartları alfa kesmeli, iki yüzlü; geometri sahneler
+// arasında paylaşılır (disposeScene atmasın)
+let treeProp = null;
+export function setTreeProp(scene, info, alphaTest) {
+  const parts = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const m = o.material;
+    const foliage = m.alphaTest > 0 || m.transparent;
+    if (foliage) {
+      m.alphaTest = Math.max(m.alphaTest, alphaTest);
+      m.transparent = false;
+      m.side = THREE.DoubleSide;
+    }
+    if (propEnv) applyPropEnv(m);
+    o.geometry.userData.shared = true;
+    parts.push({ geometry: o.geometry, material: m, matrix: o.matrixWorld.clone(), foliage });
+  });
+  treeProp = parts.length ? { parts, info } : null;
+}
+
+export function getTreeProp() {
+  return treeProp;
 }
 
 // Hazır modelden helikopter: burun -Z, kızaklar y=0'da, gövde (pervaneler hariç) info.length boyunda.

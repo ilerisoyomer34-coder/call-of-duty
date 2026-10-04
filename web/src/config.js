@@ -77,6 +77,13 @@ export const ONLINE = {
   endScreenSec: 10,
 };
 
+// Hazır ağaç modeli (Sketchfab çamı; kit.js pine/palm → World.addTree, tüm ağaçlar InstancedMesh)
+export const TREES = {
+  alphaTest: 0.2, // yaprak kartlarının saydamlık kesme eşiği (modelin kendi MASK eşiği ≈ 0,21; yüksek değer tacı seyreltir)
+  scaleJitter: 0.12, // aynı boydaki ağaçlar birbirinin kopyası görünmesin: ± oran
+  snowTint: [0.86, 0.93, 1.05], // karlı haritada yaprak rengi çarpanı (soğuk, kırağılı)
+};
+
 // Sabit adımlı oyuncu simülasyonu (çok oyunculu M1; tick hızı shared/constants.js → TICK_RATE)
 export const SIM = {
   maxTicksPerFrame: 10, // tek karede en çok bu kadar tick (uzun karede tick yağmuru olmasın; fazlası atılır)

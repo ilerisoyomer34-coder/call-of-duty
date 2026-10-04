@@ -2,6 +2,8 @@
 // karakter çarpışması ve çizim çağrısını azaltmak için malzemeye göre birleştirilmiş geometri.
 import * as THREE from 'three';
 import { CollisionWorld } from '../shared/sim/collision.js';
+import { getTreeProp } from './models.js';
+import { TREES } from './config.js';
 
 // Zemin kaplamaları gölge düşürmez (gölge haritasında boşa çizilmesin)
 const FLAT_MATERIALS = new Set(['sand', 'dirt', 'helipad', 'snow', 'asphalt', 'water']);
@@ -37,6 +39,15 @@ export class World extends CollisionWorld {
     this.T = textures;
     this.batches = new Map();
     this.materials = this.createMaterials();
+    this.trees = []; // hazır ağaç modelinin örnekleri { x, z, h, snowy } (finalize InstancedMesh kurar)
+  }
+
+  // Harita ağacı (kit.js pine/palm): hazır model yüklendiyse yalnız konumu kaydedilir, prosedürel ağaç çizilmez.
+  // Çarpıştırıcıyı kit.js her durumda ekler (sunucu ve Node aynı gövde kutusunu görür)
+  addTree(x, z, h, opts = {}) {
+    if (!getTreeProp()) return false;
+    this.trees.push({ x, z, h, snowy: !!opts.snowy });
+    return true;
   }
 
   // Çarpıştırıcı köşeleri ve ışın sonuçları THREE.Vector3 olsun (istemci kodu clone/distanceTo kullanır)
@@ -207,5 +218,45 @@ export class World extends CollisionWorld {
       this.meshes.push(mesh);
     }
     this.batches.clear();
+    if (this.trees.length) this.buildTrees();
+  }
+
+  // Bütün ağaçlar model mesh'i başına tek InstancedMesh (gövde + yaprak: iki çizim çağrısı). Gövde tabanı y=0'a
+  // oturur, boy istenen yüksekliğe ölçeklenir; dönüş ve küçük boy farkı konumdan türer (her açılışta aynı)
+  buildTrees() {
+    const T = getTreeProp();
+    const b = T.info.bounds;
+    const modelH = b.max[1] - b.min[1];
+    const n = this.trees.length;
+    const snowy = this.trees.some((t) => t.snowy);
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const snow = new THREE.Color().setRGB(...TREES.snowTint);
+    const white = new THREE.Color(1, 1, 1);
+    const fract = (v) => v - Math.floor(v);
+    for (const part of T.parts) {
+      const mesh = new THREE.InstancedMesh(part.geometry, part.material, n);
+      for (let i = 0; i < n; i++) {
+        const t = this.trees[i];
+        const r1 = fract(Math.sin(t.x * 12.9898 + t.z * 78.233) * 43758.5453);
+        const r2 = fract(Math.sin(t.x * 39.3468 + t.z * 11.135) * 24634.6345);
+        const k = (t.h / modelH) * (1 + (r2 * 2 - 1) * TREES.scaleJitter);
+        q.setFromAxisAngle(up, r1 * Math.PI * 2);
+        sc.setScalar(k);
+        p.set(t.x, -b.min[1] * k, t.z);
+        m4.compose(p, q, sc).multiply(part.matrix);
+        mesh.setMatrixAt(i, m4);
+        if (part.foliage && snowy) mesh.setColorAt(i, t.snowy ? snow : white);
+      }
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.computeBoundingSphere();
+      this.scene.add(mesh);
+      this.meshes.push(mesh);
+    }
+    this.treeMeshes = n;
   }
 }

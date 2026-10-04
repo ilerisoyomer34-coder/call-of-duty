@@ -250,10 +250,13 @@ export function stall(W, cx, cz) {
   crate(W, cx - 0.8, cz - 1.2, 0.6);
 }
 
+// Ağaçlar: hazır çam modeli yüklendiyse (World.addTree) tüm ağaçlar onunla çizilir; yoksa (ya da Node'daki
+// çarpışma dünyasında) prosedürel ağaç. Gövde kutusu her durumda aynı: çarpışma verisi değişmez
 export function palm(W, cx, cz, h = 6) {
+  W.addCollider(cx - 0.2, 0, cz - 0.2, cx + 0.2, h, cz + 0.2, 'wood');
+  if (W.addTree?.(cx, cz, h)) return;
   const trunk = new THREE.CylinderGeometry(0.16, 0.24, h, 7);
   W.addGeometry(trunk, 'woodDark', new THREE.Matrix4().makeTranslation(cx, h / 2, cz));
-  W.addCollider(cx - 0.2, 0, cz - 0.2, cx + 0.2, h, cz + 0.2, 'wood');
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2;
     const leaf = new THREE.BoxGeometry(0.5, 0.05, 2.6);
@@ -271,8 +274,9 @@ const pineCones = [new THREE.ConeGeometry(1.9, 2.6, 8), new THREE.ConeGeometry(1
 const pineTrunk = new THREE.CylinderGeometry(0.14, 0.22, 1, 6);
 export function pine(W, cx, cz, h = 7, snowy = false) {
   const k = h / 7;
-  W.addGeometry(pineTrunk, 'woodDark', new THREE.Matrix4().makeTranslation(cx, h * 0.25, cz).multiply(new THREE.Matrix4().makeScale(k, h * 0.5, k)));
   W.addCollider(cx - 0.25 * k, 0, cz - 0.25 * k, cx + 0.25 * k, h, cz + 0.25 * k, 'wood');
+  if (W.addTree?.(cx, cz, h, { snowy })) return;
+  W.addGeometry(pineTrunk, 'woodDark', new THREE.Matrix4().makeTranslation(cx, h * 0.25, cz).multiply(new THREE.Matrix4().makeScale(k, h * 0.5, k)));
   const ys = [0.42, 0.62, 0.8];
   for (let i = 0; i < 3; i++) {
     const m = new THREE.Matrix4().makeTranslation(cx, h * ys[i], cz).multiply(new THREE.Matrix4().makeScale(k, k, k));

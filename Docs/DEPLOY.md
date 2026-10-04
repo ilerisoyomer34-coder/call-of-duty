@@ -9,7 +9,60 @@ Kısaca:
 
 Docker ve çok süreçli yapı M12'de eklenecek. Şimdiki sosyal katman için tek süreç yeter.
 
-## 1. VPS seçimi
+## 0. Ücretsiz: Oracle Cloud Always Free (önerilen)
+
+Oracle'ın "Always Free" kotası kalıcı ücretsiz bir Linux sunucu verir. Bizim sunucu için fazlasıyla yeter. Kayıtta kart yalnız kimlik doğrulaması için istenir; ücretsiz kotada para çekilmez. Koşullar zamanla değişebilir, kayıttan önce sitedeki güncel duruma bak.
+
+### 0.1 Hesap
+1. https://www.oracle.com/cloud/free/ → "Start for free".
+2. **Home Region** olarak **Germany Central (Frankfurt)** seç. Sonradan değişmez ve ücretsiz makine yalnız bu bölgede açılır. Türkiye'ye yakın olduğu için ping düşük olur.
+3. E-posta doğrulaması ve kart adımını bitir. Hesap birkaç dakikada açılır.
+
+### 0.2 Makine
+1. Menü → **Compute → Instances → Create instance**.
+2. **Image:** "Change image" → Canonical Ubuntu → **24.04** (aarch64 sürümü kendiliğinden seçilir).
+3. **Shape:** "Change shape" → Ampere → **VM.Standard.A1.Flex**, **2 OCPU / 12 GB** (Always Free sınırı içinde).
+4. **SSH keys:** "Generate a key pair for me" → **Save private key**. Dosyayı (`ssh-key-….key`) sakla; kaybolursa makineye giremezsin. Bu dosyayı kimseyle paylaşma, sohbete de yapıştırma.
+5. **Create.** Birkaç dakikada "Running" olur. Sayfadaki **Public IP address** değerini not al (aşağıda örnek `203.0.113.7`).
+6. "Out of capacity" hatası alırsan bu bölgede o an boş ücretsiz makine yok demektir:
+   - başka bir "Availability domain" seç;
+   - ya da 1 OCPU / 6 GB ile dene;
+   - ya da birkaç saat sonra yeniden dene.
+
+### 0.3 Ağ: 80 ve 443 portlarını aç (iki yerde)
+1. **Oracle panelinde:** makinenin sayfası → "Primary VNIC"teki **Subnet** → **Security List** (Default) → **Add Ingress Rules**:
+   - Source CIDR `0.0.0.0/0`, IP Protocol TCP, Destination Port Range `80`;
+   - aynı kuralı `443` için de ekle.
+2. **Makinenin içinde:** Oracle'ın Ubuntu imajı kendi iptables kurallarıyla bu portları kapatır. Bağlandıktan sonra (0.4) şunu çalıştır:
+
+```bash
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+Bu imajda aşağıdaki 3. adımdaki `ufw` satırlarını **atla**: ufw, Oracle'ın kurallarıyla çakışır.
+
+### 0.4 Bağlanma (Windows)
+- Windows 10/11'de PowerShell'de `ssh` hazır gelir. Anahtar dosyasının bulunduğu klasörde:
+
+```powershell
+ssh -i .\ssh-key-2026-10-04.key ubuntu@203.0.113.7
+```
+
+- Bağlanınca `sudo -i` ile root ol. Aşağıdaki 2–7. adımlar aynen geçerli: Node 22 ve Caddy'nin ARM (arm64) paketleri var. 3. adımda yalnız `ufw` satırlarını atla.
+
+### 0.5 Bitince
+- Tarayıcıda `https://203-0-113-7.sslip.io/api/health` `{"ok":true,…}` dönmeli (kendi IP'nle).
+- Claude'a sunucunun **IP adresini** yaz. Oyunun varsayılan sunucu adresi o adrese çevrilir ve yayımlanır; o andan sonra canlı sitede arkadaşlar, takım ve "Maç ara" doğrudan çalışır.
+- Şifre, SSH anahtarı ya da belirteç **gönderme**: gerekmez.
+
+### 0.6 Boşta kalan makine
+- Oracle, uzun süre neredeyse hiç kullanılmayan ücretsiz makineleri geri alabileceğini duyurmuştu.
+- Bunu önlemenin yolu hesabı **Pay As You Go**'ya yükseltmek. Ücretsiz kotanın içinde kaldıkça ücret çıkmaz, ama kart bağlıdır; kotayı aşan bir kaynak açmamaya dikkat et.
+- Güncel koşulu Oracle'ın "Always Free Resources" sayfasından kontrol et.
+
+## 1. VPS seçimi (ücretli seçenek)
 
 - **Sistem:** Ubuntu 24.04 LTS.
 - **Boyut:** 1 vCPU ve 1 GB bellek yeter. Çevrim içi maçlar (S6) gelince 2 vCPU önerilir.
@@ -129,6 +182,6 @@ Geri yükleme: servisi durdur, yedeği `/var/lib/demirsafak/demirsafak.db` olara
 | Belirti | Bakılacak yer |
 |---|---|
 | Oyunda "Sunucuya ulaşılamadı" | `curl https://ADRES/api/health`; `journalctl -u demirsafak -n 50` |
-| Sertifika alınamadı | 80 ve 443 portları açık mı (`ufw status`); adres IP'ye çözülüyor mu |
+| Sertifika alınamadı | 80 ve 443 portları açık mı (`ufw status`; Oracle'da Security List ve `sudo iptables -L INPUT -n`); adres IP'ye çözülüyor mu |
 | `origin` hatası (403) | Oyunu açtığın adres `ALLOWED_ORIGINS`'te mi |
 | Arkadaş listesi boşaldı | Veritabanı yolu (`DB_PATH`) değişmiş olabilir; yedekten geri yükle |

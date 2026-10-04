@@ -166,7 +166,7 @@ Kısaca: otoriter Node sunucusu VPS'te koşacak; çok oyunculu PC'de ve telefond
     - uzak oyuncular aralanarak çizilir.
   - **Ağ ölçümü:** konsolda `net_graph 1|2`; gecikme denemesi `net_profile orta` ya da adreste `?netsim=orta`.
   - Ayrıntı `Docs/NETCODE.md`, bayt düzeni `Docs/PROTOCOL.md`.
-- **Sunucu:** `web/server/` (Node 22, `ws`, yerleşik SQLite). Yerelde `cd web && npm run server`, oyunda adresin sonuna `?server=http://localhost:8790`. VPS'e kurulum: `Docs/DEPLOY.md`. Sunucu kurulana kadar canlı sitede çevrim içi ekranı "Sunucu henüz kurulmadı" der.
+- **Sunucu:** `web/server/` (Node 22, `ws`, yerleşik SQLite). Yerelde `cd web && npm run server`, oyunda adresin sonuna `?server=http://localhost:8790`. Ücretsiz kurulum (Oracle Cloud Always Free) ve VPS: `Docs/DEPLOY.md`. Sunucu kurulana kadar canlı sitede çevrim içi ekranı "Sunucu henüz kurulmadı" der.
 - **M1 (tamamlandı): paylaşılan simülasyon çekirdeği.**
   - Hareket, çarpışma, silah kuralları ve vuruş kutuları `web/shared/sim/` altına taşındı. İstemci ve sunucu aynı dosyaları çalıştırır; DOM, THREE ve `Math.random` yok.
   - Oyuncu hareketi sabit 64 Hz tick'le ilerler, kamera tick'ler arasında aralanır. Tek oyunculu davranış referans ölçümlerle aynı (`Docs/BASELINE.md`).
