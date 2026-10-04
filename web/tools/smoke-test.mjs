@@ -3062,9 +3062,11 @@ if (run('online')) {
   // Takım: A davet eder, B oyundayken kartla katılır; A modu değiştirir, B'ye yansır
   await A.click('#onFriends .onRow .btn');
   const invMsg = await A.waitForFunction(() => /davet/.test(document.getElementById('onMsg').textContent) && document.getElementById('onMsg').textContent, null, { timeout: 10000 }).then((h) => h.jsonValue(), () => '');
-  // B oyunda: yazılımsal GPU'da kareler çok yavaş, kare tabanlı bekleme/tıklama yerine zaman aralıklı yoklama
-  const invOk = await B.waitForFunction(() => !!document.querySelector('#socialToasts .sToast[data-kind="party_invite"]'), null, { timeout: 20000, polling: 100 }).then(() => true, () => false);
-  check(invOk && /davet edildi/.test(invMsg), `Davet gitti ("${invMsg}"), B oyundayken kart çıktı`);
+  // B oyunda: yazılımsal GPU'da kareler çok yavaş, kare tabanlı bekleme/tıklama yerine zaman aralıklı yoklama.
+  // Kart zamanında gelse de yoklama ağır karelerin arasına sıkışır: süre "Oyunda" beklemesiyle aynı (60 sn)
+  const invT0 = Date.now();
+  const invOk = await B.waitForFunction(() => !!document.querySelector('#socialToasts .sToast[data-kind="party_invite"]'), null, { timeout: 60000, polling: 100 }).then(() => true, () => false);
+  check(invOk && /davet edildi/.test(invMsg), `Davet gitti ("${invMsg}"), B oyundayken kart çıktı (${((Date.now() - invT0) / 1000).toFixed(1)} sn)`);
   await B.evaluate(() => document.querySelector('#socialToasts .sToast[data-kind="party_invite"] .btn.primary').click());
   await A.waitForFunction(() => !document.getElementById('partyPanel').hidden && document.querySelectorAll('#ppMembers .onRow').length === 2, null, { timeout: 10000 });
   const pp = await A.evaluate(() => ({ count: document.getElementById('ppCount').textContent, lead: document.querySelector('#ppMembers .onRow').textContent, find: document.getElementById('btnPartyFind').disabled, note: document.getElementById('ppNote').textContent }));
