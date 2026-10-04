@@ -549,6 +549,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .brRow.had b::after { content: ' ✔'; color: #7fd38a; }
 .brNote { margin: 10px 0 0; font: 400 13px/1.4 var(--f-ui); color: var(--sand-dim); }
 .lvl .stars { color: #ffcf5c; letter-spacing: .1em; }
+.hello { margin-top: 10px; font: 500 16px/1.3 var(--f-ui); color: var(--sand-dim); }
+.hello b { color: var(--sand); font-weight: 700; }
+.hello[hidden] { display: none; }
+.linkBtn { background: none; border: 0; padding: 0 2px; font: 500 13px/1 var(--f-ui); color: #5ee7ff; text-decoration: underline; cursor: pointer; }
+.nameSheet { width: min(520px, 100%); }
+.setVal { font: 600 16px/1.2 var(--f-ui); color: var(--sand); }
+.btn.small { padding: 6px 12px; font-size: .85em; }
+.nameForm { display: flex; flex-direction: column; gap: 10px; }
+.nameForm input { background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); font: 600 24px/1.2 var(--f-ui); padding: 12px 14px; outline: none; min-height: 52px; box-sizing: border-box; }
+.nameForm input:focus { border-color: #5ee7ff; }
+.nameHint { font: 500 14px/1.3 var(--f-ui); color: var(--sand-dim); min-height: 18px; }
+.nameHint.bad { color: #ff6b5e; }
+.nameHint.good { color: var(--olive); }
 .menuNotice { margin-top: 10px; font: 600 14px/1.3 var(--f-ui); color: #ffcf5c; }
 .menuNotice[hidden] { display: none; }
 @media (max-height: 520px) {
@@ -926,6 +939,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
         <div class="eyebrow">Operasyon · Kızılkum Vadisi · 05:42</div>
         <h1 class="title">DEMİR<br>ŞAFAK</h1>
         <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
+        <div class="hello" id="menuHello" hidden>Hoş geldin, <b id="menuHelloName"></b> <button class="linkBtn" id="btnMenuName" title="Oyuncu adını değiştir">değiştir</button></div>
         <div class="kr" id="menuCredits" title="Kredi: görevlerden kazanılır, mağazada harcanır"><small>KREDİ</small><b id="menuCreditsVal">0 KR</b></div>
         <div class="menuNotice" id="menuNotice" hidden></div>
       </div>
@@ -940,6 +954,18 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       </div>
       <div class="pwaStatus" id="pwaStatus" hidden><span id="pwaStatusText"></span><button class="btn" id="btnPwaUpdate" hidden>Güncelle</button></div>
       <div class="brief" id="menuBrief"></div>
+    </div>
+  </section>
+
+  <section id="nameScreen" class="screen panelScreen" hidden>
+    <div class="sheet nameSheet">
+      <div><div class="eyebrow">Komutan kimliği</div><h2>Oyuncu adın</h2></div>
+      <p class="tip">Bu ad her oyunda seninle gelir: telsizde, görev raporunda ve çevrim içi oyunda arkadaşların seni bu adla bulur.</p>
+      <form id="nameForm" class="nameForm" autocomplete="off">
+        <input id="nameInput" type="text" maxlength="16" spellcheck="false" autocapitalize="words" enterkeyhint="done" placeholder="Örn. Kartal" aria-describedby="nameHint">
+        <div class="nameHint" id="nameHint">3–16 karakter · harf, rakam, boşluk, _ ve -</div>
+        <div class="row"><button class="btn primary" id="btnNameOk" type="submit" disabled>Devam</button><button class="btn" id="btnNameCancel" type="button" hidden>Vazgeç</button></div>
+      </form>
     </div>
   </section>
 
@@ -974,6 +1000,8 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       <div><div class="eyebrow">Tercihler</div><h2>Ayarlar</h2></div>
       <div class="grid2">
         <div>
+          <h3>Oyuncu</h3>
+          <div class="set"><label>Oyuncu adı<small>Telsizde ve çevrim içi oyunda görünür</small></label><span class="setVal" id="sPlayerName">—</span><button class="btn small" id="btnSetName" type="button">Değiştir</button></div>
           <h3>Kontroller</h3>
           <div class="set"><label for="sSens">Fare hassasiyeti</label><input type="range" id="sSens" min="0.2" max="3" step="0.05"><output id="oSens"></output></div>
           <div class="set"><label for="sAdsSens">Nişan hassasiyeti</label><input type="range" id="sAdsSens" min="0.3" max="1.5" step="0.05"><output id="oAdsSens"></output></div>

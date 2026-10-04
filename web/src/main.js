@@ -496,6 +496,7 @@ export class Game {
     this.buildMenuWorld();
     this.menus.show('menu', false);
     this.menus.stack = [];
+    this.menus.needName();
     this.menus.notice(this.pendingNotice);
     this.pendingNotice = null;
   }

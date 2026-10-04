@@ -13,9 +13,10 @@ import { weaponName } from './weaponInfo.js';
 import { levelMission } from './missionSystem.js';
 import { renderBriefing, renderRewards, starsText } from './missionUi.js';
 import { speechSupported, recognitionCtor } from './radioChat.js';
+import { NameScreen, playerDisplay } from './nameScreen.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+const SCREENS = ['menu', 'nameScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 export class Menus {
   constructor(game) {
@@ -36,6 +37,25 @@ export class Menus {
     // Kredi bakiyesi: her harcama/kazançta güncellenir
     this.updateCredits();
     game.events.on(EV.CREDITS_CHANGED, () => this.updateCredits());
+    // Oyuncu adı: ilk açılışta sorulur, menüde selamlanır; etiket sunucudan gelince güncellenir
+    this.nameScreen = new NameScreen(game, this);
+    this.refreshHello();
+    game.events.on(EV.PROFILE_CHANGED, () => this.refreshHello());
+  }
+
+  refreshHello() {
+    const name = playerDisplay(this.game);
+    $('menuHello').hidden = !name;
+    $('menuHelloName').textContent = name;
+    const sn = $('sPlayerName');
+    if (sn) sn.textContent = name || '—';
+  }
+
+  // Ana menü açılırken: ad yoksa önce ad ekranı
+  needName() {
+    if (this.game.save.data.profile.name) return false;
+    this.nameScreen.open(true);
+    return true;
   }
 
   // Ana menüde tek satırlık bildirim (ör. görev yarıda kaldı → teselli ödülü)
@@ -473,7 +493,9 @@ export class Menus {
     if (rewards) renderRewards(rb, rewards);
     else rb.hidden = true;
     $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name} · ${MAPS[level.map]?.name || ''}` : 'Tahliye başarılı';
-    $('victoryTitle').textContent = next ? 'Bölüm tamamlandı' : 'Operasyon tamamlandı';
+    // Rapor oyuncunun adıyla: "Bölüm tamamlandı · Ömer"
+    const who = this.game.save.data.profile.name;
+    $('victoryTitle').textContent = `${next ? 'Bölüm tamamlandı' : 'Operasyon tamamlandı'}${who ? ` · ${who}` : ''}`;
     const un = $('victoryUnlock');
     un.hidden = !(firstClear && next);
     if (next) {

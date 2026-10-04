@@ -17,8 +17,9 @@ const THREE_BODY = readFileSync(join(root, 'node_modules/three/build/three.modul
 const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png' };
 
 const errors = [];
+const SMOKE_NAME = 'Deneme';
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, determinism
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, profile, online, determinism
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,20 +36,33 @@ const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
 });
 
+// Elle kurulan bağlamlarda oyuncu adı (ad ekranı akışları tıkamasın)
+const seedName = (ctx, n = SMOKE_NAME) =>
+  ctx.addInitScript((nm) => {
+    try {
+      localStorage.setItem('demirsafak.profile.v1', JSON.stringify({ name: nm }));
+    } catch {
+      /* depolama yok */
+    }
+  }, n);
+
 // opts.cdnFail: ['jsdelivr', 'unpkg'] → o CDN yanıt vermez (yedek yolu ve hata ekranı denenir)
 async function openPage(kind, quality = 'low', opts = {}) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   // Yazılımsal GPU'da akış testleri düşük kalitede koşar; görsel kontrol için 'high'
   // Akış testleri tüm seviyeler açık başlar; seviye testi sıfırdan (yalnızca Seviye 1 açık) başlar
   const unlocked = opts.unlocked ?? 6;
-  await page.addInitScript(([q, u]) => {
+  // Oyuncu adı eski anahtarla verilir (ad ekranı akışları tıkamasın); opts.name === null → ad yok, ekran açılır
+  const name = opts.name === undefined ? SMOKE_NAME : opts.name;
+  await page.addInitScript(([q, u, n]) => {
     try {
       localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: q }));
       localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: u, best: {} }));
+      if (n) localStorage.setItem('demirsafak.profile.v1', JSON.stringify({ name: n }));
     } catch {
       /* depolama yok */
     }
-  }, [quality, unlocked]);
+  }, [quality, unlocked, name]);
   page.on('pageerror', (e) => errors.push(`[${kind}] pageerror: ${e.message}`));
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`[${kind}] console: ${m.text()}`);
@@ -133,6 +147,7 @@ console.log('Kayıt ve kredi');
 
   const fresh = async (init) => {
     const ctx = await browser.newContext({ viewport: { width: 960, height: 540 } });
+    await seedName(ctx);
     if (init) await ctx.addInitScript(init);
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
     const page = await ctx.newPage();
@@ -184,6 +199,7 @@ console.log('Mağaza');
 
   // §12/1: yeni kayıt → 1.000 KR → Hafif Taktik Yelek al (200 KR kalır) → kuşan → görevde 50 ZP
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await seedName(ctx);
   await ctx.addInitScript(() => {
     if (!localStorage.getItem('demirsafak.save')) localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
   });
@@ -230,6 +246,7 @@ console.log('Mağaza');
 
   // Telefon: mağaza yatay ekranda
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   const mp = await mctx.newPage();
   mp.on('pageerror', (e) => errors.push(`[store-mobile] pageerror: ${e.message}`));
@@ -700,6 +717,7 @@ console.log('Görevler ve bonuslar');
 
   // Telefon: brifing ve sonuç ekranı yatayda sığıyor
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   await mctx.addInitScript(() => {
     try {
@@ -776,7 +794,7 @@ console.log('Alfa Timi ve komutlar');
     return { issued, orders: g.allies.list.map((a) => a.order.id), q, done: window.__ev.COMMAND_COMPLETED.map((e) => e.id) };
   });
   check(cov.issued?.id === 'TAKE_COVER' && cov.issued.who.length === 3 && cov.orders.every((o) => o === 'TAKE_COVER'), `F4 "Siper alın": üç asker siper emrinde`);
-  check(cov.q.some((l) => /^Komutan → Alfa Timi: Siper alın!/.test(l)) && cov.q.some((l) => /^Alfa-1 .*Demir: /.test(l)), `Telsizde komut ve Alfa-1'in onayı (${cov.q.slice(0, 2).join(' | ')})`);
+  check(cov.q.some((l) => /^Deneme → Alfa Timi: Siper alın!/.test(l)) && cov.q.some((l) => /^Alfa-1 .*Demir: /.test(l)), `Telsizde komut ve Alfa-1'in onayı (${cov.q.slice(0, 2).join(' | ')})`);
   check(cov.done.includes('TAKE_COVER'), 'Sipere varınca komut tamamlandı');
   // Oraya git: ulaşılabilir nokta tamamlanır, ulaşılamayan "yol yok" ile başarısız olur
   const mv = await page.evaluate(() => {
@@ -1206,6 +1224,7 @@ console.log('Komut çarkı, işaret ve tuş atama');
 
   // Telefon: TELSİZ düğmesi çarkı açar, dilime dokununca komut; İŞARET düğmesi; paneller üst üste binmez
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   await mctx.addInitScript(() => {
     try {
@@ -1293,7 +1312,7 @@ console.log('Telsiz kutusu ve yazılı komut');
   // Onay, komutanın sözünden 0,8 sn sonra (önünde hazır bekleyen satır varsa onlardan sonra) gelir
   await waitGame(page, 4);
   const h1 = await page.evaluate(() => ({ ev: window.__ev.find((e) => e.n === 'COMMAND_ISSUED' && e.m === 'text'), open: window.__game.chat.open, lines: window.__game.chat.lines.map((l) => l.el.textContent) }));
-  const pi = h1.lines.findIndex((l) => l === '[Komutan → Alfa-2] Kaya beni iyileştir');
+  const pi = h1.lines.findIndex((l) => l === '[Deneme → Alfa-2] Kaya beni iyileştir');
   const ci = h1.lines.findIndex((l, i) => i > pi && /^\[Alfa-2 .*Kaya\] (Geliyorum, dayan!|Medik yolda!|Seni toparlıyorum, kıpırdama!)$/.test(l));
   check(h1.ev?.id === 'HEAL_PLAYER' && h1.ev.who.join() === 'Alfa-2' && !h1.open, `"Kaya beni iyileştir" → HEAL_PLAYER, Alfa-2 (${JSON.stringify(h1.ev)})`);
   check(pi >= 0 && ci > pi, `Telsiz kutusunda iki satır: komut ve onay (${pi >= 0 ? h1.lines.slice(pi, ci + 1).join(' | ') : h1.lines.slice(-3).join(' | ')})`);
@@ -1398,6 +1417,7 @@ console.log('Telsiz kutusu ve yazılı komut');
 
   // Telefon: SOHBET düğmesi satırı üstte açar, yazılan komut verilir; telsiz kutusu panellere ve düğmelere binmez
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   await mctx.addInitScript(() => {
     try {
@@ -2607,6 +2627,7 @@ console.log('Teçhizat ve sarf malzemeleri');
 
   // Telefon (yatay): teçhizat ekranı sığıyor, görevde sarf düğmesi dokununca çalışıyor
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   await mctx.addInitScript(() => {
     try {
@@ -2703,6 +2724,8 @@ if (run('mobile')) {
 console.log('Telefon görünümü');
 
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+
+  await seedName(ctx);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`[mobile] pageerror: ${e.message}`));
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
@@ -2761,6 +2784,8 @@ console.log('PWA sürümü (dist/pwa)');
   const swList = JSON.parse(readFileSync(swFile, 'utf8').match(/const FILES = (\[.*?\]);/)[1]);
 
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+
+  await seedName(ctx);
   await ctx.addInitScript(() => {
     try {
       localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
@@ -2874,6 +2899,74 @@ console.log('PWA sürümü (dist/pwa)');
 
   await ctx.close();
   server.close();
+}
+
+// ---------------- Oyuncu adı (çok oyunculu S1) ----------------
+if (run('profile')) {
+  console.log('Oyuncu adı');
+  const page = await openPage('standalone', 'low', { name: null });
+  const st = await page.evaluate(() => ({ screen: !document.getElementById('nameScreen').hidden, menu: !document.getElementById('menu').hidden, ok: document.getElementById('btnNameOk').disabled }));
+  check(st.screen && !st.menu && st.ok, 'Ad yokken açılışta ad ekranı çıktı, Devam kapalı');
+  const typeName = async (n) => {
+    await page.fill('#nameInput', n);
+    return page.evaluate(() => ({ disabled: document.getElementById('btnNameOk').disabled, hint: document.getElementById('nameHint').textContent }));
+  };
+  const short = await typeName('ab');
+  const bad = await typeName('amk');
+  const sym = await typeName('Kartal!');
+  check(short.disabled && /En az 3/.test(short.hint) && bad.disabled && /kullanılamaz/.test(bad.hint) && sym.disabled, `Geçersiz adlar reddedildi ("${short.hint}", "${bad.hint}", "${sym.hint}")`);
+  const good = await typeName('  Kartal   07 ');
+  check(!good.disabled && /Kartal 07/.test(good.hint), `Geçerli ad kabul edildi (${good.hint})`);
+  await page.screenshot({ path: join(shots, '30-name.png') });
+  await page.press('#nameInput', 'Enter');
+  const after = await page.evaluate(() => ({ menu: !document.getElementById('menu').hidden, hello: document.getElementById('menuHelloName').textContent, saved: window.__game.save.data.profile.name }));
+  check(after.menu && after.hello === 'Kartal 07' && after.saved === 'Kartal 07', `Ad kaydedildi, menüde selam: "${after.hello}"`);
+  await page.reload();
+  await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
+  const re = await page.evaluate(() => ({ screen: !document.getElementById('nameScreen').hidden, hello: document.getElementById('menuHelloName').textContent }));
+  check(!re.screen && re.hello === 'Kartal 07', 'Sayfa yenilenince ad sürdü, ad ekranı yeniden çıkmadı');
+  // Menüdeki "değiştir": vazgeç düğmesi var, yeni ad kaydedilir
+  await page.click('#btnMenuName');
+  const ch = await page.evaluate(() => ({ cancel: !document.getElementById('btnNameCancel').hidden, val: document.getElementById('nameInput').value }));
+  await typeName('Bozkurt');
+  await page.click('#btnNameOk');
+  const ch2 = await page.evaluate(() => ({ hello: document.getElementById('menuHelloName').textContent, menu: !document.getElementById('menu').hidden }));
+  check(ch.cancel && ch.val === 'Kartal 07' && ch2.menu && ch2.hello === 'Bozkurt', 'Menüden ad değiştirildi (Vazgeç düğmesi görünür)');
+  // Telsizde komutanın satırı oyuncunun adıyla
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 1));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 90000 });
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.commands.issue('HOLD', 'all', { inputMethod: 'shortcut' });
+  });
+  await waitGame(page, 1.5);
+  const radio = await page.evaluate(() => window.__game.chat.lines.map((l) => l.el.textContent));
+  check(radio.some((l) => l.startsWith('[Bozkurt → ')), `Telsizde ad görünüyor (${radio.find((l) => l.startsWith('[Bozkurt')) || radio.slice(-2).join(' | ')})`);
+  await page.close();
+  // Telefonda ad ekranı sığar
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[profile-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
+  const fit = await mp.evaluate(() => {
+    const r = (id) => document.getElementById(id).getBoundingClientRect();
+    const a = r('nameInput');
+    const b = r('btnNameOk');
+    return { screen: !document.getElementById('nameScreen').hidden, inView: a.top >= 0 && b.bottom <= innerHeight && a.right <= innerWidth && b.height >= 36 };
+  });
+  await mp.screenshot({ path: join(shots, '30-name-mobile.png') });
+  check(fit.screen && fit.inView, 'Telefonda ad ekranı ekrana sığdı, düğme dokunmaya uygun');
+  await mctx.close();
 }
 
 // ---------------- Determinizm: aynı girdi kaydı Node'da ve Chromium'da (belge §5.2/7) ----------------

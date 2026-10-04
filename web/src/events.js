@@ -21,4 +21,10 @@ export const EV = Object.freeze({
   ITEM_USED: 'ITEM_USED', // { itemId }
   OBJECTIVE_COMPLETED: 'OBJECTIVE_COMPLETED', // { objectiveId }
   CREDITS_CHANGED: 'CREDITS_CHANGED', // { credits, delta, reason }
+  // Çevrim içi ve kimlik (çok oyunculu S1–S3)
+  PROFILE_CHANGED: 'PROFILE_CHANGED', // { name, tag }
+  SOCIAL_STATUS: 'SOCIAL_STATUS', // { status: 'off' | 'connecting' | 'online' | 'error', reason }
+  FRIENDS_CHANGED: 'FRIENDS_CHANGED', // { friends, incoming, outgoing }
+  NOTIFICATION: 'NOTIFICATION', // { id, kind, from, payload }
+  PARTY_CHANGED: 'PARTY_CHANGED', // { party | null }
 });

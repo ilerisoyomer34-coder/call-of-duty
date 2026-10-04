@@ -8,6 +8,7 @@
 import SQUAD from './data/squad.json' with { type: 'json' };
 import CMD from './data/commands.tr.json' with { type: 'json' };
 import { parseCommand } from './commandParser.js';
+import { playerLabel } from './nameScreen.js';
 
 const FADE_SEC = 8;
 const SHOW_LINES = 6;
@@ -65,6 +66,7 @@ export class RadioChat {
     this.form.hidden = true;
     const tag = document.createElement('b');
     tag.textContent = `${SQUAD.playerCallsign} ›`;
+    this.tag = tag;
     this.input = document.createElement('input');
     this.input.type = 'text';
     this.input.id = 'chatInput';
@@ -174,6 +176,8 @@ export class RadioChat {
   openChat() {
     if (!this.open) {
       this.open = true;
+      // Satırın başında oyuncunun adı (ad sonradan değişebilir)
+      this.tag.textContent = `${playerLabel(this.game, SQUAD.playerCallsign)} ›`;
       this.box.classList.add('open');
       this.form.hidden = false;
       this.input.value = '';
@@ -243,7 +247,7 @@ export class RadioChat {
     const r = parseCommand(t);
     if (r.commandId === 'UNKNOWN') {
       const a = g.allies.list.find((x) => !x.down) || g.allies.list[0];
-      g.mission?.radio(`${SQUAD.playerCallsign} → ${SQUAD.team}`, inputMethod === 'voice' ? `🎤 ${t}` : t, 0, 'player');
+      g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${SQUAD.team}`, inputMethod === 'voice' ? `🎤 ${t}` : t, 0, 'player');
       if (a) g.mission?.radio(a.radioLabel, CMD.unknown.say, 0, 'squad', 'reply');
       this.input.value = '';
       this.showSuggestions(r.suggest);

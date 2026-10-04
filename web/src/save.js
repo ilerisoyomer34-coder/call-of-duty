@@ -14,6 +14,8 @@ export const LEGACY_KEYS = Object.freeze({
   settings: 'demirsafak.settings.v1',
   progress: 'demirsafak.progress.v1',
   loadout: 'demirsafak.loadout.v1',
+  // Oyuncu adı { name }: duman testi adı bununla verir; kayıtta ad yoksa açılışta içe aktarılır
+  profile: 'demirsafak.profile.v1',
 });
 const FLUSH_DELAY_MS = 250;
 
@@ -31,7 +33,20 @@ export function freshSave(startCredits = STORE.startCredits) {
     stats: { revivesGiven: 0, timesDowned: 0, commandsIssued: 0, kills: 0, missionsCompleted: 0 },
     settings: null,
     econLog: [],
+    // Oyuncu kimliği: ad yerelde; etiket, kimlik ve belirteç sunucuya ilk bağlanınca gelir
+    profile: freshProfile(),
   };
+}
+
+export function freshProfile() {
+  return { name: null, tag: null, id: null, token: null };
+}
+
+function normalizeProfile(p) {
+  const d = freshProfile();
+  if (!isObj(p)) return d;
+  const str = (v) => (typeof v === 'string' && v ? v : null);
+  return { ...p, name: str(p.name), tag: str(p.tag), id: str(p.id), token: str(p.token) };
 }
 
 // Kaydı varsayılanlarla tamamla: eksik ya da bozuk alan varsayılana döner, bilinmeyen alanlar korunur
@@ -50,6 +65,7 @@ function normalize(raw, startCredits) {
   s.stats = { ...d.stats, ...(isObj(raw.stats) ? raw.stats : {}) };
   s.settings = isObj(raw.settings) ? raw.settings : null;
   s.econLog = Array.isArray(raw.econLog) ? raw.econLog : [];
+  s.profile = normalizeProfile(raw.profile);
   return s;
 }
 
@@ -95,6 +111,9 @@ export class SaveSystem {
     const { save, migrated } = migrateSave(raw, (k) => store.get(k, null), startCredits);
     this.data = save;
     this.migrated = migrated;
+    // Eski anahtardaki ad, kayıtta ad yokken alınır (kimlik alanları sunucudan gelir)
+    const lp = store.get(LEGACY_KEYS.profile, null);
+    if (!save.profile.name && isObj(lp) && typeof lp.name === 'string' && lp.name) save.profile.name = lp.name;
     // İlk açılış ya da yükseltme: yeni biçim hemen yazılsın
     if (!isObj(raw) || migrated) this.flush();
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -118,9 +137,12 @@ export class SaveSystem {
     this.store.set(SAVE_KEY, this.data);
   }
 
-  // Geliştirici konsolu: kaydı sıfırla (eski anahtarlar yine içe aktarılmaz)
+  // Geliştirici konsolu: kaydı sıfırla (eski anahtarlar yine içe aktarılmaz). Oyuncu adı ve çevrim içi kimlik
+  // korunur: kimlik silinirse arkadaş listesi de kaybolur
   reset() {
+    const profile = this.data.profile;
     this.data = freshSave(this.startCredits);
+    this.data.profile = normalizeProfile(profile);
     this.flush();
   }
 }

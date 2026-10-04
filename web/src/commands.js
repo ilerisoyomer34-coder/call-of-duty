@@ -8,6 +8,7 @@ import CMD from './data/commands.tr.json' with { type: 'json' };
 import SQUAD from './data/squad.json' with { type: 'json' };
 import { EV } from './events.js';
 import { pick } from './util.js';
+import { playerLabel } from './nameScreen.js';
 
 export const COMMANDS = CMD.commands;
 export const ORDERS = SQUAD.orders;
@@ -77,7 +78,7 @@ export class CommandSystem {
     // "Beni iyileştir"i yalnız medik uygular
     if (commandId === 'HEAL_PLAYER') list = list.filter((a) => a.role === 'medic');
     const who = this.label(addressees, list);
-    g.mission?.radio(`${SQUAD.playerCallsign} → ${who}`, opts.sourceText || def.say, 0, 'player');
+    g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${who}`, opts.sourceText || def.say, 0, 'player');
     if (!list.length) {
       const reason = commandId === 'HEAL_PLAYER' ? 'Medik yerde ya da timde değil' : 'Komutu alacak asker yok';
       g.mission?.radio('TELSİZ', reason, 0, 'system');
