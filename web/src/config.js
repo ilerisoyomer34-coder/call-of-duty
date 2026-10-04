@@ -45,6 +45,38 @@ export const NET = {
   toastMax: 3,
 };
 
+// Çevrim içi maç (S4–S6). Sunucu (server/game/) ve istemci (src/net/) aynı değerleri okur.
+export const ONLINE = {
+  hp: 100,
+  regenDelay: 5, // sn: hasar almadan sonra can dolmaya başlar
+  regenRate: 25, // can / sn
+  protectSec: 2, // doğuş koruması (ateş edince biter)
+  maxRewindMs: 200, // gecikme telafisinin üst sınırı (daha eski görüntüye ateş edilemez)
+  historyTicks: 40, // vuruş kutusu geçmişi (tick)
+  creditMax: 8, // komut bütçesi: gecikip biriken komutlar en çok bu kadar tick öne geçebilir
+  queueMax: 24, // sunucudaki bekleyen komut sınırı (fazlası atılır)
+  snapshotEvery: 2, // anlık görüntü her 2 tick'te (32 Hz)
+  // Silah doğrulaması (istemci atış zamanını kendi belirler, sunucu sınırlar): tolerans payları
+  fireTolerance: 0.7, // atış kredisi bu kadarsa atış kabul
+  reloadTolerance: 0.75,
+  switchTolerance: 0.6,
+  melee: { damage: 100, range: 2.2, coneDeg: 40, cooldown: 0.6 },
+  defaultPrimary: 'rifle',
+  defaultSecondary: 'pistol',
+  // İstemci: uzak oyuncuların aralanması ve tahmin düzeltmesi
+  interpMs: 100, // görüntü tamponu (titreşime göre 60–250 ms arası uyarlanır)
+  interpMinMs: 60,
+  interpMaxMs: 250,
+  extrapolateMs: 120,
+  reconcileEps: 0.002, // m: tahmin ile sunucu arası bu kadarsa düzeltme yok
+  correctionHalfLife: 0.06, // sn: düzeltmenin görüntüde yumuşatılması
+  dilation: { low: 1, high: 4, fast: 1.03, slow: 0.97 }, // sunucu komut tamponu derinliğine göre tick hızı
+  graphPingSec: 3, // net_graph 2 grafiği
+  inputRedundancy: 3, // her pakette son 3 komut
+  reconnectSec: [1, 2, 4, 8],
+  endScreenSec: 10,
+};
+
 // Sabit adımlı oyuncu simülasyonu (çok oyunculu M1; tick hızı shared/constants.js → TICK_RATE)
 export const SIM = {
   maxTicksPerFrame: 10, // tek karede en çok bu kadar tick (uzun karede tick yağmuru olmasın; fazlası atılır)

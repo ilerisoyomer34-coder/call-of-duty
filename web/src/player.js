@@ -1,7 +1,7 @@
 // Oyuncu karakteri (AShooterCharacter karşılığı): hareket, bakış, geri tepme telafisi,
 // nişan alma, çömelme, eğilme, koşma, ayak sesleri, sağlık/yenilenme, kamera sarsıntısı ve etkileşim.
 import * as THREE from 'three';
-import { MOVEMENT as M, KIT, BALANCE, SIM } from './config.js';
+import { MOVEMENT as M, KIT, BALANCE, SIM, ONLINE } from './config.js';
 import { TICK_DT } from '../shared/constants.js';
 import { createPlayerState, resetPlayerState, createInputCmd, stepPlayer, SIM_EV, BTN } from '../shared/sim/movement.js';
 import { updateInputCmd } from './inputCmd.js';
@@ -32,6 +32,8 @@ export class Player {
     this.simAcc = 0;
     this.prevPos = new THREE.Vector3();
     this.renderPos = new THREE.Vector3();
+    // Çevrim içi: sunucu düzeltmesinin görüntüdeki payı (kısa sürede sönümlenir, kamera sıçramasın)
+    this.netCorr = new THREE.Vector3();
     this.health = new Health(M.maxHealth);
     this.health.on('changed', (hp, max) => game.events.emit('health', hp, max));
     this.reset(new THREE.Vector3(0, 0, 0), 0);
@@ -46,6 +48,7 @@ export class Player {
     this.pos.copy(pos);
     this.vel.set(0, 0, 0);
     resetPlayerState(this.state, M);
+    this.netCorr.set(0, 0, 0);
     this.syncRender();
     this.cmd.buttons = 0;
     this.yaw = yaw;
@@ -455,23 +458,31 @@ export class Player {
     // --- Hareket: girdi → komut → sabit adımlı paylaşılan simülasyon (shared/sim/movement.js) ---
     // Aç/kapa ayarları komutta çözülür; silah, zırh ve eylem hareketi mods ile etkiler (sunucu da aynısını doldurur)
     const cmd = updateInputCmd(this.cmd, input, S, this);
-    const md = this.state.mods;
-    md.mobility = w ? w.data.mobility || 1 : 1;
-    md.adsMoveMult = w ? w.data.ads.moveMult : 1;
-    md.adsTime = w ? w.data.ads.time : 0.2;
-    md.armorSpeed = this.armor.speedMult;
-    md.actionMult = this.interacting ? 0.2 : this.usingItem ? KIT.useMoveMult : 1;
-    md.sprintBlocked = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing' || this.interacting || this.usingItem;
-    md.noSprint = this.armor.noSprint; // Ağır Saldırı Zırhı'nda koşu kapalı
-    md.adsAllowed = W.canAds && !this.interacting && !this.usingItem;
+    const net = g.net;
+    if (net) {
+      // Çevrim içi: modlar komut bitlerinden ve silahtan (sunucu aynı fonksiyonu çağırır), bakış ağ biçiminde
+      net.prepareCmd(cmd, W);
+    } else {
+      const md = this.state.mods;
+      md.mobility = w ? w.data.mobility || 1 : 1;
+      md.adsMoveMult = w ? w.data.ads.moveMult : 1;
+      md.adsTime = w ? w.data.ads.time : 0.2;
+      md.armorSpeed = this.armor.speedMult;
+      md.actionMult = this.interacting ? 0.2 : this.usingItem ? KIT.useMoveMult : 1;
+      md.sprintBlocked = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing' || this.interacting || this.usingItem;
+      md.noSprint = this.armor.noSprint; // Ağır Saldırı Zırhı'nda koşu kapalı
+      md.adsAllowed = W.canAds && !this.interacting && !this.usingItem;
+    }
     let alpha = 1;
-    if (this.fixedStep) {
+    if (this.fixedStep || net) {
       // Sabit 64 Hz: kare süresi biriktirilir, her tick aynı dt ile ilerler (çok oyunculu tahminle aynı sonuç).
-      // Üst sınır: çok uzun karede (sekme geri gelince) tick yağmuru olmasın
-      this.simAcc = Math.min(this.simAcc + dt, TICK_DT * MAX_TICKS_PER_FRAME);
+      // Üst sınır: çok uzun karede (sekme geri gelince) tick yağmuru olmasın. Çevrim içinde sunucunun komut
+      // tamponuna göre tick hızı biraz değişir (zaman genişletme)
+      this.simAcc = Math.min(this.simAcc + dt * (net ? net.tickScale : 1), TICK_DT * MAX_TICKS_PER_FRAME);
       while (this.simAcc >= TICK_DT) {
         this.prevPos.copy(this.pos);
         this.onSimEvents(stepPlayer(this.state, cmd, g.world, TICK_DT, M, true), cmd);
+        if (net) net.commitCmd(cmd, this.state);
         cmd.buttons &= ~BTN.JUMP;
         this.simAcc -= TICK_DT;
       }
@@ -485,6 +496,12 @@ export class Player {
     // Çizim konumu iki tick arasında aralanır (ekran tazeleme hızı 64 Hz'in katı değil); ışınlanmada atlanır
     if (this.prevPos.distanceToSquared(this.pos) > RENDER_SNAP_DIST * RENDER_SNAP_DIST) this.prevPos.copy(this.pos);
     this.renderPos.lerpVectors(this.prevPos, this.pos, alpha);
+    if (net) {
+      // Sunucu düzeltmesi görüntüde yumuşar (ONLINE.correctionHalfLife)
+      this.renderPos.add(this.netCorr);
+      this.netCorr.multiplyScalar(Math.pow(0.5, dt / ONLINE.correctionHalfLife));
+      if (this.netCorr.lengthSq() < 1e-8) this.netCorr.set(0, 0, 0);
+    }
 
     // Ayak sesleri
     if (this.grounded && this.horizSpeed > 0.6) {
@@ -525,9 +542,9 @@ export class Player {
     this.landVel += (-this.landDip * 90 - this.landVel * 12) * dt;
     this.landDip += this.landVel * dt;
 
-    // Sağlık yenilenmesi
+    // Sağlık yenilenmesi (çevrim içinde can sunucudan gelir)
     const regenDelay = g.difficulty.regenDelay ?? M.regenDelay;
-    if (this.time - this.lastDamage > regenDelay && this.health.hp < this.health.max) {
+    if (!net && this.time - this.lastDamage > regenDelay && this.health.hp < this.health.max) {
       this.health.heal(M.regenRate * dt);
       if (this.health.hp >= this.health.max) this.ttdStart = -1;
     }

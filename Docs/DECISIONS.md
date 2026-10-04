@@ -62,3 +62,19 @@ Kullanıcı önce ad, sonra arkadaş sistemi, sonra birlikte oynama ve karışı
 | Parti | Bellekte (en çok 5, 60 sn davet, kopan üye 60 sn bekler); kalıcı değil | Sunucu yeniden başlarsa partiler kurulur; arkadaşlıklar kalıcı |
 | Reddetme | İstek silinir, gönderene anlık "reddetti" kartı (kalıcı bildirim değil) | Kullanıcı reddetme düğmesi istedi; geri bildirim görünür olsun |
 | Karşılıklı istek | İki taraf birbirine istek gönderirse kendiliğinden arkadaş olur | Gereksiz ikinci adım yok |
+
+## Oyun bağlantısı ve maç (S4–S6, kullanıcı isteği: "çevrim içiyi tamamla")
+
+| Belge | Uygulanan | Neden |
+|---|---|---|
+| Arayüzde "Parti" | "Takım" (kodda `party` kalır); maçtaki iki taraf "Mavi / Kırmızı taraf"; Alfa Timi "Tim" | Kullanıcı isteği. Üç kavram karışmasın |
+| S4 deneme odası poligonda | Deneme odası da maç arenasında (Depo) | Tek harita yeterli; botlar ve doğuş verisi zaten arenada |
+| Delta sıkıştırmalı anlık görüntü (§6.4) | Tam anlık görüntü, alıcıya özel, 32 Hz | En çok 16 oyuncu: 8 oyunculu maçta ~7 KB/s. Delta ve onay karmaşası kazancına değmez; protokol sürümüyle sonra eklenebilir |
+| Komut gelmezse son hareket tekrarlanır | Komut yoksa oyuncu o tick durur; komut bütçesi (kredi, en çok 8 tick) gecikmeyi telafi eder | Sunucu ile istemci tahmini aynı komut dizisini işler: tahmin hatası yalnız gerçek olaylarda (ölüm, doğuş) olur. Hızlandırma hilesi bütçeyle sınırlı |
+| Atış sunucuda tetik tuşundan zamanlanır | İstemci atış anını ve nişan yönünü komutla bildirir; sunucu tempo, şarjör, şarjör değiştirme ve silah değiştirme süresini doğrular, saçılmayı kendi tohumuyla üretir | Silah durum makinesi (pompalı, seri atış, nişan) istemcide zaten var. Sunucu yalnız sınırları uygular, isabeti ve hasarı kendi hesaplar ("nospread" önlemi korunur) |
+| Gecikme telafisi istemci zamanından | Komut, oyuncunun gördüğü sunucu zamanını (`viewTick`) taşır; en çok 200 ms geri sarılır | Belgeyle aynı ilke; üst sınır yüksek pingde haksız isabeti keser |
+| Çevrim içi zırh, el bombası, roket | Yok: herkes 100 can, ana + yan silah | Eşit koşul ve sunucu basitliği. El bombası için sunucuda fizik gerekir (sonraki faz) |
+| Bot doldurma 45 sn sonra (M7) | Maç hemen başlar, eksik yerler baştan yapay zekâ; insan gelince o taraftan bot çıkar. Kuyrukta tek başına `searchSec` (8 sn) beklenir | Oyuncu boş haritada beklemesin; "oyuncu eksikse yapay zekâ oynar" isteği |
+| Co-op: kampanya haritalarında Alfa Timi ile | Şimdilik "Co-op: Yapay Zekâya Karşı" (takım mavi tarafta, karşıda 6 bot) | Görev yapay zekâsını sunucuya taşımak büyük iş; arkadaşlarla birlikte yapay zekâya karşı oynama bugün hazır |
+| Rekabetçi (bomba, raunt ekonomisi) | Yakında | Bu turun kapsamı dışında |
+| Uzak oyuncu modeli belgedeki gibi kendi rengi | Aynı taraf mavi dost görünümü, rakip düşman üniforması; rakibin adı yalnız nişangâhtayken | Tek oyunculudaki dost/düşman görsel dili korunur |

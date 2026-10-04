@@ -443,8 +443,13 @@ export class Menus {
   }
 
   showPause() {
-    const o = this.game.mission?.currentText();
-    $('pauseObj').textContent = o?.title || 'Duraklatıldı';
+    const g = this.game;
+    const o = g.mission?.currentText();
+    // Çevrim içinde oyun durmaz (maç sürer): kontrol noktası yok, çıkış "Maçtan ayrıl"
+    const online = !!g.net;
+    $('pauseObj').textContent = online ? g.matchTitle() : o?.title || 'Duraklatıldı';
+    $('btnRestartCp').hidden = online;
+    $('btnQuit').textContent = online ? 'Maçtan ayrıl' : 'Ana menüye dön';
     this.stack = [];
     this.show('pauseScreen', false);
   }

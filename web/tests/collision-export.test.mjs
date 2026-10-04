@@ -5,13 +5,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CollisionWorld, collisionHash } from '../shared/sim/collision.js';
 import { buildMission } from '../src/level.js';
-import { MAP_BUILDERS } from '../src/maps/index.js';
+import { MAP_BUILDERS, ARENA_BUILDERS } from '../src/maps/index.js';
 
-for (const id of Object.keys(MAP_BUILDERS)) {
+for (const id of [...Object.keys(MAP_BUILDERS), ...Object.keys(ARENA_BUILDERS)]) {
   test(`${id}: çarpışma dosyası güncel ve yüklenince aynı dünyayı kurar`, () => {
     const file = JSON.parse(readFileSync(new URL(`../shared/maps/${id}.collision.json`, import.meta.url), 'utf8'));
     const W = new CollisionWorld();
-    buildMission(W, id);
+    if (ARENA_BUILDERS[id]) ARENA_BUILDERS[id](W);
+    else buildMission(W, id);
     const now = W.toJSON(id);
     assert.equal(file.hash, now.hash, `${id} eski: node tools/export-collision.mjs`);
     assert.equal(collisionHash(file), file.hash, 'dosyanın özeti içeriğiyle uyumlu');

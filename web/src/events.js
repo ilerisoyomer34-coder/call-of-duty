@@ -27,4 +27,14 @@ export const EV = Object.freeze({
   FRIENDS_CHANGED: 'FRIENDS_CHANGED', // { friends, incoming, outgoing }
   NOTIFICATION: 'NOTIFICATION', // { id, kind, from, payload }
   PARTY_CHANGED: 'PARTY_CHANGED', // { party | null }
+  // Çevrim içi maç (S4–S6)
+  QUEUE_CHANGED: 'QUEUE_CHANGED', // { queue: { mode, since } | null }
+  MATCH_FOUND: 'MATCH_FOUND', // { room, kind: 'sandbox'|'match', mode, map, side, by? }
+  NET_ROSTER: 'NET_ROSTER', // [{ slot, id, name, tag, side, flags, kills, deaths, score, ping, party }]
+  NET_PHASE: 'NET_PHASE', // { phase, prev }
+  NET_KILL: 'NET_KILL', // { killer, victim, weapon, head, mine, me }
+  NET_SPAWN: 'NET_SPAWN', // { pos, yaw } (yerel oyuncu)
+  NET_DEATH: 'NET_DEATH', // { killer } (yerel oyuncu)
+  NET_ROUND: 'NET_ROUND', // { code: 1 maç başladı | 2 maç bitti, value }
+  NET_MATCH_END: 'NET_MATCH_END', // { winner, reason, scoreA, scoreB }
 });

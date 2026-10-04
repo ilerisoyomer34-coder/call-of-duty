@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
+import { ARENA_BUILDERS } from './maps/index.js';
 import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat } from './models.js';
 import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
@@ -371,7 +372,9 @@ class AAGun {
 export class Mission {
   constructor(game, mode, level = LEVELS[LEVELS.length - 1]) {
     this.game = game;
-    this.mode = mode; // 'mission' | 'range'
+    this.mode = mode; // 'mission' | 'range' | 'online'
+    // Çevrim içi: sunucunun bildirdiği arena (data/arenas.json)
+    this.arenaId = mode === 'online' ? game.net?.welcome?.map || 'depo' : null;
     this.level = level;
     this.endT = 0;
     this.interactables = [];
@@ -396,16 +399,17 @@ export class Mission {
   build() {
     const g = this.game;
     const W = g.world;
-    this.data = this.mode === 'range' ? buildRange(W) : buildMission(W, this.level.map);
+    if (this.mode === 'online') this.data = (ARENA_BUILDERS[this.arenaId] || ARENA_BUILDERS.depo)(W);
+    else this.data = this.mode === 'range' ? buildRange(W) : buildMission(W, this.level.map);
     // Haritanın kendi çarpıştırıcıları (shared/maps/<harita>.collision.json ile aynı olmalı; sonrakiler görevin)
     W.mapColliders = W.colliders.length;
     const D = this.data;
     // Ağır makineli mevzileri: seviyenin istediği kadarı, haritanın listesinden sırayla (kum torbaları dünyaya
     // birleştirilmeden önce eklenmeli)
-    const nestDefs = this.mode === 'range' ? [] : (D.hmg || []).slice(0, this.level.enemies?.hmg || 0);
+    const nestDefs = this.mode !== 'mission' ? [] : (D.hmg || []).slice(0, this.level.enemies?.hmg || 0);
     for (const n of nestDefs) nestRing(W, n.pos.x, n.pos.z, n.yaw);
     // Tanklar: çarpıştırıcıları gezinme ağından önce eklenmeli (askerler etrafından dolansın)
-    const tankDefs = this.mode === 'range' ? [] : (D.tanks || []).slice(0, this.level.enemies?.tanks || 0);
+    const tankDefs = this.mode !== 'mission' ? [] : (D.tanks || []).slice(0, this.level.enemies?.tanks || 0);
     this.tanks = tankDefs.map((t, i) => new Tank(g, t, i));
     W.finalize();
     g.buildNav();
@@ -430,6 +434,10 @@ export class Mission {
     }
     if (this.mode === 'range') {
       this.buildRangeMode();
+      return;
+    }
+    if (this.mode === 'online') {
+      this.buildOnlineMode();
       return;
     }
     // Hazır helikopter modeli sahnenin altında bekler: gölgelendiricileri açılışta derlenir, geldiğinde takılma olmaz
@@ -632,6 +640,14 @@ export class Mission {
     g.events.emit('objective', this.currentText());
     this.radio('POLİGON', 'Dokuz silahın hepsi hazır: 1–9 tuşlarıyla değiştir. B ile atış modunu, dürbünde Shift ile nefesini tut.', 1);
     this.radio('POLİGON', 'Turuncu mankenler hasar sayısını gösterir ve 3 saniyede yeniden kalkar.', 6);
+  }
+
+  // Çevrim içi maç: hedef ve telsiz yok; oyuncu sunucunun doğuş olayıyla yerleşir (o ana dek arenanın ortası)
+  buildOnlineMode() {
+    const g = this.game;
+    g.player.reset(g.world.newVec(0, 0, 0), 0);
+    this.objectives = [];
+    this.objIdx = 0;
   }
 
   get current() {
@@ -903,6 +919,7 @@ export class Mission {
   update(dt) {
     const g = this.game;
     this.time += dt;
+    if (this.mode === 'online') return;
     // Telsiz sırası: ilk hazır satır; gecikmeli (zamanı gelmemiş) karargâh satırı arkasındaki onayları bekletmez
     const ri = this.radioQueue.length ? this.radioQueue.findIndex((q) => q.at <= this.time && (this.radioT <= 0 || q.urgent)) : -1;
     if (ri >= 0) {

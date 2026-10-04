@@ -100,7 +100,9 @@ systemctl reload caddy
 curl -s https://203-0-113-7.sslip.io/api/health
 ```
 
-Caddy sertifikayı ilk istekte alır ve kendisi yeniler. WebSocket (`/ws`) için ek ayar gerekmez.
+Caddy sertifikayı ilk istekte alır ve kendisi yeniler. WebSocket'ler (`/ws` sosyal, `/game` oyun odası) için ek ayar gerekmez.
+
+Oyun odaları sunucuda 64 Hz koşar (8 kişilik botlu maç tek çekirdekte tick başına ~0,5 ms). `SERVER_SECRET` boşsa mermi saçılması tohumunun gizli parçası her açılışta rastgele üretilir; sabit istenirse uzun rastgele bir değer verilir (git'e girmez). Derleme özeti denetimi açıktır: sunucu ile Pages'teki oyun aynı commit'ten olmalı, değilse oyuncu "Oyun güncellendi" görür. Sunucuyu güncellerken `git pull` sonrası `systemctl restart demirsafak` yeterli.
 
 ## 6. Oyunu sunucuya bağlama
 

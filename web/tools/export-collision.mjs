@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CollisionWorld } from '../shared/sim/collision.js';
 import { buildMission } from '../src/level.js';
-import { MAP_BUILDERS } from '../src/maps/index.js';
+import { MAP_BUILDERS, ARENA_BUILDERS } from '../src/maps/index.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'shared/maps');
@@ -17,12 +17,14 @@ const check = process.argv.includes('--check');
 
 export function exportMap(id) {
   const W = new CollisionWorld();
-  buildMission(W, id);
+  if (ARENA_BUILDERS[id]) ARENA_BUILDERS[id](W);
+  else buildMission(W, id);
   return W.toJSON(id);
 }
 
 let stale = 0;
-for (const id of Object.keys(MAP_BUILDERS)) {
+// Görev haritaları ve çevrim içi maç arenaları (sunucu arenayı bu dosyadan kurar)
+for (const id of [...Object.keys(MAP_BUILDERS), ...Object.keys(ARENA_BUILDERS)]) {
   const data = exportMap(id);
   const file = join(outDir, `${id}.collision.json`);
   const old = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;

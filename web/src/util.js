@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { inCone } from '../shared/sim/rng.js';
 // Saf matematik paylaşılan simülasyonda (sunucu da aynısını kullanır)
 export { DEG, clamp, lerp, smoothstep, damp, quantize } from '../shared/sim/math.js';
+export { MinHeap } from '../shared/sim/heap.js';
 
 export const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 export const randSign = () => (Math.random() < 0.5 ? -1 : 1);
@@ -75,65 +76,6 @@ export class Spring {
   reset() {
     this.x = 0;
     this.v = 0;
-  }
-}
-
-// Basit ikili yığın (A* için).
-export class MinHeap {
-  constructor() {
-    this.items = [];
-    this.keys = [];
-  }
-  get size() {
-    return this.items.length;
-  }
-  push(item, key) {
-    const it = this.items;
-    const ks = this.keys;
-    let i = it.length;
-    it.push(item);
-    ks.push(key);
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (ks[p] <= key) break;
-      it[i] = it[p];
-      ks[i] = ks[p];
-      i = p;
-    }
-    it[i] = item;
-    ks[i] = key;
-  }
-  pop() {
-    const it = this.items;
-    const ks = this.keys;
-    const top = it[0];
-    const lastItem = it.pop();
-    const lastKey = ks.pop();
-    if (it.length > 0) {
-      let i = 0;
-      const n = it.length;
-      for (;;) {
-        const l = i * 2 + 1;
-        const r = l + 1;
-        let m = i;
-        let mk = lastKey;
-        if (l < n && ks[l] < mk) {
-          m = l;
-          mk = ks[l];
-        }
-        if (r < n && ks[r] < mk) {
-          m = r;
-          mk = ks[r];
-        }
-        if (m === i) break;
-        it[i] = it[m];
-        ks[i] = ks[m];
-        i = m;
-      }
-      it[i] = lastItem;
-      ks[i] = lastKey;
-    }
-    return top;
   }
 }
 

@@ -1,4 +1,4 @@
-// Çevrim içi sosyal katman (çok oyunculu S2–S3): kimlik, arkadaşlar, istekler, bildirimler, parti ve davet.
+// Çevrim içi sosyal katman (çok oyunculu S2–S3): kimlik, arkadaşlar, istekler, bildirimler, takım (kodda "party") ve davet.
 // REST (fetch) + tek WebSocket. Sunucu adresi: ?server= adres parametresi › Ayarlar › config.js NET.serverUrl.
 // Adres yoksa durum 'off' (canlı sitede sunucu kurulana kadar). Bağlantı koparsa NET.reconnectSec aralıklarıyla
 // yeniden denenir. Her değişiklik game.events'e (EV.*) yayılır; ekranlar (onlineScreen.js) yalnız olayları dinler.
@@ -25,13 +25,15 @@ export const ERRORS = {
   no_request: 'İstek artık geçerli değil',
   not_friend: 'Yalnız arkadaşlarını davet edebilirsin',
   offline: 'Arkadaşın çevrim dışı',
-  already_member: 'Zaten partide',
-  party_full: 'Parti dolu',
+  already_member: 'Zaten takımda',
+  party_full: 'Takım dolu',
   already_invited: 'Davet zaten gönderildi',
   no_invite: 'Davet artık geçerli değil',
   expired: 'Davetin süresi doldu',
-  not_leader: 'Bunu yalnız parti lideri yapabilir',
-  bad_mode: 'Bilinmeyen mod',
+  not_leader: 'Bunu yalnız takım lideri yapabilir',
+  bad_mode: 'Bu mod henüz açık değil',
+  party_too_big: 'Takım bu mod için fazla kalabalık',
+  no_party: 'Takım yok',
   network: 'Sunucuya ulaşılamadı',
   server: 'Sunucu hatası',
 };
@@ -48,8 +50,9 @@ export class SocialClient {
     this.pingTimer = null;
     this.lists = { friends: [], incoming: [], outgoing: [] };
     this.notifications = [];
-    this.invites = []; // gelen parti davetleri { id, from, mode, expires }
+    this.invites = []; // gelen takım davetleri { id, from, mode, expires }
     this.party = null;
+    this.queue = null; // maç arama { mode, since } (takımın tamamı için)
     this.presence = 'menu';
     this.stopped = true;
     game.events.on(EV.PROFILE_CHANGED, (p) => this.onProfileChanged(p));
@@ -211,6 +214,7 @@ export class SocialClient {
         this.lists = { friends: m.friends || [], incoming: m.incoming || [], outgoing: m.outgoing || [] };
         this.notifications = m.notifications || [];
         this.party = m.party || null;
+        this.queue = m.queue || null;
         // Sunucudaki ad/etiket esas (başka cihazdan değişmiş olabilir)
         if (m.me && (m.me.tag !== this.profile.tag || m.me.name !== this.profile.name)) {
           this.game.save.update((d) => Object.assign(d.profile, { name: m.me.name, tag: m.me.tag, id: m.me.id }), { now: true });
@@ -253,6 +257,16 @@ export class SocialClient {
       case 'party_invite_declined':
         ev.emit(EV.NOTIFICATION, { id: `pd${Date.now()}`, kind: 'party_invite_declined', from: m.by, live: true });
         break;
+      case 'queue':
+        this.queue = m.queue || null;
+        ev.emit(EV.QUEUE_CHANGED, { queue: this.queue });
+        break;
+      case 'match':
+        // Eşleşme ya da takım liderinin açtığı deneme odası: oyun katılır (menüde) ya da kart gösterir
+        this.queue = null;
+        ev.emit(EV.QUEUE_CHANGED, { queue: null });
+        ev.emit(EV.MATCH_FOUND, m.match);
+        break;
       default:
         break;
     }
@@ -262,6 +276,7 @@ export class SocialClient {
     const ev = this.game.events;
     ev.emit(EV.FRIENDS_CHANGED, this.lists);
     ev.emit(EV.PARTY_CHANGED, { party: this.party });
+    ev.emit(EV.QUEUE_CHANGED, { queue: this.queue });
     ev.emit(EV.NOTIFICATION, null);
   }
 
@@ -320,7 +335,7 @@ export class SocialClient {
     return r;
   }
 
-  // Parti görünümü: aynı partinin daha eski sürümü (geç işlenen HTTP yanıtı) yenisinin üstüne yazılmaz
+  // Takım görünümü: aynı takımın daha eski sürümü (geç işlenen HTTP yanıtı) yenisinin üstüne yazılmaz
   applyParty(party) {
     const cur = this.party;
     if (party && cur && party.id === cur.id && (party.rev ?? 0) < (cur.rev ?? 0)) return;
@@ -335,6 +350,28 @@ export class SocialClient {
   }
   setMode(mode) {
     return this.fetch('POST', '/api/party/mode', { mode });
+  }
+
+  // --- Maç (S4–S6) ---
+  // Deneme odası: lider (ya da takımsız oyuncu) açar; takım üyelerine sunucu bildirir, açan kendisi katılır
+  async openSandbox() {
+    const r = await this.fetch('POST', '/api/party/sandbox', {});
+    this.game.events.emit(EV.MATCH_FOUND, r.match);
+    return r;
+  }
+  async queueMatch(mode) {
+    const r = await this.fetch('POST', '/api/match/queue', { mode });
+    if (r.queue && !this.queue) {
+      this.queue = r.queue;
+      this.game.events.emit(EV.QUEUE_CHANGED, { queue: this.queue });
+    }
+    return r;
+  }
+  async cancelQueue() {
+    const r = await this.fetch('POST', '/api/match/cancel', {});
+    this.queue = null;
+    this.game.events.emit(EV.QUEUE_CHANGED, { queue: null });
+    return r;
   }
 
   // Rozet sayısı: yanıt bekleyen istekler + geçerli davetler + okunmamış bildirimler

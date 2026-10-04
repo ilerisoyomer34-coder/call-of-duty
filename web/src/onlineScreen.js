@@ -1,10 +1,11 @@
-// Çevrim içi ekranı (çok oyunculu S2–S3): arkadaşlar, oyuncu arama, istekler, parti paneli ve oyunun her yerinde
-// görünen bildirim kartları (arkadaşlık isteği, kabul, parti daveti). Veri social.js'ten, olaylarla gelir.
+// Çevrim içi ekranı (çok oyunculu S2–S3): arkadaşlar, oyuncu arama, istekler, takım paneli ve oyunun her yerinde
+// görünen bildirim kartları (arkadaşlık isteği, kabul, takım daveti). Veri social.js'ten, olaylarla gelir.
 // Kullanıcı metni hep textContent ile yazılır (adlar sunucudan gelir, HTML olarak yorumlanmaz).
 import { NET } from './config.js';
 import { EV } from './events.js';
 import { displayName } from '../shared/names.js';
 import { errorText } from './net/social.js';
+import { saveSettings } from './settings.js';
 import MODES from './data/modes.json' with { type: 'json' };
 
 const $ = (id) => document.getElementById(id);
@@ -61,8 +62,16 @@ export class OnlineScreen {
       this.searchTimer = setTimeout(() => this.search(false), NET.searchDebounceMs);
     });
     $('btnOnRetry').addEventListener('click', () => this.social.start());
-    $('btnPartyLeave').addEventListener('click', () => this.act(() => this.social.leaveParty(), 'Partiden ayrıldın'));
+    $('btnPartyLeave').addEventListener('click', () => this.act(() => this.social.leaveParty(), 'Takımdan ayrıldın'));
+    // Maç ara / iptal: takımda lider arar (üyeler iptal edebilir); takımsız oyuncu kendi seçtiği modla
+    $('btnPartyFind').addEventListener('click', () => {
+      const S = this.social;
+      if (S.queue) this.act(() => S.cancelQueue(), 'Arama iptal edildi');
+      else this.act(() => S.queueMatch(this.currentMode()));
+    });
+    $('btnSandbox').addEventListener('click', () => this.act(() => this.social.openSandbox()));
     const ev = game.events;
+    ev.on(EV.QUEUE_CHANGED, () => this.renderParty());
     ev.on(EV.SOCIAL_STATUS, () => this.render());
     ev.on(EV.FRIENDS_CHANGED, () => this.render());
     ev.on(EV.PARTY_CHANGED, (e) => this.onParty(e?.party));
@@ -73,6 +82,10 @@ export class OnlineScreen {
       if (this.isOpen) this.renderRequests();
     });
     this.render();
+    // Kuyruk süresi saniyede bir (yalnız arama sürerken)
+    setInterval(() => {
+      if (this.social.queue && !$('partyPanel').hidden) this.renderQueue();
+    }, 1000);
   }
 
   get isOpen() {
@@ -149,7 +162,7 @@ export class OnlineScreen {
     $('onOffText').textContent = text;
     $('btnOnRetry').hidden = !retry;
     const sub = $('btnOnlineSub');
-    if (sub) sub.textContent = st === 'online' ? `${S.lists.friends.filter((f) => f.status !== 'offline').length} arkadaş çevrim içi` : 'Arkadaşlar, istekler ve parti';
+    if (sub) sub.textContent = st === 'online' ? `${S.lists.friends.filter((f) => f.status !== 'offline').length} arkadaş çevrim içi` : 'Arkadaşlar, istekler ve takım';
   }
 
   renderBadges() {
@@ -175,8 +188,8 @@ export class OnlineScreen {
     const inParty = new Set(S.party?.members.map((m) => m.id) || []);
     for (const f of list) {
       const acts = [];
-      if (f.status !== 'offline' && !inParty.has(f.id)) acts.push(button('Davet et', () => this.act(() => this.social.invite(f.id), `${f.name} partiye davet edildi`)));
-      if (inParty.has(f.id)) acts.push(el('span', 'st', 'Partide'));
+      if (f.status !== 'offline' && !inParty.has(f.id)) acts.push(button('Davet et', () => this.act(() => this.social.invite(f.id), `${f.name} takıma davet edildi`)));
+      if (inParty.has(f.id)) acts.push(el('span', 'st', 'Takımda'));
       const sure = this.confirmRemove === f.id;
       acts.push(
         button(sure ? 'Emin misin?' : 'Çıkar', () => {
@@ -242,7 +255,7 @@ export class OnlineScreen {
     const now = Date.now();
     const invites = S.invites.filter((x) => x.expires > now);
     for (const inv of invites) {
-      box.append(row({ ...inv.from, status: 'menu' }, `Parti daveti · ${modeName(inv.mode)}`, [button('Katıl', () => this.act(() => S.respondInvite(inv.id, true), 'Partiye katıldın'), 'btn small primary'), button('Reddet', () => this.act(() => S.respondInvite(inv.id, false)))]));
+      box.append(row({ ...inv.from, status: 'menu' }, `Takım daveti · ${modeName(inv.mode)}`, [button('Katıl', () => this.act(() => S.respondInvite(inv.id, true), 'Takıma katıldın'), 'btn small primary'), button('Reddet', () => this.act(() => S.respondInvite(inv.id, false)))]));
     }
     for (const p of S.lists.incoming) {
       box.append(row({ ...p, status: 'offline' }, 'Arkadaşlık isteği', [button('Kabul et', () => this.act(() => S.respond(p.id, true), `${p.name} ile artık arkadaşsınız`), 'btn small primary'), button('Reddet', () => this.act(() => S.respond(p.id, false), 'İstek reddedildi'))]));
@@ -265,40 +278,75 @@ export class OnlineScreen {
     this.renderFriends();
   }
 
+  // Takımda mod liderin seçimi; takımsızken oyuncunun kendi seçimi (ayar)
+  currentMode() {
+    const S = this.social;
+    if (S.party) return S.party.mode;
+    const m = this.game.settings.onlineMode;
+    return MODES.modes.some((x) => x.id === m && x.available) ? m : MODES.modes.find((x) => x.available)?.id || MODES.modes[0].id;
+  }
+
+  setSoloMode(id) {
+    this.game.settings.onlineMode = id;
+    saveSettings(this.game.settings);
+    this.renderParty();
+  }
+
+  // Oyun paneli: çevrim içiyken hep görünür. Takımdaysa üyeler, modu lider seçer; takımsızken tek başına
   renderParty() {
     const S = this.social;
-    const p = S.status === 'online' ? S.party : null;
-    $('partyPanel').hidden = !p;
-    if (!p) return;
-    const leader = p.leader === S.myId;
-    $('ppCount').textContent = `${p.members.length} kişi · ${modeName(p.mode)}`;
+    const online = S.status === 'online';
+    $('partyPanel').hidden = !online;
+    if (!online) return;
+    const p = S.party;
+    const leader = !p || p.leader === S.myId;
+    const modeId = this.currentMode();
+    $('ppTitle').textContent = p ? 'Takım' : 'Oyna';
+    $('ppCount').textContent = p ? `${p.members.length} kişi · ${modeName(p.mode)}` : `Tek başına · ${modeName(modeId)}`;
     const box = $('ppMembers');
     box.textContent = '';
-    for (const m of p.members) {
-      const acts = [];
-      if (m.id === p.leader) acts.push(el('span', 'st', '★ Lider'));
-      if (leader && m.id !== S.myId) acts.push(button('Çıkar', () => this.act(() => S.kick(m.id))));
-      box.append(row(m, m.id === S.myId ? 'sen' : STATUS_TEXT[m.status] || '', acts));
+    if (p) {
+      for (const m of p.members) {
+        const acts = [];
+        if (m.id === p.leader) acts.push(el('span', 'st', '★ Lider'));
+        if (leader && m.id !== S.myId) acts.push(button('Çıkar', () => this.act(() => S.kick(m.id))));
+        box.append(row(m, m.id === S.myId ? 'sen' : STATUS_TEXT[m.status] || '', acts));
+      }
     }
+    box.hidden = !p;
     const modes = $('ppModes');
     modes.textContent = '';
     for (const md of MODES.modes) {
-      const b = el('button', `ppMode${md.id === p.mode ? ' on' : ''}`);
+      const b = el('button', `ppMode${md.id === modeId ? ' on' : ''}`);
       b.type = 'button';
+      b.dataset.mode = md.id;
       b.setAttribute('role', 'radio');
-      b.setAttribute('aria-checked', String(md.id === p.mode));
+      b.setAttribute('aria-checked', String(md.id === modeId));
       b.append(document.createTextNode(md.name), el('small', '', `${md.players} · ${md.available ? 'hazır' : 'yakında'}`));
-      b.disabled = !leader;
-      b.addEventListener('click', () => this.act(() => S.setMode(md.id)));
+      b.disabled = !leader || !!S.queue;
+      b.addEventListener('click', () => (p ? this.act(() => S.setMode(md.id)) : this.setSoloMode(md.id)));
       modes.append(b);
     }
-    const mode = MODES.modes.find((m) => m.id === p.mode);
-    $('btnPartyFind').disabled = !(leader && mode?.available);
+    const mode = MODES.modes.find((m) => m.id === modeId);
+    const find = $('btnPartyFind');
+    find.textContent = S.queue ? 'İptal' : 'Maç ara';
+    find.disabled = S.queue ? false : !(leader && mode?.available);
+    $('btnSandbox').disabled = !leader || !!S.queue;
+    $('btnPartyLeave').hidden = !p;
+    this.renderQueue();
     $('ppNote').textContent = mode?.available
       ? leader
-        ? '"Maç ara": karışık oyuncularla eşleşirsiniz; eksik yerleri yapay zekâ doldurur.'
-        : 'Maçı parti lideri başlatır.'
-      : `${mode?.name || 'Bu mod'} çok yakında: mod açılınca "Maç ara" ile partiyle birlikte karışık oyunculara karşı oynayacaksınız; eksik yerleri yapay zekâ dolduracak.`;
+        ? `"Maç ara": karışık oyuncularla eşleşirsin${p ? 'iz; takımın aynı tarafta' : ''}, eksik yerleri yapay zekâ doldurur. "Deneme odası": ${p ? 'takımınla' : 'tek başına'} serbest atış alanı.`
+        : 'Maçı ve deneme odasını takım lideri başlatır.'
+      : `${mode?.name || 'Bu mod'} çok yakında. Şimdilik Takım Ölüm Maçı, Ölüm Maçı ve Co-op hazır.`;
+  }
+
+  renderQueue() {
+    const q = this.social.queue;
+    $('ppQueue').hidden = !q;
+    if (!q) return;
+    const sec = Math.max(0, Math.floor((Date.now() - q.since) / 1000));
+    $('ppQueueText').textContent = `Maç aranıyor · ${modeName(q.mode)} · ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   }
 
   // --- Bildirim kartları (menüde ve görevde) ---
@@ -334,11 +382,11 @@ export class OnlineScreen {
         text.append(strong(who), document.createTextNode(' arkadaşlık isteğini reddetti'));
         break;
       case 'party_invite':
-        text.append(strong(who), document.createTextNode(` seni partiye çağırıyor · ${modeName(n.payload?.mode)}`));
+        text.append(strong(who), document.createTextNode(` seni takımına çağırıyor · ${modeName(n.payload?.mode)}`));
         acts.append(
           button('Katıl', async () => {
             close();
-            await this.act(() => S.respondInvite(n.payload.id, true), 'Partiye katıldın');
+            await this.act(() => S.respondInvite(n.payload.id, true), 'Takıma katıldın');
           }, 'btn small primary'),
           button('Reddet', async () => {
             close();
@@ -348,11 +396,23 @@ export class OnlineScreen {
         action = true;
         break;
       case 'party_invite_declined':
-        text.append(strong(who), document.createTextNode(' parti davetini reddetti'));
+        text.append(strong(who), document.createTextNode(' takım davetini reddetti'));
         break;
       case 'party_joined':
-        text.append(document.createTextNode('Partiye katıldın · '), strong(modeName(n.payload?.mode)));
+        text.append(document.createTextNode('Takıma katıldın · '), strong(modeName(n.payload?.mode)));
         break;
+      case 'match_found': {
+        const m = n.payload;
+        text.append(strong(m.kind === 'sandbox' ? 'Deneme odası açıldı' : 'Maç bulundu'), document.createTextNode(` · ${m.kind === 'sandbox' ? 'takımın bekliyor' : modeName(m.mode)}`));
+        acts.append(
+          button('Katıl', () => {
+            close();
+            this.game.joinMatch(m);
+          }, 'btn small primary')
+        );
+        action = true;
+        break;
+      }
       default:
         return;
     }

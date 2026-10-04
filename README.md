@@ -142,12 +142,30 @@ Plan `Docs/MULTIPLAYER_PROMPT.md` (fazlar M0–M13). Kararlar ve belgeden sapmal
 Kısaca: otoriter Node sunucusu VPS'te koşacak; çok oyunculu PC'de ve telefonda oynanacak; mod sırası Takım Ölüm Maçı / Ölüm Maçı → Rekabetçi → Co-op. Tek oyunculu kampanya olduğu gibi kalıyor.
 
 - **Oyuncu adı (S1):** ilk açılışta adını girersin; her oyunda o ad kullanılır (telsizde, görev raporunda, çevrim içi). Menüdeki "değiştir" ya da Ayarlar'dan değişir.
-- **Arkadaşlar ve parti (S2–S3):** ana menüde **Çevrim içi**.
+- **Arkadaşlar ve takım (S2–S3):** ana menüde **Çevrim içi**.
   - **Oyuncu ara:** adıyla (gerekirse `Ad#1234` etiketiyle) bulup **İstek gönder**.
   - **Bildirim:** karşı tarafa oyunda kart olarak düşer, **Kabul et / Reddet** ile yanıtlar. Oyun kapalıyken gelenler açılışta **İstekler** sekmesinde bekler.
   - **Durum:** arkadaşının çevrim içi mi, menüde mi, oyunda mı olduğunu görürsün.
-  - **Parti:** çevrim içi arkadaşını **Davet et** ile partiye çağırırsın; parti lideri modu seçer.
-  - **Maç ara:** modlar oynanabilir olunca (S6) karışık oyuncularla eşleşir, eksik yerleri yapay zekâ doldurur.
+  - **Takım:** çevrim içi arkadaşını **Davet et** ile takımına çağırırsın; takım lideri modu seçer.
+- **Çevrim içi maç (S4–S6):** Çevrim içi ekranındaki **Oyna / Takım** panelinden.
+  - **Modlar:**
+    - Takım Ölüm Maçı (4v4);
+    - Ölüm Maçı (6 kişi);
+    - Co-op: Yapay Zekâya Karşı (takımın mavi tarafta, karşıda 6 yapay zekâ).
+    - Rekabetçi yakında.
+  - **Maç ara:** takımınla birlikte (aynı tarafta) karışık oyuncularla eşleşirsin; eksik yerleri yapay zekâ doldurur, gerçek oyuncu gelince bot çıkar. Takımsız da arayabilirsin.
+  - **Deneme odası:** takımınla botsuz, süresiz serbest alan.
+  - **Maçta:**
+    - skor çubuğu ve süre, öldürme akışı;
+    - **Tab** (telefonda skora dokun) puan tablosu, YZ rozetleri;
+    - ölünce kim vurdu ve doğuşa kalan süre;
+    - maç sonunda kazanan.
+  - **Sunucu otoriter:**
+    - hareket istemcide tahmin edilir, sunucuyla uzlaştırılır;
+    - isabet sunucuda, gecikme telafisiyle (en çok 200 ms) hesaplanır;
+    - uzak oyuncular aralanarak çizilir.
+  - **Ağ ölçümü:** konsolda `net_graph 1|2`; gecikme denemesi `net_profile orta` ya da adreste `?netsim=orta`.
+  - Ayrıntı `Docs/NETCODE.md`, bayt düzeni `Docs/PROTOCOL.md`.
 - **Sunucu:** `web/server/` (Node 22, `ws`, yerleşik SQLite). Yerelde `cd web && npm run server`, oyunda adresin sonuna `?server=http://localhost:8790`. VPS'e kurulum: `Docs/DEPLOY.md`. Sunucu kurulana kadar canlı sitede çevrim içi ekranı "Sunucu henüz kurulmadı" der.
 - **M1 (tamamlandı): paylaşılan simülasyon çekirdeği.**
   - Hareket, çarpışma, silah kuralları ve vuruş kutuları `web/shared/sim/` altına taşındı. İstemci ve sunucu aynı dosyaları çalıştırır; DOM, THREE ve `Math.random` yok.
@@ -178,12 +196,16 @@ web/
     nav.js         ızgara navigasyonu, A*, siper noktaları
     world.js       görsel dünya: malzemeler, geometri birleştirme (çarpışma shared/sim/collision.js'ten)
     nameScreen.js  oyuncu adı ekranı
-    net/social.js  çevrim içi istemci (kimlik, arkadaşlar, bildirimler, parti)
+    net/social.js  çevrim içi istemci (kimlik, arkadaşlar, bildirimler, takım, maç arama)
+    net/gameClient.js  oyun bağlantısı: el sıkışma, saat, tahmin + uzlaştırma, sunucu olayları
+    net/remotePlayers.js  uzak oyuncular (aralama, asker modeli, ad etiketi)
+    net/matchHud.js  maç arayüzü: skor, öldürme akışı, puan tablosu, maç sonu
+    netGraph.js    net_graph paneli
     onlineScreen.js  çevrim içi ekranı ve bildirim kartları
     inputCmd.js    girdiden InputCmd (aç/kapa ayarları, analog hareket, zıplama basışı)
     hitboxDebug.js sv_showhitboxes: pozdan vuruş kutularının tel kafesi
     level.js       harita seçimi ve atış poligonu
-    maps/          görev haritaları (kizilkum, harbor, ruins, pass, refinery) ve ortak yapı takımı (kit.js)
+    maps/          görev haritaları (kizilkum, harbor, ruins, pass, refinery), çevrim içi arena (depo) ve ortak yapı takımı (kit.js)
     hmg.js         ağır makineli mevzi: silah modeli, zırh, susturma
     tank.js        düşman tankı: algı, taret, ana top ve eş eksenli makineli, zırh, C4, enkaz
     mission.js     görev akışı, kontrol noktaları, hedefler, uçaksavar, helikopterle tahliye ve kalkış sahnesi
@@ -193,10 +215,12 @@ web/
     pwa.js         yüklenebilir uygulama: hizmet çalışanı kaydı, yükleme düğmesi, güncelleme satırı
     pwa/           hizmet çalışanı şablonu (sw.js), simge çizimi (icon.svg) ve PNG simgeler
     shell.html     sayfa iskeleti ve arayüz stilleri
-  server/        çevrim içi sunucu: REST + WebSocket, arkadaşlar, bildirimler, parti (Docs/DEPLOY.md)
+  server/        çevrim içi sunucu: REST + WebSocket, arkadaşlar, bildirimler, takım (Docs/DEPLOY.md)
+    game/          oyun odası (64 Hz), maç simülasyonu, botlar, eşleştirme, /game bağlantısı
   shared/        istemci ve sunucunun ortak saf kodu (çok oyunculu; names.js oyuncu adı kuralları)
     constants.js   tick hızı (64), nicemleme adımları
-    sim/           math, rng (tohumlu), collision (CollisionWorld), movement (stepPlayer), weapon, hitboxes, replay
+    sim/           math, rng (tohumlu), collision (CollisionWorld), movement (stepPlayer), weapon, hitboxes, nav, replay
+    net/           protocol, codec (ikili), clock (saat eşitleme), netsim (ağ benzetimi), transport
     maps/          haritaların çarpışma verisi (*.collision.json; tools/export-collision.mjs üretir)
   assets/        silah GLB'leri, asker GLB'si ve dokuları, hazır araç modelleri (props/)
   tools/build.mjs  paketleme: tek dosya (dist/index.html), Artifact ve PWA (dist/pwa/)

@@ -24,5 +24,16 @@ export function loadConfig(env = process.env) {
     // Caddy arkasında gerçek istemci adresi X-Forwarded-For'dan (hız sınırı için)
     trustProxy: env.TRUST_PROXY === '1',
     quiet: env.QUIET === '1',
+    // Oyun odaları: mermi saçılması tohumunun gizli parçası (boşsa her açılışta rastgele; dışarı verilmez)
+    serverSecret: env.SERVER_SECRET || '',
+    // Derleme özeti denetimi (0: kapalı, yalnız geliştirmede)
+    buildCheck: env.BUILD_CHECK !== '0',
+    // Sunucu tarafı ağ benzetimi: lan | iyi | orta | kotu | uc (src/data/netsim.json)
+    netsim: env.NETSIM || '',
+    // Eşleştirme: tek başına bu kadar sn beklenince maç yapay zekâyla dolarak başlar (boşsa modes.json)
+    searchSec: env.MATCH_SEARCH_SEC ? Number(env.MATCH_SEARCH_SEC) : null,
+    // Testler: maç başı geri sayımı (sn) ve maç süresi kısaltılabilir
+    warmupSec: env.MATCH_WARMUP ? Number(env.MATCH_WARMUP) : null,
+    timeLimitSec: env.MATCH_TIME ? Number(env.MATCH_TIME) : null,
   };
 }

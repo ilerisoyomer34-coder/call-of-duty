@@ -2,6 +2,7 @@
 // Hatalar { error: kod } ile döner; istemci kodu Türkçe metne çevirir (src/net/social.js → ERRORS).
 import { validateName } from '../shared/names.js';
 import { LIMITS } from './limits.js';
+import { SIDE } from '../shared/net/protocol.js';
 
 class HttpError extends Error {
   constructor(status, code) {
@@ -41,7 +42,7 @@ function readBody(req) {
 
 const str = (v) => (typeof v === 'string' ? v : '');
 
-export function createApi({ store, hub, parties, limiter, config, log }) {
+export function createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker }) {
   const ipOf = (req) => (config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress || '?');
   const limit = (key, rule) => {
     if (!limiter.allow(key, rule.max, rule.windowMs)) throw new HttpError(429, 'rate_limited');
@@ -174,7 +175,30 @@ export function createApi({ store, hub, parties, limiter, config, log }) {
       if (r.error) throw new HttpError(409, r.error);
       return r;
     },
-    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size }),
+    // Deneme odası: takım lideri (ya da takımsız oyuncu) açar, takımın çevrim içi üyeleri davetli
+    'POST /api/party/sandbox': async (req) => {
+      const p = auth(req);
+      limit(`r:${p.id}`, LIMITS.room);
+      const party = parties.partyOf(p.id);
+      if (party && party.leader !== p.id) throw new HttpError(409, 'not_leader');
+      const members = party ? party.members.filter((m) => m === p.id || hub.isOnline(m)) : [p.id];
+      for (const m of members) matchmaker.cancel(m);
+      const room = rooms.create('sandbox', 'sandbox');
+      room.reserve(members, party ? party.id : '', SIDE.NONE);
+      const match = { room: room.code, kind: 'sandbox', mode: 'sandbox', map: room.mapId, side: SIDE.NONE, by: me(p) };
+      for (const m of members) if (m !== p.id) hub.send(m, { t: 'match', match });
+      return { match };
+    },
+    'POST /api/match/queue': async (req, body) => {
+      const p = auth(req);
+      limit(`m:${p.id}`, LIMITS.room);
+      const mode = str(body.mode) || parties.partyOf(p.id)?.mode || '';
+      const r = matchmaker.enqueue(p.id, mode);
+      if (r.error) throw new HttpError(409, r.error);
+      return r;
+    },
+    'POST /api/match/cancel': async (req) => matchmaker.cancel(auth(req).id),
+    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size, rooms: rooms.rooms.size }),
   };
 
   const originOk = (origin) => {

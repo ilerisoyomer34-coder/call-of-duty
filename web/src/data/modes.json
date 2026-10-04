@@ -1,9 +1,22 @@
 {
-  "_": "Çevrim içi oyun modları (çok oyunculu §8.1). available: oynanabilir mi (fazlar ilerledikçe açılır: S6 TDM/DM, S7 Rekabetçi ve Co-op). Sıra: parti panelindeki ve hızlı maçtaki sıra; ilk mod yeni partinin varsayılanı.",
+  "_": "Çevrim içi oyun modları (çok oyunculu §8.1). available: oynanabilir mi. Sıra: takım panelindeki ve hızlı maçtaki sıra; ilk mod yeni takımın varsayılanı. (Kodda \"party\": arayüzde \"Takım\"; maçtaki iki taraf \"Mavi / Kırmızı taraf\".) rules: sides 2 = iki taraf, 0 = herkes kendine; perSide: taraf başına oyuncu [mavi, kırmızı]; max: herkes kendine modunda oyuncu sayısı; humanSides: insanların konabileceği taraflar; bots: fill = eksik yer yapay zekâyla dolar; scoreLimit: öldürme sınırı (0 = yok); timeLimit sn (0 = yok); respawn sn; warmup sn (başlangıç geri sayımı, hasar yok); botSkill 0–1.",
   "modes": [
-    { "id": "tdm", "name": "Takım Ölüm Maçı", "short": "TÖM", "desc": "İki takım, süre ya da skor sınırı; eksik oyuncu yerine yapay zekâ", "players": "5v5", "available": false },
-    { "id": "dm", "name": "Ölüm Maçı", "short": "ÖM", "desc": "Herkes herkese karşı; anında yeniden doğma", "players": "8", "available": false },
-    { "id": "competitive", "name": "Rekabetçi", "short": "REK", "desc": "Bomba kur / imha et, round ekonomisi", "players": "5v5", "available": false },
-    { "id": "coop", "name": "Co-op Görev", "short": "CO-OP", "desc": "Kampanya haritalarında arkadaşlarla birlikte, Alfa Timi yanında", "players": "1–4", "available": false }
-  ]
+    { "id": "tdm", "name": "Takım Ölüm Maçı", "short": "TÖM", "desc": "Mavi ve Kırmızı taraf; 40 öldürme ya da 8 dakika. Takımın aynı tarafta, eksik oyuncu yerine yapay zekâ", "players": "4v4", "available": true,
+      "rules": { "sides": 2, "perSide": [4, 4], "humanSides": [0, 1], "bots": "fill", "scoreLimit": 40, "timeLimit": 480, "respawn": 4, "warmup": 6, "botSkill": 0.6 } },
+    { "id": "dm", "name": "Ölüm Maçı", "short": "ÖM", "desc": "Herkes herkese karşı; 20 öldürme ya da 6 dakika, eksik oyuncu yerine yapay zekâ", "players": "6", "available": true,
+      "rules": { "sides": 0, "max": 6, "bots": "fill", "scoreLimit": 20, "timeLimit": 360, "respawn": 3, "warmup": 6, "botSkill": 0.6 } },
+    { "id": "coop", "name": "Co-op: Yapay Zekâya Karşı", "short": "CO-OP", "desc": "Takımın Mavi tarafta, karşıda 6 yapay zekâ askeri; 50 öldürme ya da 8 dakika", "players": "1–4", "available": true,
+      "rules": { "sides": 2, "perSide": [4, 6], "humanSides": [0], "bots": "fill", "scoreLimit": 50, "timeLimit": 480, "respawn": 4, "warmup": 6, "botSkill": 0.45 } },
+    { "id": "competitive", "name": "Rekabetçi", "short": "REK", "desc": "Bomba kur / imha et, raunt ekonomisi", "players": "5v5", "available": false }
+  ],
+  "sandbox": {
+    "name": "Deneme odası",
+    "rules": { "sides": 0, "max": 8, "bots": "none", "scoreLimit": 0, "timeLimit": 0, "respawn": 2, "warmup": 0, "botSkill": 0.5 }
+  },
+  "matchmaking": {
+    "_": "searchSec: tek başına kuyrukta bu kadar beklenince maç yapay zekâyla dolarak başlar; joinCutoffSec: süresinin bu kadarından azı kalan maça katılınmaz; maps: sırayla",
+    "searchSec": 8,
+    "joinCutoffSec": 60,
+    "maps": ["depo"]
+  }
 }

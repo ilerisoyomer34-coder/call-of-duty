@@ -599,6 +599,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .ppMode:disabled { cursor: default; opacity: .7; }
 .btn:disabled { opacity: .42; cursor: not-allowed; filter: saturate(.4); }
 .ppNote { margin: 0; font: 500 13px/1.35 var(--f-ui); color: var(--sand-dim); }
+.ppQueue { display: flex; align-items: center; gap: 10px; font: 600 15px/1.2 var(--f-ui); color: #5ee7ff; }
+.ppQueue[hidden] { display: none; }
+.ppQueue .spin { width: 14px; height: 14px; border: 2px solid rgba(94,231,255,.3); border-top-color: #5ee7ff; border-radius: 50%; animation: ppSpin .9s linear infinite; }
+@keyframes ppSpin { to { transform: rotate(360deg); } }
 #socialToasts { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; width: min(380px, calc(100% - 24px)); pointer-events: none; }
 .sToast { pointer-events: auto; background: rgba(12,15,18,.95); border: 1px solid var(--line); border-left: 3px solid #5ee7ff; padding: 10px 12px; font: 500 15px/1.35 var(--f-ui); color: var(--sand); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
 .sToast b { color: #fff; }
@@ -813,6 +817,65 @@ body:not(.playing) #radioLog { display: none; }
 #consoleLog { overflow-y: auto; white-space: pre-wrap; color: var(--sand-dim); flex: 1; }
 #consoleInput { background: transparent; border: 0; border-top: 1px solid var(--line); color: var(--sand); font: inherit; padding: 6px 0 0; outline: none; }
 
+/* ---------- Çevrim içi maç ---------- */
+#matchHud { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+#matchHud[hidden], #matchHud [hidden] { display: none !important; }
+.mhTop { position: absolute; top: calc(50px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mhBar { pointer-events: auto; display: flex; align-items: stretch; gap: 0; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.mhSide { display: flex; align-items: center; gap: 8px; padding: 4px 12px; min-width: 96px; background: rgba(13,16,19,.62); color: var(--sand); }
+.mhSide b { font: 700 24px/1 var(--f-num); }
+.mhSide small { font: 700 11px/1 var(--f-ui); letter-spacing: .1em; opacity: .85; }
+.mhSide.blue { justify-content: flex-end; border-left: 3px solid var(--blue); }
+.mhSide.blue b { color: var(--blue); }
+.mhSide.red { justify-content: flex-start; border-right: 3px solid var(--red); }
+.mhSide.red b { color: var(--red); }
+.mhMid { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3px 14px; background: rgba(5,7,9,.8); color: var(--sand); min-width: 72px; }
+.mhMid b { font: 700 18px/1 var(--f-num); }
+.mhMid small { font: 500 10px/1.2 var(--f-ui); color: var(--sand-dim); }
+.mhBar.sandbox .mhSide { display: none; }
+.mhInfo { font: 600 11px/1 var(--f-ui); letter-spacing: .12em; color: var(--sand-dim); text-shadow: 0 1px 2px #000; }
+.mhBanner { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); font: 700 30px/1 var(--f-ui); letter-spacing: .18em; color: var(--sand); text-shadow: 0 2px 8px rgba(0,0,0,.8); white-space: nowrap; }
+.mhFeed { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: calc(16px + env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.mhKill { display: flex; gap: 8px; align-items: center; padding: 4px 9px; background: rgba(13,16,19,.6); font: 600 13px/1 var(--f-ui); color: var(--sand); }
+.mhKill.mine { border-left: 3px solid var(--amber); }
+.mhKill.me { border-left: 3px solid var(--red); }
+.mhKill b.blue { color: var(--blue); }
+.mhKill b.red { color: var(--red); }
+.mhKill small, .mhRow small { margin-left: 5px; font: 700 9px/1 var(--f-ui); letter-spacing: .08em; padding: 2px 4px; border-radius: 2px; background: rgba(231,220,196,.18); color: var(--sand-dim); vertical-align: 1px; }
+.mhKill .w { color: var(--sand-dim); font-weight: 500; font-size: 12px; }
+.mhDeath { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 26px; background: rgba(13,16,19,.72); border-top: 2px solid var(--red); }
+.mhDeath b { font: 700 22px/1 var(--f-ui); color: var(--sand); }
+.mhDeath span { font: 500 15px/1 var(--f-ui); color: var(--sand-dim); }
+.mhBoard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(640px, 92vw); max-height: 80vh; overflow-y: auto; padding: 12px 14px; background: rgba(8,10,12,.88); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.mhBoard > small { color: var(--sand-dim); font: 500 11px/1 var(--f-ui); text-align: center; }
+.mhRows { display: flex; flex-direction: column; gap: 2px; }
+.mhRow { display: grid; grid-template-columns: 1fr 52px 52px 60px 52px; gap: 6px; padding: 6px 8px; font: 600 14px/1.1 var(--f-ui); color: var(--sand); background: rgba(231,220,196,.04); }
+.mhRow span:not(.nm) { text-align: right; font-family: var(--f-num); }
+.mhRow.head { background: none; font-size: 11px; letter-spacing: .1em; color: var(--sand-dim); border-bottom: 1px solid var(--line); margin-top: 6px; }
+.mhRow.head.blue .nm { color: var(--blue); }
+.mhRow.head.red .nm { color: var(--red); }
+.mhRow.me { background: rgba(240,163,58,.18); }
+.mhRow.bot .nm { color: var(--sand-dim); }
+.mhRow .pt { background: rgba(94,231,255,.2); color: #5ee7ff; }
+.mhEnd { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,7,9,.7); pointer-events: auto; padding: 16px; }
+.mhEndCard { width: min(680px, 94vw); max-height: 92vh; overflow-y: auto; background: var(--ink); border: 1px solid var(--line); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.mhEndCard h2 { margin: 0; font: 700 34px/1 var(--f-ui); letter-spacing: .14em; color: var(--sand); }
+.mhEndCard h2.win { color: #7fd38a; }
+.mhEndCard h2.lose { color: var(--red); }
+.mhEndCard p { margin: 0; color: var(--sand-dim); font: 500 14px/1.3 var(--f-ui); }
+.atag.net.foe { color: var(--red); }
+.atag.net.foe i { border-top-color: var(--red); }
+#netGraph { position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); top: 34%; pointer-events: none; z-index: 4; background: rgba(0,0,0,.55); padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+#netGraph[hidden], #netGraphCanvas[hidden] { display: none; }
+#netGraph pre { margin: 0; font: 400 11px/1.35 var(--f-num); color: #cfe9d2; white-space: pre; }
+/* Çevrim içinde görev öğeleri yok */
+body.online #objective, body.online #score, body.online #tracker, body.online #squad, body.online #tbNade, body.online #tbChat, body.online #tbVoice, body.online #tbUse { display: none !important; }
+body.touch .mhSide { min-width: 70px; padding: 3px 8px; }
+body.touch .mhSide b { font-size: 20px; }
+body.touch .mhFeed { top: calc(8px + env(safe-area-inset-top, 0px)); }
+body.touch .mhKill { font-size: 11px; padding: 3px 6px; }
+body.touch .mhRow { grid-template-columns: 1fr 40px 40px 48px 40px; font-size: 12px; padding: 5px 6px; }
+
 /* ---------- Dokunmatik kontroller ---------- */
 #touch { position: absolute; inset: 0; pointer-events: auto; }
 #touch[hidden] { display: none; }
@@ -988,6 +1051,31 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
     <div class="tb" id="tbPause" data-action="pause">II</div>
   </div>
 
+  <!-- Çevrim içi maç arayüzü (src/net/matchHud.js): skor çubuğu, öldürme akışı, puan tablosu, ölüm kartı, maç sonu -->
+  <div id="matchHud" hidden>
+    <div class="mhTop">
+      <button class="mhBar" id="mhBar" type="button" aria-label="Puan tablosu">
+        <span class="mhSide blue"><b id="mhScoreA">0</b><small id="mhLabelA">MAVİ</small></span>
+        <span class="mhMid"><b id="mhTime">0:00</b><small id="mhLimit"></small></span>
+        <span class="mhSide red"><small id="mhLabelB">KIRMIZI</small><b id="mhScoreB">0</b></span>
+      </button>
+      <div class="mhInfo" id="mhInfo"></div>
+    </div>
+    <div class="mhBanner" id="mhBanner" hidden></div>
+    <div class="mhFeed" id="mhFeed" aria-live="polite"></div>
+    <div class="mhDeath" id="mhDeath" hidden><b id="mhKiller"></b><span id="mhRespawn"></span></div>
+    <div class="mhBoard" id="mhBoard" hidden><div class="mhRows" id="mhBoardBody"></div><small>Tab basılı tut · telefonda skora dokun</small></div>
+    <div class="mhEnd" id="mhEnd" hidden>
+      <div class="mhEndCard">
+        <h2 id="mhEndTitle">MAÇ BİTTİ</h2>
+        <p id="mhEndSub"></p>
+        <div class="mhRows" id="mhEndBody"></div>
+        <div class="row"><button class="btn primary" id="btnMhMenu" type="button">Ana menüye dön</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="netGraph" hidden><pre id="netGraphText"></pre><canvas id="netGraphCanvas" width="220" height="56" hidden></canvas></div>
+
   <div id="clickToPlay" hidden><div>OYUNA DÖNMEK İÇİN TIKLA<small>Fare imleci oyuna kilitlenir · Esc ile duraklat</small></div></div>
 
   <section id="menu" class="screen" hidden>
@@ -1002,7 +1090,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       </div>
       <div class="menuList" id="mainList">
         <button class="mbtn primary" id="btnPlay">Göreve başla<small>Altı seviye, beş harita · kolaydan zora · mavi mangan seninle</small></button>
-        <button class="mbtn" id="btnOnline">Çevrim içi <span class="badge" id="onBadge" hidden></span><small id="btnOnlineSub">Arkadaşlar, istekler ve parti</small></button>
+        <button class="mbtn" id="btnOnline">Çevrim içi <span class="badge" id="onBadge" hidden></span><small id="btnOnlineSub">Arkadaşlar, istekler ve takım</small></button>
         <button class="mbtn" id="btnRange">Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></button>
         <button class="mbtn" id="btnStore">Mağaza<small>Zırh, kask, sarf malzemesi ve tim yükseltmeleri</small></button>
         <button class="mbtn" id="btnSettings">Ayarlar</button>
@@ -1030,15 +1118,16 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
   <section id="onlineScreen" class="screen panelScreen" hidden>
     <div class="sheet onlineSheet">
       <div class="onHead">
-        <div><div class="eyebrow">Çevrim içi</div><h2>Arkadaşlar ve parti</h2></div>
+        <div><div class="eyebrow">Çevrim içi</div><h2>Arkadaşlar ve takım</h2></div>
         <div class="onMe"><i class="dot" id="onDot"></i><b id="onMeName"></b><small id="onState"></small></div>
       </div>
       <div class="onOff" id="onOff" hidden><b id="onOffTitle"></b><span id="onOffText"></span><button class="btn small" id="btnOnRetry" type="button">Yeniden dene</button></div>
       <div class="partyPanel" id="partyPanel" hidden>
-        <div class="ppHead"><b>Parti</b><span id="ppCount"></span></div>
+        <div class="ppHead"><b id="ppTitle">Takım</b><span id="ppCount"></span></div>
         <div class="onList" id="ppMembers"></div>
         <div class="ppModes" id="ppModes" role="radiogroup" aria-label="Oyun modu"></div>
-        <div class="row"><button class="btn primary" id="btnPartyFind" type="button" disabled>Maç ara</button><button class="btn" id="btnPartyLeave" type="button">Partiden ayrıl</button></div>
+        <div class="ppQueue" id="ppQueue" hidden><i class="spin"></i><span id="ppQueueText"></span></div>
+        <div class="row"><button class="btn primary" id="btnPartyFind" type="button" disabled>Maç ara</button><button class="btn" id="btnSandbox" type="button">Deneme odası</button><button class="btn" id="btnPartyLeave" type="button">Takımdan ayrıl</button></div>
         <p class="ppNote" id="ppNote"></p>
       </div>
       <div class="onTabs" role="tablist">

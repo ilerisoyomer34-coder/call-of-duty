@@ -18,6 +18,10 @@ export const BTN = {
   LEAN_L: 128,
   LEAN_R: 256,
   MELEE: 512,
+  // Çevrim içi: istemcinin silah durumundan gelen kısıtlar (yakın dövüş/şarjör sırasında koşu ve nişan yok).
+  // Hareket modlarını sunucu bunlardan doldurur (applyCmdMods): tahmin ile sunucu aynı değerleri kullanır
+  NO_SPRINT: 1024,
+  NO_ADS: 2048,
 };
 
 // stepPlayer'ın döndürdüğü olay bitleri
@@ -43,6 +47,20 @@ export function defaultMods() {
     noSprint: false, // ağır zırh
     adsAllowed: true, // silah nişan alabiliyor ve eller boş
   };
+}
+
+// Çevrim içi hareket modları: komut bitleri + kuşanılan silahın verisi. İstemci tahmini ve sunucu aynı
+// fonksiyonu çağırır (zırh, etkileşim, sarf malzemesi çevrim içinde yok)
+export function applyCmdMods(md, buttons, d) {
+  md.mobility = d ? d.mobility || 1 : 1;
+  md.adsMoveMult = d ? d.ads.moveMult : 1;
+  md.adsTime = d ? d.ads.time : 0.2;
+  md.armorSpeed = 1;
+  md.actionMult = 1;
+  md.sprintBlocked = (buttons & BTN.NO_SPRINT) !== 0;
+  md.noSprint = false;
+  md.adsAllowed = (buttons & BTN.NO_ADS) === 0;
+  return md;
 }
 
 /** @typedef {{ seq: number, moveX: number, moveY: number, yaw: number, pitch: number, buttons: number }} InputCmd */

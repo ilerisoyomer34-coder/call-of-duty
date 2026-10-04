@@ -251,6 +251,8 @@ export class PlayerWeapons {
     this.stateT = 0;
     this.game.player.stopSprint();
     this.game.events.emit('reload', this.reload);
+    // Çevrim içi: sunucu şarjör değiştirme süresini sayar (dolmadan atış kabul etmez)
+    this.game.net?.onReload();
   }
 
   update(dt, input, canAct) {
@@ -420,6 +422,9 @@ export class PlayerWeapons {
     _right.set(1, 0, 0).applyQuaternion(cam.quaternion);
     _up.set(0, 1, 0).applyQuaternion(cam.quaternion);
     const spread = this.currentSpread();
+    // Çevrim içi: atış anı ve nişan yönü sunucuya gider; saçılma, isabet ve hasar orada hesaplanır
+    // (buradaki iz ve kıvılcım yalnız görünüm)
+    g.net?.onShot(_fwd);
     // Namlu yaklaşık konumu (dünya): iz ve engel doğrulaması için
     const ads = P.adsT;
     _muz.copy(_o)
@@ -707,6 +712,7 @@ export class PlayerWeapons {
     const g = this.game;
     if (!this.meleeHitDone && this.stateT >= MELEE.hitTime) {
       this.meleeHitDone = true;
+      g.net?.onMelee();
       const cam = g.camera;
       cam.getWorldPosition(_o);
       cam.getWorldDirection(_fwd);

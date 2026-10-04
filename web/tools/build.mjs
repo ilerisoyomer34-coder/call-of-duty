@@ -11,8 +11,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync, rmSync, copyFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { computeBuildHash } from '../server/game/buildhash.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Çevrim içi sürüm denetimi: istemci, sunucunun hesapladığı paylaşılan kod özetini el sıkışmada gönderir
+const BUILD_HASH = computeBuildHash(root);
 const THREE_VERSION = JSON.parse(readFileSync(join(root, 'node_modules/three/package.json'), 'utf8')).version;
 export const THREE_CDNS = [
   `https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/build/three.module.min.js`,
@@ -82,6 +85,7 @@ async function bundle(kind) {
     target: 'es2020',
     write: false,
     legalComments: 'none',
+    define: { __BUILD_HASH__: JSON.stringify(BUILD_HASH) },
     plugins,
   });
   return r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');

@@ -174,7 +174,8 @@ console.log('Kayıt ve kredi');
     // Yeniden açılınca kredi korunur
     await page.reload();
     await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
-    check((await page.evaluate(() => window.__game.economy.credits)) === 500, 'Sayfa yenilenince kredi korundu');
+    const after = await page.evaluate(() => ({ credits: window.__game.economy.credits, stored: JSON.parse(localStorage.getItem('demirsafak.save') || 'null')?.credits }));
+    check(after.credits === 500, `Sayfa yenilenince kredi korundu${after.credits === 500 ? '' : ` (oyunda ${after.credits}, kayıtta ${after.stored})`}`);
     await ctx.close();
   }
   // Eski sürüm kaydı: seviye, teçhizat ve ayarlar yeni kayda aktarılır, eski anahtarlar silinmez
@@ -2976,7 +2977,7 @@ if (run('profile')) {
 
 // ---------------- Çevrim içi: arkadaş isteği, bildirim, kabul, durum, parti (çok oyunculu S2–S3) ----------------
 if (run('online')) {
-  console.log('Çevrim içi: arkadaşlar, bildirimler, parti');
+  console.log('Çevrim içi: arkadaşlar, bildirimler, takım');
   // Sunucu ayrı süreçte, bellek içi veritabanıyla
   const PORT = 8792;
   const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
@@ -3021,7 +3022,7 @@ if (run('online')) {
   await B.evaluate(() => window.__game.startMode('range', 'normal'));
   await A.waitForFunction(() => /Oyunda/.test(document.getElementById('onFriends').textContent) && !!document.querySelector('#onFriends .dot.playing'), null, { timeout: 60000 });
   check(true, 'B poligona girince A onu "Oyunda" gördü');
-  // Parti: A davet eder, B oyundayken kartla katılır; A modu değiştirir, B'ye yansır
+  // Takım: A davet eder, B oyundayken kartla katılır; A modu değiştirir, B'ye yansır
   await A.click('#onFriends .onRow .btn');
   const invMsg = await A.waitForFunction(() => /davet/.test(document.getElementById('onMsg').textContent) && document.getElementById('onMsg').textContent, null, { timeout: 10000 }).then((h) => h.jsonValue(), () => '');
   // B oyunda: yazılımsal GPU'da kareler çok yavaş, kare tabanlı bekleme/tıklama yerine zaman aralıklı yoklama
@@ -3030,7 +3031,7 @@ if (run('online')) {
   await B.evaluate(() => document.querySelector('#socialToasts .sToast[data-kind="party_invite"] .btn.primary').click());
   await A.waitForFunction(() => !document.getElementById('partyPanel').hidden && document.querySelectorAll('#ppMembers .onRow').length === 2, null, { timeout: 10000 });
   const pp = await A.evaluate(() => ({ count: document.getElementById('ppCount').textContent, lead: document.querySelector('#ppMembers .onRow').textContent, find: document.getElementById('btnPartyFind').disabled, note: document.getElementById('ppNote').textContent }));
-  check(/2 kişi/.test(pp.count) && /Lider/.test(pp.lead) && pp.find && /yakında/.test(pp.note), `Parti kuruldu: ${pp.count}; "Maç ara" mod açılana dek kapalı`);
+  check(/2 kişi/.test(pp.count) && /Lider/.test(pp.lead) && !pp.find && /karışık oyuncularla/.test(pp.note), `Takım kuruldu: ${pp.count}; "Maç ara" lidere açık`);
   await A.click('.ppMode:nth-child(2)');
   await B.waitForFunction(() => window.__game.social.party?.mode === 'dm', null, { timeout: 10000, polling: 100 });
   // B oyunda ve yavaş: bekleyen HTTP yanıtları da işlensin (eski parti görünümü yenisini ezmemeli)
@@ -3088,6 +3089,145 @@ if (run('online')) {
   const none = await N.evaluate(() => ({ off: !document.getElementById('onOff').hidden, text: document.getElementById('onOffTitle').textContent, status: window.__game.social.status }));
   check(none.off && /henüz kurulmadı/.test(none.text) && none.status === 'off', `Sunucu adresi yokken: "${none.text}"`);
   await N.close();
+  srv.kill();
+}
+
+// ---------------- Çevrim içi maç: deneme odası, tahmin, aralama, hızlı maç, botlar (S4–S6) ----------------
+if (run('netplay')) {
+  console.log('Çevrim içi maç: deneme odası, hızlı maç, botlar');
+  const PORT = 8793;
+  const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '1' },
+    stdio: 'ignore',
+  });
+  process.on('exit', () => srv.kill());
+  const base = `http://127.0.0.1:${PORT}`;
+  for (let i = 0; i < 50; i++) {
+    const ok = await fetch(`${base}/api/health`).then((r) => r.ok, () => false);
+    if (ok) break;
+    await sleep(100);
+  }
+  const q = `?server=${encodeURIComponent(base)}`;
+  const online = (pg) => pg.waitForFunction(() => window.__game.social.status === 'online', null, { timeout: 30000 });
+  // Oyundaki sayfa yazılımsal GPU'da yavaş: kare beklemesi yerine sık yoklama
+  const until = (pg, fn, arg, ms = 60000) => pg.waitForFunction(fn, arg, { timeout: ms, polling: 100 });
+  const A = await openPage('net-A', 'low', { name: 'Kaan', query: q });
+  const B = await openPage('net-B', 'low', { name: 'Lale', query: q });
+  await Promise.all([online(A), online(B)]);
+  // Arkadaşlık ve takım: sosyal istemcinin kendi çağrılarıyla (arayüz akışı "online" bölümünde)
+  const bId = await B.evaluate(() => window.__game.save.data.profile.id);
+  await A.evaluate(async (id) => window.__game.social.request(id), bId);
+  await until(B, () => window.__game.social.lists.incoming.length === 1);
+  await B.evaluate(async () => window.__game.social.respond(window.__game.social.lists.incoming[0].id, true));
+  await until(A, () => window.__game.social.lists.friends.some((f) => f.status === 'menu'));
+  await A.evaluate(async (id) => window.__game.social.invite(id), bId);
+  await until(B, () => window.__game.social.invites.length === 1);
+  await B.evaluate(async () => window.__game.social.respondInvite(window.__game.social.invites[0].id, true));
+  await until(A, () => window.__game.social.party?.members.length === 2);
+  // Takımsız oyun paneli de görünür: deneme odası ve maç ara lidere açık
+  await A.click('#btnOnline');
+  const panel = await A.evaluate(() => ({ title: document.getElementById('ppTitle').textContent, find: document.getElementById('btnPartyFind').disabled, sandbox: document.getElementById('btnSandbox').disabled }));
+  check(panel.title === 'Takım' && !panel.find && !panel.sandbox, 'Takım paneli: "Maç ara" ve "Deneme odası" lidere açık');
+  // Deneme odası: lider açar, menüdeki üye kendiliğinden katılır
+  await A.click('#btnSandbox');
+  await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'playing' && window.__game.net?.me.alive, null, 90000)));
+  const rooms = await Promise.all([A, B].map((pg) => pg.evaluate(() => ({ room: window.__game.net.welcome.room, mode: window.__game.net.welcome.mode, hud: !document.getElementById('matchHud').hidden, info: document.getElementById('mhInfo').textContent }))));
+  check(rooms[0].room === rooms[1].room && rooms[0].mode === 'sandbox' && rooms.every((r) => r.hud), `Deneme odası ${rooms[0].room}: takım üyesi kendiliğinden katıldı ("${rooms[0].info}")`);
+  // A yürür; B'nin ekranında A'nın modeli aynı yere gelir (aralama)
+  const aStart = await A.evaluate(() => window.__game.player.pos.toArray());
+  await A.keyboard.down('KeyW');
+  await until(A, (p0) => Math.hypot(window.__game.player.pos.x - p0[0], window.__game.player.pos.z - p0[2]) > 2, aStart, 120000);
+  await A.keyboard.up('KeyW');
+  await sleep(2500);
+  const aNow = await A.evaluate(() => ({ pos: window.__game.player.pos.toArray(), slot: window.__game.net.slot, err: window.__game.net.stats.predErr, corr: window.__game.net.stats.corrections, seq: window.__game.net.seq }));
+  const follow = await until(B, ([slot, p]) => {
+    const r = window.__game.net.remotes.map.get(slot);
+    return r && r.hasPose && Math.hypot(r.pos.x - p[0], r.pos.z - p[2]) < 0.3 ? Math.hypot(r.pos.x - p[0], r.pos.z - p[2]) : false;
+  }, [aNow.slot, aNow.pos], 30000).then((h) => h.jsonValue(), () => null);
+  check(follow !== null, `B, A'nın yürüyüşünü gördü: A ${Math.hypot(aNow.pos[0] - aStart[0], aNow.pos[2] - aStart[2]).toFixed(1)} m yürüdü, B'deki model farkı ${follow === null ? '?' : (follow * 100).toFixed(1)} cm`);
+  check(aNow.err < 0.01, `Tahmin: sunucuyla fark ${(aNow.err * 100).toFixed(2)} cm, ${aNow.seq} komutta ${aNow.corr} düzeltme`);
+  // net_graph ve ağ benzetimi (Orta: gidiş-dönüş ≈ 100 ms eklenir)
+  await A.evaluate(() => {
+    window.__game.console.run('net_graph 2');
+    window.__game.console.run('net_profile orta');
+  });
+  // Saat eşitleme son 8 ölçümün (saniyede bir) en iyi yarısının medyanını alır: yeni gecikme birkaç saniyede oturur
+  await until(A, () => window.__game.net.clock.rtt >= 90, null, 30000).catch(() => {});
+  await until(A, () => /tahmin farkı/.test(document.getElementById('netGraphText').textContent), null, 30000).catch(() => {});
+  const ng = await A.evaluate(() => ({ text: document.getElementById('netGraphText').textContent, shown: !document.getElementById('netGraph').hidden, rtt: window.__game.net.clock.rtt, prof: window.__game.net.profileName }));
+  const ngOk = ng.shown && /ping/.test(ng.text) && /tahmin farkı/.test(ng.text) && ng.prof === 'orta' && ng.rtt >= 90;
+  check(ngOk, `net_graph açık; Orta benzetim (gidiş-dönüş +100 ms) açıkken ölçülen ping ${Math.round(ng.rtt)} ms${ngOk ? '' : ` ${JSON.stringify(ng)}`}`);
+  await A.screenshot({ path: join(shots, '34-net-sandbox.png') });
+  await A.evaluate(() => {
+    window.__game.console.run('net_profile off');
+    window.__game.console.run('net_graph 0');
+  });
+  // Odadan ayrıl → menü; olmayan odaya katılmak → Türkçe hata ekranı
+  await Promise.all([A, B].map((pg) => pg.evaluate(() => window.__game.leaveOnline())));
+  await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'menu' && !window.__game.net)));
+  await A.evaluate(() => window.__game.startOnline({ room: 'ZZZZZZ', kind: 'match', mode: 'tdm' }));
+  await until(A, () => !document.getElementById('ldErr').hidden);
+  const errText = await A.evaluate(() => document.getElementById('ldErr').textContent);
+  check(/Oda bulunamadı/.test(errText), `Olmayan oda: "${errText.replace(/\s+/g, ' ').trim().slice(0, 70)}"`);
+  // Yükleme ekranı bilerek düşen hatayı konsola da yazar: o satır beklenen
+  for (let i = errors.length - 1; i >= 0; i--) if (/\[net-A\] console: \[DemirSafak\] Oda bulunamadı/.test(errors[i])) errors.splice(i, 1);
+  await A.evaluate(() => document.getElementById('ldMenu').click());
+  await until(A, () => window.__game.state === 'menu');
+  // Hızlı maç: Takım Ölüm Maçı, takım aynı tarafta, eksik yerler yapay zekâ (menü geçiş animasyonu sürerken
+  // tıklama başka düğmeye düşmesin: doğrudan)
+  await A.evaluate(() => document.getElementById('btnOnline').click());
+  await until(A, () => !document.getElementById('partyPanel').hidden);
+  await A.evaluate(() => document.querySelector('.ppMode[data-mode="tdm"]').click());
+  await until(B, () => window.__game.social.party?.mode === 'tdm');
+  await A.evaluate(() => document.getElementById('btnPartyFind').click());
+  await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'tdm' && window.__game.net.roster.length === 8, null, 90000)));
+  const ros = await A.evaluate(() => {
+    const n = window.__game.net;
+    const me = n.roster.find((p) => p.slot === n.slot);
+    return { bots: n.roster.filter((p) => p.flags & 1).length, sides: n.roster.filter((p) => !(p.flags & 1)).map((p) => p.side), party: n.roster.filter((p) => !(p.flags & 1)).map((p) => p.party), mySide: me.side };
+  });
+  check(ros.bots === 6 && ros.sides[0] === ros.sides[1] && ros.party[0] && ros.party[0] === ros.party[1], `Hızlı maç 4v4: 2 insan aynı tarafta (takım), 6 yapay zekâ`);
+  // Maç başlar, botlar çatışır: skor ve öldürme akışı
+  await until(A, () => window.__game.net.phase === 1);
+  const fight = await until(A, () => window.__game.net.scoreA + window.__game.net.scoreB >= 2 && document.querySelectorAll('#mhFeed .mhKill').length > 0, null, 120000).then(() => true, () => false);
+  const fs = await A.evaluate(() => ({ a: window.__game.net.scoreA, b: window.__game.net.scoreB, feed: document.getElementById('mhFeed').textContent }));
+  check(fight, `Maç sürüyor: skor ${fs.a}–${fs.b}, öldürme akışı "${fs.feed.slice(0, 60)}"`);
+  await A.keyboard.down('Tab');
+  await until(A, () => !document.getElementById('mhBoard').hidden && document.querySelectorAll('#mhBoardBody .mhRow:not(.head)').length === 8, null, 30000).catch(() => {});
+  const board = await A.evaluate(() => ({ shown: !document.getElementById('mhBoard').hidden, rows: document.querySelectorAll('#mhBoardBody .mhRow:not(.head)').length, yz: document.querySelectorAll('#mhBoardBody .yz').length, team: document.querySelectorAll('#mhBoardBody .pt').length }));
+  await A.screenshot({ path: join(shots, '35-net-scoreboard.png') });
+  await A.keyboard.up('Tab');
+  check(board.shown && board.rows === 8 && board.yz === 6 && board.team === 1, `Puan tablosu (Tab): ${board.rows} satır, ${board.yz} YZ rozeti, takım arkadaşı işaretli`);
+  await A.close();
+  await B.close();
+  // Telefon: tek başına Ölüm Maçı, maç arayüzü taşmaz
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx, 'Ece');
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[net-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href + q);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
+  await online(mp);
+  await mp.tap('#btnOnline');
+  await mp.tap('.ppMode[data-mode="dm"]');
+  await mp.tap('#btnPartyFind');
+  await until(mp, () => window.__game.state === 'playing' && window.__game.net?.me.alive, null, 120000);
+  await sleep(1500);
+  const mfit = await mp.evaluate(() => {
+    const bar = document.getElementById('mhBar').getBoundingClientRect();
+    return { mode: window.__game.net.welcome.mode, inView: bar.left >= 0 && bar.right <= innerWidth && bar.top >= 0, players: window.__game.net.roster.length, label: document.getElementById('mhLabelA').textContent };
+  });
+  await mp.screenshot({ path: join(shots, '36-net-mobile.png') });
+  check(mfit.mode === 'dm' && mfit.inView && mfit.players === 6 && mfit.label === 'SEN', `Telefonda Ölüm Maçı: ${mfit.players} oyuncu (5 YZ), skor çubuğu ekranda`);
+  await mctx.close();
   srv.kill();
 }
 

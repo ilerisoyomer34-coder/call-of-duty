@@ -37,6 +37,10 @@ const HELP = `Komutlar:
   dmgpanel            hasar paneli: son 10 sn'deki isabetler (kaynak, mesafe, zırh, can); ttd: yere düşme süreleri
   sv_showhitboxes [0|1]  sunucu vuruş kutularını (pozdan) tel kafes çiz: kırmızı baş, sarı gövde, mavi kol/bacak
   cl_fixedstep [0|1]  oyuncu hareketi sabit 64 Hz tick (1, varsayılan) ya da eski kare adımı (0)
+  net_graph [0|1|2]   ağ paneli: ping, görüntü Hz, KB/s, sunucu tick, saat farkı, tahmin farkı (2: ping grafiği)
+  net_profile <lan|iyi|orta|kotu|uc|off>   çevrim içi ağ koşulu benzetimi (adreste ?netsim=orta)
+  net_fakelag <ms> · net_fakejitter <ms> · net_fakeloss <%>   benzetimi elle ayarla (gidiş-dönüş)
+  net_status          bağlantı, oda, yuva, saat ve komut durumu
   save                kayıt özeti (sürüm, kredi, envanter, teçhizat)
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
@@ -296,6 +300,38 @@ export class DevConsole {
         P.fixedStep = args[0] === undefined ? !P.fixedStep : args[0] !== '0';
         P.syncRender();
         this.print(`Sabit adımlı hareket: ${P.fixedStep ? 'AÇIK (64 Hz)' : 'KAPALI (kare adımı)'}`);
+        break;
+      }
+      case 'net_graph': {
+        const lvl = args[0] === undefined ? (g.netGraph.level ? 0 : 1) : Number(args[0]) || 0;
+        g.netGraph.set(lvl);
+        this.print(`net_graph ${g.netGraph.level}`);
+        break;
+      }
+      case 'net_profile': {
+        if (!g.net) return this.print('Çevrim içi maçta değilsin');
+        if (!g.net.setProfile(args[0] || 'off')) return this.print('Profil: lan, iyi, orta, kotu, uc, off');
+        this.print(`Ağ benzetimi: ${g.net.profileName || 'kapalı'}`);
+        break;
+      }
+      case 'net_fakelag':
+      case 'net_fakejitter':
+      case 'net_fakeloss': {
+        if (!g.net) return this.print('Çevrim içi maçta değilsin');
+        const c = cmd.toLowerCase();
+        const field = { net_fakelag: 'rtt', net_fakejitter: 'jitter', net_fakeloss: 'loss' }[c];
+        const v = Math.max(0, Number(args[0]) || 0);
+        g.net.setNetsim(field, v);
+        this.print(`${c} ${v}${field === 'loss' ? ' %' : ' ms'}`);
+        break;
+      }
+      case 'net_status': {
+        const n = g.net;
+        if (!n) return this.print(`Çevrim içi: ${g.social.status} (${g.social.serverUrl || 'sunucu yok'})`);
+        const gr = n.graph();
+        this.print(`oda ${n.welcome?.room} · ${n.welcome?.mode} · ${n.welcome?.map} · yuva ${n.slot} · durum ${n.state}`);
+        this.print(`ping ${gr.ping} ms · saat farkı ${gr.offset} ms · eşit: ${n.clock.synced ? 'evet' : 'hayır'} · komut ${n.seq} · tampon ${gr.bufDepth}`);
+        this.print(`tahmin farkı ${gr.predErrCm.toFixed(2)} cm · düzeltme ${gr.corrections} · aralama ${gr.interpMs} ms`);
         break;
       }
       case 'dmgpanel':

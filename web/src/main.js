@@ -39,6 +39,10 @@ import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
 import { SocialClient } from './net/social.js';
 import { OnlineScreen } from './onlineScreen.js';
+import { GameClient } from './net/gameClient.js';
+import { MatchHud, modeTitle } from './net/matchHud.js';
+import { NetGraph } from './netGraph.js';
+import ARENAS from './data/arenas.json' with { type: 'json' };
 import { Emitter, clamp, rand } from './util.js';
 
 const SKY_VERT = /* glsl */ `
@@ -209,6 +213,11 @@ export class Game {
     this.social = new SocialClient(this);
     this.menus = new Menus(this);
     this.online = new OnlineScreen(this, this.menus);
+    // Çevrim içi maç (S4–S6): bağlantı game.net (maçtayken), arayüz ve ağ ölçüm paneli
+    this.net = null;
+    this.matchHud = new MatchHud(this);
+    this.netGraph = new NetGraph(this);
+    this.events.on(EV.MATCH_FOUND, (m) => this.onMatchFound(m));
     this.console = new DevConsole(this);
 
     this.input.onLockChange = (locked, selfExit) => {
@@ -412,6 +421,7 @@ export class Game {
   // --- Sahne kurulumu ---
   // Menü ve poligon Kızılkum'u kullanır; görev seviyesi kendi haritasının ortamını
   mapKey(mode) {
+    if (mode === 'online') return ARENAS[this.net?.welcome?.map]?.env || 'harbor';
     return mode === 'mission' ? this.level.map || 'kizilkum' : 'kizilkum';
   }
 
@@ -665,12 +675,139 @@ export class Game {
   }
 
   toMenu() {
+    if (this.net) return this.leaveOnline();
     // Görev yarıda bırakıldı: bonus yok, öldürme başına teselli (§6.3)
     const rw = this.state !== 'victory' ? this.settleRun(false) : null;
     this.menus.hideAll();
     this.pendingNotice = rw && rw.total > 0 ? `Görev yarıda kaldı · teselli ödülü +${rw.total.toLocaleString('tr-TR')} KR` : null;
     this.audio.stopAmbient();
     this.audio.startMenuMusic();
+    this.showMenu();
+  }
+
+  // --- Çevrim içi maç (S4–S6) ---
+  // Eşleşme ya da takım liderinin deneme odası: menüdeyse doğrudan katıl, oyundaysa kart göster
+  onMatchFound(m) {
+    if (this.net || !m) return;
+    if (this.state === 'menu') this.joinMatch(m);
+    else this.online.toast({ id: `mf${m.room}`, kind: 'match_found', payload: m, live: true });
+  }
+
+  joinMatch(m) {
+    if (this.net || this.state === 'loading') return;
+    if (this.mode !== 'menu') {
+      // Tek oyunculu görev yarıda kalır (teselli ödülü, toMenu ile aynı)
+      this.settleRun(false);
+      this.audio.stopAmbient();
+      this.menus.hideAll();
+    }
+    this.startOnline(m);
+  }
+
+  // Maçtaki silahlar: sunucunun onayladığı teçhizat (roket ve el bombası yok)
+  onlineLoadout() {
+    const W = this.net?.welcome;
+    const p = W?.primary || 'rifle';
+    const s = W?.secondary || 'pistol';
+    return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: 0, current: p };
+  }
+
+  matchTitle() {
+    const W = this.net?.welcome;
+    if (!W) return '';
+    return `${modeTitle(W.mode)} · ${ARENAS[W.map]?.name || W.map}`;
+  }
+
+  async startOnline(match) {
+    if (this.net || this.state === 'loading') return;
+    await this.compiling;
+    this.audio.init();
+    this.audio.stopMenuMusic();
+    this.menus.hideAll();
+    const L = loadingScreen();
+    L.show(match.kind === 'sandbox' ? 'DENEME ODASI' : 'MAÇA BAĞLANILIYOR');
+    this.state = 'loading';
+    L.step('Sunucuya bağlanılıyor', 0.1);
+    const net = new GameClient(this, match);
+    try {
+      await net.connect();
+    } catch (e) {
+      net.close();
+      L.fail(e.title || 'Bağlanılamadı', null, e.text, true);
+      return;
+    }
+    this.net = net;
+    this.social.setPresence('playing');
+    try {
+      L.step('Arena kuruluyor', 0.35);
+      await nextPaint();
+      this.mode = 'online';
+      this.difficultyKey = 'normal';
+      this.difficulty = DIFFICULTY.normal;
+      this.stats = this.freshStats();
+      this.cheats.god = false;
+      this.cheats.infiniteAmmo = false;
+      this.timeScale = 1;
+      this.startRun('online');
+      this.buildScene('online');
+      this.mission.build();
+      this.kit.reset(null);
+      this.weapons.reset(this.onlineLoadout());
+      this.hud.bakeMinimap();
+      this.player.applyCamera(this.camera, 0);
+      L.step('Gölgelendiriciler derleniyor', 0.8);
+      await nextPaint();
+      await this.precompile();
+    } catch (err) {
+      this.net = null;
+      net.leave();
+      L.fail('Arena açılamadı', err, 'Ana menüye dönüp yeniden dene.', true);
+      return;
+    }
+    if (net.state === 'closed') {
+      // Yüklenirken bağlantı koptu
+      this.net = null;
+      const e = net.error || { title: 'Bağlantı koptu', text: 'Sunucuyla bağlantı kesildi.' };
+      L.fail(e.title, null, e.text, true);
+      return;
+    }
+    this.hud.resetTransient();
+    this.hud.show(true);
+    this.hud.setHealth(this.player.health.hp, this.player.health.max);
+    this.events.emit('interact', null, 0);
+    L.hide();
+    this.state = 'playing';
+    this.input.enabled = true;
+    this.input.enableTouch(this.isTouch);
+    document.body.classList.add('playing');
+    this.audio.startAmbient(this.env.ambient);
+    this.matchHud.start(net);
+    net.ready();
+    this.input.requestLock();
+  }
+
+  // Bağlantı koptu ya da oda kapandı. Maç bittiyse sonuç ekranı kalır (oyuncu düğmeyle döner)
+  onNetClosed(err) {
+    const net = this.net;
+    if (!net) return;
+    if (net.result) return;
+    if (this.state === 'loading') return; // startOnline yüklemeden sonra görür
+    this.leaveOnline(err);
+  }
+
+  leaveOnline(err = null) {
+    const net = this.net;
+    if (!net) return;
+    this.net = null;
+    const r = net.result;
+    net.leave();
+    this.matchHud.stop();
+    this.menus.hideAll();
+    this.audio.stopAmbient();
+    this.audio.startMenuMusic();
+    if (err) this.pendingNotice = `${err.title}: ${err.text}`;
+    else if (r) this.pendingNotice = `Maç bitti · ${this.stats.kills} öldürme`;
+    else this.pendingNotice = null;
     this.showMenu();
   }
 
@@ -798,7 +935,8 @@ export class Game {
     // Komut çarkı açıkken oyun yavaşlar (ayar); çarkın kendisi gerçek girdilerle çalışır
     // Telsize yazarken de yavaşlar (ayar)
     const slow = this.state === 'playing' ? this.wheel.slow * (this.chat.open ? this.settings.chatSlowMo ?? 0.3 : 1) : 1;
-    dt *= this.timeScale * slow;
+    // Çevrim içinde oyun saati gerçek saattir (maç sunucuda sürer)
+    if (!this.net) dt *= this.timeScale * slow;
     const I = this.input;
     try {
       I.pollGamepad(dt, this.settings.sensitivity);
@@ -812,6 +950,10 @@ export class Game {
           this.updatePlaying(dt);
           break;
         case 'paused':
+          // Çevrim içinde duraklatma menüsü açıkken de maç akar (oyuncu durur)
+          if (this.net) this.updatePlaying(dt);
+          else this.renderFrame();
+          break;
         case 'dead':
         case 'victory':
           this.renderFrame();
@@ -857,6 +999,7 @@ export class Game {
   updatePlaying(dt) {
     const I = this.input;
     this.time += dt;
+    this.net?.frame(dt);
     if (this.state === 'playing' && I.pressed('pause') && !this.console.open) {
       this.pause();
       this.renderFrame();
@@ -897,7 +1040,8 @@ export class Game {
     this.chat.update(dt);
     this.commands.update();
     this.ping.update(dt);
-    const armed = canAct && !this.kit.using && !wheelOpen;
+    // Çevrim içinde geri sayım ve maç sonunda silah kullanılmaz (sunucu da kabul etmez)
+    const armed = canAct && !this.kit.using && !wheelOpen && !(this.net && (this.net.frozen || this.net.state !== 'playing'));
     this.weapons.update(dt, armed ? I : NULL_INPUT, armed);
     this.enemies.update(dt);
     this.allies.update(dt);
@@ -909,6 +1053,11 @@ export class Game {
     this.effects.setScale(this.height * this.worldPR, this.camera.fov);
     this.viewmodel.update(dt);
     this.hud.update(dt);
+    if (this.net) {
+      this.net.remotes.updateTags(this.hud, this.width, this.height);
+      this.matchHud.update(dt, this.console.open ? NULL_INPUT : I);
+    }
+    this.netGraph.update(dt);
     this.missionHud.update(dt, canAct ? I : NULL_INPUT);
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
