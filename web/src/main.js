@@ -21,7 +21,7 @@ import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
-import { setHelicopterProp, setPropEnvironment, setTreeProp } from './models.js';
+import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp } from './models.js';
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
 import { EconomySystem } from './economy.js';
@@ -270,6 +270,13 @@ export class Game {
       setTreeProp(scene, PROP_ASSETS.pine, TREES.alphaTest);
     } catch (err) {
       warnOnce('tree-model', `Ağaç modeli yüklenemedi, basit ağaç kullanılıyor (${err.message})`);
+    }
+    // Konteyner (Sketchfab, beş renk): haritalardaki tüm konteynerler; gelmezse kutu konteyner
+    try {
+      const scene = await Promise.race([loadPropAsset('containers'), timeout]);
+      setContainerProp(scene, PROP_ASSETS.containers);
+    } catch (err) {
+      warnOnce('container-model', `Konteyner modeli yüklenemedi, basit konteyner kullanılıyor (${err.message})`);
     }
   }
 

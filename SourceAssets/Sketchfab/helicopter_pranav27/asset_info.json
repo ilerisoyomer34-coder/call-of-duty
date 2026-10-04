@@ -12,5 +12,5 @@
   "original_file": "original/helicopter.glb",
   "sha256": "731d7587901dcccbc74fbf9ad78a4d3b8e728a198dd8857188c748825933b348",
   "modifications": "web/tools/prepare-prop.mjs: dedup + weld + meshoptimizer sadeleştirme (290 856 → 49 084 üçgen), KHR_mesh_quantization ile nicemleme (8,1 MB → 0,74 MB); pervane, göbek ve kapı düğümleri yeniden adlandırıldı (RotorMain, RotorHub, RotorTail, DoorFront, DoorRear); gövde malzemesi (Material.004) gri yerine askerî yeşil (#55603f). Oyunda ölçek 11 m gövde boyuna ayarlanır, pervaneler kodla döndürülür.",
-  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir."
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir."
 }

@@ -2,7 +2,7 @@
 // karakter çarpışması ve çizim çağrısını azaltmak için malzemeye göre birleştirilmiş geometri.
 import * as THREE from 'three';
 import { CollisionWorld } from '../shared/sim/collision.js';
-import { getTreeProp } from './models.js';
+import { getTreeProp, getContainerProp } from './models.js';
 import { TREES } from './config.js';
 
 // Zemin kaplamaları gölge düşürmez (gölge haritasında boşa çizilmesin)
@@ -40,6 +40,7 @@ export class World extends CollisionWorld {
     this.batches = new Map();
     this.materials = this.createMaterials();
     this.trees = []; // hazır ağaç modelinin örnekleri { x, z, h, snowy } (finalize InstancedMesh kurar)
+    this.containers = []; // hazır konteyner modelinin örnekleri { x, y, z, w, h, d, alongX, mat }
   }
 
   // Harita ağacı (kit.js pine/palm): hazır model yüklendiyse yalnız konumu kaydedilir, prosedürel ağaç çizilmez.
@@ -47,6 +48,14 @@ export class World extends CollisionWorld {
   addTree(x, z, h, opts = {}) {
     if (!getTreeProp()) return false;
     this.trees.push({ x, z, h, snowy: !!opts.snowy });
+    return true;
+  }
+
+  // Harita konteyneri (kit.js container): model yüklendiyse ve o renk çeşidi varsa yalnız örnek kaydedilir.
+  // w/h/d oyundaki kutunun dünya eksenlerindeki boyutu (çarpıştırıcıyla aynı); y taban yüksekliği
+  addContainer(x, y, z, w, h, d, alongX, mat) {
+    if (!getContainerProp()?.variants[mat]) return false;
+    this.containers.push({ x, y, z, w, h, d, alongX, mat });
     return true;
   }
 
@@ -219,6 +228,7 @@ export class World extends CollisionWorld {
     }
     this.batches.clear();
     if (this.trees.length) this.buildTrees();
+    if (this.containers.length) this.buildContainers();
   }
 
   // Bütün ağaçlar model mesh'i başına tek InstancedMesh (gövde + yaprak: iki çizim çağrısı). Gövde tabanı y=0'a
@@ -253,10 +263,54 @@ export class World extends CollisionWorld {
       }
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.userData.prop = 'tree';
       mesh.computeBoundingSphere();
       this.scene.add(mesh);
       this.meshes.push(mesh);
     }
     this.treeMeshes = n;
+  }
+
+  // Konteynerler: renk çeşidi başına tek InstancedMesh. Model 40 fit; çeşidin kutusu tabanı ortada orijine taşınır ve
+  // eksen başına oyundaki kutuya ölçeklenir (uzunlukta ≈ 0,54: 20 fit). Uzunluk modelde z ekseninde; alongX ise
+  // 90° döner. Kapılı uç konumdan türeyen yarım turla iki yana dağılır (her açılışta aynı)
+  buildContainers() {
+    const P = getContainerProp();
+    const groups = new Map();
+    for (const c of this.containers) {
+      if (!groups.has(c.mat)) groups.set(c.mat, []);
+      groups.get(c.mat).push(c);
+    }
+    const m4 = new THREE.Matrix4();
+    const base = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const [mat, list] of groups) {
+      const v = P.variants[mat];
+      v.box.getSize(size);
+      v.box.getCenter(center);
+      base.makeTranslation(-center.x, -v.box.min.y, -center.z).multiply(v.matrix);
+      const mesh = new THREE.InstancedMesh(v.geometry, v.material, list.length);
+      list.forEach((c, i) => {
+        const flip = Math.sin(c.x * 12.9898 + c.z * 78.233 + c.y * 3.7) > 0 ? Math.PI : 0;
+        const len = c.alongX ? c.w : c.d;
+        const wid = c.alongX ? c.d : c.w;
+        q.setFromAxisAngle(up, (c.alongX ? Math.PI / 2 : 0) + flip);
+        sc.set(wid / size.x, c.h / size.y, len / size.z);
+        p.set(c.x, c.y, c.z);
+        m4.compose(p, q, sc).multiply(base);
+        mesh.setMatrixAt(i, m4);
+      });
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.prop = 'container';
+      mesh.computeBoundingSphere();
+      this.scene.add(mesh);
+      this.meshes.push(mesh);
+    }
   }
 }

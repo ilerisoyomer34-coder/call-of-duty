@@ -56,4 +56,4 @@ Tank, nakliye helikopteri, uçaksavar, ağır makineli, kamyon, araba, otobüs, 
 
 ### B6. Lisans
 - Yalnızca CC0 ve CC-BY modeller kullanılır; gerçek logo ve marka olmaz.
-- Kayıt yerleri: `CREDITS.md`, her model için `asset_info.json`, menüdeki "Emeği geçenler" ekranı (`propAssets.json`'dan otomatik).
+- Kayıt yerleri: `CREDITS.md`, her model için `asset_info.json`, menüdeki "Lisanslar" ekranı (Emeği geçenler → Lisanslar; `propAssets.json`'dan otomatik).

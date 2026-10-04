@@ -941,6 +941,7 @@ export function setPropEnvironment(tex) {
   propEnv = tex;
   heliProp?.scene.traverse((o) => o.isMesh && applyPropEnv(o.material));
   for (const p of treeProp?.parts || []) applyPropEnv(p.material);
+  for (const p of Object.values(containerProp?.variants || {})) applyPropEnv(p.material);
 }
 
 // Ağaç şablonu (Sketchfab çamı): her mesh'i ve model içindeki dönüşümü bir kez çıkarılır; harita ağaçları bunlarla
@@ -968,6 +969,25 @@ export function setTreeProp(scene, info, alphaTest) {
 
 export function getTreeProp() {
   return treeProp;
+}
+
+// Konteyner şablonu (Sketchfab, beş renk çeşidi): her çeşit tek kutu mesh'i; ad oyunun malzeme adıdır (contRed…).
+// box: çeşidin model içi dönüşümle sahne uzayındaki sınırı (world.js → buildContainers bunu oyundaki kutuya oturtur)
+let containerProp = null;
+export function setContainerProp(scene, info) {
+  const variants = {};
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    if (!o.isMesh || !info.variants.includes(o.name)) return;
+    if (propEnv) applyPropEnv(o.material);
+    o.geometry.userData.shared = true;
+    variants[o.name] = { geometry: o.geometry, material: o.material, matrix: o.matrixWorld.clone(), box: new THREE.Box3().setFromObject(o) };
+  });
+  containerProp = Object.keys(variants).length ? { variants, info } : null;
+}
+
+export function getContainerProp() {
+  return containerProp;
 }
 
 // Hazır modelden helikopter: burun -Z, kızaklar y=0'da, gövde (pervaneler hariç) info.length boyunda.

@@ -13,5 +13,5 @@
   "original_file": "original/gun.glb",
   "sha256": "305ea6df0ce15ac21b47100414c4f213769188a171bc5980fe741a13fe260523",
   "modifications": "web/tools/prepare-weapon-glb.mjs: sergi için eğik duran kök düğümün yerel uzayında alındı; namlu -Z, 0,92 m, köken kabzada; şarjör ayrı parça; dokular JPEG olarak ayrıldı; gerçek marka ve kişi bilgileri dokulardan silindi (\"ACR\" amblemi, \"S/N ACR00076\", \"MODEL ACR / CALIBER\", \"B.F.I. WINDHAM, ME. U.S.A.\", \"EO TECH\", \"AIMPOINT\", bir yazı ve bir kişi fotoğrafı). Adı kurgusal.",
-  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
 }

@@ -1,6 +1,13 @@
 # Emeği geçenler
 
-## Silah modelleri (SourceAssets/Weapons)
+- **Tasarım:** Tarık Kerem Öz
+- **Yazılım ve işleyiş:** Ömer İlerisoy
+
+Oyundaki "Emeği geçenler" ekranı yalnız bu iki rolü gösterir. Aşağıdaki üçüncü taraf içeriğin lisans atıfları oyunda ayrı "Lisanslar" ekranındadır (Emeği geçenler → Lisanslar).
+
+## Lisanslar ve üçüncü taraf içerik
+
+### Silah modelleri (SourceAssets/Weapons)
 
 | Oyundaki ad | Kaynak dosya | Sahibi | Lisans |
 |---|---|---|---|
@@ -11,7 +18,7 @@
 
 Bu dört model başka bir kaynaktan indirildiyse yazar, bağlantı ve lisans bilgisi ilgili `asset_info.json` dosyasına yazılmalı; CC BY-NC, CC BY-ND ve Editorial lisanslı modeller ticari sürümde kullanılamaz (bkz. Docs/MASTER_PROMPT.md §4.2).
 
-## Karakterler (SourceAssets/Characters)
+### Karakterler (SourceAssets/Characters)
 
 | Oyunda | Kaynak | Sahibi | Lisans |
 |---|---|---|---|
@@ -19,14 +26,15 @@ Bu dört model başka bir kaynaktan indirildiyse yazar, bağlantı ve lisans bil
 
 Mixamo koşulları özetle: karakter ve animasyonlar kişisel ve ticari projelerde (oyunlar dahil) telifsiz kullanılabilir, ancak tek başına ham dosya olarak satılamaz veya dağıtılamaz. Depo herkese açıksa ham GLB'nin depoda durması bu kısıtla çelişebilir; ticari sürümden önce karakter kendi Adobe hesabıyla Mixamo'dan indirilmeli ya da CC0 bir modelle değiştirilmeli. Ayrıntı: `SourceAssets/Characters/soldier_vanguard/asset_info.json`.
 
-## Araçlar ve eşyalar (SourceAssets/Sketchfab)
+### Araçlar ve eşyalar (SourceAssets/Sketchfab)
 
 | Oyunda | Kaynak | Yazar | Lisans | Değişiklik |
 |---|---|---|---|---|
+| Konteynerler | [containers estilo ps1/ps2 — Sketchfab](https://sketchfab.com/3d-models/containers-estilo-ps1ps2-c4e722648a024585ba4dbfdb36c65f7c) | [PauloWardson](https://sketchfab.com/PauloWardson) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Sarı çeşit atıldı, yan panellerdeki firma yazısı ve logosu silindi, dokular 512 px'e küçültüldü, 40 fitlik model oyunda 20 fit boya ölçeklenir (`web/tools/prepare-prop.mjs`) |
 | Ağaçlar (çam) | [Pine Tree — Sketchfab](https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9) | [evolveduk](https://sketchfab.com/evolveduk) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 5,6 bin → 2,3 bin üçgen (yaprak kartları korunarak), dokular 512 px'e küçültüldü, konumlar nicemlendi (`web/tools/prepare-prop.mjs`) |
 | Tahliye helikopteri (Şahin-2) | [HELICOPTER — Sketchfab](https://sketchfab.com/3d-models/helicopter-c33f1be4708b422e8750d9b1db9894bf) | [pranav27](https://sketchfab.com/pranav27) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 290 bin → 49 bin üçgene sadeleştirildi, konumlar nicemlendi, gövde rengi askerî yeşile çevrildi, pervaneler dönecek şekilde ayrıldı (`web/tools/prepare-prop.mjs`) |
 
-## Silah modelleri (SourceAssets/Sketchfab)
+### Silah modelleri (SourceAssets/Sketchfab)
 
 | Oyundaki ad | Kaynak | Yazar | Lisans | Değişiklik |
 |---|---|---|---|---|
@@ -38,13 +46,13 @@ Mixamo koşulları özetle: karakter ve animasyonlar kişisel ve ticari projeler
 
 Oyundaki silah adları kurgusaldır; kaynak model adlarındaki gerçek markalar oyunda kullanılmaz. Hazırlama: `web/tools/prepare-weapon-glb.mjs` (ayarlar `web/tools/weapon-glb-map.json`).
 
-CC BY 4.0: yazar ve lisans belirtilerek ticari dahil her amaçla kullanılabilir, değiştirilebilir; değişiklikler belirtilmelidir. Oyun içinde "Emeği geçenler" ekranında da listelenir (`web/src/propAssets.json`'dan). Ayrıntı: `SourceAssets/Sketchfab/helicopter_pranav27/asset_info.json`.
+CC BY 4.0: yazar ve lisans belirtilerek ticari dahil her amaçla kullanılabilir, değiştirilebilir; değişiklikler belirtilmelidir. Oyun içinde "Lisanslar" ekranında da listelenir (`web/src/propAssets.json`'dan). Ayrıntı: `SourceAssets/Sketchfab/helicopter_pranav27/asset_info.json`.
 
-## Prosedürel içerik
+### Prosedürel içerik
 
 AR-7 Vanguard, SMG-9 Akrep, SG-12 Breaker, P-9 Sentinel, RK-7 Yıldırım, düşman silahları, tanklar, uçaksavarlar, harita, dokular ve seslerin tamamı kodla üretilir. Helikopter modeli yüklenemezse kodla üretilen yedek helikopter kullanılır. Asker modeli yüklenemezse oyun kodla üretilen yedek askerlere döner.
 
-## Yazılım ve yazı tipleri
+### Yazılım ve yazı tipleri
 
 - three.js — MIT lisansı
 - Big Shoulders Stencil Display, Barlow Condensed, Share Tech Mono — SIL Open Font License (Google Fonts)

@@ -13,5 +13,5 @@
   "original_file": "original/m4_carbine_rifle.glb",
   "sha256": "7316fb62665a72491d3de55473474b6ec59c7a0f41912cee904ce1de6c6aa040",
   "modifications": "web/tools/prepare-weapon-glb.mjs: meshoptimizer ile 587 669 → 71 245 üçgen; namlu -Z, 0,84 m, köken kabzada; taban rengi çarpanı beyaz, saydamlık BLEND → MASK; holografik nişangah gövdesi ve camı ayrı parça (optic, nişan alırken gizlenir); dokular 2048/1024 px JPEG olarak ayrıldı; gövde dokusundaki \"M4 CARBINE\" yazısı silindi. Adı kurgusal.",
-  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
 }

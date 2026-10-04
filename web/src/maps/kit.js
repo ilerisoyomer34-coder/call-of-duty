@@ -121,12 +121,17 @@ export function rubble(W, cx, cz, s = 1.5, seed = 3) {
   }
 }
 
+// Konteyner (20 fit). Hazır model yüklendiyse (World.addContainer) görünüm modelden, kutu yalnız çarpıştırıcıdır;
+// yoksa (ya da Node'daki çarpışma dünyasında) boyalı kutu. Çarpıştırıcı her durumda aynı çağrı: çarpışma verisi değişmez
 export function container(W, cx, cz, alongX, mat, y = 0) {
   const L = 6.06;
   const Wd = 2.44;
   const H = 2.6;
-  if (alongX) W.block(cx, y, cz, L, H, Wd, mat, 'metal');
-  else W.block(cx, y, cz, Wd, H, L, mat, 'metal');
+  const w = alongX ? L : Wd;
+  const d = alongX ? Wd : L;
+  const model = !!W.addContainer?.(cx, y, cz, w, H, d, alongX, mat);
+  W.block(cx, y, cz, w, H, d, mat, 'metal', model ? { visible: false } : undefined);
+  if (model) return;
   // Kapı çerçevesi detayı
   if (alongX) W.block(cx + L / 2 + 0.02, y + 0.1, cz, 0.06, H - 0.2, Wd - 0.2, 'metalDark', 'metal', { collide: false });
   else W.block(cx, y + 0.1, cz + L / 2 + 0.02, Wd - 0.2, H - 0.2, 0.06, 'metalDark', 'metal', { collide: false });

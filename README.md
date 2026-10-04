@@ -265,7 +265,7 @@ Askerler ve silahlar dışındaki araç ve eşyalar Sketchfab'den alınan hazır
 2. Dosyayı `SourceAssets/Sketchfab/<ad>_<yazar>/original/` altına koy, yanına lisansıyla `asset_info.json` yaz. Sketchfab GLB'leri yazar, lisans ve kaynak bilgisini dosyanın içinde (`asset.extras`) taşır.
 3. `web/tools/prepare-prop.mjs` içindeki `SOURCES` tablosuna bir satır ekle: sadeleştirme oranı, hareketli parçaların (rotor, taret…) yeni adları, burnun baktığı eksen, oyundaki boy ve renk ayarı.
 4. `cd web && node tools/prepare-prop.mjs <ad>` → `web/assets/props/<ad>.glb` ve `web/src/propAssets.json`. Model sadeleştirilir (helikopter 290 bin → 49 bin üçgen, 8,1 → 0,74 MB) ve nicemlenir.
-5. Atıf `CREDITS.md`'ye yazılır; oyun içi "Emeği geçenler" ekranı `propAssets.json`'dan kendiliğinden doldurulur. Model yüklenemezse oyun kodla üretilen yedek modelle devam eder.
+5. Atıf `CREDITS.md`'ye yazılır; oyun içi "Lisanslar" ekranı (Emeği geçenler → Lisanslar) `propAssets.json`'dan kendiliğinden doldurulur. Model yüklenemezse oyun kodla üretilen yedek modelle devam eder.
 
 ### Sketchfab silahı ekleme
 

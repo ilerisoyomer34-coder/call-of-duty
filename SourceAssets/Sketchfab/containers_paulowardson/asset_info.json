@@ -1,0 +1,16 @@
+{
+  "title": "containers estilo ps1/ps2",
+  "author": "PauloWardson",
+  "author_url": "https://sketchfab.com/PauloWardson",
+  "source_url": "https://sketchfab.com/3d-models/containers-estilo-ps1ps2-c4e722648a024585ba4dbfdb36c65f7c",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-04",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (5c977d3e-containers_estilo_ps1ps2.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), 6 mesh (kırmızı, gri, yeşil, turuncu, mavi, sarı; her biri 12 üçgenlik kutu), 9 PNG doku (2048 px taban rengi, ortak metal/pürüz/AO ve normal), 40 fit (11,23 × 2,43 × 2,57 m)",
+  "category": "Architecture / Props",
+  "intended_use": "Haritalardaki tüm konteynerlerin görünümü (renk başına bir InstancedMesh); çarpışma kodla kurulan 20 fit kutu olarak kalır",
+  "original_file": "original/containers_estilo_ps1ps2.glb",
+  "sha256": "ee71d5afad0dbdcef5f67f3d063d4cad99866e604085043068e230b2ffeb8bab",
+  "modifications": "web/tools/prepare-prop.mjs: sarı çeşit atıldı; çeşitler oyunun malzeme adlarıyla yeniden adlandırıldı (contRed, contGrey, contGreen, contOrange, contBlue); yan panellerdeki 'COMERCE SHIPPING' firma yazısı ve logosu yazısız panelle örtüldü; dokular 512 px JPEG'e küçültüldü (2,97 MB → 0,20 MB); turuncu çeşidin metal katsayısı öbürleriyle eşitlendi (0); KHR_mesh_quantization ile nicemleme. Oyunda 40 fitlik model 20 fit boya (6,06 m) ölçeklenir (web/src/world.js → buildContainers).",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir."
+}

@@ -7,7 +7,7 @@
 //
 //  - Gömülü dokuları küçültür ve yeniden kodlar (Chromium tuvaliyle): saydamlık gereken taban rengi PNG, diğerleri JPEG
 //
-// Kullanım (web/ içinden):  node tools/prepare-prop.mjs helicopter | pine
+// Kullanım (web/ içinden):  node tools/prepare-prop.mjs helicopter | pine | containers
 import { NodeIO, getBounds } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, prune, weld, simplify, quantize } from '@gltf-transform/functions';
@@ -30,6 +30,12 @@ const repo = join(root, '..');
 //  lockBorder: sadeleştirmede açık kenarlar korunur (yaprak kartları gibi tek katlı yüzeyler bozulmasın)
 //  textures: { max: en uzun kenar (px), quality: JPEG kalitesi } — verilmezse dokular olduğu gibi kalır
 //  kind: 'tree' → oyun boyu ve gövde tabanını modelin sınırlarından alır (kit.js ağaçları)
+//  kind: 'container' → her mesh bir renk çeşidi; rename ile oyunun malzeme adını alır (contRed…), variants listesine girer
+//  ratio: 1 → sadeleştirme yok (zaten birkaç üçgenlik kutular)
+//  metallic: bütün malzemelerin metal katsayısı (kaynakta çeşitler arasında tutarsızsa)
+//  drop: atılan düğümler (kullanılmayan çeşitler; mesh, malzeme ve dokuları budanır)
+//  textures.paint: taban rengi dokularında kopyala-yapıştır boyama (kaynak piksellerinde { from: [x, y, w, h], to: [[x, y]…] }):
+//    marka/logo yazılı paneller düz panelle örtülür
 const SOURCES = {
   helicopter: {
     source: 'SourceAssets/Sketchfab/helicopter_pranav27/original/helicopter.glb',
@@ -50,6 +56,24 @@ const SOURCES = {
     lockBorder: true,
     rename: {},
     textures: { max: 512, quality: 0.85 },
+  },
+  // Konteynerler: haritalardaki bütün konteynerlerin görünümü (çarpışma kit.js'teki kutu olarak kalır). Model 40 fit,
+  // oyun 20 fit boyuna ölçekler (world.js → buildContainers). Sarı çeşit kullanılmıyor
+  containers: {
+    source: 'SourceAssets/Sketchfab/containers_paulowardson/original/containers_estilo_ps1ps2.glb',
+    kind: 'container',
+    ratio: 1,
+    rename: {
+      Container_container01textred_0: 'contRed',
+      'Container.001_containertext-gray_0': 'contGrey',
+      'Container.002_containertext-green_0': 'contGreen',
+      'Container.003_containertext-orange_0': 'contOrange',
+      'Container.004_containertext-blue_0': 'contBlue',
+    },
+    drop: ['Container.005', 'Container.005_containertext-yellow_0'],
+    metallic: 0, // turuncu çeşit kaynakta 1: ortam yansımasında öbürlerinden koyu görünür
+    // Yan panellerdeki "COMERCE SHIPPING" yazısı ve logosu: üstteki yazısız uzun panel iki yazılı panelin üstüne kopyalanır
+    textures: { max: 512, quality: 0.85, paint: [{ from: [52, 472, 1486, 338], to: [[536, 1340], [536, 1690]] }] },
   },
 };
 
@@ -75,6 +99,12 @@ for (const n of R.listNodes()) {
   if (to) n.setName(to);
 }
 for (const list of Object.values(cfg.rotors || {})) for (const name of list) if (!R.listNodes().some((n) => n.getName() === name)) throw new Error(`${name} düğümü bulunamadı`);
+for (const name of Object.values(cfg.rename)) if (!R.listNodes().some((n) => n.getName() === name)) throw new Error(`${name} düğümü bulunamadı`);
+for (const name of cfg.drop || []) {
+  const n = R.listNodes().find((o) => o.getName() === name);
+  if (!n) throw new Error(`${name} düğümü bulunamadı`);
+  n.dispose();
+}
 
 // 2) Kuyruk pervanesinin dönme ekseni: pervane diskinin en ince olduğu eksen (sahne uzayında)
 const axisOf = (name) => {
@@ -89,14 +119,19 @@ const axes = cfg.rotors ? { main: axisOf(cfg.rotors.main[0]), tail: axisOf(cfg.r
 await MeshoptSimplifier.ready;
 const perMesh = () => R.listMeshes().map((m) => `${m.getName()}: ${m.listPrimitives().reduce((n, p) => n + (p.getIndices()?.getCount() ?? 0) / 3, 0)}`).join(', ');
 const meshesBefore = perMesh();
-await doc.transform(dedup(), weld(), simplify({ simplifier: MeshoptSimplifier, ratio: cfg.ratio, error: cfg.error, lockBorder: !!cfg.lockBorder }), prune(), quantize({ quantizePosition: 14, quantizeNormal: 10 }));
+const reduce = cfg.ratio < 1 ? [simplify({ simplifier: MeshoptSimplifier, ratio: cfg.ratio, error: cfg.error, lockBorder: !!cfg.lockBorder })] : [];
+await doc.transform(dedup(), weld(), ...reduce, prune(), quantize({ quantizePosition: 14, quantizeNormal: 10 }));
 const trisAfter = countTris();
 console.log(`mesh üçgenleri: ${meshesBefore} → ${perMesh()}`);
 
 // 3b) Dokular: küçült, saydamlık gerekmiyorsa JPEG
 if (cfg.textures) {
   const alphaTex = new Set();
-  for (const m of R.listMaterials()) if (m.getAlphaMode() !== 'OPAQUE' && m.getBaseColorTexture()) alphaTex.add(m.getBaseColorTexture());
+  const baseTex = new Set();
+  for (const m of R.listMaterials()) {
+    if (m.getAlphaMode() !== 'OPAQUE' && m.getBaseColorTexture()) alphaTex.add(m.getBaseColorTexture());
+    if (m.getBaseColorTexture()) baseTex.add(m.getBaseColorTexture());
+  }
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader'] });
   const page = await browser.newPage();
   let before = 0;
@@ -114,12 +149,13 @@ if (cfg.textures) {
       const x = c.getContext('2d');
       x.imageSmoothingQuality = 'high';
       x.drawImage(im, 0, 0, c.width, c.height);
+      for (const p of j.paint) for (const [dx, dy] of p.to) x.drawImage(im, ...p.from, dx * k, dy * k, p.from[2] * k, p.from[3] * k);
       const blob = await c.convertToBlob(j.png ? { type: 'image/png' } : { type: 'image/jpeg', quality: j.quality });
       const buf = new Uint8Array(await blob.arrayBuffer());
       let s = '';
       for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
       return btoa(s);
-    }, { mime: t.getMimeType(), data: Buffer.from(img).toString('base64'), max: cfg.textures.max, quality: cfg.textures.quality, png });
+    }, { mime: t.getMimeType(), data: Buffer.from(img).toString('base64'), max: cfg.textures.max, quality: cfg.textures.quality, png, paint: baseTex.has(t) ? cfg.textures.paint || [] : [] });
     const out = new Uint8Array(Buffer.from(b64, 'base64'));
     after += out.byteLength;
     t.setImage(out).setMimeType(png ? 'image/png' : 'image/jpeg');
@@ -129,6 +165,7 @@ if (cfg.textures) {
 }
 
 // 4) Malzeme özeti (renk ayarı ve rapor için)
+if (cfg.metallic !== undefined) for (const m of R.listMaterials()) m.setMetallicFactor(cfg.metallic);
 const matReport = {};
 for (const m of R.listMaterials()) matReport[m.getName()] = m.getBaseColorFactor().slice(0, 3).map((v) => +v.toFixed(3));
 
@@ -146,6 +183,7 @@ const sceneBounds = getBounds(R.listScenes()[0]);
 all[id] = {
   file,
   kind: cfg.kind || 'vehicle',
+  variants: cfg.kind === 'container' ? Object.values(cfg.rename) : undefined,
   rotors: cfg.rotors || null,
   axes,
   forward: cfg.forward || null,

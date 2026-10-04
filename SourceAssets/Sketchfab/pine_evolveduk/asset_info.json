@@ -12,5 +12,5 @@
   "original_file": "original/pine_tree.glb",
   "sha256": "409cb9bb1a479b8b6482b2875402e6d1b25bf90a33182e38737257924a1b0fa6",
   "modifications": "web/tools/prepare-prop.mjs: dedup + weld + meshoptimizer sadeleştirme (açık kenarlar korunarak; gövde 4 539 → 1 354, yapraklar 1 088 → 986 üçgen), dokular 512 px'e küçültüldü (yaprak taban rengi PNG, diğerleri JPEG; 4,46 MB → 0,43 MB), KHR_mesh_quantization ile nicemleme (4,7 MB → 0,51 MB).",
-  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir."
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak bağlantısı, lisans ve yapılan değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir."
 }

@@ -56,5 +56,41 @@
     },
     "tris": 2340,
     "bytes": 536156
+  },
+  "containers": {
+    "file": "assets/props/containers.glb",
+    "kind": "container",
+    "variants": [
+      "contRed",
+      "contGrey",
+      "contGreen",
+      "contOrange",
+      "contBlue"
+    ],
+    "rotors": null,
+    "axes": null,
+    "forward": null,
+    "length": null,
+    "bounds": {
+      "min": [
+        -28.01,
+        0,
+        195.776
+      ],
+      "max": [
+        -12.59,
+        2.573,
+        207.005
+      ]
+    },
+    "tint": {},
+    "credit": {
+      "title": "containers estilo ps1/ps2",
+      "author": "PauloWardson (https://sketchfab.com/PauloWardson)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/containers-estilo-ps1ps2-c4e722648a024585ba4dbfdb36c65f7c"
+    },
+    "tris": 60,
+    "bytes": 213220
   }
 }

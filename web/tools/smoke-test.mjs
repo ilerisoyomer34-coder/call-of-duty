@@ -1914,8 +1914,21 @@ console.log('Haritalar, mevziler ve manga kademeleri');
         trees: g.world.trees.length,
         treeInst: (() => {
           const n = [];
-          g.scene.traverse((o) => o.isInstancedMesh && o.count === g.world.trees.length && g.world.trees.length > 0 && n.push(o.material.alphaTest > 0));
+          g.scene.traverse((o) => o.isInstancedMesh && o.userData.prop === 'tree' && o.count === g.world.trees.length && g.world.trees.length > 0 && n.push(o.material.alphaTest > 0));
           return n;
+        })(),
+        // Konteynerler hazır modelle: renk başına bir InstancedMesh, örneklerin toplamı haritadaki konteyner sayısı
+        containers: g.world.containers.length,
+        contInst: (() => {
+          let n = 0;
+          let k = 0;
+          g.scene.traverse((o) => {
+            if (o.isInstancedMesh && o.userData.prop === 'container') {
+              n += o.count;
+              k++;
+            }
+          });
+          return [n, k];
         })(),
       };
     });
@@ -1929,6 +1942,7 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
     if (id === 1 || id === 5) check(r.trees > 0 && r.treeInst.length === 2 && r.treeInst.includes(true), `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, 2 çizim çağrısı)`);
+    if (id !== 5) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk başına bir çizim çağrısı)`);
     if (id >= 3) {
       await waitGame(page, 1.0);
       await page.screenshot({ path: join(shots, `14-map-${map}.png`) });
@@ -2698,7 +2712,22 @@ console.log('Artifact sürümü (dist/artifact.html)');
   check(await page.evaluate(() => document.getElementById('loading').hidden), 'Yükleme ekranı kapandı');
   // Menü arka planı görev haritasıdır: hazır helikopter yan dosyadan indiyse sahnenin altında bekler
   const hp = await page.evaluate(() => ({ prop: !!window.__game.mission.heliSpare?.prop, credit: document.querySelector('#propCredits p')?.textContent || '' }));
-  check(hp.prop && /CC-BY-4\.0/.test(hp.credit), `Helikopter modeli yan dosyadan yüklendi, atfı emeği geçenlerde ("${hp.credit.slice(0, 48)}…")`);
+  check(hp.prop && /CC-BY-4\.0/.test(hp.credit), `Helikopter modeli yan dosyadan yüklendi, atfı Lisanslar ekranında ("${hp.credit.slice(0, 48)}…")`);
+  // Emeği geçenler yalnız iki rol ve iki isim; model atıfları ayrı Lisanslar ekranında
+  await page.evaluate(() => document.getElementById('btnCredits').click());
+  const cr = await page.evaluate(() => ({
+    shown: !document.getElementById('creditsScreen').hidden,
+    roles: [...document.querySelectorAll('#creditsScreen .creditRole')].map((r) => `${r.querySelector('span').textContent}: ${r.querySelector('b').textContent}`),
+    paras: document.querySelectorAll('#creditsScreen p, #creditsScreen #propCredits').length,
+  }));
+  check(cr.shown && cr.roles.join(' | ') === 'Tasarım: Tarık Kerem Öz | Yazılım ve işleyiş: Ömer İlerisoy' && cr.paras === 0, `Emeği geçenler: yalnız iki isim (${cr.roles.join(' | ')})`);
+  await page.screenshot({ path: join(shots, '30-credits.png') });
+  await page.evaluate(() => document.getElementById('btnLicenses').click());
+  const lic = await page.evaluate(() => ({ shown: !document.getElementById('licenseScreen').hidden, text: document.getElementById('propCredits').textContent }));
+  check(lic.shown && /Konteynerler: "containers estilo ps1\/ps2" — PauloWardson, Sketchfab \(CC-BY-4\.0\)/.test(lic.text) && /Ağaçlar:/.test(lic.text), 'Lisanslar düğmesi atıf ekranını açtı (konteyner, ağaç, helikopter, silahlar)');
+  await page.evaluate(() => document.querySelector('#licenseScreen [data-back]').click());
+  check(await page.evaluate(() => !document.getElementById('creditsScreen').hidden), 'Lisanslar → Geri emeği geçenlere döndü');
+  await page.evaluate(() => document.querySelector('#creditsScreen [data-back]').click());
   await page.evaluate(() => window.__game.startMode('range', 'normal'));
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
   check(await page.evaluate(() => window.__game.enemies.list.length > 0 && window.__game.enemies.list.every((e) => !!e.model.bones)), 'Asker modeli yan dosyadan yüklendi (iskeletli)');

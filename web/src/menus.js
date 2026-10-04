@@ -1,4 +1,4 @@
-// Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, duraklatma, ölüm, zafer.
+// Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, lisanslar, duraklatma, ölüm, zafer.
 import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS, EXTRACT } from './config.js';
 import { applyBindingOverrides } from './input.js';
 import { BindingsEditor } from './bindingsUi.js';
@@ -16,7 +16,15 @@ import { speechSupported, recognitionCtor } from './radioChat.js';
 import { NameScreen, playerDisplay } from './nameScreen.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'licenseScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
+
+// Atıfta yazılan değişiklik (CC BY değişikliğin belirtilmesini ister)
+const CREDIT_CHANGES = {
+  helicopter: 'Oyun için sadeleştirildi ve rengi değiştirildi.',
+  pine: 'Oyun için sadeleştirildi, dokuları küçültüldü.',
+  containers: 'Oyun için 20 fit boya ölçeklendi, dokulardaki firma yazısı ve logosu silindi.',
+  knife: 'Oyun için ölçeklendi, dokuları küçültüldü.',
+};
 
 export class Menus {
   constructor(game) {
@@ -71,12 +79,13 @@ export class Menus {
     if (el) el.textContent = formatKR(this.game.economy.credits);
   }
 
-  // Hazır araç modellerinin atfı (CC BY: yazar, kaynak, lisans, değişiklik) propAssets.json'dan
+  // Hazır modellerin atfı (CC BY: yazar, kaynak, lisans, değişiklik) propAssets.json'dan; Lisanslar ekranında.
+  // Emeği geçenler ekranı yalnız iki rolü gösterir, başka isim eklenmez (kullanıcı isteği)
   buildPropCredits() {
     const box = $('propCredits');
     if (!box) return;
     box.innerHTML = '';
-    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar' };
+    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar', containers: 'Konteynerler' };
     // Sketchfab silahları: oyundaki kurgusal adıyla
     for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = weaponName(d.id);
     const entries = [...Object.entries(PROP_ASSETS), ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];
@@ -87,7 +96,7 @@ export class Menus {
       b.textContent = `${names[id] || id}: `;
       const author = (c.author || '').replace(/\s*\(.*\)$/, '');
       const license = (c.license || '').replace(/\s*\(.*\)$/, '');
-      const change = id === 'knife' ? 'Oyun için ölçeklendi, dokuları küçültüldü.' : WEAPON_ASSETS[id] ? 'Oyun için sadeleştirildi, dokulardaki marka yazıları silindi.' : 'Oyun için sadeleştirildi ve rengi değiştirildi.';
+      const change = CREDIT_CHANGES[id] || (WEAPON_ASSETS[id] ? 'Oyun için sadeleştirildi, dokulardaki marka yazıları silindi.' : 'Oyun için sadeleştirildi.');
       p.append(b, document.createTextNode(`"${c.title}" — ${author}, Sketchfab (${license}). ${change} ${c.source}`));
       box.appendChild(p);
     }
@@ -150,9 +159,10 @@ export class Menus {
     click('btnStore', () => this.storeScreen.open());
     click('btnSettings', () => this.openSettings());
     click('btnControls', () => this.show('controlsScreen'));
-    click('btnCredits', () => {
+    click('btnCredits', () => this.show('creditsScreen'));
+    click('btnLicenses', () => {
       this.buildPropCredits();
-      this.show('creditsScreen');
+      this.show('licenseScreen');
     });
     click('btnResume', () => g.resume());
     click('btnPauseSettings', () => this.openSettings());

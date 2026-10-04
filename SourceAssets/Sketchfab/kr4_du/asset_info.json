@@ -13,5 +13,5 @@
   "original_file": "original/low-poly_colt_m4a1.glb",
   "sha256": "91130e41cb796507436b3928505b23b4ca7e088f2121c6a1b5b9dd8b7d9cbec0",
   "modifications": "web/tools/prepare-weapon-glb.mjs: sergi amaçlı yedek şarjör ve fişek atıldı; namlu -Z, 0,84 m, köken kabzada; şarjör ve kurma kolu ayrı parça; nicemleme (23 533 → 20 817 üçgen, 0,8 MB). Model adındaki gerçek marka oyunda kullanılmaz; ad kurgusal.",
-  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir. Proje kuralı gereği silah adı kurgusaldır; gerçek marka/logo dokulardan silinmiştir."
 }

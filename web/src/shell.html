@@ -658,6 +658,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .tip b { color: var(--amber); font-weight: 600; }
 .credits p { font: 400 16px/1.5 var(--f-ui); color: var(--sand-dim); margin: 0; max-width: 62ch; }
 .credits p b { color: var(--sand); font-weight: 600; }
+/* Emeği geçenler: yalnız roller (küçük başlık + büyük isim) */
+.creditRoles { display: flex; flex-direction: column; gap: 28px; padding: 12px 0 8px; }
+.creditRole { display: flex; flex-direction: column; gap: 8px; border-left: 3px solid var(--amber); padding-left: 16px; }
+.creditRole span { font: 600 14px/1 var(--f-ui); letter-spacing: .32em; color: var(--sand-dim); text-transform: uppercase; }
+.creditRole b { font: 900 clamp(28px, 5vw, 42px)/1.05 var(--f-display); letter-spacing: .03em; color: var(--sand); font-weight: 900; }
+@media (max-height: 520px) { .creditRoles { gap: 14px; padding: 4px 0; } .creditRole b { font-size: 26px; } }
 #deathScreen, #pauseScreen, #victoryScreen { background: rgba(10,12,14,.78); }
 #deathScreen { background: radial-gradient(ellipse at center, rgba(60,6,4,.55), rgba(10,12,14,.9)); }
 #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ink); pointer-events: auto; padding: 24px; box-sizing: border-box; overflow-y: auto; }
@@ -1230,13 +1236,21 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
   <section id="creditsScreen" class="screen panelScreen" hidden>
     <div class="sheet credits">
       <div><div class="eyebrow">Emeği geçenler</div><h2>Demir Şafak</h2></div>
-      <p><b>Tasarım ve kod:</b> Unreal Engine 5 shooter master planının tarayıcı için dikey kesiti. Silah hissi, yapay zekâ ve görev akışı aynı mimariyle kuruldu.</p>
-      <p><b>Düşman askerleri:</b> Mixamo (Adobe) "Vanguard" karakteri ve bekleme, yürüme, koşma animasyonları; three.js örnek deposundaki Soldier.glb dosyasından alındı. Adobe Mixamo kullanım koşullarıyla oyun içinde kullanılır. Nişan, silah tutuşu, çömelme ve ölüm hareketleri kodla eklendi.</p>
+      <div class="creditRoles" id="creditRoles">
+        <div class="creditRole"><span>Tasarım</span><b>Tarık Kerem Öz</b></div>
+        <div class="creditRole"><span>Yazılım ve işleyiş</span><b>Ömer İlerisoy</b></div>
+      </div>
+      <div class="row"><button class="btn primary" data-back>Geri</button><button class="btn" id="btnLicenses">Lisanslar</button></div>
+    </div>
+  </section>
+
+  <!-- Üçüncü taraf içeriğin lisans atıfları (CC BY 4.0 yazar, kaynak, lisans ve değişikliğin gösterilmesini ister) -->
+  <section id="licenseScreen" class="screen panelScreen" hidden>
+    <div class="sheet credits">
+      <div><div class="eyebrow">Lisanslar</div><h2>Üçüncü taraf içerik</h2></div>
       <div id="propCredits"></div>
-      <p><b>Harita, diğer modeller, dokular, sesler:</b> Kod ile prosedürel olarak üretildi.</p>
-      <p><b>Blender silah modelleri:</b> MAR-556, MG-43, MR-82 Marret ve D-50 Kartal oyuncunun kendi Blender dosyalarından (mar_556_1, mg_43_1, marret_m82, golden_dessert_eagle_1) içe aktarıldı ve tarayıcı için sadeleştirildi.</p>
-      <p><b>Silah adları:</b> Oyundaki tüm silah adları kurgusaldır; gerçek marka veya logo içermez.</p>
-      <p><b>Motor:</b> three.js (MIT lisansı) · Yazı tipleri: Big Shoulders Stencil, Barlow Condensed, Share Tech Mono (SIL Open Font License).</p>
+      <p><b>Düşman askerleri:</b> Mixamo (Adobe) "Vanguard" karakteri ve bekleme, yürüme, koşma animasyonları; three.js örnek deposundaki Soldier.glb. Adobe Mixamo kullanım koşullarıyla kullanılır.</p>
+      <p><b>Motor:</b> three.js (MIT lisansı) · <b>Yazı tipleri:</b> Big Shoulders Stencil, Barlow Condensed, Share Tech Mono (SIL Open Font License).</p>
       <div class="row"><button class="btn primary" data-back>Geri</button></div>
     </div>
   </section>

@@ -13,5 +13,5 @@
   "original_file": "original/knife.glb",
   "sha256": "fc40c8f3090eb67c544fb7cd12002bccc11c84d1247bd0f29e79c70141a26e28",
   "modifications": "web/tools/prepare-weapon-glb.mjs: namlu yönü (bıçak ucu) -Z, sırt +Y, 30 cm boya ölçeklendi, köken sap ortasında; dokular 1024 px JPEG olarak ayrıldı. Dokularda marka ya da yazı yok.",
-  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Emeği geçenler' ekranında gösterilir."
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir."
 }
