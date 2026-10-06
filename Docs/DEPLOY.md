@@ -1,5 +1,7 @@
 # DEPLOY — çevrim içi sunucuyu VPS'e kurma
 
+> **En kolay yol kendi bilgisayarın:** `Sunucuyu-Baslat` dosyasına çift tıkla. Ücretsiz, hesapsız, modem ayarsız; ayrıntı `Docs/HOME_SERVER.md`. Bu belge, bilgisayar kapalıyken de açık kalan bir sunucu (Oracle Cloud ya da VPS) isteyenler içindir.
+
 Oyunun kendisi GitHub Pages'te kalır. Arkadaşlar, bildirimler, parti ve ileride çevrim içi maçlar için bir sunucu gerekir (`web/server/`, Node 22). Bu belge onu bir VPS'e kurmayı adım adım anlatır.
 
 Kısaca:

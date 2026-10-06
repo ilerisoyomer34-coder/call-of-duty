@@ -5,7 +5,7 @@ import { createServer as createHttp } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { loadConfig } from './config.js';
+import { loadConfig, makeIpOf } from './config.js';
 import { Store } from './db.js';
 import { Hub } from './hub.js';
 import { PartyManager } from './party.js';
@@ -34,7 +34,7 @@ export async function startServer(overrides = {}) {
   const api = createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker });
   const http = createHttp((req, res) => api.handle(req, res));
   const wss = new WebSocketServer({ noServer: true, maxPayload: LIMITS.wsPayloadBytes });
-  const ipOf = (req) => (config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress || '?');
+  const ipOf = makeIpOf(config);
   const game = createGameGateway({ store, rooms, buildHash, log, netsim: config.netsim, ipOf });
 
   http.on('upgrade', (req, socket, head) => {

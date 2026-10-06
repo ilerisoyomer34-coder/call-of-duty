@@ -569,6 +569,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .dot.error { background: #ff6b5e; }
 .onOff { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid rgba(255,207,92,.45); background: rgba(255,207,92,.08); font: 500 15px/1.35 var(--f-ui); color: var(--sand); }
 .onOff[hidden] { display: none; }
+.onServer { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px 8px; border: 1px solid var(--line); background: rgba(94,231,255,.05); }
+.onServer label { font: 600 12px/1 var(--f-ui); letter-spacing: .24em; text-transform: uppercase; color: var(--sand-dim); }
+.onServer .onSearch { margin: 4px 0 2px; }
+.onSrvState { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 22px; font: 500 15px/1.3 var(--f-ui); color: var(--sand-dim); }
+.onSrvState b { color: #7dffa1; font-weight: 600; }
+.onSrvState.bad { color: #ff6b5e; }
 .onOff b { color: #ffcf5c; }
 .onTabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
 .onTab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--sand-dim); font: 600 16px/1 var(--f-ui); padding: 12px 14px; cursor: pointer; min-height: 44px; }
@@ -1127,6 +1133,12 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
         <div><div class="eyebrow">Çevrim içi</div><h2>Arkadaşlar ve takım</h2></div>
         <div class="onMe"><i class="dot" id="onDot"></i><b id="onMeName"></b><small id="onState"></small></div>
       </div>
+      <!-- Sunucu bağlantısı: ev sunucusunun davet bağlantısı (ya da yalnız adresi) buraya yapıştırılır (net/servers.js) -->
+      <div class="onServer" id="onServer">
+        <label for="onServerInput">Sunucu bağlantısı</label>
+        <form class="onSearch" id="onServerForm" autocomplete="off"><input id="onServerInput" type="text" inputmode="url" placeholder="Sunucu sahibinin gönderdiği bağlantıyı buraya yapıştır" spellcheck="false" autocapitalize="off" enterkeyhint="go" maxlength="300"><button class="btn primary" type="submit">Bağlan</button></form>
+        <div class="onSrvState"><span id="onSrvText"></span><button class="btn small" id="btnSrvCopy" type="button" hidden>Davet bağlantısını kopyala</button></div>
+      </div>
       <div class="onOff" id="onOff" hidden><b id="onOffTitle"></b><span id="onOffText"></span><button class="btn small" id="btnOnRetry" type="button">Yeniden dene</button></div>
       <div class="partyPanel" id="partyPanel" hidden>
         <div class="ppHead"><b id="ppTitle">Takım</b><span id="ppCount"></span></div>
@@ -1185,7 +1197,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
         <div>
           <h3>Oyuncu</h3>
           <div class="set"><label>Oyuncu adı<small>Telsizde ve çevrim içi oyunda görünür</small></label><span class="setVal" id="sPlayerName">—</span><button class="btn small" id="btnSetName" type="button">Değiştir</button></div>
-          <div class="set"><label for="sServerUrl">Çevrim içi sunucu<small>Boş: oyunun varsayılan sunucusu</small></label><input type="url" id="sServerUrl" class="setText" placeholder="https://…" spellcheck="false" autocomplete="off"></div>
+          <div class="set"><label for="sServerUrl">Çevrim içi sunucu<small>Sunucu sahibinin gönderdiği bağlantı (Çevrim içi ekranındaki alanla aynı)</small></label><input type="url" id="sServerUrl" class="setText" placeholder="https://…" spellcheck="false" autocomplete="off"></div>
           <h3>Kontroller</h3>
           <div class="set"><label for="sSens">Fare hassasiyeti</label><input type="range" id="sSens" min="0.2" max="3" step="0.05"><output id="oSens"></output></div>
           <div class="set"><label for="sAdsSens">Nişan hassasiyeti</label><input type="range" id="sAdsSens" min="0.3" max="1.5" step="0.05"><output id="oAdsSens"></output></div>

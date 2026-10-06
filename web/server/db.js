@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS notifications (
   seen INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS notifications_to ON notifications (to_id, seen);
+-- Sunucunun kendi kalıcı değerleri (serverId: bir kez üretilir, veritabanı yaşadıkça aynı kalır)
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
 
 export const hashToken = (t) => createHash('sha256').update(String(t)).digest('hex');
@@ -72,7 +77,15 @@ export class Store {
       notes: q('SELECT * FROM notifications WHERE to_id = ? ORDER BY id DESC LIMIT ?'),
       seenNotes: q('UPDATE notifications SET seen = 1 WHERE to_id = ?'),
       trimNotes: q('DELETE FROM notifications WHERE to_id = ? AND id NOT IN (SELECT id FROM notifications WHERE to_id = ? ORDER BY id DESC LIMIT ?)'),
+      getMeta: q('SELECT value FROM meta WHERE key = ?'),
+      setMeta: q('INSERT INTO meta (key, value) VALUES (?, ?)'),
     };
+    // Ev sunucusunun tünel adresi her açılışta değişir; oyun hesabı (profile.servers) bu kimliğe bağlanır
+    this.serverId = this.q.getMeta.get('serverId')?.value;
+    if (!this.serverId) {
+      this.serverId = `s_${randomBytes(12).toString('hex')}`;
+      this.q.setMeta.run('serverId', this.serverId);
+    }
   }
 
   close() {

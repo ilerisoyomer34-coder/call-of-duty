@@ -16,4 +16,7 @@ DerivedDataCache/
 
 # Gizli bilgiler
 .env
+# Ev sunucusu: bilgisayara özel ayarlar (SERVER_SECRET) ve indirilen tünel programı
+web/server/host.env
+web/server/bin/
 web/dist/artifact-assets/

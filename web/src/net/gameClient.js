@@ -26,8 +26,8 @@ export const BUILD_HASH = typeof __BUILD_HASH__ === 'string' ? __BUILD_HASH__ : 
 
 // Bağlantıyı kapatan hatalar (S_ERROR) → oyuncuya gösterilen metin
 export const NET_ERRORS = {
-  [ERR.VERSION_MISMATCH]: { title: 'Oyun güncellendi', text: 'Sunucu ile oyunun sürümü farklı. Sayfayı yenile; düzelmezse sunucu güncelleniyor olabilir.', reload: true },
-  [ERR.BUILD_MISMATCH]: { title: 'Oyun güncellendi', text: 'Sunucu ile oyunun sürümü farklı. Sayfayı yenile; düzelmezse sunucu güncelleniyor olabilir.', reload: true },
+  [ERR.VERSION_MISMATCH]: { title: 'Oyun güncellendi', text: 'Sunucu ile oyunun sürümü farklı. Sayfayı yenile (uygulamada menüdeki Güncelle). Düzelmezse sunucu birkaç dakika içinde kendini günceller.', reload: true },
+  [ERR.BUILD_MISMATCH]: { title: 'Oyun güncellendi', text: 'Sunucu ile oyunun sürümü farklı. Sayfayı yenile (uygulamada menüdeki Güncelle). Düzelmezse sunucu birkaç dakika içinde kendini günceller.', reload: true },
   [ERR.AUTH_FAILED]: { title: 'Oturum geçersiz', text: 'Çevrim içi ekranından yeniden bağlan.' },
   [ERR.ROOM_NOT_FOUND]: { title: 'Oda bulunamadı', text: 'Maç bitmiş ya da oda kapanmış olabilir.' },
   [ERR.ROOM_FULL]: { title: 'Oda dolu', text: 'Başka bir maç ara.' },

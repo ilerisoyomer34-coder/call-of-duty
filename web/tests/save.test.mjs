@@ -84,15 +84,16 @@ test('update gecikmeli yazar, now ve flush hemen yazar; reset temiz kayda döner
 
 test('oyuncu kimliği: boş başlar, eski anahtardaki ad alınır, bozuk alan düzelir, sıfırlamada korunur', () => {
   const s0 = new SaveSystem({ store: memoryStore(), startCredits: 1000 });
-  assert.deepEqual(s0.data.profile, { name: null, tag: null, id: null, token: null });
+  // server/servers: hesap sunucunun kalıcı kimliğine bağlı (ev sunucusunun tünel adresi değişir)
+  assert.deepEqual(s0.data.profile, { name: null, tag: null, id: null, token: null, server: null, servers: {} });
   const store = memoryStore({ [LEGACY_KEYS.profile]: { name: 'Deneme' } });
   const s = new SaveSystem({ store, startCredits: 1000 });
   assert.equal(s.data.profile.name, 'Deneme');
   // Kayıttaki ad eski anahtardan önce gelir
   const both = memoryStore({ [SAVE_KEY]: { version: 1, profile: { name: 'Ömer', tag: '0042', id: 'p1', token: 'x' } }, [LEGACY_KEYS.profile]: { name: 'Deneme' } });
   assert.equal(new SaveSystem({ store: both, startCredits: 1000 }).data.profile.name, 'Ömer');
-  const bad = migrateSave({ version: 1, profile: { name: 5, tag: '' } }, () => null, 1000).save;
-  assert.deepEqual(bad.profile, { name: null, tag: null, id: null, token: null });
+  const bad = migrateSave({ version: 1, profile: { name: 5, tag: '', servers: { s_a: { token: 't', tag: '0001' }, s_b: 'bozuk', s_c: { tag: '1' } } } }, () => null, 1000).save;
+  assert.deepEqual(bad.profile, { name: null, tag: null, id: null, token: null, server: null, servers: { s_a: { id: null, tag: '0001', token: 't' } } });
   const r = new SaveSystem({ store: both, startCredits: 1000 });
   r.data.credits = 50;
   r.reset();

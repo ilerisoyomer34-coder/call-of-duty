@@ -5,6 +5,7 @@ import { NET } from './config.js';
 import { EV } from './events.js';
 import { displayName } from '../shared/names.js';
 import { errorText } from './net/social.js';
+import { inviteUrl, probeServer, serverInputError } from './net/servers.js';
 import { saveSettings } from './settings.js';
 import MODES from './data/modes.json' with { type: 'json' };
 
@@ -62,6 +63,18 @@ export class OnlineScreen {
       this.searchTimer = setTimeout(() => this.search(false), NET.searchDebounceMs);
     });
     $('btnOnRetry').addEventListener('click', () => this.social.start());
+    $('onServerForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.connectServer();
+    });
+    $('btnSrvCopy').addEventListener('click', () => this.copyInvite());
+    $('onServerInput').addEventListener('input', () => {
+      if (!this.serverError) return;
+      this.serverError = '';
+      this.renderServer();
+    });
+    // Ekran açıkken bağlı sunucunun oyuncu sayısı tazelenir
+    setInterval(() => this.refreshInfo(), NET.infoRefreshSec * 1000);
     $('btnPartyLeave').addEventListener('click', () => this.act(() => this.social.leaveParty(), 'Takımdan ayrıldın'));
     // Maç ara / iptal: takımda lider arar (üyeler iptal edebilir); takımsız oyuncu kendi seçtiği modla
     $('btnPartyFind').addEventListener('click', () => {
@@ -72,7 +85,11 @@ export class OnlineScreen {
     $('btnSandbox').addEventListener('click', () => this.act(() => this.social.openSandbox()));
     const ev = game.events;
     ev.on(EV.QUEUE_CHANGED, () => this.renderParty());
-    ev.on(EV.SOCIAL_STATUS, () => this.render());
+    ev.on(EV.SOCIAL_STATUS, (e) => {
+      this.render();
+      // Bağlanınca oyuncu sayısı kendini de içersin (bağlanmadan önce okunmuştu)
+      if (e?.status === 'online') this.refreshInfo();
+    });
     ev.on(EV.FRIENDS_CHANGED, () => this.render());
     ev.on(EV.PARTY_CHANGED, (e) => this.onParty(e?.party));
     ev.on(EV.PROFILE_CHANGED, () => this.renderHead());
@@ -135,8 +152,67 @@ export class OnlineScreen {
     if (this.results.length) this.renderResults();
   }
 
+  // Yapıştırılan bağlantıyla bağlan: geçersizse gerekçe, geçerliyse yeni adres kaydedilip yeniden bağlanılır
+  async connectServer() {
+    const input = $('onServerInput');
+    const r = await this.social.useServer(input.value);
+    if (!r.ok) {
+      this.serverError = serverInputError(r.error);
+      this.renderServer();
+      return;
+    }
+    this.serverError = '';
+    input.value = r.url;
+    input.blur();
+    this.renderServer();
+  }
+
+  async copyInvite() {
+    const link = inviteUrl(this.social.serverUrl, NET.gameUrl);
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(link);
+      ok = true;
+    } catch {
+      /* pano izni yok: bağlantı alana yazılıp seçilir */
+    }
+    const input = $('onServerInput');
+    if (!ok) {
+      input.value = link;
+      input.select();
+    }
+    this.msg(ok ? 'Davet bağlantısı kopyalandı; arkadaşına gönder.' : 'Bağlantı alanda seçildi; kopyalayıp gönder.');
+  }
+
+  async refreshInfo() {
+    const S = this.social;
+    if (!this.isOpen || S.status !== 'online') return;
+    const url = S.serverUrl;
+    const info = await probeServer(url);
+    if (info && url === S.serverUrl && S.status === 'online') {
+      S.info = { ...S.info, ...info };
+      this.renderServer();
+    }
+  }
+
+  renderServer() {
+    const S = this.social;
+    const input = $('onServerInput');
+    if (document.activeElement !== input && !this.serverError) input.value = S.serverUrl;
+    const box = $('onSrvText').parentElement;
+    const t = $('onSrvText');
+    t.textContent = '';
+    box.classList.toggle('bad', !!this.serverError);
+    if (this.serverError) t.textContent = this.serverError;
+    else if (S.status === 'online' && S.info) {
+      t.append(el('b', '', `Bağlı: ${S.info.name || 'sunucu'}`), document.createTextNode(` · ${Math.max(1, S.info.online)} oyuncu çevrim içi`));
+    } else if (S.status === 'connecting') t.textContent = 'Bağlanılıyor…';
+    $('btnSrvCopy').hidden = !(S.status === 'online' && /^https:/.test(S.serverUrl));
+  }
+
   renderHead() {
     const S = this.social;
+    this.renderServer();
     $('onMeName').textContent = S.me() || 'Adsız';
     const st = S.status;
     $('onDot').className = `dot ${st === 'online' ? 'online' : st}`;
@@ -149,13 +225,13 @@ export class OnlineScreen {
     if (st === 'off' && S.reason === 'noname') {
       title = 'Önce oyuncu adını gir.';
     } else if (st === 'off') {
-      title = 'Sunucu henüz kurulmadı.';
-      text = 'Arkadaşlar ve çevrim içi oyun, sunucu yayına alınınca açılacak. Adın ve tek oyunculu ilerlemen bu cihazda saklı.';
+      title = 'Sunucu seçilmedi.';
+      text = 'Sunucu sahibinin gönderdiği bağlantıyı yukarıdaki alana yapıştır ya da bağlantıya tıkla. Adın ve tek oyunculu ilerlemen bu cihazda saklı.';
     } else if (st === 'connecting') {
       title = 'Sunucuya bağlanılıyor…';
     } else if (st === 'error') {
-      title = 'Sunucuya ulaşılamadı.';
-      text = S.reason === 'lost' ? 'Bağlantı koptu, yeniden deneniyor.' : 'Birkaç saniyede bir yeniden denenecek.';
+      title = S.reason === 'lost' ? 'Sunucu bağlantısı koptu.' : 'Sunucu kapalı ya da ulaşılamıyor.';
+      text = S.reason === 'lost' ? 'Yeniden deneniyor.' : 'Sunucu bilgisayarı kapalı olabilir ya da bağlantı eskimiş olabilir (sunucu her açılışta yeni bağlantı verir): sahibinden yeni bağlantıyı iste. Birkaç saniyede bir yeniden denenecek.';
       retry = true;
     }
     $('onOffTitle').textContent = title;

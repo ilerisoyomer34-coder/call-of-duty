@@ -1212,9 +1212,13 @@ async function boot() {
     await game.loadProps();
     L.step('Harita inşa ediliyor', 0.6);
     await nextPaint();
+    // Davet bağlantısı (?sunucu=): sunucu Ayarlar'a kaydedilir, menüden sonra Çevrim içi ekranı açılır
+    const invited = game.social.consumeInvite();
+    if (invited) game.pendingNotice = 'Sunucu bağlantısı kaydedildi; Çevrim içi bölümünden bağlanılıyor.';
     game.showMenu();
     // Çevrim içi: sunucu adresi ve ad varsa bağlan (yoksa durum "kapalı"; ad girilince kendiliğinden başlar)
     game.social.start();
+    if (invited && game.save.data.profile.name) game.online.open();
     L.step('Gölgelendiriciler derleniyor', 0.85);
     await nextPaint();
     await game.precompile();

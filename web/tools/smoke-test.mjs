@@ -2,7 +2,8 @@
 // sürer, hata olup olmadığını denetler ve ekran görüntüleri alır (tools/shots/).
 // Kullanım: npm test   (önce derler)
 import { chromium } from 'playwright';
-import { readFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync, statSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { dirname, join, extname } from 'node:path';
@@ -3122,13 +3123,78 @@ if (run('online')) {
   await mp.screenshot({ path: join(shots, '33-online-mobile.png') });
   check(!fit.overflow && fit.btnOk, 'Telefonda çevrim içi ekranı yatay taşmadı, düğmeler dokunmaya uygun');
   await mctx.close();
-  // Sunucu adresi yokken: "Sunucu henüz kurulmadı"
+  // Sunucu adresi yokken: bağlantı alanına yönlendirir
   const N = await openPage('online-none');
   await N.click('#btnOnline');
-  const none = await N.evaluate(() => ({ off: !document.getElementById('onOff').hidden, text: document.getElementById('onOffTitle').textContent, status: window.__game.social.status }));
-  check(none.off && /henüz kurulmadı/.test(none.text) && none.status === 'off', `Sunucu adresi yokken: "${none.text}"`);
+  const none = await N.evaluate(() => ({ off: !document.getElementById('onOff').hidden, text: document.getElementById('onOffTitle').textContent, status: window.__game.social.status, field: !!document.getElementById('onServerInput') }));
+  check(none.off && /Sunucu seçilmedi/.test(none.text) && none.status === 'off' && none.field, `Sunucu adresi yokken: "${none.text}", bağlantı alanı var`);
   await N.close();
   srv.kill();
+
+  // Ev sunucusu (server/host.mjs): tünel adresi her açılışta değişir, veritabanı aynı kalır. Davet bağlantısı
+  // (?sunucu=) sunucuyu kaydeder; yeni adres alana yapıştırılınca aynı hesapla (ad#etiket) bağlanılır
+  const dbDir = mkdtempSync(join(tmpdir(), 'ds-home-'));
+  const homeServer = (port) => {
+    const p = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
+      env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DB_PATH: join(dbDir, 'ev.db'), SERVER_NAME: "Ömer'in sunucusu", QUIET: '1' },
+      stdio: 'ignore',
+    });
+    process.on('exit', () => p.kill());
+    return p;
+  };
+  const up = async (port) => {
+    for (let i = 0; i < 50; i++) {
+      if (await fetch(`http://127.0.0.1:${port}/api/health`).then((r) => r.ok, () => false)) return true;
+      await sleep(100);
+    }
+    return false;
+  };
+  let H = homeServer(8793);
+  await up(8793);
+  const E = await openPage('online-home', 'low', { name: 'Ece', query: `?sunucu=${encodeURIComponent('http://127.0.0.1:8793')}` });
+  await online(E);
+  await E.waitForFunction(() => /Bağlı: Ömer'in sunucusu/.test(document.getElementById('onSrvText').textContent), null, { timeout: 10000 });
+  const e1 = await E.evaluate(() => ({
+    screen: window.__game.menus.current,
+    saved: window.__game.settings.serverUrl,
+    stored: JSON.parse(localStorage.getItem('demirsafak.save')).settings.serverUrl,
+    search: location.search,
+    state: document.getElementById('onSrvText').textContent,
+    copy: !document.getElementById('btnSrvCopy').hidden,
+    who: window.__game.social.me(),
+    id: window.__game.save.data.profile.id,
+  }));
+  check(e1.screen === 'onlineScreen' && e1.saved === 'http://127.0.0.1:8793' && e1.stored === e1.saved && !/sunucu=/.test(e1.search), `Davet bağlantısı sunucuyu kaydetti, Çevrim içi ekranı açıldı ("${e1.state}")`);
+  await E.screenshot({ path: join(shots, '34-home-server.png') });
+  // Sunucu yeniden açıldı: yeni adres (port), aynı veritabanı → davetin tamamı alana yapıştırılır
+  H.kill();
+  await E.waitForFunction(() => window.__game.social.status !== 'online', null, { timeout: 15000, polling: 100 });
+  const lost = await E.evaluate(() => document.getElementById('onOffTitle').textContent);
+  H = homeServer(8794);
+  await up(8794);
+  await E.fill('#onServerInput', `https://ilerisoyomer34-coder.github.io/call-of-duty/?sunucu=http://127.0.0.1:8794`);
+  await E.click('#onServerForm button[type="submit"]');
+  await online(E);
+  const e2 = await E.evaluate(() => ({ who: window.__game.social.me(), id: window.__game.save.data.profile.id, url: window.__game.settings.serverUrl, input: document.getElementById('onServerInput').value }));
+  check(e2.id === e1.id && e2.who === e1.who && e2.url === 'http://127.0.0.1:8794' && e2.input === e2.url, `Yeni adresle aynı hesap: ${e2.who} (kopunca "${lost}")`);
+  // Geçersiz metin reddedilir, adres değişmez
+  await E.fill('#onServerInput', 'merhaba');
+  await E.click('#onServerForm button[type="submit"]');
+  const bad = await E.evaluate(() => ({ text: document.getElementById('onSrvText').textContent, bad: document.querySelector('.onSrvState').classList.contains('bad'), url: window.__game.settings.serverUrl }));
+  check(bad.bad && /sunucu bağlantısı değil/.test(bad.text) && bad.url === 'http://127.0.0.1:8794', `Geçersiz bağlantı reddedildi ("${bad.text}")`);
+  // Kapalı sunucu (bilgisayar kapalı ya da eski bağlantı)
+  await E.fill('#onServerInput', 'http://127.0.0.1:8795');
+  await E.click('#onServerForm button[type="submit"]');
+  await E.waitForFunction(() => window.__game.social.status === 'error', null, { timeout: 15000, polling: 100 });
+  const closed = await E.evaluate(() => ({ title: document.getElementById('onOffTitle').textContent, text: document.getElementById('onOffText').textContent }));
+  check(/Sunucu kapalı/.test(closed.title) && /yeni bağlantıyı iste/.test(closed.text), `Kapalı sunucu: "${closed.title}"`);
+  await E.fill('#onServerInput', 'http://127.0.0.1:8794');
+  await E.click('#onServerForm button[type="submit"]');
+  await online(E);
+  check((await E.evaluate(() => window.__game.save.data.profile.id)) === e1.id, 'Geri dönünce yine aynı hesap');
+  await E.close();
+  H.kill();
+  rmSync(dbDir, { recursive: true, force: true });
 }
 
 // ---------------- Çevrim içi maç: deneme odası, tahmin, aralama, hızlı maç, botlar (S4–S6) ----------------

@@ -2,6 +2,9 @@
 // Hatalar { error: kod } ile döner; istemci kodu Türkçe metne çevirir (src/net/social.js → ERRORS).
 import { validateName } from '../shared/names.js';
 import { LIMITS } from './limits.js';
+import { makeIpOf } from './config.js';
+
+const DEFAULT_SERVER_NAME = 'Demir Şafak sunucusu';
 import { SIDE } from '../shared/net/protocol.js';
 
 class HttpError extends Error {
@@ -43,7 +46,7 @@ function readBody(req) {
 const str = (v) => (typeof v === 'string' ? v : '');
 
 export function createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker }) {
-  const ipOf = (req) => (config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress || '?');
+  const ipOf = makeIpOf(config);
   const limit = (key, rule) => {
     if (!limiter.allow(key, rule.max, rule.windowMs)) throw new HttpError(429, 'rate_limited');
   };
@@ -198,7 +201,8 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       return r;
     },
     'POST /api/match/cancel': async (req) => matchmaker.cancel(auth(req).id),
-    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size, rooms: rooms.rooms.size }),
+    // serverId: veritabanıyla birlikte kalıcı; tünel adresi her açılışta değişse de oyun hesabı bu kimliğe bağlanır
+    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size, rooms: rooms.rooms.size, serverId: store.serverId, name: config.serverName || DEFAULT_SERVER_NAME }),
   };
 
   const originOk = (origin) => {

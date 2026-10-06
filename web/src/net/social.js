@@ -1,10 +1,14 @@
 // Çevrim içi sosyal katman (çok oyunculu S2–S3): kimlik, arkadaşlar, istekler, bildirimler, takım (kodda "party") ve davet.
-// REST (fetch) + tek WebSocket. Sunucu adresi: ?server= adres parametresi › Ayarlar › config.js NET.serverUrl.
-// Adres yoksa durum 'off' (canlı sitede sunucu kurulana kadar). Bağlantı koparsa NET.reconnectSec aralıklarıyla
-// yeniden denenir. Her değişiklik game.events'e (EV.*) yayılır; ekranlar (onlineScreen.js) yalnız olayları dinler.
+// REST (fetch) + tek WebSocket. Sunucu adresi: ?server= adres parametresi › Ayarlar (Çevrim içi → Sunucu bağlantısı,
+// davet bağlantısının ?sunucu= parametresi buraya yazılır) › config.js NET.serverUrl. Adres yoksa durum 'off'.
+// Bağlanmadan önce /api/health okunur: oyun hesabı sunucunun kalıcı kimliğine bağlıdır (servers.js), ev sunucusunun
+// tünel adresi değişse de ad#etiket ve arkadaşlar kalır. Bağlantı koparsa NET.reconnectSec aralıklarıyla yeniden
+// denenir. Her değişiklik game.events'e (EV.*) yayılır; ekranlar (onlineScreen.js) yalnız olayları dinler.
 import { NET } from '../config.js';
 import { EV } from '../events.js';
 import { displayName } from '../../shared/names.js';
+import { saveSettings } from '../settings.js';
+import { INVITE_PARAM, parseServerInput, probeServer, selectIdentity, rememberIdentity, forgetIdentity } from './servers.js';
 
 // Sunucu hata kodları → oyuncuya gösterilen metin
 export const ERRORS = {
@@ -55,7 +59,42 @@ export class SocialClient {
     this.queue = null; // maç arama { mode, since } (takımın tamamı için)
     this.presence = 'menu';
     this.stopped = true;
+    this.info = null; // bağlı sunucunun /api/health bilgisi { name, online, serverId }
     game.events.on(EV.PROFILE_CHANGED, (p) => this.onProfileChanged(p));
+  }
+
+  // Davet bağlantısı (?sunucu=adres): adres Ayarlar'a yazılır (hatırlanır), parametre adres çubuğundan silinir
+  // (yenileyince yeniden işlenmesin). → kaydedilen adres ya da ''
+  consumeInvite() {
+    let raw = '';
+    try {
+      raw = new URLSearchParams(location.search).get(INVITE_PARAM) || '';
+    } catch {
+      return '';
+    }
+    if (!raw) return '';
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete(INVITE_PARAM);
+      history.replaceState(history.state, '', u.pathname + (u.search === '?' ? '' : u.search) + u.hash);
+    } catch {
+      /* adres çubuğu değiştirilemedi */
+    }
+    const r = parseServerInput(raw);
+    if (!r.ok) return '';
+    this.game.settings.serverUrl = r.url;
+    saveSettings(this.game.settings);
+    return r.url;
+  }
+
+  // Oyuncunun yapıştırdığı bağlantıyla sunucu değiştir → { ok, url } | { ok: false, error }
+  async useServer(text) {
+    const r = parseServerInput(text);
+    if (!r.ok) return r;
+    this.game.settings.serverUrl = r.url;
+    saveSettings(this.game.settings);
+    await this.restart();
+    return r;
   }
 
   get profile() {
@@ -88,18 +127,33 @@ export class SocialClient {
     this.game.events.emit(EV.SOCIAL_STATUS, { status, reason });
   }
 
-  // Açılışta ve ad girilince: adres ve ad varsa kimlik al, bağlan
+  // Açılışta ve ad girilince: adres ve ad varsa sunucuyu tanı, kimlik al, bağlan
   async start() {
     this.stopped = false;
+    clearTimeout(this.timer);
     if (!this.serverUrl) return this.setStatus('off', 'none');
     if (!this.profile.name) return this.setStatus('off', 'noname');
     this.setStatus('connecting');
     try {
+      await this.identify();
       if (!this.profile.token) await this.register();
       this.connect();
     } catch (e) {
       this.fail(e.code || 'network');
     }
+  }
+
+  // Sunucu kapalıysa (bilgisayar kapalı, tünel adresi eskimiş) ağ hatası; açıksa hesabını yükle
+  async identify() {
+    const url = this.serverUrl;
+    const info = await probeServer(url);
+    if (url !== this.serverUrl) throw Object.assign(new Error('network'), { code: 'network' });
+    if (!info) {
+      this.info = null;
+      throw Object.assign(new Error('network'), { code: 'network' });
+    }
+    this.info = info;
+    if (info.serverId && this.profile.server !== info.serverId) this.game.save.update((d) => selectIdentity(d.profile, info.serverId), { now: true });
   }
 
   stop() {
@@ -114,12 +168,17 @@ export class SocialClient {
     this.setStatus('off', 'stopped');
   }
 
-  // Sunucu adresi değişince: eski kimlik o sunucuya ait, yenisi alınır
+  // Sunucu adresi değişince yeniden bağlan. Hesap silinmez: identify() sunucunun kimliğine göre doğru hesabı
+  // yükler (aynı ev sunucusunun yeni tünel adresiyse aynı hesap, başka sunucuysa onun hesabı ya da yenisi)
   async restart() {
     this.stop();
-    this.game.save.update((d) => Object.assign(d.profile, { id: null, tag: null, token: null }), { now: true });
+    this.info = null;
+    this.retry = 0;
     this.lists = { friends: [], incoming: [], outgoing: [] };
+    this.notifications = [];
+    this.invites = [];
     this.party = null;
+    this.queue = null;
     this.emitAll();
     await this.start();
   }
@@ -140,7 +199,10 @@ export class SocialClient {
 
   async register() {
     const r = await this.fetch('POST', '/api/session', { name: this.profile.name }, false);
-    this.game.save.update((d) => Object.assign(d.profile, { id: r.id, tag: r.tag, token: r.token, name: r.name }), { now: true });
+    this.game.save.update((d) => {
+      Object.assign(d.profile, { id: r.id, tag: r.tag, token: r.token, name: r.name });
+      rememberIdentity(d.profile);
+    }, { now: true });
     this.game.events.emit(EV.PROFILE_CHANGED, { name: r.name, tag: r.tag, fromServer: true });
   }
 
@@ -164,7 +226,7 @@ export class SocialClient {
     if (!res.ok) {
       // Belirteç geçersiz (sunucu veritabanı sıfırlandı): yeni kimlik alınır
       if (res.status === 401 && auth) {
-        this.game.save.update((d) => Object.assign(d.profile, { id: null, tag: null, token: null }), { now: true });
+        this.game.save.update((d) => forgetIdentity(d.profile), { now: true });
         queueMicrotask(() => this.start());
       }
       throw Object.assign(new Error(data.error || 'server'), { code: data.error || 'server' });
@@ -200,7 +262,7 @@ export class SocialClient {
       this.ws = null;
       if (e.code === 4001) {
         // Kimlik tanınmadı: yeniden kayıt
-        this.game.save.update((d) => Object.assign(d.profile, { id: null, tag: null, token: null }), { now: true });
+        this.game.save.update((d) => forgetIdentity(d.profile), { now: true });
       }
       if (!this.stopped) this.fail(this.status === 'online' ? 'lost' : 'network');
     };
@@ -217,7 +279,10 @@ export class SocialClient {
         this.queue = m.queue || null;
         // Sunucudaki ad/etiket esas (başka cihazdan değişmiş olabilir)
         if (m.me && (m.me.tag !== this.profile.tag || m.me.name !== this.profile.name)) {
-          this.game.save.update((d) => Object.assign(d.profile, { name: m.me.name, tag: m.me.tag, id: m.me.id }), { now: true });
+          this.game.save.update((d) => {
+            Object.assign(d.profile, { name: m.me.name, tag: m.me.tag, id: m.me.id });
+            rememberIdentity(d.profile);
+          }, { now: true });
           ev.emit(EV.PROFILE_CHANGED, { name: m.me.name, tag: m.me.tag, fromServer: true });
         }
         clearInterval(this.pingTimer);
@@ -298,7 +363,10 @@ export class SocialClient {
     }
     try {
       const r = await this.fetch('PATCH', '/api/me', { name: p.name });
-      this.game.save.update((d) => Object.assign(d.profile, { name: r.name, tag: r.tag }), { now: true });
+      this.game.save.update((d) => {
+        Object.assign(d.profile, { name: r.name, tag: r.tag });
+        rememberIdentity(d.profile);
+      }, { now: true });
       this.game.events.emit(EV.PROFILE_CHANGED, { name: r.name, tag: r.tag, fromServer: true });
     } catch {
       /* çevrim dışı: bir sonraki bağlanışta sunucudaki ad esas alınır */

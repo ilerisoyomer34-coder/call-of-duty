@@ -38,15 +38,21 @@ export function freshSave(startCredits = STORE.startCredits) {
   };
 }
 
+// id/tag/token etkin sunucunun (server: kalıcı sunucu kimliği) hesabıdır; öbür sunucularınki servers[serverId]'de
+// (net/servers.js → selectIdentity). Ev sunucusunun tünel adresi değişse de hesap kimliğe bağlı kalır
 export function freshProfile() {
-  return { name: null, tag: null, id: null, token: null };
+  return { name: null, tag: null, id: null, token: null, server: null, servers: {} };
 }
 
 function normalizeProfile(p) {
   const d = freshProfile();
   if (!isObj(p)) return d;
   const str = (v) => (typeof v === 'string' && v ? v : null);
-  return { ...p, name: str(p.name), tag: str(p.tag), id: str(p.id), token: str(p.token) };
+  const servers = {};
+  if (isObj(p.servers)) {
+    for (const [k, v] of Object.entries(p.servers)) if (isObj(v) && str(v.token)) servers[k] = { id: str(v.id), tag: str(v.tag), token: str(v.token) };
+  }
+  return { ...p, name: str(p.name), tag: str(p.tag), id: str(p.id), token: str(p.token), server: str(p.server), servers };
 }
 
 // Kaydı varsayılanlarla tamamla: eksik ya da bozuk alan varsayılana döner, bilinmeyen alanlar korunur

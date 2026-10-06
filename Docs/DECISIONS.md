@@ -63,6 +63,17 @@ Kullanıcı önce ad, sonra arkadaş sistemi, sonra birlikte oynama ve karışı
 | Reddetme | İstek silinir, gönderene anlık "reddetti" kartı (kalıcı bildirim değil) | Kullanıcı reddetme düğmesi istedi; geri bildirim görünür olsun |
 | Karşılıklı istek | İki taraf birbirine istek gönderirse kendiliğinden arkadaş olur | Gereksiz ikinci adım yok |
 
+## Ev sunucusu (kullanıcı isteği: "benim bilgisayarımı sunucu olarak konumlandır")
+
+| Konu | Karar | Neden |
+|---|---|---|
+| Sunucu nerede | Kullanıcının bilgisayarı (`Sunucuyu-Baslat` → `web/server/host.mjs`); Oracle/VPS ikinci yol (`Docs/DEPLOY.md`) | Ücretsiz, kurulumu çift tıklama |
+| Dışarıdan erişim | Cloudflare hızlı tüneli (hesapsız; `cloudflared` resmî sürümden kendiliğinden iner) | Oyun Pages'te https: tarayıcı yalnız https/wss sunucuya bağlanır. Modem ayarı yok, ev IP'si görünmez. Tailscale Funnel (sabit adres ama hesap ve kurulum) ve port yönlendirme (CGNAT'ta çalışmaz, IP görünür) kullanıcıya sunuldu; "kolay, ücretsiz, güvenli" için bu seçildi |
+| Adres her açılışta değişir | Davet bağlantısı (`?sunucu=`) ve Çevrim içi → "Sunucu bağlantısı" alanı (kullanıcının fikri); başlatıcı bağlantıyı panoya kopyalar | Herkese açık bir adres defteri gerekmesin |
+| Hesap adrese bağlıydı | Sunucunun kalıcı kimliği (`meta.serverId`, `/api/health`); istemci hesabı `profile.servers[serverId]`'de | Yeni tünel adresiyle girince ad#etiket ve arkadaşlar kaybolmasın |
+| Gerçek oyuncu IP'si | `CLIENT_IP_HEADER=cf-connecting-ip` | `X-Forwarded-For`'un ilk değeri istemcice sahtelenebilir; IP başı sınırlar Cloudflare'in yazdığı başlıkla güvenilir |
+| Sürüm eşleşmesi | Başlatıcı 10 dk'da bir `git fetch`; geride ve maç yoksa `pull --ff-only` + sunucuyu yeniden başlatma | Derleme özeti denetimi (`BUILD_MISMATCH`) Pages'teki oyunla sunucuyu aynı sürümde ister |
+
 ## Oyun bağlantısı ve maç (S4–S6, kullanıcı isteği: "çevrim içiyi tamamla")
 
 | Belge | Uygulanan | Neden |

@@ -8,6 +8,19 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Varsayılan izinli kökenler: GitHub Pages yayını; localhost/127.0.0.1 her portta ayrıca izinli (geliştirme)
 const DEFAULT_ORIGINS = 'https://ilerisoyomer34-coder.github.io';
 
+// İstemci IP'si (hız sınırları ve IP başı bağlantı sayısı): vekile güvenilmiyorsa soket adresi
+export function makeIpOf(config) {
+  return (req) => {
+    if (config.trustProxy) {
+      if (config.clientIpHeader) {
+        const v = req.headers[config.clientIpHeader];
+        if (v) return String(v).trim();
+      } else if (req.headers['x-forwarded-for']) return String(req.headers['x-forwarded-for']).split(',')[0].trim();
+    }
+    return req.socket.remoteAddress || '?';
+  };
+}
+
 export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT ?? 8790),
@@ -23,6 +36,11 @@ export function loadConfig(env = process.env) {
     allowNullOrigin: env.ALLOW_FILE_ORIGIN !== '0',
     // Caddy arkasında gerçek istemci adresi X-Forwarded-For'dan (hız sınırı için)
     trustProxy: env.TRUST_PROXY === '1',
+    // Vekilin kendi yazdığı tek adres başlığı (Cloudflare tüneli: cf-connecting-ip). X-Forwarded-For'un ilk değeri
+    // istemcinin gönderdiği sahte değer olabilir; vekilin yazdığı başlık IP başı sınırları güvenilir kılar
+    clientIpHeader: (env.CLIENT_IP_HEADER || '').trim().toLowerCase(),
+    // Oyunda görünen sunucu adı (Çevrim içi → Sunucu kutusu)
+    serverName: (env.SERVER_NAME || '').trim().slice(0, 40),
     quiet: env.QUIET === '1',
     // Oyun odaları: mermi saçılması tohumunun gizli parçası (boşsa her açılışta rastgele; dışarı verilmez)
     serverSecret: env.SERVER_SECRET || '',

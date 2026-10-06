@@ -36,6 +36,9 @@ export const MOVEMENT = {
 // buraya adres yazılıp derlenir (Docs/DEPLOY.md). Geliştirmede ?server=http://localhost:8790 ya da Ayarlar.
 export const NET = {
   serverUrl: '',
+  // Davet bağlantısı bu adrese ?sunucu= ekler (arkadaşlar oyunu Pages'ten açar; ev sunucusu server/host.mjs)
+  gameUrl: 'https://ilerisoyomer34-coder.github.io/call-of-duty/',
+  infoRefreshSec: 15, // Çevrim içi ekranı açıkken bağlı sunucunun oyuncu sayısı bu aralıkla yenilenir
   reconnectSec: [1, 2, 4, 8, 16, 30], // bağlantı koparsa yeniden deneme aralıkları
   pingSec: 25, // bağlantı canlı kalsın (vekiller boştaki bağlantıyı keser)
   searchMin: 2,

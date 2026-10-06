@@ -191,3 +191,42 @@ test('dayanıklılık: bozuk JSON, büyük gövde, yanlış yol, kimliksiz WebSo
   // Sunucu hâlâ ayakta
   assert.equal((await call('GET', '/api/health')).body.ok, true);
 });
+
+test('ev sunucusu: serverId veritabanıyla kalıcı, health ad ve kimlik verir', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'ds-db-'));
+  const dbPath = join(dir, 'x.db');
+  try {
+    const s1 = await startServer({ port: 0, host: '127.0.0.1', dbPath, quiet: true, serverName: 'Ömer\'in sunucusu' });
+    const h1 = await (await fetch(`http://127.0.0.1:${s1.port}/api/health`)).json();
+    await s1.close();
+    // Aynı veritabanı, yeni port (tünel adresi değişmiş gibi): kimlik aynı
+    const s2 = await startServer({ port: 0, host: '127.0.0.1', dbPath, quiet: true });
+    const h2 = await (await fetch(`http://127.0.0.1:${s2.port}/api/health`)).json();
+    await s2.close();
+    assert.match(h1.serverId, /^s_[0-9a-f]{24}$/);
+    assert.equal(h2.serverId, h1.serverId, 'yeniden açılışta aynı serverId');
+    assert.equal(h1.name, "Ömer'in sunucusu");
+    assert.equal(h2.name, 'Demir Şafak sunucusu', 'ad verilmezse varsayılan');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.match((await call('GET', '/api/health')).body.serverId, /^s_/, 'bellek içi veritabanında da kimlik var');
+});
+
+test('ev sunucusu: CLIENT_IP_HEADER verilince IP o başlıktan, sahte X-Forwarded-For sınırı aşamaz', async () => {
+  const s = await startServer({ port: 0, host: '127.0.0.1', dbPath: ':memory:', quiet: true, trustProxy: true, clientIpHeader: 'cf-connecting-ip' });
+  const sess = (headers, i) => fetch(`http://127.0.0.1:${s.port}/api/session`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ name: `Tunel${'abcdefghijkl'[i]}` }) }).then((r) => r.status);
+  try {
+    // Her istekte farklı sahte X-Forwarded-For, ama vekilin yazdığı adres aynı: sınır yine işler
+    let limited = false;
+    for (let i = 0; i < 12 && !limited; i++) limited = (await sess({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': `10.1.1.${i}` }, i)) === 429;
+    assert.ok(limited, 'aynı gerçek IP sınıra takıldı');
+    // Başka gerçek IP etkilenmez
+    assert.equal(await sess({ 'cf-connecting-ip': '203.0.113.8' }, 0), 200);
+  } finally {
+    await s.close();
+  }
+});

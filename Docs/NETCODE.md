@@ -113,7 +113,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
     - `POST /api/friends/request|respond|remove`.
   - Bildirim: `GET /api/notifications`, `POST /api/notifications/seen`.
   - Parti: `GET /api/party`, `POST /api/party/invite|respond|leave|kick|mode`.
-  - Sağlık: `GET /api/health`.
+  - Sağlık: `GET /api/health` → `{ ok, online, rooms, serverId, name }`. `serverId` veritabanıyla kalıcı (`meta` tablosu); `name` `SERVER_NAME`'den.
   - Hatalar `{ error: kod }`; Türkçe metinler `src/net/social.js → ERRORS`.
 - **WebSocket `/ws`:**
   - İstemci → sunucu:
@@ -126,7 +126,9 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
     - Arkadaşlık: `notification` (`friend_request`, `friend_accepted`), `friend_declined`.
     - Parti: `party`, `party_invite`, `party_invite_declined`.
 - **İstemci `SocialClient`** (`game.social`):
-  - Adres önceliği: `?server=` › Ayarlar "Çevrim içi sunucu" › `config.js → NET.serverUrl`.
+  - Adres önceliği: `?server=` (geliştirme, kaydedilmez) › Ayarlar "Çevrim içi sunucu" (Çevrim içi → "Sunucu bağlantısı" alanı ve davet bağlantısı `?sunucu=` buraya yazar) › `config.js → NET.serverUrl`.
+  - Bağlanmadan önce `/api/health` okunur. Hesap (id/tag/token) sunucunun kalıcı kimliğine bağlıdır: `profile.server` etkin sunucu, öbürleri `profile.servers[serverId]` (`src/net/servers.js → selectIdentity/rememberIdentity/forgetIdentity`). Ev sunucusunun tünel adresi değişse de aynı hesap; başka sunucuya geçince o sunucunun hesabı. Kimliği bilinmeyen eski hesap ilk bağlanılan sunucuya ait sayılır (yanlışsa 401 → yalnız o sunucunun hesabı silinir).
+  - Davet bağlantısı: `NET.gameUrl?sunucu=<adres>` (ev sunucusu başlatıcısı `web/server/host.mjs` üretir). Açılışta `consumeInvite()` adresi kaydeder, parametreyi siler, Çevrim içi ekranını açar.
   - Kopunca `NET.reconnectSec` aralıklarıyla yeniden bağlanır; 25 sn'de bir `ping` gönderir.
   - Olaylar: `EV.SOCIAL_STATUS`, `FRIENDS_CHANGED`, `NOTIFICATION`, `PARTY_CHANGED`, `PROFILE_CHANGED`.
 - **Ekran:** `src/onlineScreen.js` (Arkadaşlar / Oyuncu ara / İstekler, parti paneli) ve `#socialToasts` bildirim kartları (menüde ve oyunda; yanıt düğmeli kartlar 30 sn kalır).

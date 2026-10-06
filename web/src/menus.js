@@ -14,6 +14,7 @@ import { levelMission } from './missionSystem.js';
 import { renderBriefing, renderRewards, starsText } from './missionUi.js';
 import { speechSupported, recognitionCtor } from './radioChat.js';
 import { NameScreen, playerDisplay } from './nameScreen.js';
+import { parseServerInput } from './net/servers.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'licenseScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
@@ -417,7 +418,10 @@ export class Menus {
   readSettings() {
     const S = this.game.settings;
     const prevServer = S.serverUrl || '';
-    S.serverUrl = $('sServerUrl').value.trim();
+    // Davet bağlantısının tamamı da yapıştırılabilir; geçersiz metin eski adresi değiştirmez
+    const raw = $('sServerUrl').value.trim();
+    const parsed = parseServerInput(raw);
+    S.serverUrl = !raw ? '' : parsed.ok ? parsed.url : prevServer;
     // Sunucu adresi değiştiyse çevrim içi bağlantı yeni adrese kurulur
     if (S.serverUrl !== prevServer) queueMicrotask(() => this.game.social?.restart());
     S.sensitivity = parseFloat($('sSens').value);
