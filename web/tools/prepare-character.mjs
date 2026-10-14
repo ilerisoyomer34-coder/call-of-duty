@@ -3,11 +3,14 @@
 //  - Kemik adlarındaki "mixamorig:" önekini siler (kod kemikleri kısa adla bulur)
 //  - Dokuları GLB'den ayırıp ayrı JPEG olarak yazar: tarayıcı bunları <img> ile yükler; blob adresinden
 //    doku okumaya izin vermeyen sayfalarda (Artifact CSP) da çalışır
+//  - Uzak askerler için sadeleştirilmiş ikinci bir model yazar (<id>_lod.glb: aynı iskelet ve deri ağırlıkları,
+//    yaklaşık beşte bir üçgen, animasyonsuz). Oyun yalnız geometrisini alıp aynı iskelete bağlar (soldier.js)
 //  - Oyunun okuduğu özet bilgiyi web/src/characterAssets.json'a yazar
 //
 // Kullanım (web/ içinden):  node tools/prepare-character.mjs soldier
 import { NodeIO, PropertyType } from '@gltf-transform/core';
-import { prune, dedup, resample } from '@gltf-transform/functions';
+import { prune, dedup, resample, weld, simplify } from '@gltf-transform/functions';
+import { MeshoptSimplifier } from 'meshoptimizer';
 import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +25,8 @@ const SOURCES = {
     dropClips: ['TPose'],
     // Doku rolleri: GLB içindeki görüntü adı → çıktı soneki
     textures: { vanguard_vanguard_diffuse_tga: 'diffuse', file2: 'normal' },
+    // Uzak model: üçgen oranı ve izin verilen en büyük sapma (model boyuna göre)
+    lod: { ratio: 0.2, error: 0.01 },
   },
 };
 
@@ -78,6 +83,23 @@ await io.write(join(root, glbFile), doc);
 let tris = 0;
 for (const mesh of R.listMeshes()) for (const prim of mesh.listPrimitives()) tris += (prim.getIndices()?.getCount() ?? prim.getAttribute('POSITION').getCount()) / 3;
 const clips = R.listAnimations().map((a) => a.getName());
+
+// 6) Uzak model: yazılan GLB yeniden okunur, animasyonlar atılır, ağlar sadeleştirilir. Ağ ve düğüm adları
+// aynı kalır (oyun geometrileri adla eşler); deri ağırlıkları köşelerle birlikte taşınır
+let lod = null;
+if (cfg.lod) {
+  await MeshoptSimplifier.ready;
+  const ld = await io.read(join(root, glbFile));
+  const LR = ld.getRoot();
+  for (const a of LR.listAnimations()) a.dispose();
+  await ld.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: cfg.lod.ratio, error: cfg.lod.error }), prune({ keepAttributes: true }));
+  const lodFile = `assets/characters/${id}_lod.glb`;
+  await io.write(join(root, lodFile), ld);
+  let lt = 0;
+  for (const mesh of LR.listMeshes()) for (const prim of mesh.listPrimitives()) lt += (prim.getIndices()?.getCount() ?? prim.getAttribute('POSITION').getCount()) / 3;
+  lod = { file: lodFile, tris: Math.round(lt), bytes: statSync(join(root, lodFile)).size };
+}
+
 const dataFile = join(root, 'src/characterAssets.json');
 const data = existsSync(dataFile) ? JSON.parse(readFileSync(dataFile, 'utf8')) : {};
 data[id] = {
@@ -86,6 +108,7 @@ data[id] = {
   clips,
   tris,
   bytes: statSync(join(root, glbFile)).size + Object.values(texFiles).reduce((s, f) => s + statSync(join(root, f)).size, 0),
+  lod,
 };
 writeFileSync(dataFile, JSON.stringify(data, null, 2) + '\n');
 console.log(JSON.stringify({ [id]: data[id] }, null, 2));

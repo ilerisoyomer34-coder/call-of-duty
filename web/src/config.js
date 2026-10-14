@@ -235,7 +235,6 @@ export const WEAPONS = {
     kind: 'Taarruz Tüfeği',
     category: 'primary',
     model: 'glb',
-    reticle: 'dot',
     fireModes: ['auto', 'semi'],
     rpm: 800,
     pellets: 1,
@@ -272,7 +271,6 @@ export const WEAPONS = {
     adsDist: 0.2,
     sound: 'rifle2',
     noise: 70,
-    adsRing: { r: 0.016, len: 0.05 },
     tracerEvery: 2,
     flashSize: 0.14,
   },
@@ -283,7 +281,6 @@ export const WEAPONS = {
     category: 'primary',
     model: 'glb',
     asset: 'mg43',
-    reticle: 'dot',
     fireModes: ['auto'],
     rpm: 900,
     pellets: 1,
@@ -313,7 +310,7 @@ export const WEAPONS = {
       kickRot: 1.1,
       shake: 0.13,
     },
-    ads: { fovMult: 0.72, time: 0.36, moveMult: 0.55, sensMult: 0.75, vmFov: 40 },
+    ads: { fovMult: 0.52, time: 0.38, moveMult: 0.55, sensMult: 0.68, vmFov: 40 }, // taktik dürbün (ACOG) ~3×
     mobility: 0.86,
     equipTime: 0.8,
     unequipTime: 0.5,
@@ -321,7 +318,6 @@ export const WEAPONS = {
     adsDist: 0.2,
     sound: 'lmg',
     noise: 80,
-    adsRing: { r: 0.022, len: 0.12 },
     tracerEvery: 2,
     flashSize: 0.17,
   },
@@ -332,7 +328,6 @@ export const WEAPONS = {
     category: 'primary',
     model: 'glb',
     asset: 'm82',
-    scope: true,
     fireModes: ['semi'],
     rpm: 70,
     pellets: 1,
@@ -419,7 +414,6 @@ export const WEAPONS = {
     name: 'SMG-9 Akrep',
     kind: 'Hafif Makineli',
     category: 'primary',
-    reticle: 'dot',
     fireModes: ['auto', 'semi'],
     rpm: 950,
     pellets: 1,
@@ -614,7 +608,6 @@ export const WEAPONS = {
     category: 'primary',
     model: 'glb',
     source: 'sketchfab',
-    reticle: 'dot',
     fireModes: ['auto', 'semi'],
     rpm: 820,
     pellets: 1,
@@ -651,8 +644,6 @@ export const WEAPONS = {
     adsDist: 0.2,
     sound: 'rifle2',
     noise: 70,
-    // Holografik nişangah gövdesi (optic) nişan alırken gizlenir, yerine açık tüp çizilir
-    adsRing: { r: 0.02, len: 0.05 },
     tracerEvery: 2,
     flashSize: 0.13,
   },
@@ -664,7 +655,6 @@ export const WEAPONS = {
     category: 'primary',
     model: 'glb',
     source: 'sketchfab',
-    scope: true,
     fireModes: ['semi'],
     rpm: 360,
     pellets: 1,
@@ -702,11 +692,206 @@ export const WEAPONS = {
     tracerEvery: 1,
     flashSize: 0.18,
   },
+  // Kolimatörlü 5,45'lik taarruz tüfeği: orta tempo, yüksek hasar, sola–sağa kayan dikey tepme
+  ak74: {
+    id: 'ak74',
+    name: 'AK-74 Poyraz',
+    kind: 'Taarruz Tüfeği',
+    category: 'primary',
+    model: 'glb',
+    source: 'sketchfab',
+    fireModes: ['auto', 'semi'],
+    rpm: 650,
+    pellets: 1,
+    range: 280,
+    damage: 30,
+    falloff: { start: 36, end: 85, min: 0.7 },
+    zones: { head: 2.4, torso: 1.0, limb: 0.8 },
+    magSize: 30,
+    reserveMax: 240,
+    reserveStart: 150,
+    reloadType: 'mag',
+    reloadTactical: 2.2,
+    reloadEmpty: 2.7,
+    ammoInsertAt: 0.6,
+    chamber: true,
+    spread: { hip: 2.8, perShot: 0.3, max: 6, recovery: 9, adsMult: 0.08, crouchMult: 0.8, moveMult: 1.7, airMult: 3.0 },
+    recoil: {
+      pattern: [
+        [0.0, 0.9], [-0.1, 0.86], [-0.2, 0.8], [-0.28, 0.74], [-0.18, 0.7], [0.05, 0.66],
+        [0.22, 0.62], [0.32, 0.58], [0.2, 0.55], [-0.12, 0.52], [-0.3, 0.5], [-0.2, 0.48],
+      ],
+      random: 0.17,
+      adsMult: 0.68,
+      recoveryDelay: 0.09,
+      recovery: 9,
+      kick: 0.92,
+      kickRot: 1.0,
+      shake: 0.12,
+    },
+    ads: { fovMult: 0.72, time: 0.22, moveMult: 0.7, sensMult: 0.8, vmFov: 36 },
+    mobility: 0.97,
+    equipTime: 0.48,
+    unequipTime: 0.3,
+    hip: { pos: [0.15, -0.165, -0.34] },
+    adsDist: 0.2,
+    sound: 'ak74',
+    noise: 72,
+    tracerEvery: 2,
+    flashSize: 0.14,
+  },
+  // Kısa namlulu taarruz tüfeği: en hızlı tempo ve nişan, iki mermilik seri atış, demir nişangâh
+  bren2: {
+    id: 'bren2',
+    name: 'BR-2 Şimşek',
+    kind: 'Taarruz Tüfeği',
+    category: 'primary',
+    model: 'glb',
+    source: 'sketchfab',
+    fireModes: ['auto', 'burst', 'semi'],
+    rpm: 850,
+    burstCount: 2,
+    burstRpm: 1000,
+    burstDelay: 0.18,
+    pellets: 1,
+    range: 230,
+    damage: 25,
+    falloff: { start: 28, end: 65, min: 0.65 },
+    zones: { head: 2.3, torso: 1.0, limb: 0.8 },
+    magSize: 30,
+    reserveMax: 240,
+    reserveStart: 150,
+    reloadType: 'mag',
+    reloadTactical: 1.9,
+    reloadEmpty: 2.35,
+    ammoInsertAt: 0.6,
+    chamber: true,
+    spread: { hip: 2.4, perShot: 0.28, max: 5.5, recovery: 11, adsMult: 0.1, crouchMult: 0.8, moveMult: 1.5, airMult: 2.8 },
+    recoil: {
+      pattern: [
+        [0.0, 0.7], [0.14, 0.66], [-0.16, 0.62], [0.2, 0.58], [-0.2, 0.55], [0.18, 0.52],
+        [-0.18, 0.5], [0.22, 0.48], [-0.22, 0.46], [0.18, 0.45], [-0.18, 0.44], [0.2, 0.43],
+      ],
+      random: 0.2,
+      adsMult: 0.7,
+      recoveryDelay: 0.07,
+      recovery: 11,
+      kick: 0.78,
+      kickRot: 0.88,
+      shake: 0.09,
+    },
+    ads: { fovMult: 0.8, time: 0.17, moveMult: 0.76, sensMult: 0.84, vmFov: 40 },
+    mobility: 1.03,
+    equipTime: 0.4,
+    unequipTime: 0.26,
+    hip: { pos: [0.15, -0.16, -0.33] },
+    adsDist: 0.2,
+    sound: 'bren',
+    noise: 66,
+    tracerEvery: 2,
+    flashSize: 0.12,
+  },
+  // Sürgü mekanizmalı keskin nişancı (.338): tek atışta öldürür; her atıştan sonra sürgü çekilir ve
+  // dürbünden çıkılır (bolt.unscope), basılı tutulan nişan sürgü bitince geri gelir
+  awm: {
+    id: 'awm',
+    name: 'NT-33 Şahin',
+    kind: 'Keskin Nişancı',
+    category: 'primary',
+    model: 'glb',
+    source: 'sketchfab',
+    fireModes: ['semi'],
+    rpm: 48,
+    pellets: 1,
+    range: 520,
+    damage: 165,
+    falloff: { start: 120, end: 320, min: 0.85 },
+    zones: { head: 3.0, torso: 1.0, limb: 0.9 },
+    magSize: 5,
+    reserveMax: 30,
+    reserveStart: 20,
+    reloadType: 'mag',
+    reloadTactical: 3.0,
+    reloadEmpty: 3.6,
+    ammoInsertAt: 0.6,
+    chamber: true,
+    bolt: { delay: 0.14, time: 0.92, unscope: true, travel: 0.085, lift: 1.05 },
+    spread: { hip: 7.5, perShot: 3, max: 9, recovery: 4, adsMult: 0.0, crouchMult: 0.8, moveMult: 1.5, airMult: 3.0 },
+    recoil: {
+      pattern: [[0.0, 4.6], [0.3, 4.4]],
+      random: 0.6,
+      adsMult: 0.8,
+      recoveryDelay: 0.14,
+      recovery: 5.5,
+      kick: 2.6,
+      kickRot: 3.0,
+      shake: 0.45,
+    },
+    ads: { fovMult: 0.13, time: 0.34, moveMult: 0.52, sensMult: 1.1, vmFov: 40 },
+    mobility: 0.9,
+    equipTime: 0.7,
+    unequipTime: 0.45,
+    hip: { pos: [0.16, -0.19, -0.36] },
+    adsDist: 0.14,
+    sound: 'awm',
+    noise: 105,
+    tracerEvery: 1,
+    flashSize: 0.24,
+  },
+  // Altı namlulu döner makineli: namlular tam hıza çıkmadan ateş etmez (sağ tık önceden döndürür), 10.000'lik
+  // fişek kayışı (şarjör değişmez, cephane kutusu kayışı doldurur), nişan alınmaz, çok ağır. Çevrim içinde yok
+  minigun: {
+    id: 'minigun',
+    name: 'M134 Kasırga',
+    kind: 'Döner Makineli',
+    category: 'primary',
+    model: 'glb',
+    online: false,
+    fireModes: ['auto'],
+    rpm: 1800,
+    pellets: 1,
+    range: 220,
+    damage: 21,
+    falloff: { start: 25, end: 70, min: 0.6 },
+    zones: { head: 1.8, torso: 1.0, limb: 0.85 },
+    magSize: 10000,
+    reserveMax: 0,
+    reserveStart: 0,
+    reloadType: 'none',
+    reloadTactical: 1,
+    reloadEmpty: 1,
+    ammoInsertAt: 0.6,
+    chamber: false,
+    spin: { up: 0.5, down: 1.6, rps: 22, moveMult: 0.78, refill: 0.3 }, // rps: tam hızda namlu demeti dönüşü (tur/sn); refill: cephane torbası kayışın bu oranını doldurur
+    spread: { hip: 3.0, perShot: 0.05, max: 4.5, recovery: 6, adsMult: 1, crouchMult: 0.75, moveMult: 1.5, airMult: 2.5 },
+    recoil: {
+      pattern: [[0.0, 0.09], [0.07, 0.085], [-0.07, 0.085], [0.09, 0.08], [-0.09, 0.08], [0.05, 0.08]],
+      random: 0.12,
+      adsMult: 1,
+      recoveryDelay: 0.05,
+      recovery: 10,
+      kick: 0.22,
+      kickRot: 0.16,
+      shake: 0.045,
+    },
+    ads: { fovMult: 1, time: 0.3, moveMult: 1, sensMult: 1, vmFov: 60 },
+    mobility: 0.72,
+    equipTime: 1.0,
+    unequipTime: 0.6,
+    // Köken arka üst tutamak: namlu demeti 22 cm aşağıda; silah sağ altta, namlu nişangâha doğru döner, sol el dikey tutamakta
+    hip: { pos: [0.25, -0.1, -0.32], rot: [0.06, 0.14, 0.05], leftGrip: 'vertical' },
+    adsDist: 0.3,
+    sound: 'minigun',
+    noise: 95,
+    tracerEvery: 2,
+    flashSize: 0.22,
+  },
 };
 
 // Tuş sırası: 1-9 (poligonda hepsi, görevde ana + yan silah)
 // Sketchfab silahları sonda: poligonda 1-9 tuşları eski dizilişte kalır, yenilere tekerlekle geçilir
-export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9'];
+// Yeni silahlar hep sona eklenir: çevrim içi protokol silahı bu dizideki sırasıyla taşır
+export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun'];
 export const DEFAULT_LOADOUT = { primary: 'rifle', secondary: 'pistol' };
 
 export const GRENADE = {
@@ -932,6 +1117,9 @@ export const SOLDIER_ANIM = {
   lodFar: 45,
   lodVeryFar: 90,
   lodRates: [1 / 30, 1 / 15, 1 / 8], // yakın-orta / uzak / çok uzak güncelleme aralığı (s)
+  offscreenRate: 1 / 10, // görüş alanı dışındaki asker (gölgesi görünebilir: donmasın, seyrek güncellensin)
+  meshLodDist: 28, // bu mesafeden ötede sade model (≈2,3 bin üçgen; tam model ≈11,4 bin)
+  meshLodHyst: 3,
   blobFrom: 38, // gölge haritasının menzili dışında askerin altına yumuşak ayak gölgesi (m)
   blobOpacity: 0.42,
   envIntensity: 0.45, // ortam yansıması: gölgede ve uzakta asker simsiyah bir siluete dönmesin
@@ -1165,10 +1353,24 @@ export const RENDER = {
   touchWorldPixelRatio: { high: 1.5, medium: 1.15, low: 0.85 }, // dokunmatik cihazlarda
   msaa: { high: 4, medium: 4, low: 2 }, // dünya hedefinin kenar yumuşatma örnek sayısı
   anisotropy: { high: 16, medium: 8, low: 4 }, // doku süzme üst sınırı (cihazın izin verdiğiyle sınırlı)
+  // Örneklenmiş hazır modeller (ağaç, konteyner) bu boyda (m) kare hücrelere bölünür: her hücre ayrı InstancedMesh,
+  // bakış ve gölge konisinin dışındaki hücreler hiç çizilmez. Küçük hücre = az üçgen, çok çizim çağrısı
+  instanceCell: 40,
 };
 
 // Teçhizat ekranındaki silah görselleri (Operasyon Güncellemesi §5.4): oyunun kendi modelinden stüdyo
 // çizimi (kart simgesi) ve sağ paneldeki dönen, sürüklenebilen önizleme
+// Nişangâh görünümü (data/sights.json türleri, reticles.js çizimleri)
+export const SIGHT_VIEW = {
+  reticleZ: 0.03, // açık gövdesi olmayan (prosedürel) kolimatörde işaretin gez noktasından ilerisi (m)
+  housingGap: 0.004, // açık gövdede işaret gövde ortasından bu kadar ileride
+  reticleFrom: 0.55, // nişan oranı bunu geçince işaret belirmeye başlar (kalçadan bakınca camda işaret yok)
+  reticleFade: 0.35, // belirme aralığı
+  housingSwap: 0.72, // modelin kapalı gövdesi bu nişan oranından sonra açık gövdeyle değişir
+  scopeAt: 0.86, // dürbünlü silahta bu orandan sonra model gizlenir, dürbün kaplaması çizilir
+  scopeBreathAt: 0.6, // dürbünde nefes salınımı bu orandan sonra başlar
+};
+
 export const WEAPON_VIEW = {
   icon: { width: 512, height: 256, supersample: 2 }, // simge boyutu; iki kat büyük çizilip küçültülür (kenar yumuşatma)
   yawDeg: 14, // namlu sağa bakarken kameranın hafif önden açısı (perspektif)

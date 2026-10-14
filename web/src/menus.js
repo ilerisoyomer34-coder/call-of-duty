@@ -25,6 +25,9 @@ const CREDIT_CHANGES = {
   pine: 'Oyun için sadeleştirildi, dokuları küçültüldü.',
   containers: 'Oyun için 20 fit boya ölçeklendi, dokulardaki firma yazısı ve logosu silindi.',
   knife: 'Oyun için ölçeklendi, dokuları küçültüldü.',
+  ak74: 'Oyun için ölçeklendi, sergi şarjörü ve fişekler atıldı, parçalara ayrıldı.',
+  bren2: 'Oyun için ölçeklendi, sergi şarjörü ve fişek atıldı, parçalara ayrıldı.',
+  awm: 'Oyun için ölçeklendi, sürgüsü ayrıldı, dokuları küçültüldü.',
 };
 
 export class Menus {

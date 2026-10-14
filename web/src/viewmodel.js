@@ -4,8 +4,10 @@
 // Ayrı sahnede çizilir: silah duvarların içine girmez.
 import * as THREE from 'three';
 import { buildWeapon, buildArms, poseArm, buildGrenade, buildSmokeGrenade } from './models.js';
-import { WEAPONS, WEAPON_ORDER } from './config.js';
+import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW } from './config.js';
 import { preloadWeapons, rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
+import { sightFor, hasReticle, isScoped } from './sights.js';
+import { reticleMesh, housingMesh, glowDots } from './reticles.js';
 import { clamp, damp, lerp, smoothstep, Spring, rand, warnOnce } from './util.js';
 
 const _p = new THREE.Vector3();
@@ -15,6 +17,12 @@ const _v2 = new THREE.Vector3();
 const _upR = new THREE.Vector3(); // el sırtı yön ipuçları (poseArm)
 const _upL = new THREE.Vector3();
 const _q = new THREE.Quaternion();
+const _qa = new THREE.Quaternion();
+const _pv = new THREE.Vector3();
+const _NEG_Z = new THREE.Vector3(0, 0, -1);
+const _m4 = new THREE.Matrix4();
+const _box = new THREE.Box3();
+const _Z = new THREE.Vector3(0, 0, 1);
 const _hit = {};
 
 // 0→1 yükselen, tutulan, sonra 1→0 inen zarf
@@ -37,6 +45,25 @@ const KNIFE_KEYS = [
   { t: 0.5, pos: [0.06, -0.52, -0.3], rot: [-0.6, -1.1, 0] },
 ];
 const KNIFE_END = KNIFE_KEYS[KNIFE_KEYS.length - 1].t;
+
+// Parçayı verilen noktada (parçanın üst düğümünün uzayında) duran bir eksen düğümüne taşı: dönüş o noktanın çevresinde
+function pivotAround(part, at) {
+  const pivot = new THREE.Group();
+  pivot.position.copy(at);
+  pivot.userData.base = at.clone();
+  part.parent.add(pivot);
+  pivot.add(part);
+  part.position.sub(at);
+  return pivot;
+}
+
+// Gez (sight) → arpacık (front) yönünü -Z'ye çeviren dönüş: arpacık gezin tam arkasında, ekran merkezinde görünür.
+// Arpacığı olmayan (optikli) silahta dönüş yok
+function sightAlign(sight, front) {
+  if (!sight || !front) return null;
+  const dir = front.clone().sub(sight).normalize();
+  return new THREE.Quaternion().setFromUnitVectors(dir, _NEG_Z);
+}
 
 export class Viewmodel {
   constructor(game, textures) {
@@ -110,8 +137,8 @@ export class Viewmodel {
     m.flash = this.makeFlash(this.textures, WEAPONS[id].flashSize || 0.14);
     m.root.add(m.flash);
     m.flash.position.copy(m.muzzle);
-    if (m.dot) m.dot.scale.setScalar(0.75);
     for (const part of Object.values(m.parts)) if (part) part.userData.base = part.position.clone();
+    this.addSight(id, m);
     m.root.traverse((o) => {
       if (o.isMesh) o.frustumCulled = false;
     });
@@ -126,33 +153,25 @@ export class Viewmodel {
     const root = new THREE.Group();
     root.add(scene);
     const parts = {};
-    for (const name of ['mag', 'charging', 'slide', 'optic']) {
+    for (const name of ['mag', 'charging', 'slide', 'optic', 'bolt', 'spin']) {
       const n = scene.getObjectByName(name);
       if (n) parts[name] = n;
-    }
-    let dot = null;
-    if (d.reticle === 'dot') {
-      // Nişangah ekseninde kırmızı nokta: ADS'de tam ekran merkezine düşer
-      dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 12), new THREE.MeshBasicMaterial({ color: 0xff2a1a, depthTest: false }));
-      dot.position.copy(rig.sight).add(new THREE.Vector3(0, 0, d.id === 'lmg' ? -0.1 : -0.03));
-      dot.renderOrder = 6;
-      root.add(dot);
-    }
-    // Modeldeki nişangah kapalı bir gövde: nişan alırken yerine içinden bakılabilen açık tüp çizilir
-    let adsRing = null;
-    if (parts.optic && d.adsRing) {
-      const g = new THREE.CylinderGeometry(d.adsRing.r, d.adsRing.r, d.adsRing.len, 24, 1, true);
-      g.rotateX(Math.PI / 2);
-      adsRing = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x151719, roughness: 0.45, metalness: 0.6, side: THREE.DoubleSide }));
-      adsRing.position.copy(rig.sight).add(new THREE.Vector3(0, 0, -d.adsRing.len / 2 - 0.004));
-      adsRing.visible = false;
-      root.add(adsRing);
     }
     if (d.envIntensity) {
       scene.traverse((o) => {
         if (o.isMesh) o.material.envMapIntensity = d.envIntensity;
       });
     }
+    scene.updateMatrixWorld(true);
+    // Döner namlu demeti kendi ekseninde döner: eksen demetin kutu ortası (altı namlu simetrik dizili)
+    let spinPivot = null;
+    if (parts.spin) {
+      const c = _box.setFromObject(parts.spin).getCenter(new THREE.Vector3());
+      spinPivot = pivotAround(parts.spin, c.set(c.x, c.y, 0));
+    }
+    // Sürgü, gövdedeki ekseninde döner (kol kalkar) ve geri çekilir
+    let boltPivot = null;
+    if (parts.bolt && rig.boltAxis) boltPivot = pivotAround(parts.bolt, rig.boltAxis.clone());
     return {
       root,
       parts,
@@ -161,9 +180,42 @@ export class Viewmodel {
       leftHand: rig.leftHand,
       rightHand: new THREE.Vector3(0, -0.035, 0.025),
       eject: rig.eject,
-      dot,
-      adsRing,
+      adsAlign: sightAlign(rig.sight, rig.front),
+      spinPivot,
+      boltPivot,
+      boltAxis: rig.boltAxis,
+      boltHandle: rig.boltHandle,
     };
+  }
+
+  // Nişangâh görselleri (data/sights.json → reticles.js): camdaki işaret (kolimatör, holografik, prizmatik),
+  // modelin kapalı nişangâh gövdesinin nişan alırken yerine geçen açık gövdesi ve demir nişangâhın ışıklı noktaları
+  addSight(id, m) {
+    const d = WEAPONS[id];
+    const s = sightFor(id);
+    m.reticle = null;
+    m.housing = null;
+    if (s.housing && m.parts.optic) {
+      m.housing = housingMesh(s.housing, s);
+      m.housing.position.copy(m.sight);
+      m.root.add(m.housing);
+    }
+    if (hasReticle(id)) {
+      // İşaret gez noktasının önünde, gövdenin ortasında: tam nişanda ekran merkezine düşer
+      const z = s.housing ? s.housing.len / 2 + SIGHT_VIEW.housingGap : SIGHT_VIEW.reticleZ;
+      m.reticle = reticleMesh(s, d.adsDist + z, d.ads.vmFov);
+      m.reticle.position.copy(m.sight);
+      m.reticle.position.z -= z;
+      m.root.add(m.reticle);
+    }
+    if (s.glow.length) {
+      // Tabancada noktalar sürgüyle birlikte geri gider: sürgü parçasının uzayına taşınır
+      const dots = glowDots(s, s.glow, s.glowPost);
+      const host = m.parts.slide || m.root;
+      m.root.updateMatrixWorld(true);
+      dots.applyMatrix4(_m4.copy(host.matrixWorld).invert().multiply(m.root.matrixWorld));
+      host.add(dots);
+    }
   }
 
   // Haritanın ışığına uy: gecede silah parlak öğlen ışığıyla aydınlanmasın. v: [gök, zemin, şiddet, güneş, şiddet]
@@ -237,7 +289,7 @@ export class Viewmodel {
       this.currentId = w.id;
     }
     // Dürbünlü silahta tam nişanda model gizlenir, dürbün kaplaması görünür
-    this.scoped = !!d.scope && P.adsT > 0.86;
+    this.scoped = isScoped(w.id) && P.adsT > SIGHT_VIEW.scopeAt;
     this.holder.visible = P.alive && !P.down && !this.scoped;
     const handgun = d.category === 'secondary' && !d.projectile;
 
@@ -248,9 +300,11 @@ export class Viewmodel {
     const ay = -m.sight.y;
     const az = -d.adsDist - m.sight.z;
     _p.set(lerp(hip[0], ax, ads), lerp(hip[1], ay, ads), lerp(hip[2], az, ads));
-    let rx = 0;
-    let ry = lerp(0.02, 0, ads);
-    let rz = 0;
+    // Silaha özgü kalça açısı (hip.rot): ağır silahın namlusu nişangâha doğru döner
+    const hr = d.hip.rot;
+    let rx = hr ? hr[0] * (1 - ads) : 0;
+    let ry = lerp(0.02, 0, ads) + (hr ? hr[1] * (1 - ads) : 0);
+    let rz = hr ? hr[2] * (1 - ads) : 0;
 
     // Koşu pozu
     this.sprintT = damp(this.sprintT, P.sprinting ? 1 : 0, 9, dt);
@@ -343,8 +397,9 @@ export class Viewmodel {
     _p.y -= this.interactT * 0.14;
     rx -= this.interactT * 0.6;
 
-    // Sol el hedefi (varsayılan: tutamak)
+    // Sol el hedefi (varsayılan: tutamak); sağ el sürgü çekerken sürgü koluna gider
     let leftOverride = null;
+    let rightOverride = null;
     // Parça animasyonları: her karede dinlenme konumuna dön
     for (const part of Object.values(m.parts)) {
       if (part && part.userData.base) part.position.copy(part.userData.base);
@@ -429,10 +484,16 @@ export class Viewmodel {
       }
     }
     if (m.parts.warhead && !info) m.parts.warhead.visible = w.mag > 0;
-    if (m.parts.optic) {
-      const swap = ads > 0.72;
+    // Nişangâh: kapalı gövde nişan alırken açık gövdeyle değişir; camdaki işaret nişana girerken belirir
+    if (m.housing) {
+      const swap = ads > SIGHT_VIEW.housingSwap;
       m.parts.optic.visible = !swap;
-      if (m.adsRing) m.adsRing.visible = swap;
+      m.housing.visible = swap;
+    }
+    if (m.reticle) {
+      const k = clamp((ads - SIGHT_VIEW.reticleFrom) / SIGHT_VIEW.reticleFade, 0, 1);
+      m.reticle.material.opacity = k;
+      m.reticle.visible = k > 0;
     }
     // Pompa (atıştan sonra)
     if (m.parts.pump && w.pumpT >= 0) {
@@ -447,6 +508,38 @@ export class Viewmodel {
       _v.copy(m.leftHand);
       _v.z += m.parts.pump.position.z - pumpBase;
       if (!leftOverride) leftOverride = _v.clone();
+    }
+    // Döner namlu demeti: hız silahın spin değerinden; ateşte silah titrer
+    if (m.spinPivot && d.spin) {
+      m.spinPivot.rotation.z = (m.spinPivot.rotation.z - w.spin * d.spin.rps * Math.PI * 2 * dt) % (Math.PI * 2);
+      const firing = W.time - w.lastShot < 0.06;
+      if (firing) {
+        _p.x += (Math.random() - 0.5) * 0.004;
+        _p.y += (Math.random() - 0.5) * 0.004;
+        rz += (Math.random() - 0.5) * 0.01;
+      }
+    }
+    // Sürgü: kol kalkar, sürgü geri çekilir ve itilir, kol iner; sağ el kolu tutar, silah hafifçe yatar
+    if (m.boltPivot && d.bolt) {
+      const bk = W.boltInfo();
+      const B = d.bolt;
+      let lift = 0;
+      let pull = 0;
+      if (bk >= 0) {
+        lift = envelope(bk, 0, 0.16, 0.8, 0.96) * B.lift;
+        pull = envelope(bk, 0.18, 0.42, 0.5, 0.76) * B.travel;
+        const tilt = envelope(bk, 0, 0.12, 0.85, 1);
+        rz += -0.2 * tilt;
+        rx += 0.06 * tilt;
+        _p.x += -0.015 * tilt;
+        if (m.boltHandle) {
+          _v.copy(m.boltHandle).sub(m.boltAxis).applyAxisAngle(_Z, lift).add(m.boltAxis);
+          _v.z += pull;
+          rightOverride = _v2.copy(m.rightHand).lerp(_v, envelope(bk, 0, 0.1, 0.86, 1)).clone();
+        }
+      }
+      m.boltPivot.rotation.z = lift;
+      m.boltPivot.position.z = m.boltPivot.userData.base.z + pull;
     }
     // Tabanca sürgüsü
     if (m.parts.slide) {
@@ -494,8 +587,14 @@ export class Viewmodel {
     }
 
     // --- Uygula ---
-    m.root.position.copy(_p);
-    m.root.rotation.set(rx, ry, rz);
+    // Nişanda dönüşler gez noktası etrafında: geri tepme ve sallantı silahı oynatır ama gez ekran merkezinden
+    // (merminin gittiği yer) kaçmaz. Gez → arpacık çizgisi kamera eksenine oturur (sightAlign)
+    _r.set(rx, ry, rz);
+    _q.setFromEuler(_r);
+    if (m.adsAlign) _q.multiply(_qa.identity().slerp(m.adsAlign, ads));
+    _pv.copy(m.sight).multiplyScalar(ads);
+    m.root.quaternion.copy(_q);
+    m.root.position.copy(_p).add(_pv).sub(_v.copy(_pv).applyQuaternion(_q));
     m.root.updateMatrix();
     if (m.flash.visible) {
       this.flashT -= dt;
@@ -508,7 +607,7 @@ export class Viewmodel {
     this.flash.position.copy(_v);
 
     // Kollar
-    const rightHand = _v.copy(m.rightHand).applyMatrix4(m.root.matrix).clone();
+    const rightHand = _v.copy(rightOverride || m.rightHand).applyMatrix4(m.root.matrix).clone();
     const leftLocal = leftOverride || m.leftHand;
     const leftHand = _v2.copy(leftLocal).applyMatrix4(m.root.matrix).clone();
     const elbowR = new THREE.Vector3(_p.x + 0.09, _p.y - 0.24, _p.z + 0.34);
@@ -530,6 +629,7 @@ export class Viewmodel {
     if (cooking || throwing) _upL.set(0.2, 1, 0);
     else if (knifeOn) _upL.set(-0.4, 1, 0);
     else if (handgun) _upL.set(-0.7, 0.6, 0);
+    else if (d.hip.leftGrip === 'vertical') _upL.set(-1, 0.15, 0.2); // dikey tutamak: el sırtı sola, parmaklar sarar
     else _upL.set(-0.35, -1, 0);
     poseArm(this.arms.right, elbowR, rightHand, _upR);
     poseArm(this.arms.left, elbowL, leftHand, _upL);

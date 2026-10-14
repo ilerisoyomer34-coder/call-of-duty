@@ -392,6 +392,110 @@
     "kt9.recoil.after05": {
       "v": 0.3989891568068003,
       "unit": "°"
+    },
+    "ak74.spread.hip0": {
+      "v": 2.8,
+      "unit": "°"
+    },
+    "ak74.spread.ads0": {
+      "v": 0.2240000000000002,
+      "unit": "°"
+    },
+    "ak74.rpm": {
+      "v": 660,
+      "unit": "rpm"
+    },
+    "ak74.spread.after10": {
+      "v": 3.0999999999999996,
+      "unit": "°"
+    },
+    "ak74.recoil.pitch10": {
+      "v": 5.058218184860223,
+      "unit": "°"
+    },
+    "ak74.recoil.yaw10": {
+      "v": 0.08753326219305406,
+      "unit": "°"
+    },
+    "ak74.recoil.after05": {
+      "v": 0.10117190414686951,
+      "unit": "°"
+    },
+    "bren2.spread.hip0": {
+      "v": 2.4,
+      "unit": "°"
+    },
+    "bren2.spread.ads0": {
+      "v": 0.23999999999999977,
+      "unit": "°"
+    },
+    "bren2.rpm": {
+      "v": 870,
+      "unit": "rpm"
+    },
+    "bren2.spread.after10": {
+      "v": 3.1833333333333336,
+      "unit": "°"
+    },
+    "bren2.recoil.pitch10": {
+      "v": 4.237037929187574,
+      "unit": "°"
+    },
+    "bren2.recoil.yaw10": {
+      "v": 0.16613918759827115,
+      "unit": "°"
+    },
+    "bren2.recoil.after05": {
+      "v": 0.06856444791036646,
+      "unit": "°"
+    },
+    "awm.spread.hip0": {
+      "v": 7.5,
+      "unit": "°"
+    },
+    "awm.spread.ads0": {
+      "v": 0,
+      "unit": "°"
+    },
+    "awm.rpm": {
+      "v": 60,
+      "unit": "rpm"
+    },
+    "awm.recoil.after05": {
+      "v": 0.01191296464928734,
+      "unit": "°"
+    },
+    "minigun.spread.hip0": {
+      "v": 3,
+      "unit": "°"
+    },
+    "minigun.spread.ads0": {
+      "v": 3,
+      "unit": "°"
+    },
+    "minigun.rpm": {
+      "v": 1800,
+      "unit": "rpm"
+    },
+    "minigun.spread.after10": {
+      "v": 3.5,
+      "unit": "°"
+    },
+    "minigun.spread.after30": {
+      "v": 4.500000000000001,
+      "unit": "°"
+    },
+    "minigun.recoil.pitch10": {
+      "v": 0.825,
+      "unit": "°"
+    },
+    "minigun.recoil.yaw10": {
+      "v": 0.03,
+      "unit": "°"
+    },
+    "minigun.recoil.after05": {
+      "v": 0.04593640306405403,
+      "unit": "°"
     }
   }
 }

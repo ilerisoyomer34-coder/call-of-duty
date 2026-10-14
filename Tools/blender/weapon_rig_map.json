@@ -1,5 +1,5 @@
 {
-  "_aciklama": "Blender modellerini oyuna hazırlama eşlemesi. Noktalar orijinal .blend koordinatlarında (Z yukarı). forward: namlunun baktığı eksen. hand: sağ elin kabzayı kavradığı nokta (oyunda orijin olur). scaleTo: hedef toplam uzunluk (m), null ise ölçek korunur. parts: animasyonlu parçalar için nesne adı kalıpları (regex). exclude: aktarılmayacak nesneler. caps: nesne başına en fazla üçgen (sadeleştirme). optic: nişan alırken gizlenen kapalı nişangah gövdesi (oyunda yerine açık tüp çizilir).",
+  "_aciklama": "Blender modellerini oyuna hazırlama eşlemesi. Noktalar orijinal .blend koordinatlarında (Z yukarı). forward: namlunun baktığı eksen. hand: sağ elin kabzayı kavradığı nokta (oyunda orijin olur). scaleTo: hedef toplam uzunluk (m), null ise ölçek korunur. parts: animasyonlu parçalar için nesne adı kalıpları (regex). exclude: aktarılmayacak nesneler. caps: nesne başına en fazla üçgen (sadeleştirme). optic: nişan alırken gizlenen kapalı nişangah gövdesi (oyunda yerine açık tüp çizilir). curves: kalınlığı olan eğriler (kablo) mesh'e çevrilip aktarılır. spin: dönen namlu grubu (minigun; oyunda kendi ekseninde döner).",
   "mg43": {
     "source": "SourceAssets/Weapons/mg43/original/mg_43_1.blend",
     "forward": "+X",
@@ -173,6 +173,56 @@
       "Grip_Panel_L": 1800,
       "Grip_Panel_R": 1800,
       "TriggerGuard": 700
+    }
+  },
+  "minigun": {
+    "source": "SourceAssets/Weapons/minigun/original/minigun_pro_5.blend",
+    "forward": "+X",
+    "hand": [
+      -0.43,
+      0.0,
+      0.225
+    ],
+    "scaleTo": 1.0,
+    "curves": true,
+    "points": {
+      "muzzle": [
+        0.63,
+        0.0,
+        0.0
+      ],
+      "sight": [
+        -0.08,
+        0.0,
+        0.13
+      ],
+      "leftHand": [
+        0.04,
+        0.0,
+        0.19
+      ],
+      "eject": [
+        -0.07,
+        -0.06,
+        -0.075
+      ]
+    },
+    "parts": {
+      "spin": "^(Barrel_|BarrelCollar_|BoreDark_|CenterSpindle|MidClamp|MuzzleClamp|MuzzleCrown_|MuzzleHubNut|Rotor)",
+      "mag": "^AmmoBelt$"
+    },
+    "caps": {
+      "default": 420,
+      "AmmoBelt": 2400,
+      "Grip": 900,
+      "Housing": 1500,
+      "MuzzleClamp": 700,
+      "MidClamp": 500,
+      "FrontCradle": 500,
+      "StrapRing": 500,
+      "TopRail": 400,
+      "Rotor": 600,
+      "CarryHandle": 500
     }
   }
 }

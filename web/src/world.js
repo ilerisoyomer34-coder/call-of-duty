@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CollisionWorld } from '../shared/sim/collision.js';
 import { getTreeProp, getContainerProp } from './models.js';
-import { TREES } from './config.js';
+import { TREES, RENDER } from './config.js';
 
 // Zemin kaplamaları gölge düşürmez (gölge haritasında boşa çizilmesin)
 const FLAT_MATERIALS = new Set(['sand', 'dirt', 'helipad', 'snow', 'asphalt', 'water']);
@@ -28,6 +28,19 @@ class Batch {
   get vertexCount() {
     return this.pos.length / 3;
   }
+}
+
+// Örnekleri harita hücrelerine böl (RENDER.instanceCell): her hücre ayrı InstancedMesh, görüş konisi kırpması
+// hücre hücre işler (tek dev örnek ağı bütün haritayı kapsar, hiç kırpılmaz)
+function groupByCell(items) {
+  const cell = RENDER.instanceCell;
+  const out = new Map();
+  for (const it of items) {
+    const k = `${Math.floor(it.x / cell)},${Math.floor(it.z / cell)}`;
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(it);
+  }
+  return [...out.values()];
 }
 
 // Çarpışma (ızgara, ışın, karakter hareketi, box/block) paylaşılan simülasyonda: shared/sim/collision.js.
@@ -247,39 +260,43 @@ export class World extends CollisionWorld {
     const snow = new THREE.Color().setRGB(...TREES.snowTint);
     const white = new THREE.Color(1, 1, 1);
     const fract = (v) => v - Math.floor(v);
-    for (const part of T.parts) {
-      const mesh = new THREE.InstancedMesh(part.geometry, part.material, n);
-      for (let i = 0; i < n; i++) {
-        const t = this.trees[i];
-        const r1 = fract(Math.sin(t.x * 12.9898 + t.z * 78.233) * 43758.5453);
-        const r2 = fract(Math.sin(t.x * 39.3468 + t.z * 11.135) * 24634.6345);
-        const k = (t.h / modelH) * (1 + (r2 * 2 - 1) * TREES.scaleJitter);
-        q.setFromAxisAngle(up, r1 * Math.PI * 2);
-        sc.setScalar(k);
-        p.set(t.x, -b.min[1] * k, t.z);
-        m4.compose(p, q, sc).multiply(part.matrix);
-        mesh.setMatrixAt(i, m4);
-        if (part.foliage && snowy) mesh.setColorAt(i, t.snowy ? snow : white);
+    for (const group of groupByCell(this.trees)) {
+      for (const part of T.parts) {
+        const mesh = new THREE.InstancedMesh(part.geometry, part.material, group.length);
+        group.forEach((t, i) => {
+          const r1 = fract(Math.sin(t.x * 12.9898 + t.z * 78.233) * 43758.5453);
+          const r2 = fract(Math.sin(t.x * 39.3468 + t.z * 11.135) * 24634.6345);
+          const k = (t.h / modelH) * (1 + (r2 * 2 - 1) * TREES.scaleJitter);
+          q.setFromAxisAngle(up, r1 * Math.PI * 2);
+          sc.setScalar(k);
+          p.set(t.x, -b.min[1] * k, t.z);
+          m4.compose(p, q, sc).multiply(part.matrix);
+          mesh.setMatrixAt(i, m4);
+          if (part.foliage && snowy) mesh.setColorAt(i, t.snowy ? snow : white);
+        });
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData.prop = 'tree';
+        mesh.userData.foliage = part.foliage;
+        mesh.computeBoundingSphere();
+        this.scene.add(mesh);
+        this.meshes.push(mesh);
       }
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData.prop = 'tree';
-      mesh.computeBoundingSphere();
-      this.scene.add(mesh);
-      this.meshes.push(mesh);
     }
     this.treeMeshes = n;
   }
 
-  // Konteynerler: renk çeşidi başına tek InstancedMesh. Model 40 fit; çeşidin kutusu tabanı ortada orijine taşınır ve
+  // Konteynerler: renk çeşidi ve harita hücresi başına bir InstancedMesh. Model 40 fit; çeşidin kutusu tabanı ortada orijine taşınır ve
   // eksen başına oyundaki kutuya ölçeklenir (uzunlukta ≈ 0,54: 20 fit). Uzunluk modelde z ekseninde; alongX ise
   // 90° döner. Kapılı uç konumdan türeyen yarım turla iki yana dağılır (her açılışta aynı)
   buildContainers() {
     const P = getContainerProp();
+    // Renk ve hücre başına bir örnek ağı
     const groups = new Map();
     for (const c of this.containers) {
-      if (!groups.has(c.mat)) groups.set(c.mat, []);
-      groups.get(c.mat).push(c);
+      const key = `${c.mat}|${Math.floor(c.x / RENDER.instanceCell)},${Math.floor(c.z / RENDER.instanceCell)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(c);
     }
     const m4 = new THREE.Matrix4();
     const base = new THREE.Matrix4();
@@ -289,8 +306,8 @@ export class World extends CollisionWorld {
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0);
-    for (const [mat, list] of groups) {
-      const v = P.variants[mat];
+    for (const [key, list] of groups) {
+      const v = P.variants[key.split('|')[0]];
       v.box.getSize(size);
       v.box.getCenter(center);
       base.makeTranslation(-center.x, -v.box.min.y, -center.z).multiply(v.matrix);

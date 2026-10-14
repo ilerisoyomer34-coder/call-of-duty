@@ -779,6 +779,7 @@ export class Ally {
     ANIM.reload = W.reloadT > 0 ? 1 - W.reloadT / this.C.reload : -1;
     ANIM.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
     ANIM.dist = this.pos.distanceTo(this.game.player.pos);
+    ANIM.offscreen = !this.game.inView(this.pos);
     this.model.animate(dt, ANIM);
   }
 

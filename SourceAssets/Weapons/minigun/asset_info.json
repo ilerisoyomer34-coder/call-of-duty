@@ -1,0 +1,15 @@
+{
+  "title": "Minigun (minigun_pro_5)",
+  "author": "Oyuncu (kendi Blender dosyası)",
+  "author_url": "",
+  "source_url": "",
+  "license": "Kullanıcıya ait (oturuma kendisi yükledi)",
+  "download_date": "2026-10-14",
+  "format": "Blender (.blend), doku yok; renk tabanlı PBR malzemeler, eğrilerden (bevel) kablo ve kayış",
+  "category": "Weapons",
+  "game_name": "M134 Kasırga (minigun)",
+  "intended_use": "Özel ağır silah: altı namlulu döner makineli",
+  "original_file": "original/minigun_pro_5.blend",
+  "modifications": "Tools/blender/export_weapon.py: eğriler mesh'e çevrildi; namlu demeti, göbek ve kelepçeler tek dönen parça (spin), fişek kayışı ayrı parça (mag); parça başına sadeleştirme (caps).",
+  "notes": "Dönüştürme raporu: Docs/import_reports/minigun.md. Oyun içi ad kurgusal."
+}

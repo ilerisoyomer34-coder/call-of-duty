@@ -1,0 +1,14 @@
+{
+  "_doc": "Silah sınıfları (Call of Duty Mobile düzeni): teçhizat ekranında sınıf sekmeleri bu sırayla çıkar, kartlar sınıfa göre dizilir. Silahın sınıfı data/weapons.json → type. desc: sekme seçilince kart ızgarasının üstünde görünen kısa tanım.",
+  "classes": [
+    { "id": "ar", "name": "Taarruz Tüfeği", "short": "TAARRUZ", "desc": "Her mesafede dengeli: orta tempo, iyi menzil, denetlenebilir tepme." },
+    { "id": "smg", "name": "Hafif Makineli", "short": "HMK", "desc": "Yakın mesafe: en yüksek hareketlilik ve tempo, menzil kısa." },
+    { "id": "lmg", "name": "Hafif Makineli Tüfek", "short": "HMT", "desc": "Büyük şarjör, bastırma ateşi; ağır ve nişanı yavaş." },
+    { "id": "marksman", "name": "Nişancı Tüfeği", "short": "NİŞANCI", "desc": "Yarı otomatik, dürbünlü: uzak mesafede hızlı takip atışı." },
+    { "id": "sniper", "name": "Keskin Nişancı", "short": "KESKİN", "desc": "Tek atışta etkisiz bırakır; dürbün büyütmesi yüksek, nefes tutulabilir." },
+    { "id": "shotgun", "name": "Pompalı", "short": "POMPALI", "desc": "Saçma: çok yakında ölümcül, uzakta etkisiz." },
+    { "id": "special", "name": "Özel", "short": "ÖZEL", "desc": "Ağır silahlar: kendine özgü kurallar (ör. dönen namlu, nişan yok)." },
+    { "id": "pistol", "name": "Tabanca", "short": "TABANCA", "desc": "Yan silah: hızlı çekilir, şarjör bitince kurtarır." },
+    { "id": "launcher", "name": "Roketatar", "short": "ROKET", "desc": "Araçlara ve mevzilere karşı patlayıcı." }
+  ]
+}

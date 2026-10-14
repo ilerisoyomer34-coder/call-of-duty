@@ -601,6 +601,7 @@ export class Audio {
   }
 
   stopAmbient() {
+    this.minigun(0, false); // menüye dönünce dönen namlu sesi kalmasın
     if (this.windSrc) {
       try {
         this.windSrc.stop();
@@ -689,6 +690,63 @@ export class Audio {
     this.music = null;
   }
 
+  // Döner makineli (minigun): namlu demetinin yükselen motor vınlaması ve atış sürerken saniyede 30 patlamalı
+  // testere sesi. Her karede çağrılır; ilk dönüşte kurulur, sonra yalnız kazançlar değişir (ses düğümü ayırmaz)
+  minigun(spin, firing) {
+    if (!this.ctx) return;
+    if (!this.mg) {
+      if (spin <= 0) return;
+      const ctx = this.ctx;
+      const whine = ctx.createOscillator();
+      whine.type = 'sawtooth';
+      const wf = ctx.createBiquadFilter();
+      wf.type = 'bandpass';
+      wf.Q.value = 2.5;
+      const wg = ctx.createGain();
+      wg.gain.value = 0;
+      whine.connect(wf);
+      wf.connect(wg);
+      wg.connect(this.sfx);
+      // Ateş: gürültü, 30 Hz kare dalgayla açılıp kapanır (her namlu ağzı bir patlama)
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const ff = ctx.createBiquadFilter();
+      ff.type = 'lowpass';
+      ff.frequency.value = 1700;
+      const am = ctx.createGain();
+      am.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.type = 'square';
+      lfo.frequency.value = 30;
+      const lg = ctx.createGain();
+      lg.gain.value = 0.5;
+      lfo.connect(lg);
+      lg.connect(am.gain);
+      const fg = ctx.createGain();
+      fg.gain.value = 0;
+      src.connect(ff);
+      ff.connect(am);
+      am.connect(fg);
+      fg.connect(this.sfx);
+      fg.connect(this.verbIn);
+      whine.start();
+      src.start();
+      lfo.start();
+      this.mg = { whine, wf, wg, fg, spin: -1, firing: false };
+    }
+    const M = this.mg;
+    // Otomasyon olayı yalnız değer değişince eklenir (her kare eklenirse olay listesi şişer)
+    if (Math.abs(spin - M.spin) < 0.01 && firing === M.firing) return;
+    M.spin = spin;
+    M.firing = firing;
+    const t = this.now;
+    M.whine.frequency.setTargetAtTime(70 + spin * 210, t, 0.05);
+    M.wf.frequency.setTargetAtTime(400 + spin * 1500, t, 0.05);
+    M.wg.gain.setTargetAtTime(spin * 0.16, t, 0.05);
+    M.fg.gain.setTargetAtTime(firing ? 0.75 : 0, t, firing ? 0.01 : 0.06);
+  }
+
   // Helikopter rotor sesi (konumlu, sürekli)
   startRotor() {
     if (!this.ctx || this.rotor) return;
@@ -758,4 +816,12 @@ const GUN_PROFILES = {
   magnum: { vol: 1.0, crack: 1.25, crackFreq: 2500, crackDur: 0.08, body: 1.0, bodyFreq: 2000, bodyDur: 0.2, thump: 110, thumpGain: 1.0, thumpDur: 0.14, tail: 0.8, tailGain: 0.55, mech: 0.25 },
   rocket: { vol: 1.0, crack: 0.5, crackFreq: 900, crackDur: 0.25, body: 1.0, bodyFreq: 900, bodyDur: 0.7, thump: 60, thumpGain: 1.1, thumpDur: 0.35, tail: 1.2, tailGain: 0.6, mech: 0 },
   sniper: { vol: 1.0, crack: 1.2, crackFreq: 2600, crackDur: 0.1, body: 1.0, bodyFreq: 2000, bodyDur: 0.3, thump: 100, thumpGain: 1.0, thumpDur: 0.2, tail: 1.3, tailGain: 0.7, mech: 0 },
+  // 5,45'lik: ince, keskin çatırtı
+  ak74: { vol: 0.9, crack: 1.12, crackFreq: 2950, crackDur: 0.06, body: 0.85, bodyFreq: 2300, bodyDur: 0.14, thump: 150, thumpGain: 0.85, thumpDur: 0.09, tail: 0.5, tailGain: 0.45, mech: 0.16 },
+  // Kısa namlu: daha kuru, tiz
+  bren: { vol: 0.86, crack: 1.0, crackFreq: 3150, crackDur: 0.055, body: 0.8, bodyFreq: 2650, bodyDur: 0.12, thump: 165, thumpGain: 0.75, thumpDur: 0.08, tail: 0.42, tailGain: 0.4, mech: 0.18 },
+  // .338 Lapua: tok gürleme, uzun yankı
+  awm: { vol: 1.08, crack: 1.35, crackFreq: 2200, crackDur: 0.11, body: 1.05, bodyFreq: 1600, bodyDur: 0.36, thump: 82, thumpGain: 1.15, thumpDur: 0.26, tail: 1.5, tailGain: 0.8, mech: 0 },
+  // Döner makinelinin tek atışı (üç atışta bir çalınır; sürekli ses minigun())
+  minigun: { vol: 0.7, crack: 0.85, crackFreq: 2500, crackDur: 0.03, body: 0.75, bodyFreq: 1800, bodyDur: 0.07, thump: 125, thumpGain: 0.65, thumpDur: 0.05, tail: 0.3, tailGain: 0.3, mech: 0 },
 };

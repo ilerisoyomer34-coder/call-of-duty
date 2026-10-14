@@ -15,7 +15,8 @@
 //   5) Tepkiler: atışta geri tepme, isabette sarsılma ve burulma, ölümde silah yere düşer.
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { loadCharacterAsset } from './assets.js';
+import { loadCharacterAsset, loadCharacterLod } from './assets.js';
+import { warnOnce } from './util.js';
 import { buildSoldier, buildEnemyGun, mergeGroup, ENEMY_GUN_KIND, ENEMY_GUN_POINTS } from './models.js';
 import { SOLDIER_ANIM, SOLDIER_LOOKS, SOLDIER_HITBOXES } from './config.js';
 import { clamp, damp, dampAngle, angleDiff, dirToYaw, lerp, smoothstep, rand, Spring } from './util.js';
@@ -294,7 +295,10 @@ function lookMaterials(type) {
 export async function preloadSoldier() {
   if (template) return true;
   const asset = await loadCharacterAsset('soldier');
-  template = prepareTemplate(asset);
+  const t = prepareTemplate(asset);
+  // Uzak model gelmezse askerler hep tam ayrıntıda çizilir (oyun çalışır, yalnız daha ağır)
+  t.lodGeos = await loadCharacterLod('soldier').catch((e) => (warnOnce('soldier-lod', `Uzak asker modeli yüklenemedi (${e.message})`), null));
+  template = t;
   return true;
 }
 
@@ -327,6 +331,32 @@ class SkinnedSoldier {
         if (sp) o.boundingSphere = sp.clone();
       }
     });
+    // Uzak model: aynı iskelete ve malzemeye bağlı sade ağlar; uzaklığa göre biri görünür (görüş konisi kırpması
+    // sınır küresiyle sürer). Gölgeyi de görünen düşürür
+    this.hi = [];
+    this.lo = [];
+    this.far = false;
+    if (T.lodGeos) {
+      this.body.traverse((o) => {
+        if (!o.isSkinnedMesh || o.userData.lod) return;
+        const g = T.lodGeos.get(o.name);
+        if (!g) return;
+        const l = new THREE.SkinnedMesh(g, o.material);
+        l.userData.lod = true;
+        l.name = `${o.name}_uzak`;
+        l.position.copy(o.position);
+        l.quaternion.copy(o.quaternion);
+        l.scale.copy(o.scale);
+        l.bind(o.skeleton, o.bindMatrix);
+        l.castShadow = true;
+        l.receiveShadow = false;
+        l.boundingSphere = o.boundingSphere ? o.boundingSphere.clone() : null;
+        l.visible = false;
+        o.parent.add(l);
+        this.hi.push(o);
+        this.lo.push(l);
+      });
+    }
     this.mixer = new THREE.AnimationMixer(this.body);
     this.idle = this.mixer.clipAction(T.clips.Idle);
     this.walk = this.mixer.clipAction(T.clips.Walk);
@@ -455,9 +485,19 @@ class SkinnedSoldier {
     this.root.rotation.set(0, st.yaw, 0, 'YXZ');
     // Gölge haritasının menzili dışında (ya da gölgeler kapalıyken) ayak gölgesi: asker havada durmasın
     this.blob.visible = st.dist > A.blobFrom || !realShadows;
-    // Uzaktaki askerlerde iskelet seyrek güncellenir; biriken süre tek adımda işlenir
+    // Uzak model: eşikte gidip gelmesin diye geri dönüş biraz daha yakında
+    if (this.lo.length) {
+      const far = this.far ? st.dist > A.meshLodDist - A.meshLodHyst : st.dist > A.meshLodDist;
+      if (far !== this.far) {
+        this.far = far;
+        for (const m of this.hi) m.visible = !far;
+        for (const m of this.lo) m.visible = far;
+      }
+    }
+    // Uzaktaki ve görüş alanı dışındaki askerlerde iskelet seyrek güncellenir; biriken süre tek adımda işlenir
     this.lodT += dt;
-    const every = st.dist > A.lodVeryFar ? A.lodRates[2] : st.dist > A.lodFar ? A.lodRates[1] : st.dist > A.lodNear ? A.lodRates[0] : 0;
+    let every = st.dist > A.lodVeryFar ? A.lodRates[2] : st.dist > A.lodFar ? A.lodRates[1] : st.dist > A.lodNear ? A.lodRates[0] : 0;
+    if (st.offscreen) every = Math.max(every, A.offscreenRate);
     if (this.lodT < every) return;
     const step = Math.min(this.lodT, 0.25);
     this.lodT = 0;

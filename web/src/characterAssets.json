@@ -17,6 +17,11 @@
       "Walk"
     ],
     "tris": 11376,
-    "bytes": 1360706
+    "bytes": 1360706,
+    "lod": {
+      "file": "assets/characters/soldier_lod.glb",
+      "tris": 2345,
+      "bytes": 282360
+    }
   }
 }

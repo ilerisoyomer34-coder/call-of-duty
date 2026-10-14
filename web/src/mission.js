@@ -638,7 +638,7 @@ export class Mission {
     this.objectives = [{ id: 'range', text: 'Atış poligonu — hedefler 10 / 25 / 50 / 100 m', marker: () => null }];
     this.objIdx = 0;
     g.events.emit('objective', this.currentText());
-    this.radio('POLİGON', 'Dokuz silahın hepsi hazır: 1–9 tuşlarıyla değiştir. B ile atış modunu, dürbünde Shift ile nefesini tut.', 1);
+    this.radio('POLİGON', `${WEAPON_ORDER.length} silahın hepsi hazır: 1–9 tuşları ve fare tekerleğiyle değiştir. B ile atış modunu, dürbünde Shift ile nefesini tut. Minigun'da sağ tık namluları döndürür.`, 1);
     this.radio('POLİGON', 'Turuncu mankenler hasar sayısını gösterir ve 3 saniyede yeniden kalkar.', 6);
   }
 
@@ -1029,6 +1029,7 @@ export class Mission {
     const h = this.heliSpare || buildHelicopter();
     this.heliSpare = null;
     if (!h.root.parent) g.scene.add(h.root);
+    h.root.visible = true;
     // Helikopter haritanın verdiği yönden gelir (varsayılan: güneyden, haritanın üstünden)
     const lz = at;
     const from = this.data.heliFrom || new THREE.Vector3(lz.x, 0, 160);

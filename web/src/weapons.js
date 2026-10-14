@@ -8,6 +8,7 @@ import { Rng, inCone } from '../shared/sim/rng.js';
 import { fireInterval, recoverBloom, spreadDeg, triggerShots, recordShot, addBloom, recoilKick, pelletDir } from '../shared/sim/weapon.js';
 import { EV } from './events.js';
 import { CONSUMABLES } from './loadout.js';
+import { canAim } from './sights.js';
 
 export class Weapon {
   constructor(id) {
@@ -23,6 +24,11 @@ export class Weapon {
     this.lastShot = -10;
     this.burstLeft = 0;
     this.pumpT = -1; // pompa animasyonu zamanlayıcısı
+    this.boltT = -1; // sürgü çekme zamanlayıcısı (sürgülü tüfek)
+    this.boltSfx = false;
+    this.boltEject = false;
+    this.reloadQueued = false;
+    this.spin = 0; // döner namlunun hızı (0..1, minigun)
     this.slideLocked = false;
   }
   get mode() {
@@ -169,6 +175,13 @@ export class PlayerWeapons {
     let any = false;
     for (const w of Object.values(this.owned)) {
       // Roket gibi nadir cephane her torbadan çıkmaz
+      if (w.data.reloadType === 'none') {
+        // Fişek kayışı: torba kayışın bir bölümünü doldurur
+        const add = Math.ceil(w.data.magSize * (w.data.spin?.refill ?? fraction));
+        if (w.mag < w.data.magSize) any = true;
+        w.mag = Math.min(w.data.magSize, w.mag + add);
+        continue;
+      }
       const add = w.data.pickupChance !== undefined ? (Math.random() < w.data.pickupChance ? 1 : 0) : Math.ceil(w.data.reserveMax * fraction);
       if (w.reserve < w.data.reserveMax && add > 0) any = true;
       w.reserve = Math.min(w.data.reserveMax, w.reserve + add);
@@ -180,6 +193,8 @@ export class PlayerWeapons {
   refill() {
     for (const w of Object.values(this.owned)) {
       w.reserve = w.data.reserveMax;
+      // Şarjörü değişmeyen silah (fişek kayışı): kutu kayışı doldurur
+      if (w.data.reloadType === 'none') w.mag = w.data.magSize;
     }
     this.grenades = GRENADE.maxCount + this.kitFrags;
     this.game.events.emit('ammo', this.current);
@@ -198,7 +213,19 @@ export class PlayerWeapons {
   }
 
   get canAds() {
-    return this.state === 'idle' || this.state === 'reloading' && this.current.data.reloadType === 'shell';
+    const w = this.current;
+    // Nişan alınamayan silah (minigun): sağ tık namluları önceden döndürür
+    if (!w || !canAim(w.id)) return false;
+    // Sürgü çekilirken dürbünden çıkılır; basılı tutulan nişan sürgü bitince kendiliğinden geri gelir
+    const B = w.data.bolt;
+    if (B && B.unscope && w.boltT >= B.delay) return false;
+    return this.state === 'idle' || this.state === 'reloading' && w.data.reloadType === 'shell';
+  }
+
+  // Döner namlu dönüyor mu (koşu kapanır, yürüme yavaşlar)
+  get spinning() {
+    const w = this.current;
+    return !!w && w.spin > 0.05;
   }
 
   switchTo(id) {
@@ -239,6 +266,11 @@ export class PlayerWeapons {
     const w = this.current;
     const d = w.data;
     if (this.state !== 'idle' || w.reserve <= 0) return;
+    // Sürgü çekilirken şarjör değişmez: sürgü bitince başlar
+    if (w.boltT >= 0) {
+      w.reloadQueued = true;
+      return;
+    }
     const cap = d.magSize + (d.chamber && w.mag > 0 ? 1 : 0);
     if (w.mag >= cap || (d.reloadType === 'shell' && w.mag >= d.magSize)) return;
     const empty = w.mag === 0;
@@ -275,6 +307,13 @@ export class PlayerWeapons {
       }
       if (w.pumpT > d.pumpDelay + 0.35) w.pumpT = -1;
     }
+    if (w.boltT >= 0) this.updateBolt(w, d, dt);
+    // Döner namlu: tetik ya da nişan tuşu basılıyken hızlanır, bırakılınca yavaşlar (silah elden çıkınca da)
+    if (d.spin) {
+      const want = canAct && !P.down && this.state === 'idle' && !P.sprinting && (input.isDown('fire') || P.adsToggle);
+      w.spin = want ? Math.min(1, w.spin + dt / d.spin.up) : Math.max(0, w.spin - dt / d.spin.down);
+    }
+    g.audio.minigun(d.spin ? w.spin : 0, d.spin ? this.time - w.lastShot < 0.08 : false);
     // Sapma toparlanması
     recoverBloom(w, d, this.time, dt);
     if (this.fireBuffer > 0) this.fireBuffer -= dt;
@@ -301,6 +340,7 @@ export class PlayerWeapons {
         break;
       case 'unequipping':
         if (this.stateT >= d.unequipTime * 0.8) {
+          w.spin = 0; // elden çıkan döner namlu durur
           this.lastId = this.currentId;
           this.currentId = this.pending;
           this.pending = null;
@@ -374,7 +414,8 @@ export class PlayerWeapons {
     if ((held || pressed) && P.sprinting) {
       P.stopSprint();
     }
-    const blocked = P.sprintOut > 0 || P.sprinting || P.interacting || (w.pumpT >= 0 && w.pumpT < d.pumpDelay + 0.3);
+    // Pompa ve sürgü çekilirken, döner namlu tam hıza çıkmadan ateş edilmez
+    const blocked = P.sprintOut > 0 || P.sprinting || P.interacting || (w.pumpT >= 0 && w.pumpT < d.pumpDelay + 0.3) || w.boltT >= 0 || (d.spin && w.spin < 1);
     if (!held && w.burstLeft === 0) w.cooldown = Math.max(w.cooldown, 0);
 
     if (w.mag <= 0 && !g.cheats.infiniteAmmo) {
@@ -414,6 +455,11 @@ export class PlayerWeapons {
     if (d.pump) {
       w.pumpT = 0;
       w.pumpSfx = false;
+    }
+    if (d.bolt) {
+      w.boltT = 0;
+      w.boltSfx = false;
+      w.boltEject = false;
     }
     if (d.slide && w.mag <= 0) w.slideLocked = true;
     const cam = g.camera;
@@ -501,10 +547,13 @@ export class PlayerWeapons {
     recoilKick(d, w.shotIndex, ads, P.crouched, this.rng, _kick);
     P.addRecoil(_kick[0], _kick[1]);
     g.viewmodel.onFire(w);
-    g.audio.gunshot(d.sound);
+    // Döner makinelide saniyede 30 atış: tek atış sesi ve duman seyreltilir (sürekli ateş sesi audio.minigun)
+    const every = d.spin ? 3 : 1;
+    if (w.shotIndex % every === 0) g.audio.gunshot(d.sound);
     g.effects.flashLight(_muz, 0xffb566, 12 + Math.random() * 6, 7, 0.05);
-    g.effects.muzzleSmoke(_muz, _fwd);
-    if (!d.pump) this.ejectShell(false);
+    if (w.shotIndex % every === 0) g.effects.muzzleSmoke(_muz, _fwd);
+    // Döner makinelide kovan ve bağlantılar silahın altından düşer (göz hizasında kovan uçmaz)
+    if (!d.pump && !d.bolt && !d.spin) this.ejectShell(false);
     P.shake(d.recoil.shake);
     g.makeNoise(P.pos, d.noise, 'gunshot');
     g.events.emit('ammo', w);
@@ -696,6 +745,38 @@ export class PlayerWeapons {
         }
       }
     }
+  }
+
+  // Sürgü: atıştan sonra kol kalkar, geri çekilir (kovan atılır), itilir, iner. Şarjör boşaldıysa ya da sürgü
+  // çekilirken şarjör istendiyse sürgü bitince şarjör değişir
+  updateBolt(w, d, dt) {
+    const g = this.game;
+    const B = d.bolt;
+    w.boltT += dt;
+    if (!w.boltSfx && w.boltT > B.delay) {
+      w.boltSfx = true;
+      g.audio.mech('bolt');
+    }
+    if (!w.boltEject && w.boltT > B.delay + B.time * 0.45) {
+      w.boltEject = true;
+      this.ejectShell(true);
+    }
+    if (w.boltT > B.delay + B.time) {
+      w.boltT = -1;
+      if (w === this.current && (w.reloadQueued || w.mag === 0) && w.reserve > 0) {
+        w.reloadQueued = false;
+        this.startReload();
+      }
+      w.reloadQueued = false;
+    }
+  }
+
+  // Sürgü ilerlemesi (görünüm modeli): 0..1, sürgü çekilmiyorsa -1
+  boltInfo() {
+    const w = this.current;
+    if (!w || w.boltT < 0 || !w.data.bolt) return -1;
+    const B = w.data.bolt;
+    return clamp((w.boltT - B.delay) / B.time, 0, 1);
   }
 
   // Reload ilerlemesi (vizyon modeli animasyonu için): {type, k, phase}

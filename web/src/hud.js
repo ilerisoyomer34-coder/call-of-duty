@@ -10,6 +10,8 @@ import { REVIVE } from './downed.js';
 import { EV } from './events.js';
 import { COMMANDS } from './commands.js';
 import { CMD_ICONS } from './commandWheel.js';
+import { sightFor } from './sights.js';
+import { scopeSvg } from './reticles.js';
 
 const CMD_ICON_SEC = 3; // komut simgesinin askerin başında kalma süresi (oyun saati)
 
@@ -48,7 +50,7 @@ export class HUD {
       compassStrip: $('compassStrip'), compassObj: $('compassObj'), compass: $('compass'),
       minimap: $('minimap'), scoreVal: $('scoreVal'), fps: $('fps'), intro: $('introCard'), tbUse: $('tbUse'), tbAds: $('tbAds'),
       slots: $('slots'), kit: $('kit'), squad: $('squad'), downed: $('downed'), dnRing: $('dnRing'), dnRevive: $('dnRevive'), dnTime: $('dnTime'),
-      dnStatus: $('dnStatus'), dnHint: $('dnHint'), dnPulse: $('dnPulse'), dnDark: $('dnDark'), game: $('game'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
+      dnStatus: $('dnStatus'), dnHint: $('dnHint'), dnPulse: $('dnPulse'), dnDark: $('dnDark'), game: $('game'), tbItems: [$('tbItem1'), $('tbItem2')], scope: $('scope'), scopeSvg: $('scopeSvg'), breathBar: $('scopeBreathBar'), breathText: $('scopeBreathText'),
     };
     this.ch = {
       t: this.el.crosshair.querySelector('.t'), b: this.el.crosshair.querySelector('.b'),
@@ -208,7 +210,9 @@ export class HUD {
     this.el.wName.textContent = weaponName(d.id);
     this.el.wMode.textContent = `${d.kind} · ${MODE_LABEL[w.mode]}`;
     this.el.aMag.textContent = inf ? '∞' : w.mag;
-    this.el.aRes.textContent = `/ ${w.reserve}`;
+    // Fişek kayışlı silahta (minigun) yedek yok: kayıştaki fişek sayısı binlik ayraçla, yanında KAYIŞ
+    this.el.aRes.textContent = d.reloadType === 'none' ? 'KAYIŞ' : `/ ${w.reserve}`;
+    if (d.reloadType === 'none' && !inf) this.el.aMag.textContent = w.mag.toLocaleString('tr-TR');
     const low = w.mag === 0 || (d.magSize > 3 && w.mag <= Math.ceil(d.magSize * 0.25));
     this.el.ammo.classList.toggle('low', low);
     const hint = this.el.reloadHint;
@@ -622,8 +626,14 @@ export class HUD {
       this.el.crosshair.style.opacity = op;
     }
 
-    // Dürbün kaplaması ve nefes göstergesi
+    // Dürbün kaplaması ve nefes göstergesi. İşaret ve cam rengi silahın dürbününe göre (data/sights.json)
     const scoped = g.viewmodel.scoped && P.alive;
+    if (scoped && w && this.scopeId !== w.id) {
+      this.scopeId = w.id;
+      const s = sightFor(w.id);
+      this.el.scopeSvg.innerHTML = scopeSvg(s);
+      this.el.scope.style.setProperty('--lens', `${s.lens || '#284038'}10`);
+    }
     if (this.el.scope.hidden === scoped) this.el.scope.hidden = !scoped;
     if (scoped) {
       this.el.breathBar.style.width = `${Math.round(P.breath * 100)}%`;

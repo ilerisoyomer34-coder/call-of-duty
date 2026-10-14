@@ -712,6 +712,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .loImg { width: 100%; aspect-ratio: 2 / 1; object-fit: contain; display: block; background: radial-gradient(ellipse at center, rgba(141,184,216,.12), transparent 70%); opacity: .75; transition: opacity .25s; }
 .loImg.ready { opacity: 1; }
 .loClass { font: 600 10px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand-dim); }
+/* Silah sınıfı sekmeleri (CODM düzeni): kart ızgarasının üstünde, kaydırınca yapışık */
+.loClasses { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--ink); padding-bottom: 6px; }
+.loClasses button { appearance: none; border: 1px solid var(--line); background: var(--ink-2); color: var(--sand-dim); font: 600 11px/1 var(--f-ui); letter-spacing: .14em; padding: 8px 11px; min-height: 32px; cursor: pointer; }
+.loClasses button:hover, .loClasses button:focus-visible { border-color: var(--amber); color: var(--sand); outline: none; }
+.loClasses button.sel { background: var(--amber); border-color: var(--amber); color: var(--ink); }
+.loClasses button em { font-style: normal; opacity: .7; margin-left: 5px; font-family: var(--f-num); }
+.loClassDesc { grid-column: 1 / -1; font: 500 12px/1.35 var(--f-ui); color: var(--sand-dim); margin: -2px 0 2px; }
+.stSight { font: 600 11px/1.3 var(--f-ui); letter-spacing: .12em; color: var(--sand-dim); text-transform: uppercase; margin-top: 2px; }
 .loInfo { font: 400 12px/1.3 var(--f-ui); color: var(--sand-dim); }
 .loBars { display: grid; grid-template-columns: auto 1fr 24px; gap: 4px 8px; align-items: center; }
 .loBars span { font: 600 10px/1 var(--f-ui); letter-spacing: .1em; color: var(--sand-dim); text-transform: uppercase; }
@@ -760,7 +768,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 }
 
 /* ---------- Dürbün ---------- */
-#scope { position: absolute; inset: 0; pointer-events: none; --r: min(40vh, 34vw); background: radial-gradient(circle at 50% 50%, rgba(20,40,40,.06) 0, rgba(20,40,40,.06) calc(var(--r) - 12px), rgba(0,0,0,.6) calc(var(--r) - 2px), #000 calc(var(--r) + 3px)); }
+#scope { position: absolute; inset: 0; pointer-events: none; --r: min(40vh, 34vw); --lens: rgba(20,40,40,.06); background: radial-gradient(circle at 50% 50%, var(--lens) 0, var(--lens) calc(var(--r) - 12px), rgba(0,0,0,.6) calc(var(--r) - 2px), #000 calc(var(--r) + 3px)); }
 #scope[hidden] { display: none; }
 #scope svg { position: absolute; left: 50%; top: 50%; width: calc(var(--r) * 2); height: calc(var(--r) * 2); transform: translate(-50%, -50%); }
 #scopeBreath { position: absolute; left: 50%; top: calc(50% + var(--r) + 14px); transform: translateX(-50%); font: 600 13px/1 var(--f-ui); letter-spacing: .18em; color: var(--sand-dim); white-space: nowrap; display: flex; align-items: center; gap: 10px; }
@@ -978,22 +986,8 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
 
   <div id="hud" hidden>
     <div id="scope" hidden>
-      <svg viewBox="-100 -100 200 200" aria-hidden="true">
-        <g stroke="#050505" fill="none">
-          <line x1="-100" y1="0" x2="-7" y2="0" stroke-width="1.6"/><line x1="7" y1="0" x2="100" y2="0" stroke-width="1.6"/>
-          <line x1="0" y1="-100" x2="0" y2="-7" stroke-width="1.6"/><line x1="0" y1="7" x2="0" y2="100" stroke-width="1.6"/>
-          <line x1="-100" y1="0" x2="-55" y2="0" stroke-width="4"/><line x1="55" y1="0" x2="100" y2="0" stroke-width="4"/>
-          <line x1="0" y1="55" x2="0" y2="100" stroke-width="4"/>
-          <line x1="-7" y1="0" x2="7" y2="0" stroke-width="0.5"/><line x1="0" y1="-7" x2="0" y2="7" stroke-width="0.5"/>
-        </g>
-        <g fill="#050505">
-          <circle cx="-14" cy="0" r="1.3"/><circle cx="-24" cy="0" r="1.3"/><circle cx="-34" cy="0" r="1.3"/><circle cx="-44" cy="0" r="1.3"/>
-          <circle cx="14" cy="0" r="1.3"/><circle cx="24" cy="0" r="1.3"/><circle cx="34" cy="0" r="1.3"/><circle cx="44" cy="0" r="1.3"/>
-          <circle cx="0" cy="14" r="1.3"/><circle cx="0" cy="24" r="1.3"/><circle cx="0" cy="34" r="1.3"/><circle cx="0" cy="44" r="1.3"/>
-          <circle cx="0" cy="-14" r="1.3"/><circle cx="0" cy="-24" r="1.3"/><circle cx="0" cy="-34" r="1.3"/>
-        </g>
-        <circle cx="0" cy="0" r="0.9" fill="#ff3a22"/>
-      </svg>
+      <!-- İşaret silaha göre yazılır (reticles.js → scopeSvg): mil-dot, duplex, direkli -->
+      <svg id="scopeSvg" viewBox="-100 -100 200 200" aria-hidden="true"></svg>
       <div id="scopeBreath"><span id="scopeBreathText">SHIFT · NEFESİNİ TUT</span><i><b id="scopeBreathBar"></b></i></div>
     </div>
     <div id="vignette"></div>

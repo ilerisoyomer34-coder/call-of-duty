@@ -292,14 +292,24 @@ console.log('Bağımsız sürüm (dist/index.html)');
     sniper: [...document.querySelectorAll('#loadoutRoot .loCard[data-id="sniper"] .stBadge')].map((b) => b.textContent),
     deploy: !document.getElementById('btnDeploy').disabled,
   }));
-  check(lo.slots.length === 6 && lo.names.length === 10, `Teçhizatta 6 yuva, ana silah yuvasında 10 kart (${lo.slots.join(' · ')})`);
+  check(lo.slots.length === 6 && lo.names.length === 14, `Teçhizatta 6 yuva, ana silah yuvasında 14 kart (${lo.slots.join(' · ')})`);
   check(['AKMS', 'Barrett M82A1', 'HK MG4', 'Colt M4A1'].every((n) => lo.names.includes(n)), `Silahlar gerçek adlarıyla (${lo.names.slice(0, 5).join(', ')}…)`);
   check(lo.bars === 6 && /7,62×39 mm · 30 mermi/.test(lo.info || ''), `Kartta altı istatistik çubuğu ve bilgi satırı (${lo.info})`);
   check(lo.sniper.includes('ÇATAL AYAK') && lo.sniper.includes('ZIRH DELİCİ'), `M82A1 rozetleri: ${lo.sniper.join(', ')}`);
   check(lo.deploy, 'GÖREVE BAŞLA etkin (ana silah seçili)');
-  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 10, null, { timeout: 90000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 14, null, { timeout: 120000 }).catch(() => {});
   const icons = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loImg')].map((i) => ({ ready: i.classList.contains('ready'), w: i.naturalWidth, src: i.src.slice(0, 5) })));
-  check(icons.filter((i) => i.ready && i.w === 512).length === 10, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready).length}/10, 512×256)`);
+  check(icons.filter((i) => i.ready && i.w === 512).length === 14, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready).length}/14, 512×256)`);
+  // Silah sınıfları (CODM düzeni): TÜMÜ + sınıf sekmeleri; keskin nişancı sekmesinde M82 ve AWM, ayrıntıda nişangâh
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loClasses button')].map((b) => b.dataset.cls));
+  check(tabs[0] === 'all' && ['ar', 'smg', 'lmg', 'marksman', 'sniper', 'shotgun', 'special'].every((c) => tabs.includes(c)), `Sınıf sekmeleri (${tabs.join(', ')})`);
+  await page.click('#loadoutRoot .loClasses button[data-cls="sniper"]');
+  const snipers = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loCard')].map((c) => c.dataset.id));
+  check(snipers.join(',') === 'sniper,awm', `Keskin nişancı sekmesinde yalnız iki tüfek (${snipers.join(', ')})`);
+  await page.click('#loadoutRoot .loCard[data-id="awm"]');
+  const sightTxt = await page.textContent('#loadoutRoot .loDetail .stSight');
+  check(/direkli/.test(sightTxt) && /10×/.test(sightTxt), `Ayrıntıda nişangâh: ${sightTxt}`);
+  await page.click('#loadoutRoot .loClasses button[data-cls="all"]');
   // Önizleme dönüyor ve boş değil: iki ayrı anda tuvalde farklı, saydam olmayan pikseller
   const px = () =>
     page.evaluate(() => {
@@ -1720,8 +1730,11 @@ console.log('Denge (yere düşme süresi) ve kabul senaryoları');
     P.protectUntil = 0;
     P.takeDamage(40, null, { zone: 'torso', pen: 1 });
     P.bleed.tick(1.5); // asker gelene kadar sayaç işlemiş olsun
-    const med = g.allies.list[1];
+    const [a1, med, a3] = g.allies.list;
     med.pos.copy(P.pos).add(new V(0.9, 0, 0));
+    // Öbür askerler uzakta: canlandırmayı medik üstlensin (önceki senaryodan yanında kalan asker araya girmesin)
+    a1.pos.copy(g.nav.randomPointNear(P.pos.clone().add(new V(15, 0, 0)), 2) || P.pos);
+    a3.pos.copy(g.nav.randomPointNear(P.pos.clone().add(new V(-15, 0, 0)), 2) || P.pos);
     g.allies.rescueT = 0;
     // Medik yanına çömelip canlandırmaya başlasın (yarıda kesilecek)
     for (let i = 0; i < 40 && !(P.reviver === med && med.rescueT > 0.4); i++) g.allies.update(0.05);
@@ -1838,7 +1851,15 @@ console.log('Etkileşimler');
     const planted = await page.evaluate((i) => window.__game.mission.aa.find((a) => a.id === i).planted, id);
     check(planted, `${id}: C4 yerleştirildi`);
     await tp(x, z + 25, 0);
-    await waitGame(page, 5.5);
+    // Fitilin son yarım saniyesi gerçek döngüde işlesin (yazılımsal GPU'da 5 sn'lik fitil kare beklemekle dakikalar sürer)
+    const fuse = await page.evaluate((i) => {
+      const gun = window.__game.mission.aa.find((a) => a.id === i);
+      const before = gun.fuse;
+      gun.fuse = Math.min(gun.fuse, 0.5);
+      return before;
+    }, id);
+    check(fuse > 0, `${id}: fitil sayıyor (${fuse.toFixed(1)} sn kaldı)`);
+    await waitGame(page, 1.0);
     check(await page.evaluate((i) => window.__game.mission.aa.find((a) => a.id === i).destroyed, id), `${id}: patladı`);
   }
   await page.evaluate(() => {
@@ -1913,23 +1934,31 @@ console.log('Haritalar, mevziler ve manga kademeleri');
         colHash: g.world.toJSON(g.level.map, g.world.mapColliders).hash,
         // Ağaçlar hazır modelle: harita ağacı sayısı kadar örnekli gövde ve yaprak (InstancedMesh)
         trees: g.world.trees.length,
+        // Hücrelere bölünmüş örnek ağları: gövde ve yaprak örneklerinin toplamı ağaç sayısı kadar
         treeInst: (() => {
-          const n = [];
-          g.scene.traverse((o) => o.isInstancedMesh && o.userData.prop === 'tree' && o.count === g.world.trees.length && g.world.trees.length > 0 && n.push(o.material.alphaTest > 0));
-          return n;
+          const sum = { trunk: 0, leaf: 0, cells: 0 };
+          g.scene.traverse((o) => {
+            if (!o.isInstancedMesh || o.userData.prop !== 'tree') return;
+            if (o.userData.foliage) {
+              sum.leaf += o.count;
+              sum.cells++;
+              sum.alpha = o.material.alphaTest > 0;
+            } else sum.trunk += o.count;
+          });
+          return sum;
         })(),
         // Konteynerler hazır modelle: renk başına bir InstancedMesh, örneklerin toplamı haritadaki konteyner sayısı
         containers: g.world.containers.length,
         contInst: (() => {
           let n = 0;
-          let k = 0;
+          const colors = new Set();
           g.scene.traverse((o) => {
             if (o.isInstancedMesh && o.userData.prop === 'container') {
               n += o.count;
-              k++;
+              colors.add(o.material.name);
             }
           });
-          return [n, k];
+          return [n, colors.size];
         })(),
       };
     });
@@ -1942,8 +1971,8 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     const tanks = { 4: 1, 5: 2, 6: 2 }[id] || 0;
     check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
-    if (id === 1 || id === 5) check(r.trees > 0 && r.treeInst.length === 2 && r.treeInst.includes(true), `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, 2 çizim çağrısı)`);
-    if (id !== 5) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk başına bir çizim çağrısı)`);
+    if (id === 1 || id === 5) check(r.trees > 0 && r.treeInst.trunk === r.trees && r.treeInst.leaf === r.trees && r.treeInst.alpha, `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, ${r.treeInst.cells} hücre: bakılmayan hücre çizilmez)`);
+    if (id !== 5) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk ve hücre başına bir çizim çağrısı)`);
     if (id >= 3) {
       await waitGame(page, 1.0);
       await page.screenshot({ path: join(shots, `14-map-${map}.png`) });
@@ -2320,7 +2349,7 @@ console.log('Atış poligonu');
     return { dummies: g.enemies.list.length, owned: Object.keys(g.weapons.owned) };
   });
   check(r.dummies === 10, `Mankenler yerleşti (${r.dummies})`);
-  check(r.owned.length === 13, `Poligonda on üç silah (${r.owned.join(', ')})`);
+  check(r.owned.length === 17, `Poligonda on yedi silah (${r.owned.join(', ')})`);
   await page.waitForFunction(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb)), 'Blender modelleri (MAR-556, MG-43, MR-82, D-50) yüklendi');
   // Sketchfab silahları: model, parçalar (şarjör, nişangah gövdesi) ve ayrı JPEG dokular
@@ -2397,27 +2426,78 @@ console.log('Atış poligonu');
     const id = await page.evaluate(() => window.__game.weapons.currentId);
     if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
   }
-  // 10.–13. silah (Sketchfab): 1-9 tuşlarının ötesinde, doğrudan geçiş
-  for (const id of ['k8', 'kr4', 'mk4', 'kt9']) {
+  // 10.–17. silah: 1-9 tuşlarının ötesinde, doğrudan geçiş. Minigun namlular dönmeden ateş etmez: tetik uzun tutulur
+  const spinLog = [];
+  for (const id of ['k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun']) {
     await page.evaluate((w) => window.__game.weapons.switchTo(w), id);
     await page.waitForFunction((w) => window.__game.weapons.currentId === w && window.__game.weapons.state === 'idle', id, { timeout: 120000, polling: 50 });
     await waitGame(page, 0.3);
     const before = await page.evaluate(() => window.__game.stats.shots);
     await page.mouse.down();
-    await waitGame(page, 0.05);
+    if (id === 'minigun') {
+      await waitGame(page, 0.25);
+      spinLog.push(await page.evaluate(() => ({ spin: window.__game.weapons.current.spin, shots: window.__game.stats.shots })));
+      await waitGame(page, 0.6);
+      spinLog.push(await page.evaluate(() => ({ spin: window.__game.weapons.current.spin, shots: window.__game.stats.shots, mag: window.__game.weapons.current.mag })));
+    } else await waitGame(page, 0.05);
     await page.mouse.up();
     await waitGame(page, 0.1);
     if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
   }
-  check(fired.length === 13, `On üç silahın hepsi ateş etti (${fired.join(', ')})`);
+  check(fired.length === 17, `On yedi silahın hepsi ateş etti (${fired.join(', ')})`);
+  // Minigun: 0,25 sn'de namlular dönüyor ama ateş yok; tam hızda saniyede ~30 atış, kayıştan düşer, nişan alınmaz
+  check(spinLog[0].spin > 0.2 && spinLog[0].spin < 1 && spinLog[1].spin === 1 && spinLog[1].shots - spinLog[0].shots >= 6 && spinLog[1].mag < 10000, `Minigun: önce namlu döner, sonra ateş (${JSON.stringify(spinLog)})`);
+  await page.mouse.down({ button: 'right' });
+  await waitGame(page, 0.6);
+  const mg = await page.evaluate(() => ({ ads: window.__game.player.adsT, spin: window.__game.weapons.current.spin, belt: document.getElementById('aRes').textContent, rot: window.__game.viewmodel.models.minigun.spinPivot?.rotation.z ?? null }));
+  await page.mouse.up({ button: 'right' });
+  check(mg.ads === 0 && mg.spin > 0.9 && mg.belt === 'KAYIŞ' && mg.rot !== 0 && mg.rot !== null, `Minigun nişan almaz, sağ tık namluyu döndürür, HUD'da kayış (${JSON.stringify(mg)})`);
+  // Nişangâhlar kendine özgü: kolimatörlü her silahta camda işaret, işaret dokuları birbirinden farklı
+  const rets = await page.evaluate(() => {
+    const V = window.__game.viewmodel.models;
+    const out = {};
+    for (const id of ['rifle', 'mar556', 'smg', 'lmg', 'mk4', 'ak74']) out[id] = V[id].reticle ? V[id].reticle.material.map.uuid : null;
+    return { out, housing: ['mar556', 'lmg', 'mk4', 'ak74'].filter((id) => !!V[id].housing), glow: ['pistol', 'k8'].every((id) => { let n = 0; V[id].root.traverse((o) => { if (o.isMesh && o.geometry.type === 'CircleGeometry') n++; }); return n > 0; }) };
+  });
+  const uuids = Object.values(rets.out);
+  check(uuids.every(Boolean) && new Set(uuids).size === uuids.length, `Kolimatör işaretleri silah başına farklı (${Object.keys(rets.out).join(', ')})`);
+  check(rets.housing.length === 4 && rets.glow, `Açık nişangâh gövdeleri (${rets.housing.join(', ')}) ve ışıklı demir nişangâh noktaları`);
+  // AWM: atıştan sonra sürgü çekilir, dürbünden çıkılır, nişan sürgü bitince geri gelir
+  await page.evaluate(() => window.__game.weapons.switchTo('awm'));
+  await page.waitForFunction(() => window.__game.weapons.currentId === 'awm' && window.__game.weapons.state === 'idle', null, { timeout: 120000, polling: 50 });
+  if ((await page.evaluate(() => window.__game.weapons.current.mag)) === 0) {
+    await page.keyboard.press('KeyR');
+    await page.waitForFunction(() => window.__game.weapons.current.mag > 0 && window.__game.weapons.state === 'idle', null, { timeout: 120000, polling: 50 });
+  }
+  await page.mouse.down({ button: 'right' });
+  await waitGame(page, 0.7);
+  const awmScoped = await page.evaluate(() => window.__game.viewmodel.scoped);
+  await page.mouse.down();
+  await waitGame(page, 0.05);
+  await page.mouse.up();
+  await waitGame(page, 0.45);
+  const bolt = await page.evaluate(() => ({ k: window.__game.weapons.boltInfo(), ads: window.__game.player.adsT, rz: window.__game.viewmodel.models.awm.boltPivot?.rotation.z ?? 0 }));
+  await waitGame(page, 1.3);
+  const after = await page.evaluate(() => ({ k: window.__game.weapons.boltInfo(), ads: window.__game.player.adsT }));
+  await page.mouse.up({ button: 'right' });
+  check(awmScoped && bolt.k > 0 && bolt.ads < 0.8 && bolt.rz !== 0 && after.k === -1 && after.ads > 0.9, `AWM: sürgü çekildi, dürbünden çıkıldı, nişan geri geldi (${JSON.stringify({ awmScoped, bolt, after })})`);
   // Dürbün kaplaması
   await page.keyboard.press('Digit6');
   await waitGame(page, 1.0);
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.6);
   check(await page.isVisible('#scope'), 'MR-82 dürbün kaplaması görünüyor');
+  const svgM82 = await page.evaluate(() => document.getElementById('scopeSvg').innerHTML);
   await page.screenshot({ path: join(shots, '08b-scope.png') });
   await page.mouse.up({ button: 'right' });
+  // Dürbün işaretleri silaha göre: KT-9 duplex, M82 mil-dot
+  await page.evaluate(() => window.__game.weapons.switchTo('kt9'));
+  await page.waitForFunction(() => window.__game.weapons.currentId === 'kt9' && window.__game.weapons.state === 'idle', null, { timeout: 120000, polling: 50 });
+  await page.mouse.down({ button: 'right' });
+  await waitGame(page, 0.6);
+  const svgKt9 = await page.evaluate(() => document.getElementById('scopeSvg').innerHTML);
+  await page.mouse.up({ button: 'right' });
+  check(svgM82.includes('circle') && svgKt9 && svgKt9 !== svgM82 && !svgKt9.includes('circle'), 'Dürbün işaretleri silaha özgü (MR-82 mil-dot, KT-9 duplex)');
   // Roket: 25 m'deki mankene
   // Sabit süre yerine durum bekle: MR-82'den geçiş 1,1 sn sürer, kuşanma bitmeden şarjör değişmez
   await page.keyboard.press('Digit9');

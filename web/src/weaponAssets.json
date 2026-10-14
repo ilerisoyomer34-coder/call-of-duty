@@ -187,8 +187,8 @@
       ],
       "sight": [
         0,
-        0.117,
-        -0.005
+        0.127,
+        0.001
       ],
       "leftHand": [
         0,
@@ -199,6 +199,11 @@
         0.03,
         0.05,
         -0.075
+      ],
+      "front": [
+        0,
+        0.127,
+        -0.348
       ]
     },
     "parts": [
@@ -237,8 +242,8 @@
       ],
       "sight": [
         0,
-        0.118,
-        0.025
+        0.1242,
+        0.029
       ],
       "leftHand": [
         0,
@@ -249,6 +254,11 @@
         0.03,
         0.05,
         -0.075
+      ],
+      "front": [
+        0,
+        0.1167,
+        -0.3585
       ]
     },
     "parts": [
@@ -445,6 +455,224 @@
       "author": "CG Lab34 (https://sketchfab.com/tuandesigner.mtc)",
       "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
       "source": "https://sketchfab.com/3d-models/knife-8374ea78a11c4be5a2f145448c17c90e"
+    }
+  },
+  "minigun": {
+    "file": "assets/weapons/minigun.glb",
+    "points": {
+      "muzzle": [
+        0,
+        -0.2178,
+        -1.0262
+      ],
+      "sight": [
+        0,
+        -0.092,
+        -0.3388
+      ],
+      "leftHand": [
+        0,
+        -0.0339,
+        -0.455
+      ],
+      "eject": [
+        0.0581,
+        -0.2904,
+        -0.3485
+      ]
+    },
+    "parts": [
+      "mag",
+      "spin"
+    ],
+    "bounds": {
+      "min": [
+        -0.105,
+        -0.717,
+        -1.019
+      ],
+      "max": [
+        0.171,
+        -0.024,
+        -0.019
+      ]
+    },
+    "length": 1,
+    "tris": 25402,
+    "bytes": 809320
+  },
+  "ak74": {
+    "file": "assets/weapons/ak74.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.044,
+        -0.675
+      ],
+      "sight": [
+        0,
+        0.1225,
+        -0.05
+      ],
+      "leftHand": [
+        0,
+        0.013,
+        -0.28
+      ],
+      "eject": [
+        0.022,
+        0.06,
+        -0.12
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag",
+      "optic"
+    ],
+    "bounds": {
+      "min": [
+        -0.037,
+        -0.177,
+        -0.675
+      ],
+      "max": [
+        0.046,
+        0.146,
+        0.265
+      ]
+    },
+    "length": 0.94,
+    "tris": 35305,
+    "bytes": 1365720,
+    "credit": {
+      "title": "low-poly AK-74M Zenitco",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-ak-74m-zenitco-35ad8e37a513453cbbbd04064fa5fb79"
+    }
+  },
+  "bren2": {
+    "file": "assets/weapons/bren2.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.032,
+        -0.46
+      ],
+      "sight": [
+        0,
+        0.111,
+        0.012
+      ],
+      "leftHand": [
+        0,
+        0.018,
+        -0.275
+      ],
+      "eject": [
+        0.026,
+        0.05,
+        -0.105
+      ],
+      "front": [
+        0,
+        0.1087,
+        -0.275
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.035,
+        -0.141,
+        -0.46
+      ],
+      "max": [
+        0.029,
+        0.114,
+        0.24
+      ]
+    },
+    "length": 0.7,
+    "tris": 16975,
+    "bytes": 654284,
+    "credit": {
+      "title": "low-poly CZ Bren 2",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-cz-bren-2-90b2de2d55e9458f9c7d8ffeac9003af"
+    }
+  },
+  "awm": {
+    "file": "assets/weapons/awm.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.0537,
+        -0.955
+      ],
+      "sight": [
+        0,
+        0.11,
+        -0.041
+      ],
+      "leftHand": [
+        0,
+        0.01,
+        -0.365
+      ],
+      "eject": [
+        0.02,
+        0.045,
+        -0.145
+      ],
+      "boltAxis": [
+        0,
+        0.053,
+        -0.155
+      ],
+      "boltHandle": [
+        0.043,
+        0.012,
+        -0.098
+      ]
+    },
+    "parts": [
+      "bolt",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.03,
+        -0.084,
+        -0.955
+      ],
+      "max": [
+        0.05,
+        0.146,
+        0.245
+      ]
+    },
+    "length": 1.2,
+    "tris": 13087,
+    "bytes": 298456,
+    "materials": {
+      "sniper": {
+        "map": "assets/weapons/awm_t0.jpg",
+        "normalMap": "assets/weapons/awm_t2.jpg",
+        "ormMap": "assets/weapons/awm_t1.jpg",
+        "aoMap": "assets/weapons/awm_t1.jpg"
+      }
+    },
+    "credit": {
+      "title": "Sniper",
+      "author": "DJMaesen (https://sketchfab.com/bumstrum)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/sniper-cdefd833b4b5407ba32c53c9e7f50cae"
     }
   }
 }

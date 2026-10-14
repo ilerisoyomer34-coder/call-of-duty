@@ -2,6 +2,7 @@
 // Sketchfab asset'leri gelene kadar yer tutucu değil, oyunun kendi görsel dili.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const matCache = new Map();
 export function mat(color, rough = 0.7, metal = 0.1, extra = null) {
@@ -38,6 +39,43 @@ function cylZ(parent, r, len, material, x, y, z, seg = 12, open = false) {
   const g = new THREE.CylinderGeometry(r, r, len, seg, 1, open);
   g.rotateX(Math.PI / 2);
   return part(parent, g, material, x, y, z);
+}
+
+// Kodla kurulan modelin sabit parçalarını birleştirir: her düğümde aynı malzemeyi paylaşan, çocuksuz, görünür
+// meshler tek meshe iner (düğümün kendi uzayında). Dönen/oynayan pivotlar (Group) ve keep'teki meshler (görünmez
+// zırh kutuları, kodun eriştiği parçalar) ayrı kalır. Ağır makineli mevzi 30 → ~8 çizim çağrısı
+export function mergeStaticParts(root, keep = []) {
+  const skip = new Set(keep);
+  const nodes = [];
+  root.traverse((n) => nodes.push(n));
+  for (const n of nodes) {
+    const byMat = new Map();
+    for (const c of n.children) {
+      if (!c.isMesh || c.isSkinnedMesh || c.isInstancedMesh || skip.has(c) || c.children.length || !c.visible || Array.isArray(c.material) || c.material.transparent) continue;
+      const g = c.geometry;
+      if (!g.index || !g.attributes.normal) continue;
+      if (!byMat.has(c.material)) byMat.set(c.material, []);
+      byMat.get(c.material).push(c);
+    }
+    for (const [material, list] of byMat) {
+      if (list.length < 2) continue;
+      const geos = list.map((c) => {
+        c.updateMatrix();
+        const g = c.geometry.clone();
+        for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+        if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+        return g.applyMatrix4(c.matrix);
+      });
+      const merged = mergeGeometries(geos, false);
+      if (!merged) continue;
+      const m = new THREE.Mesh(merged, material);
+      m.castShadow = list.some((c) => c.castShadow);
+      m.receiveShadow = list.some((c) => c.receiveShadow);
+      for (const c of list) n.remove(c);
+      n.add(m);
+    }
+  }
+  return root;
 }
 
 // Grubun tüm meshlerini tek geometriye (köşe renkli) birleştirir: çizim çağrısını azaltır.
@@ -81,7 +119,7 @@ export function mergeGroup(group, material) {
 
 // --- Silahlar ---
 // Yerel eksen: köken tabanca kabzasının üstü (sağ el), namlu -Z yönünde.
-// Dönüş: { root, parts, muzzle, sight, leftHand, rightHand, dot }
+// Dönüş: { root, parts, muzzle, sight, leftHand, rightHand, eject }. Nişangâh işaretleri görünüm modelinde (reticles.js)
 export function buildRifle() {
   const root = new THREE.Group();
   const tan = mat(0x8a7556, 0.75, 0.05);
@@ -102,20 +140,22 @@ export function buildRifle() {
   cylZ(root, 0.017, 0.055, blk, 0, 0.045, -0.735, 8);
   B(root, 0.03, 0.07, 0.035, tan, 0, -0.018, -0.46, 0.2); // ön tutamak
   B(root, 0.004, 0.035, 0.07, blk2, 0.03, 0.045, -0.08); // kovan penceresi
-  // Nişangah (red dot)
-  B(root, 0.03, 0.028, 0.05, blk, 0, 0.1, -0.08);
-  const tube = cylZ(root, 0.021, 0.065, blk, 0, 0.13, -0.08, 20, true);
-  tube.material = mat(0x1f2123, 0.45, 0.6, { side: THREE.DoubleSide });
+  // Kobra tipi kolimatör: sol yan kızağa bağlanan ayak, kutu gövde, üstte siper; pencere ortası gez noktası.
+  // İşaret (kırmızı ok) görünüm modelinde çizilir (reticles.js)
+  B(root, 0.01, 0.05, 0.07, blk, -0.033, 0.072, -0.075); // yan kızak ayağı
+  B(root, 0.052, 0.01, 0.075, blk, -0.005, 0.101, -0.08); // taban
+  B(root, 0.034, 0.006, 0.06, blk2, 0, 0.109, -0.083); // pencere altı
+  B(root, 0.007, 0.042, 0.064, blk, -0.0205, 0.131, -0.083); // sol duvar (pil ve parlaklık düğmesi tarafı)
+  B(root, 0.005, 0.042, 0.064, blk, 0.0195, 0.131, -0.083); // sağ duvar
+  B(root, 0.046, 0.006, 0.07, blk, 0, 0.1545, -0.086); // üst siper
+  B(root, 0.014, 0.026, 0.03, blk2, -0.031, 0.12, -0.105); // pil yuvası (önde: nişan alırken görüşü kapatmaz)
+  cylZ(root, 0.006, 0.01, blk2, -0.029, 0.14, -0.1, 10); // parlaklık düğmesi
   const lens = new THREE.Mesh(
-    new THREE.CircleGeometry(0.02, 20),
-    new THREE.MeshBasicMaterial({ color: 0x5f8a7a, transparent: true, opacity: 0.12, depthWrite: false })
+    new THREE.PlaneGeometry(0.034, 0.035),
+    new THREE.MeshBasicMaterial({ color: 0xd8a04a, transparent: true, opacity: 0.1, depthWrite: false })
   );
-  lens.position.set(0, 0.13, -0.11);
+  lens.position.set(0, 0.133, -0.114);
   root.add(lens);
-  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 12), new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
-  dot.position.set(0, 0.13, -0.1);
-  dot.renderOrder = 5;
-  root.add(dot);
   const mag = new THREE.Group();
   mag.position.set(0, -0.07, -0.145);
   B(mag, 0.03, 0.17, 0.065, tan, 0, -0.06, 0.012, 0.25);
@@ -132,7 +172,6 @@ export function buildRifle() {
     leftHand: new THREE.Vector3(-0.005, -0.03, -0.45),
     rightHand: new THREE.Vector3(0, -0.035, 0.03),
     eject: new THREE.Vector3(0.03, 0.045, -0.08),
-    dot,
   };
 }
 
@@ -164,7 +203,6 @@ export function buildPistol() {
     leftHand: new THREE.Vector3(-0.022, -0.055, 0.012),
     rightHand: new THREE.Vector3(0, -0.04, 0.015),
     eject: new THREE.Vector3(0.018, 0.04, -0.05),
-    dot: null,
   };
 }
 
@@ -203,7 +241,6 @@ export function buildShotgun() {
     leftHand: new THREE.Vector3(0, -0.012, -0.34),
     rightHand: new THREE.Vector3(0, -0.035, 0.03),
     eject: new THREE.Vector3(0.03, 0.04, -0.06),
-    dot: null,
   };
 }
 
@@ -236,10 +273,6 @@ export function buildSMG() {
   );
   lens.position.set(0, sy, -0.075);
   root.add(lens);
-  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 12), new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
-  dot.position.set(0, sy, -0.078);
-  dot.renderOrder = 5;
-  root.add(dot);
   const mag = new THREE.Group();
   mag.position.set(0, -0.02, -0.1);
   B(mag, 0.028, 0.17, 0.045, poly, 0, -0.08, 0, 0.06);
@@ -256,7 +289,6 @@ export function buildSMG() {
     leftHand: new THREE.Vector3(0, -0.02, -0.25),
     rightHand: new THREE.Vector3(0, -0.035, 0.03),
     eject: new THREE.Vector3(0.028, 0.04, -0.06),
-    dot,
   };
 }
 
@@ -303,7 +335,6 @@ export function buildLauncher() {
     leftHand: new THREE.Vector3(0, -0.035, -0.3),
     rightHand: new THREE.Vector3(0, -0.035, 0.025),
     eject: new THREE.Vector3(0, 0.06, 0.4),
-    dot: null,
   };
 }
 
@@ -689,6 +720,7 @@ export function buildAAGun() {
       o.receiveShadow = true;
     }
   });
+  mergeStaticParts(root);
   return { root, turret, guns };
 }
 
@@ -1165,6 +1197,7 @@ export function buildHeavyMG(H) {
   pitch.add(bodyBox);
   armor.push(bodyBox);
   const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  mergeStaticParts(root, armor);
   return { root, yaw, pitch, armor, points: { muzzle: v(0, 0.02, -1.64), gripL: v(-0.1, -0.02, H.gripBack), gripR: v(0.1, -0.02, H.gripBack) } };
 }
 
@@ -1203,6 +1236,7 @@ export function buildFuelPump() {
       o.receiveShadow = true;
     }
   });
+  mergeStaticParts(root);
   return { root, turret, guns };
 }
 

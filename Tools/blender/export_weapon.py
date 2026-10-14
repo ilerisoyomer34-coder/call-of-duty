@@ -38,6 +38,19 @@ bpy.ops.wm.open_mainfile(filepath=os.path.join(ROOT, cfg['source']))
 scene = bpy.context.scene
 warnings = []
 
+# 0) Kalınlığı olan eğriler (kablo, hortum) isteğe bağlı mesh'e çevrilir; yoksa 1. adım onları siler
+if cfg.get('curves'):
+    dg0 = bpy.context.evaluated_depsgraph_get()
+    for ob in list(bpy.data.objects):
+        if ob.type != 'CURVE' or (ob.data.bevel_depth <= 0 and not ob.data.bevel_object):
+            continue
+        me = bpy.data.meshes.new_from_object(ob.evaluated_get(dg0), preserve_all_data_layers=False, depsgraph=dg0)
+        mo = bpy.data.objects.new(ob.name + '_mesh', me)
+        mo.matrix_world = ob.matrix_world.copy()
+        for c in ob.users_collection:
+            c.objects.link(mo)
+        bpy.data.objects.remove(ob, do_unlink=True)
+
 # 1) Sahne nesnelerini ve hariç tutulanları sil
 exclude = re.compile(cfg.get('exclude') or '^$')
 for ob in list(bpy.data.objects):

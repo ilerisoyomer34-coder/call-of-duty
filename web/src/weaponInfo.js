@@ -4,8 +4,13 @@
 // değerinden türetilip en yüksek silaha oranlanır, böylece denge değişince kartlar kendiliğinden güncellenir.
 import { WEAPONS, WEAPON_ORDER } from './config.js';
 import META from './data/weapons.json' with { type: 'json' };
+import CLASSES from './data/weaponClasses.json' with { type: 'json' };
 
 export const WEAPON_META = META;
+// Silah sınıfları (CODM düzeni) sekme sırasıyla
+export const WEAPON_CLASSES = CLASSES.classes;
+const CLASS_BY_ID = new Map(CLASSES.classes.map((c) => [c.id, c]));
+const CLASS_ORDER = new Map(CLASSES.classes.map((c, i) => [c.id, i]));
 
 // Ayarlar → "Gerçek silah adları". Ayar uygulanınca main.js çağırır; HUD, menü ve istemler aynı adı görür.
 let realNames = true;
@@ -31,6 +36,25 @@ export function weaponShortName(id) {
 
 export function weaponClass(id) {
   return META[id]?.class || WEAPONS[id]?.kind || '';
+}
+
+// Sınıf (data/weaponClasses.json): { id, name, short, desc }. Veride yoksa yuvadan tahmin
+export function weaponType(id) {
+  const t = META[id]?.type;
+  if (t && CLASS_BY_ID.has(t)) return CLASS_BY_ID.get(t);
+  return CLASS_BY_ID.get(WEAPONS[id]?.category === 'secondary' ? 'pistol' : 'ar');
+}
+
+// Silahları sınıf sırasına göre diz (aynı sınıfta WEAPON_ORDER sırası korunur)
+export function sortByClass(ids) {
+  const idx = (id) => CLASS_ORDER.get(weaponType(id).id) ?? 99;
+  return [...ids].sort((a, b) => idx(a) - idx(b) || WEAPON_ORDER.indexOf(a) - WEAPON_ORDER.indexOf(b));
+}
+
+// Silah listesindeki sınıflar (sekme sırasıyla)
+export function classesOf(ids) {
+  const set = new Set(ids.map((id) => weaponType(id).id));
+  return WEAPON_CLASSES.filter((c) => set.has(c.id));
 }
 
 const MODE_LABEL = { auto: 'Otomatik', burst: 'Seri', semi: 'Tek atış' };
@@ -86,7 +110,8 @@ function maxima() {
   maxCache = {};
   for (const id of WEAPON_ORDER) {
     const d = WEAPONS[id];
-    if (d.projectile) continue;
+    // Roketatar ve döner makineli (dakikada 1800 atış) oranı belirlemez: diğer silahların çubukları ezilmesin
+    if (d.projectile || d.spin) continue;
     const r = raw(d);
     for (const [k] of STAT_KEYS) maxCache[k] = Math.max(maxCache[k] || 0, r[k]);
   }

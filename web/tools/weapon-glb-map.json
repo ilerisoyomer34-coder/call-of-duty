@@ -22,8 +22,8 @@
       ],
       "sight": [
         0,
-        0.087,
-        0.12
+        0.097,
+        0.126
       ],
       "leftHand": [
         0,
@@ -34,6 +34,11 @@
         0.03,
         0.02,
         0.05
+      ],
+      "front": [
+        0,
+        0.097,
+        -0.223
       ]
     }
   },
@@ -60,8 +65,8 @@
       ],
       "sight": [
         0,
-        0.088,
-        0.15
+        0.0942,
+        0.154
       ],
       "leftHand": [
         0,
@@ -72,6 +77,11 @@
         0.03,
         0.02,
         0.05
+      ],
+      "front": [
+        0,
+        0.0867,
+        -0.2335
       ]
     }
   },
@@ -335,11 +345,157 @@
     "source": "SourceAssets/Sketchfab/knife_cglab34/original/knife.glb",
     "forward": "-x",
     "up": "+y",
-    "scaleTo": 0.30,
-    "hand": [0, 0.029, 0.08],
-    "points": { "tip": [0, 0.034, -0.151], "guard": [0, 0.03, 0.024] },
+    "scaleTo": 0.3,
+    "hand": [
+      0,
+      0.029,
+      0.08
+    ],
+    "points": {
+      "tip": [
+        0,
+        0.034,
+        -0.151
+      ],
+      "guard": [
+        0,
+        0.03,
+        0.024
+      ]
+    },
     "texMax": 1024,
     "texMaxData": 1024
+  },
+  "ak74": {
+    "source": "SourceAssets/Sketchfab/ak74_du/original/low-poly_ak-74m_zenitco.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.94,
+    "exclude": "^(54539|ak74 30rnd empty mag)",
+    "parts": {
+      "mag": "^ak74 30rnd mag \\(polymer\\)",
+      "charging": "bolt carrier",
+      "optic": "^vzor1 red dot"
+    },
+    "hand": [
+      0,
+      -0.025,
+      0.08
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.019,
+        -0.595
+      ],
+      "sight": [
+        0,
+        0.0975,
+        0.03
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.2
+      ],
+      "eject": [
+        0.022,
+        0.035,
+        -0.04
+      ]
+    }
+  },
+  "bren2": {
+    "source": "SourceAssets/Sketchfab/bren2_du/original/low-poly_cz_bren_2.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.7,
+    "exclude": "^(55645_0|55645 m16 30rnd mag)",
+    "parts": {
+      "mag": "^55645 m16 3ornd mag empty",
+      "charging": "reload handle"
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.125
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.002,
+        -0.335
+      ],
+      "sight": [
+        0,
+        0.081,
+        0.137
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.15
+      ],
+      "eject": [
+        0.026,
+        0.02,
+        0.02
+      ],
+      "front": [
+        0,
+        0.0787,
+        -0.15
+      ]
+    }
+  },
+  "awm": {
+    "source": "SourceAssets/Sketchfab/awm_djmaesen/original/sniper.glb",
+    "forward": "+z",
+    "up": "+y",
+    "scaleTo": 1.2,
+    "parts": {
+      "mag": "^mag$",
+      "bolt": "^(boltback|bolt)$"
+    },
+    "texMax": 1024,
+    "texMaxData": 1024,
+    "hand": [
+      0,
+      0.025,
+      0.045
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0787,
+        -0.91
+      ],
+      "sight": [
+        0,
+        0.135,
+        0.004
+      ],
+      "leftHand": [
+        0,
+        0.035,
+        -0.32
+      ],
+      "eject": [
+        0.02,
+        0.07,
+        -0.1
+      ],
+      "boltAxis": [
+        0,
+        0.078,
+        -0.11
+      ],
+      "boltHandle": [
+        0.043,
+        0.037,
+        -0.053
+      ]
+    }
   },
   "_notes": {
     "points": "Oyun uzayında (metre, namlu -Z, üst +Y) köken değişmeden önceki konumlar; araç el (hand) noktasını kökene taşır",

@@ -170,6 +170,11 @@ export function rigFor(assetId) {
     sight: v(r.points.sight),
     leftHand: v(r.points.leftHand),
     eject: v(r.points.eject),
+    // Arpacık (isteğe bağlı): gez → arpacık çizgisi nişanda kamera eksenine oturur (viewmodel.js)
+    front: r.points.front ? v(r.points.front) : null,
+    // Sürgülü tüfekte sürgünün dönme ekseni ve kolu (isteğe bağlı): sürgü çekilirken sağ el kola gider
+    boltAxis: r.points.boltAxis ? v(r.points.boltAxis) : null,
+    boltHandle: r.points.boltHandle ? v(r.points.boltHandle) : null,
     length: r.length,
   };
 }
@@ -222,6 +227,28 @@ export function loadCharacterAsset(id) {
       return { scene: gltf.scene, animations: gltf.animations };
     })();
     cache.set(key, p);
+  }
+  return cache.get(key);
+}
+
+// Karakterin uzak modeli (tools/prepare-character.mjs → <id>_lod.glb): yalnız ağ geometrileri, ad → geometri.
+// Dokular ve malzeme ana modelden gelir (askerin malzemesi paylaşılır, yeni gölgelendirici derlenmez)
+export function loadCharacterLod(id) {
+  const key = `character-lod:${id}`;
+  if (!cache.has(key)) {
+    const entry = CHARACTER_ASSETS[id]?.lod;
+    cache.set(
+      key,
+      (async () => {
+        if (!entry) throw new Error(`${id} uzak modeli yok`);
+        const gltf = await parseGltf(await readBinary(entry.file));
+        const geos = new Map();
+        gltf.scene.traverse((o) => {
+          if (o.isSkinnedMesh) geos.set(o.name, o.geometry);
+        });
+        return geos;
+      })()
+    );
   }
   return cache.get(key);
 }

@@ -143,6 +143,9 @@ function levelDifficulty(base, level) {
   };
 }
 
+const _projView = new THREE.Matrix4();
+const _viewSphere = new THREE.Sphere(new THREE.Vector3(), 1.2);
+
 export class Game {
   constructor() {
     this.events = new Emitter();
@@ -181,6 +184,7 @@ export class Game {
     this.renderer.shadowMap.type = hi ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 
     this.camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 1200);
+    this.viewFrustum = new THREE.Frustum();
     this.camera.rotation.order = 'YXZ';
     // Anizotropi kaliteye göre: zemin tüm ekranı kapladığı için zayıf GPU'da 16× örnekleme kareyi belirgin yavaşlatır
     const aniso = Math.min(this.renderer.capabilities.getMaxAnisotropy(), RENDER.anisotropy[this.quality] || 4);
@@ -415,6 +419,12 @@ export class Game {
     if (this.effects) this.effects.setScale(h * worldPR, this.camera.fov);
   }
 
+  // Nokta (göğüs yüksekliği) görüş konisinde mi: askerin iskeleti görünmüyorsa seyrek güncellenir
+  inView(pos) {
+    _viewSphere.center.set(pos.x, pos.y + 1, pos.z);
+    return this.viewFrustum.intersectsSphere(_viewSphere);
+  }
+
   // Dünyayı çiz: ölçekli hedefe (ton eşleme yok, doğrusal HDR), sonra tam ekran dörtgenle tuvale
   // (ACES + sRGB burada). Ölçek 1 ise doğrudan tuvale.
   drawWorld(cam) {
@@ -642,6 +652,8 @@ export class Game {
       L.step('Gölgelendiriciler derleniyor', 0.8);
       await nextPaint();
       await this.precompile();
+      // Yedek helikopter yalnız gölgelendiricisi derlensin diye sahnedeydi: her karede ~40 bin üçgen boşa çizilmesin
+      if (this.mission.heliSpare) this.mission.heliSpare.root.visible = false;
     } catch (err) {
       // Yarım kalmış sahne oynatılmaz; oyuncu menüye dönüp yeniden deneyebilir
       L.fail('Harita açılamadı', err, 'Ana menüye dönüp yeniden dene. Sorun sürerse düşük grafikle açmayı dene.', true);
@@ -664,8 +676,9 @@ export class Game {
   pause() {
     if (this.state !== 'playing') return;
     this.state = 'paused';
-    // Açık komut çarkı ve telsiz satırı duraklatma ekranında asılı kalmasın
+    // Açık komut çarkı ve telsiz satırı duraklatma ekranında asılı kalmasın; dönen namlunun sesi kesilsin
     this.wheel.close(false);
+    this.audio.minigun(0, false);
     this.chat.closeChat();
     this.input.exitLock();
     this.clickToPlay.hidden = true;
@@ -1040,6 +1053,9 @@ export class Game {
       this.player.applyCamera(this.camera, dt);
     }
     this.camera.updateMatrixWorld();
+    // Görüş konisi (askerler görüş dışındayken iskeletlerini seyrek günceller: inView)
+    _projView.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    this.viewFrustum.setFromProjectionMatrix(_projView);
     const wheelOpen = this.wheel.open;
     // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur); çark açıkken 3/4 muhatap seçer
     this.kit.update(dt, canAct && !wheelOpen ? I : NULL_INPUT, canAct);

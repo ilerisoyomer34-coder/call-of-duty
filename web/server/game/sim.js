@@ -23,7 +23,8 @@ export const MAX_SLOTS = 16;
 const HIST = ONLINE.historyTicks;
 const SEC = (s) => Math.round(s * TICK_RATE);
 // Mermiden geçen dost: taraf modunda aynı taraf vurulmaz (dost ateşi kapalı)
-const ALLOWED = WEAPON_ORDER.filter((id) => WEAPONS[id] && WEAPONS[id].projectile !== 'rocket');
+// Roket ve çevrim içine kapalı silahlar (online: false, ör. minigun) seçilemez
+const ALLOWED = WEAPON_ORDER.filter((id) => WEAPONS[id] && WEAPONS[id].projectile !== 'rocket' && WEAPONS[id].online !== false);
 
 export const weaponIndex = (id) => {
   const i = WEAPON_ORDER.indexOf(id);

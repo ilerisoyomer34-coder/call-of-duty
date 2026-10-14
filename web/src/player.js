@@ -1,7 +1,7 @@
 // Oyuncu karakteri (AShooterCharacter karşılığı): hareket, bakış, geri tepme telafisi,
 // nişan alma, çömelme, eğilme, koşma, ayak sesleri, sağlık/yenilenme, kamera sarsıntısı ve etkileşim.
 import * as THREE from 'three';
-import { MOVEMENT as M, KIT, BALANCE, SIM, ONLINE } from './config.js';
+import { MOVEMENT as M, KIT, BALANCE, SIM, ONLINE, SIGHT_VIEW } from './config.js';
 import { TICK_DT } from '../shared/constants.js';
 import { createPlayerState, resetPlayerState, createInputCmd, stepPlayer, SIM_EV, BTN } from '../shared/sim/movement.js';
 import { updateInputCmd } from './inputCmd.js';
@@ -10,6 +10,7 @@ import { Health } from './health.js';
 import { ArmorLoadout, computeArmorDamage, playerZoneMult, ARMOR_DATA } from './armor.js';
 import { EV } from './events.js';
 import { REVIVE, BleedOut, bleedOutFor } from './downed.js';
+import { isScoped } from './sights.js';
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -465,11 +466,13 @@ export class Player {
     } else {
       const md = this.state.mods;
       md.mobility = w ? w.data.mobility || 1 : 1;
+      // Döner namlu dönerken daha da yavaş yürünür ve koşulmaz (minigun)
+      if (w && w.data.spin) md.mobility *= lerp(1, w.data.spin.moveMult, w.spin);
       md.adsMoveMult = w ? w.data.ads.moveMult : 1;
       md.adsTime = w ? w.data.ads.time : 0.2;
       md.armorSpeed = this.armor.speedMult;
       md.actionMult = this.interacting ? 0.2 : this.usingItem ? KIT.useMoveMult : 1;
-      md.sprintBlocked = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing' || this.interacting || this.usingItem;
+      md.sprintBlocked = W.state === 'melee' || W.state === 'cooking' || W.state === 'throwing' || this.interacting || this.usingItem || W.spinning;
       md.noSprint = this.armor.noSprint; // Ağır Saldırı Zırhı'nda koşu kapalı
       md.adsAllowed = W.canAds && !this.interacting && !this.usingItem;
     }
@@ -565,7 +568,7 @@ export class Player {
 
   // Dürbünde nefes salınımı: Shift ile birkaç saniye sabitlenir, sonra nefes nefese kalır
   updateScope(dt, input, w) {
-    const scoped = !!(w && w.data.scope) && this.adsT > 0.6;
+    const scoped = !!w && isScoped(w.id) && this.adsT > SIGHT_VIEW.scopeBreathAt;
     this.scopeT = (this.scopeT || 0) + dt;
     if (this.breath === undefined) this.breath = 1;
     const wantHold = scoped && input.isDown('holdBreath') && this.breath > 0 && !this.breathTired;

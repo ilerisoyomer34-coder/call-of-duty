@@ -6,7 +6,8 @@ import { ITEM_BY_ID, ITEMS } from './store.js';
 import { itemIcon } from './storeIcons.js';
 import { formatKR } from './economy.js';
 import { EV } from './events.js';
-import { weaponName, weaponClass, weaponInfoLine, weaponStats, weaponBadges, WEAPON_META } from './weaponInfo.js';
+import { weaponName, weaponClass, weaponInfoLine, weaponStats, weaponBadges, weaponType, sortByClass, classesOf, WEAPON_META } from './weaponInfo.js';
+import { sightLabel } from './sights.js';
 import { weaponIcon, weaponPlaceholder, WeaponPreview } from './weaponIcons.js';
 
 const $ = (id) => document.getElementById(id);
@@ -47,6 +48,7 @@ export class LoadoutScreen {
     this.store = store;
     this.slot = SLOTS[0];
     this.sel = null; // odaktaki kartın kimliği ('' = zırhsız/boş)
+    this.cls = 'all'; // silah yuvasında seçili sınıf sekmesi
     this.preview = null;
     this.build();
     game.events.on(EV.CREDITS_CHANGED, (e) => {
@@ -94,6 +96,7 @@ export class LoadoutScreen {
         this.game.audio.uiClick();
         this.slot = s;
         this.sel = null;
+        this.cls = 'all';
         this.render();
       });
       this.nav.appendChild(b);
@@ -136,6 +139,7 @@ export class LoadoutScreen {
     this.lo.repair();
     this.slot = SLOTS[0];
     this.sel = null;
+    this.cls = 'all';
     this.krVal.textContent = formatKR(this.game.economy.credits);
     this.render();
     this.menus.show('loadoutScreen');
@@ -171,7 +175,7 @@ export class LoadoutScreen {
 
   // Yuvaya uygun kartlar: { id, ... } ('' = zırhsız/kasksız/boş)
   items(slot) {
-    if (slot.kind === 'weapon') return this.lo.weaponsFor(slot.id);
+    if (slot.kind === 'weapon') return sortByClass(this.lo.weaponsFor(slot.id));
     const cat = slot.kind;
     return ['', ...ITEMS.filter((i) => i.category === cat).map((i) => i.id)];
   }
@@ -192,13 +196,46 @@ export class LoadoutScreen {
       n.b.setAttribute('aria-selected', s === this.slot ? 'true' : 'false');
       n.val.textContent = this.valueName(s);
     }
-    const items = this.items(this.slot);
-    if (this.sel === null || !items.includes(this.sel)) this.sel = this.value(this.slot);
+    const all = this.items(this.slot);
+    // Silah yuvasında sınıf sekmesi (Tümü + yuvadaki sınıflar); seçili sınıfın silahları gösterilir
+    const items = this.slot.kind === 'weapon' && this.cls !== 'all' ? all.filter((id) => weaponType(id).id === this.cls) : all;
+    if (this.sel === null || !items.includes(this.sel)) this.sel = items.includes(this.value(this.slot)) ? this.value(this.slot) : items[0] ?? '';
     this.grid.className = `loGrid ${this.slot.kind}`;
     this.grid.innerHTML = '';
+    if (this.slot.kind === 'weapon') this.classTabs(all);
     for (const id of items) this.grid.appendChild(this.card(id));
     this.deployBtn.disabled = !this.lo.canDeploy();
     this.renderDetail();
+  }
+
+  // Sınıf sekmeleri: TÜMÜ + yuvadaki sınıflar (silah sayısıyla); seçili sınıfın kısa tanımı altta
+  classTabs(all) {
+    const classes = classesOf(all);
+    if (classes.length < 2) return;
+    const row = el('div', 'loClasses');
+    row.setAttribute('role', 'tablist');
+    const tab = (id, label, n) => {
+      const b = el('button', id === this.cls ? 'sel' : '', label);
+      b.type = 'button';
+      b.dataset.cls = id;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', id === this.cls ? 'true' : 'false');
+      b.append(el('em', null, String(n)));
+      b.addEventListener('click', () => {
+        this.game.audio.uiClick();
+        this.cls = id;
+        this.sel = null;
+        this.render();
+      });
+      row.append(b);
+    };
+    tab('all', 'TÜMÜ', all.length);
+    for (const c of classes) tab(c.id, c.short, all.filter((id) => weaponType(id).id === c.id).length);
+    this.grid.append(row);
+    if (this.cls !== 'all') {
+      const c = classes.find((x) => x.id === this.cls);
+      if (c) this.grid.append(el('div', 'loClassDesc', `${c.name} · ${c.desc}`));
+    }
   }
 
   card(id) {
@@ -216,7 +253,7 @@ export class LoadoutScreen {
         img.src = r.url;
         img.classList.toggle('ready', r.kind !== 'silhouette');
       });
-      c.append(img, el('b', null, weaponName(id)), el('small', 'loClass', weaponClass(id).toLocaleUpperCase('tr-TR')), el('span', 'loInfo', weaponInfoLine(id)), bars(weaponStats(id)));
+      c.append(img, el('b', null, weaponName(id)), el('small', 'loClass', `${weaponType(id).short} · ${weaponClass(id).toLocaleUpperCase('tr-TR')}`), el('span', 'loInfo', weaponInfoLine(id)), bars(weaponStats(id)));
       const badges = weaponBadges(id);
       if (badges.length) {
         const bx = el('div', 'loBadges');
@@ -256,7 +293,12 @@ export class LoadoutScreen {
       this.preview.show(id).then((ok) => {
         if (!ok) this.canvas.replaceWith(Object.assign(el('img', 'loPreview'), { src: weaponPlaceholder(id), alt: '' }));
       });
-      D.append(el('h3', 'stName', weaponName(id)), el('div', 'stTag', `${weaponClass(id).toLocaleUpperCase('tr-TR')} · ${weaponInfoLine(id)}`), bars(weaponStats(id)));
+      D.append(
+        el('h3', 'stName', weaponName(id)),
+        el('div', 'stTag', `${weaponType(id).name.toLocaleUpperCase('tr-TR')} · ${weaponClass(id).toLocaleUpperCase('tr-TR')} · ${weaponInfoLine(id)}`),
+        el('div', 'stSight', `Nişangâh: ${sightLabel(id)}`),
+        bars(weaponStats(id))
+      );
       const badges = weaponBadges(id);
       if (badges.length) {
         const bx = el('div', 'loBadges');
