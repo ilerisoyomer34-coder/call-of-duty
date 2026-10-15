@@ -2449,7 +2449,7 @@ console.log('Atış poligonu');
     return { dummies: g.enemies.list.length, owned: Object.keys(g.weapons.owned) };
   });
   check(r.dummies === 10, `Mankenler yerleşti (${r.dummies})`);
-  check(r.owned.length === 18, `Poligonda on sekiz silah (${r.owned.join(', ')})`);
+  check(r.owned.length === 19 && r.owned.includes('knife'), `Poligonda on sekiz silah ve bıçak (${r.owned.join(', ')})`);
   await page.waitForFunction(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb)), 'Blender modelleri (MAR-556, MG-43, MR-82, D-50) yüklendi');
   // Sketchfab silahları: model, parçalar (şarjör, nişangah gövdesi) ve ayrı JPEG dokular
@@ -2469,7 +2469,7 @@ console.log('Atış poligonu');
       tex: { mk4: textured('mk4'), kt9: textured('kt9') },
     };
   });
-  check(sk.glb && sk.parts.k8 === 'charging+mag' && sk.parts.mk4 === 'optic' && sk.parts.kt9 === 'mag', `Sketchfab silahları yüklendi, parçalar ayrı (${JSON.stringify(sk.parts)})`);
+  check(sk.glb && sk.parts.k8 === 'charging+mag' && sk.parts.mk4 === 'mag+optic' && sk.parts.kt9 === 'mag', `Sketchfab silahları yüklendi, parçalar ayrı (${JSON.stringify(sk.parts)})`);
   check(sk.tex.mk4 > 0 && sk.tex.kt9 > 0, `Sketchfab silah dokuları ayrı dosyadan bağlandı (${JSON.stringify(sk.tex)})`);
   // Bıçak (Sketchfab): V ile yakın dövüşte sol elde dokulu bıçak savrulur
   await page.waitForFunction(() => !!window.__game.viewmodel.knife, null, { timeout: 30000 }).catch(() => {});
@@ -2536,8 +2536,9 @@ console.log('Atış poligonu');
     const before = await page.evaluate(() => window.__game.stats.shots);
     await page.mouse.down();
     if (id === 'minigun') {
-      await waitGame(page, 0.25);
-      spinLog.push(await page.evaluate(() => ({ spin: window.__game.weapons.current.spin, shots: window.__game.stats.shots })));
+      // Namlular dönmeye başladığı ilk an (yazılımsal GPU'da oyun saati sıçrayabilir: süre beklemek yerine durum yoklanır)
+      await page.waitForFunction(() => window.__game.weapons.current.spin > 0.05, null, { timeout: 60000, polling: 16 });
+      spinLog.push(await page.evaluate((b) => ({ spin: window.__game.weapons.current.spin, shots: window.__game.stats.shots, before: b }), before));
       await waitGame(page, 0.6);
       spinLog.push(await page.evaluate(() => ({ spin: window.__game.weapons.current.spin, shots: window.__game.stats.shots, mag: window.__game.weapons.current.mag })));
     } else await waitGame(page, 0.05);
@@ -2547,7 +2548,7 @@ console.log('Atış poligonu');
   }
   check(fired.length === 18, `On sekiz silahın hepsi ateş etti (${fired.join(', ')})`);
   // Minigun: 0,25 sn'de namlular dönüyor ama ateş yok; tam hızda saniyede ~30 atış, kayıştan düşer, nişan alınmaz
-  check(spinLog[0].spin > 0.2 && spinLog[0].spin < 1 && spinLog[1].spin === 1 && spinLog[1].shots - spinLog[0].shots >= 6 && spinLog[1].mag < 1000, `Minigun: önce namlu döner, sonra ateş (${JSON.stringify(spinLog)})`);
+  check(spinLog[0].spin < 1 && spinLog[0].shots === spinLog[0].before && spinLog[1].spin === 1 && spinLog[1].shots - spinLog[0].shots >= 6 && spinLog[1].mag < 1000, `Minigun: önce namlu döner (ateş yok), sonra ateş (${JSON.stringify(spinLog)})`);
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.6);
   const mg = await page.evaluate(() => ({ ads: window.__game.player.adsT, spin: window.__game.weapons.current.spin, res: document.getElementById('aRes').textContent, rot: window.__game.viewmodel.models.minigun.spinPivot?.rotation.z ?? null }));
@@ -3322,20 +3323,21 @@ if (run('online')) {
   await A.click('#btnOnline');
   await A.click('.onTab[data-tab="search"]');
   await A.fill('#onSearchInput', 'bar');
-  await A.waitForSelector('#onResults .onRow', { timeout: 10000 });
+  await A.waitForSelector('#onResults .onRow', { timeout: 60000 });
   const res = await A.evaluate(() => [...document.querySelectorAll('#onResults .onRow')].map((r) => r.textContent));
   check(res.length === 1 && /Barış/.test(res[0]) && /İstek gönder/.test(res[0]), `Arama "bar" → ${res.join(' | ')}`);
   await A.click('#onResults .onRow .btn.primary');
-  await A.waitForFunction(() => /İstek gönderildi/.test(document.querySelector('#onResults .onRow')?.textContent || ''), null, { timeout: 10000 });
+  await A.waitForFunction(() => /İstek gönderildi/.test(document.querySelector('#onResults .onRow')?.textContent || ''), null, { timeout: 60000, polling: 100 });
   // B: bildirim kartı, rozet, Kabul et
-  await B.waitForSelector('#socialToasts .sToast[data-kind="friend_request"]', { timeout: 10000 });
+  // İki sayfa yazılımsal GPU'yu paylaşır: kare tabanlı bekleme yerine zaman aralıklı yoklama, uzun süre
+  await B.waitForFunction(() => !!document.querySelector('#socialToasts .sToast[data-kind="friend_request"]'), null, { timeout: 60000, polling: 100 });
   const bt = await B.evaluate(() => ({ toast: document.querySelector('#socialToasts .sToast').textContent, badge: document.getElementById('onBadge').textContent, hidden: document.getElementById('onBadge').hidden }));
   check(/Ayla#\d{4} arkadaşlık isteği gönderdi/.test(bt.toast) && !bt.hidden && bt.badge === '1', `B'ye anında bildirim düştü ("${bt.toast.replace(/Kabul et|Reddet/g, '').trim()}"), rozet ${bt.badge}`);
   await B.screenshot({ path: join(shots, '31-friend-request.png') });
   await B.click('#socialToasts .sToast .btn.primary');
-  await A.waitForSelector('#socialToasts .sToast[data-kind="friend_accepted"]', { timeout: 10000 });
+  await A.waitForFunction(() => !!document.querySelector('#socialToasts .sToast[data-kind="friend_accepted"]'), null, { timeout: 60000, polling: 100 });
   await A.click('.onTab[data-tab="friends"]');
-  await A.waitForFunction(() => /Barış/.test(document.getElementById('onFriends').textContent) && !!document.querySelector('#onFriends .dot.menu'), null, { timeout: 10000 });
+  await A.waitForFunction(() => /Barış/.test(document.getElementById('onFriends').textContent) && !!document.querySelector('#onFriends .dot.menu'), null, { timeout: 60000, polling: 100 });
   check(true, "B kabul etti: A'ya kabul bildirimi geldi, Barış arkadaş listesinde çevrim içi (Menüde)");
   // B oyuna girer → A "Oyunda" görür
   await B.evaluate(() => window.__game.startMode('range', 'normal'));
@@ -3343,14 +3345,14 @@ if (run('online')) {
   check(true, 'B poligona girince A onu "Oyunda" gördü');
   // Takım: A davet eder, B oyundayken kartla katılır; A modu değiştirir, B'ye yansır
   await A.click('#onFriends .onRow .btn');
-  const invMsg = await A.waitForFunction(() => /davet/.test(document.getElementById('onMsg').textContent) && document.getElementById('onMsg').textContent, null, { timeout: 10000 }).then((h) => h.jsonValue(), () => '');
+  const invMsg = await A.waitForFunction(() => /davet/.test(document.getElementById('onMsg').textContent) && document.getElementById('onMsg').textContent, null, { timeout: 60000, polling: 100 }).then((h) => h.jsonValue(), () => '');
   // B oyunda: yazılımsal GPU'da kareler çok yavaş, kare tabanlı bekleme/tıklama yerine zaman aralıklı yoklama.
   // Kart zamanında gelse de yoklama ağır karelerin arasına sıkışır: süre "Oyunda" beklemesiyle aynı (60 sn)
   const invT0 = Date.now();
   const invOk = await B.waitForFunction(() => !!document.querySelector('#socialToasts .sToast[data-kind="party_invite"]'), null, { timeout: 60000, polling: 100 }).then(() => true, () => false);
   check(invOk && /davet edildi/.test(invMsg), `Davet gitti ("${invMsg}"), B oyundayken kart çıktı (${((Date.now() - invT0) / 1000).toFixed(1)} sn)`);
   await B.evaluate(() => document.querySelector('#socialToasts .sToast[data-kind="party_invite"] .btn.primary').click());
-  await A.waitForFunction(() => !document.getElementById('partyPanel').hidden && document.querySelectorAll('#ppMembers .onRow').length === 2, null, { timeout: 10000 });
+  await A.waitForFunction(() => !document.getElementById('partyPanel').hidden && document.querySelectorAll('#ppMembers .onRow').length === 2, null, { timeout: 60000, polling: 100 });
   const pp = await A.evaluate(() => ({ count: document.getElementById('ppCount').textContent, lead: document.querySelector('#ppMembers .onRow').textContent, find: document.getElementById('btnPartyFind').disabled, note: document.getElementById('ppNote').textContent }));
   check(/2 kişi/.test(pp.count) && /Lider/.test(pp.lead) && !pp.find && /karışık oyuncularla/.test(pp.note), `Takım kuruldu: ${pp.count}; "Maç ara" lidere açık`);
   await A.click('.ppMode:nth-child(2)');
@@ -3378,11 +3380,11 @@ if (run('online')) {
   // Mağaza kuralları (App Store 1.2): satırdaki "⋯" → adı bildir; yeniden "⋯" → engelle (istek düşer, engelliler listesinde)
   await A.click('#onRequests .onRow .btn.more');
   await A.click('#onRequests .onRow .btn:has-text("Adı bildir")');
-  await A.waitForFunction(() => /iletildi/.test(document.getElementById('onMsg').textContent), null, { timeout: 10000 }).catch(() => {});
+  await A.waitForFunction(() => /iletildi/.test(document.getElementById('onMsg').textContent), null, { timeout: 60000, polling: 100 }).catch(() => {});
   check(await A.evaluate(() => /iletildi/.test(document.getElementById('onMsg').textContent)), 'Oyuncu satırından uygunsuz ad bildirildi');
   await A.click('#onRequests .onRow .btn.more');
   await A.click('#onRequests .onRow .btn.danger');
-  await A.waitForFunction(() => /Engellediklerin/.test(document.getElementById('onRequests').textContent), null, { timeout: 10000 }).catch(() => {});
+  await A.waitForFunction(() => /Engellediklerin/.test(document.getElementById('onRequests').textContent), null, { timeout: 60000, polling: 100 }).catch(() => {});
   const blk = await A.evaluate(() => document.getElementById('onRequests').textContent);
   const cemSees = await fetch(`${base}/api/players?q=ayl`, { headers: { authorization: `Bearer ${c.token}` } }).then((r) => r.json());
   check(/Engeli kaldır/.test(blk) && !/Kabul et/.test(blk) && !cemSees.players.length, 'Engellenen oyuncunun isteği düştü, engelliler listesinde; o da aramada bulamıyor');
@@ -3418,7 +3420,7 @@ if (run('online')) {
   await mp.tap('#btnOnline');
   await mp.tap('.onTab[data-tab="search"]');
   await mp.fill('#onSearchInput', 'cem');
-  await mp.waitForSelector('#onResults .onRow', { timeout: 10000 });
+  await mp.waitForSelector('#onResults .onRow', { timeout: 60000 });
   const fit = await mp.evaluate(() => {
     const sc = document.getElementById('onlineScreen');
     const btn = document.querySelector('#onResults .onRow .btn').getBoundingClientRect();
@@ -3457,7 +3459,7 @@ if (run('online')) {
   await up(8793);
   const E = await openPage('online-home', 'low', { name: 'Ece', query: `?sunucu=${encodeURIComponent('http://127.0.0.1:8793')}` });
   await online(E);
-  await E.waitForFunction(() => /Bağlı: Ömer'in sunucusu/.test(document.getElementById('onSrvText').textContent), null, { timeout: 10000 });
+  await E.waitForFunction(() => /Bağlı: Ömer'in sunucusu/.test(document.getElementById('onSrvText').textContent), null, { timeout: 60000, polling: 100 });
   const e1 = await E.evaluate(() => ({
     screen: window.__game.menus.current,
     saved: window.__game.settings.serverUrl,
