@@ -165,16 +165,19 @@ export function rigFor(assetId) {
   const r = WEAPON_ASSETS[assetId];
   if (!r) return null;
   const v = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+  // Ateşli silah olmayan (bıçak: yalnız uç ve balçak noktası) modelde eksik noktalar kökende: namlu yerine uç
+  const p = r.points;
+  const o = [0, 0, 0];
   return {
-    muzzle: v(r.points.muzzle),
-    sight: v(r.points.sight),
-    leftHand: v(r.points.leftHand),
-    eject: v(r.points.eject),
+    muzzle: v(p.muzzle || p.tip || o),
+    sight: v(p.sight || o),
+    leftHand: v(p.leftHand || o),
+    eject: v(p.eject || o),
     // Arpacık (isteğe bağlı): gez → arpacık çizgisi nişanda kamera eksenine oturur (viewmodel.js)
-    front: r.points.front ? v(r.points.front) : null,
+    front: p.front ? v(p.front) : null,
     // Sürgülü tüfekte sürgünün dönme ekseni ve kolu (isteğe bağlı): sürgü çekilirken sağ el kola gider
-    boltAxis: r.points.boltAxis ? v(r.points.boltAxis) : null,
-    boltHandle: r.points.boltHandle ? v(r.points.boltHandle) : null,
+    boltAxis: p.boltAxis ? v(p.boltAxis) : null,
+    boltHandle: p.boltHandle ? v(p.boltHandle) : null,
     length: r.length,
   };
 }

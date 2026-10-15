@@ -187,7 +187,7 @@ export function build(W) {
     obj: {
       outpost: {
         text: 'Liman kapısını temizle', group: 'outpost', marker: V(0, 56, 1.5), doneLine: 'Kapı bizim. ',
-        radio: ['İlk hedef liman kapısı. Kapının arkasında makineli yuvası var; tel örgüdeki gediklerden yanına dolan.', 'Başlangıçtaki sandıkta roketatar var. Yuvayı uzaktan susturabilirsin.'],
+        radio: ['İlk hedef liman kapısı. Kapının arkasında makineli yuvası var; tel örgüdeki gediklerden yanına dolan.', 'Başlangıçtaki sandıkta bazuka var. Yuvayı uzaktan susturabilirsin.'],
       },
       aa: {
         text: 'Rıhtımdaki uçaksavarları C4 ile imha et', doneLine: 'Gökyüzü temiz! ', one: 'Bir top gitti. Diğeri rıhtımın kuzeyinde, vincin ötesinde.',

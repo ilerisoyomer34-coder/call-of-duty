@@ -1,6 +1,6 @@
-// Teçhizat kuralları (Operasyon Güncellemesi §5.5, §4.8 taşıma kuralı): ana/yan silah, zırh, kask ve iki sarf
-// yuvası. Arayüzden bağımsızdır (teçhizat ekranı ve görev bunu kullanır; birim testleri doğrudan dener).
-// Kayıt: save.data.loadout = { primary, secondary, armor, helmet, slots: [id|null, id|null] }.
+// Teçhizat kuralları (Operasyon Güncellemesi §5.5, §4.8 taşıma kuralı): ana/yan silah, bıçak, zırh, kask ve iki
+// sarf yuvası. Arayüzden bağımsızdır (teçhizat ekranı ve görev bunu kullanır; birim testleri doğrudan dener).
+// Kayıt: save.data.loadout = { primary, secondary, melee, armor, helmet, slots: [id|null, id|null] }.
 // Sarf yuvası yalnız türü tutar; görevde taşınan adet min(yığın sınırı, envanterdeki adet). Envanterden
 // yalnız kullanılan düşer, kullanılmayan kendiliğinden "geri dönmüş" olur.
 import { WEAPONS, WEAPON_ORDER, DEFAULT_LOADOUT } from './config.js';
@@ -36,6 +36,7 @@ export class LoadoutSystem {
     };
     if (!this.weaponOk('primary', L.primary)) fix('primary', DEFAULT_LOADOUT.primary);
     if (!this.weaponOk('secondary', L.secondary)) fix('secondary', DEFAULT_LOADOUT.secondary);
+    if (!this.weaponOk('melee', L.melee)) fix('melee', DEFAULT_LOADOUT.melee);
     if (L.armor && !this.inv.armor.includes(L.armor)) fix('armor', null);
     if (L.helmet && !this.inv.helmets.includes(L.helmet)) fix('helmet', null);
     const slots = Array.isArray(L.slots) ? L.slots.slice(0, SLOT_COUNT) : [];

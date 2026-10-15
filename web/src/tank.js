@@ -275,7 +275,7 @@ export class Tank {
     if (this.destroyed) return;
     this.awake = true;
     this.shotHint++;
-    if (this.shotHint === TANK.shotHintAfter) this.game.events.emit('message', 'MERMİ ZIRHI DELMEZ · ROKETATAR YA DA C4 KULLAN', 'warn');
+    if (this.shotHint === TANK.shotHintAfter) this.game.events.emit('message', 'MERMİ ZIRHI DELMEZ · BAZUKA YA DA C4 KULLAN', 'warn');
   }
 
   // Patlama: gövde kutusuna uzaklığa göre hasar. Ağır patlayıcı (roket, C4) tam, hafif (el bombası, varil) az işler

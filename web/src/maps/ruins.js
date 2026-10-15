@@ -171,7 +171,7 @@ export function build(W) {
     obj: {
       outpost: {
         text: 'Meydanı temizle', group: 'outpost', marker: V(0, 40, 1.5), doneLine: 'Meydan temiz. ',
-        radio: ['Meydan ileride. Caddeye bakan bir makineli yuvası var; açık caddeden yürüme, yıkık binaların içinden yanına dolan.', 'Batıdaki yıkıntıda roketatar bıraktık.'],
+        radio: ['Meydan ileride. Caddeye bakan bir makineli yuvası var; açık caddeden yürüme, yıkık binaların içinden yanına dolan.', 'Batıdaki yıkıntıda bazuka bıraktık.'],
       },
       intel: {
         text: 'Belediye binasından istihbaratı al',

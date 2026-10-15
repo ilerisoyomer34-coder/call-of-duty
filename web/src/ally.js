@@ -1502,7 +1502,7 @@ export class AllyManager {
   onTank() {
     const alive = this.list.filter((a) => !a.down);
     if (!alive.length) return;
-    this.game.mission?.radio(alive[0].name, 'Tank! Siper alın, mermi işlemez. Roketatar ya da C4 lazım!', 0, 'ally');
+    this.game.mission?.radio(alive[0].name, 'Tank! Siper alın, mermi işlemez. Bazuka ya da C4 lazım!', 0, 'ally');
   }
 
   onHmgFire(nest) {

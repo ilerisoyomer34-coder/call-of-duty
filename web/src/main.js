@@ -1281,7 +1281,8 @@ const NULL_INPUT = {
 
 async function boot() {
   const L = loadingScreen();
-  // Kapak görseli yükleme ekranında (bağımsız sürümde gömülü data: adresi, öbürlerinde sayfanın yanındaki dosya)
+  // Kapak görseli yalnız uygulama açılırken (bağımsız sürümde gömülü data: adresi, öbürlerinde sayfanın yanındaki
+  // dosya). Görev yüklemelerinde gösterilmez: bekçinin show() çağrısı hasCover sınıfını siler
   const cover = assetImageUrl('assets/ui/cover.jpg');
   const ld = document.getElementById('loading');
   if (cover && ld) {

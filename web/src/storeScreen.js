@@ -5,6 +5,8 @@ import { StoreSystem, CATEGORIES, ITEM_BY_ID, BUY } from './store.js';
 import { itemIcon } from './storeIcons.js';
 import { formatKR } from './economy.js';
 import { EV } from './events.js';
+import { weaponIcon, weaponPlaceholder } from './weaponIcons.js';
+import { weaponBadges, weaponInfoLine } from './weaponInfo.js';
 
 const $ = (id) => document.getElementById(id);
 const BADGE = { equipped: 'KUŞANILDI', owned: 'SAHİPSİN', locked: 'KİLİTLİ', credit: 'YETERSİZ KREDİ', full: 'DOLU' };
@@ -15,6 +17,23 @@ function el(tag, cls, text) {
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;
   return e;
+}
+
+// Ürün görseli: silahta modelden çizilen resim (teçhizat ekranıyla aynı), öbürlerinde SVG simge
+function itemImage(item, big) {
+  const box = el('div', big ? 'stImg big' : 'stImg');
+  if (item.category !== 'weapon') {
+    box.innerHTML = itemIcon(item.id, item.category);
+    return box;
+  }
+  box.classList.add('weapon');
+  const img = el('img');
+  img.alt = '';
+  img.decoding = 'async';
+  img.src = weaponPlaceholder(item.id);
+  weaponIcon(item.id).then((r) => (img.src = r.url));
+  box.append(img);
+  return box;
 }
 
 export class StoreScreen {
@@ -121,8 +140,7 @@ export class StoreScreen {
     const c = el('button', `stCard ${st}${item === this.sel ? ' sel' : ''}`);
     c.type = 'button';
     c.dataset.id = item.id;
-    const img = el('div', 'stImg');
-    img.innerHTML = itemIcon(item.id, item.category);
+    const img = itemImage(item, false);
     const name = el('b', null, item.name);
     const desc = el('span', 'stDesc', item.desc);
     const foot = el('div', 'stFoot');
@@ -148,11 +166,16 @@ export class StoreScreen {
     if (!item) return;
     const S = this.store;
     const st = S.status(item);
-    const img = el('div', 'stImg big');
-    img.innerHTML = itemIcon(item.id, item.category);
-    D.append(img, el('h3', 'stName', item.name));
+    D.append(itemImage(item, true), el('h3', 'stName', item.name));
     if (item.def.nij) D.append(el('div', 'stTag', item.def.nij));
     D.append(el('p', 'stText', item.desc));
+    if (item.category === 'weapon') {
+      // Silah: bilgi satırı ve rozetler (ÖZEL SİLAH, ZIRH DELİCİ…); açılınca teçhizatta kuşanılır
+      D.append(el('div', 'stTag', weaponInfoLine(item.id)));
+      const bx = el('div', 'loBadges');
+      for (const t of weaponBadges(item.id)) bx.append(el('em', 'stBadge', t));
+      D.append(bx);
+    }
     // Kuşanılanla karşılaştırma: daha iyi yeşil ▲, daha kötü kırmızı ▼
     const cmp = S.compare(item);
     if (cmp.length) {

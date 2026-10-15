@@ -34,6 +34,7 @@
     "bren2": { "sight": "iron" },
     "awm": { "sight": "post" },
     "minigun": { "sight": "none" },
-    "pr10": { "sight": "classic" }
+    "pr10": { "sight": "classic" },
+    "knife": { "sight": "none" }
   }
 }

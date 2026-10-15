@@ -237,7 +237,7 @@ console.log('Mağaza');
   await page.click('#btnStore');
   await page.waitForSelector('#storeScreen:not([hidden])', { timeout: 5000 });
   const tabs = await page.$$eval('.stTabs .diff', (bs) => bs.map((b) => b.textContent));
-  check(tabs.join(',') === 'Zırh,Kask,Sarf Malzemeleri,Tim Yükseltmeleri', `Mağaza sekmeleri: ${tabs.join(' · ')} (kilitli silah yok, Silahlar sekmesi gizli)`);
+  check(tabs.join(',') === 'Zırh,Kask,Sarf Malzemeleri,Tim Yükseltmeleri,Silahlar', `Mağaza sekmeleri: ${tabs.join(' · ')} (Silahlar: özel silah)`);
   await page.click('.stCard[data-id="armor_light"]');
   await page.click('#stBuy');
   const modal = await page.textContent('.stModalBox p');
@@ -262,9 +262,25 @@ console.log('Mağaza');
   });
   check(plate.disabled && plate.text === '2.600 KR eksik' && plate.up >= 2 && plate.down === 1, `Yetersiz kredi: "${plate.text}", karşılaştırma ▲${plate.up} ▼${plate.down}`);
   await page.screenshot({ path: join(shots, '17-store.png') });
+  // Özel silah: minigun mağazada 15.000 KR; alınınca teçhizatta kilidi açılır
+  await page.click('.stTabs .diff[data-tab="weapon"]');
+  const mg0 = await page.evaluate(() => ({
+    cards: [...document.querySelectorAll('.stCard')].map((c) => c.dataset.id),
+    price: document.querySelector('.stCard[data-id="minigun"] .stPrice')?.textContent,
+    locked: window.__game.loadouts.weaponLocked('minigun'),
+    img: !!document.querySelector('.stCard[data-id="minigun"] .stImg.weapon img'),
+  }));
+  check(mg0.cards.join(',') === 'minigun' && mg0.price === '15.000 KR' && mg0.locked && mg0.img, `Silahlar sekmesinde özel silah: minigun ${mg0.price}, modelden görsel, teçhizatta kilitli`);
+  await page.evaluate(() => window.__game.economy.add(20000, 'test'));
+  await page.click('.stCard[data-id="minigun"]');
+  await page.click('#stBuy');
+  await page.click('#stConfirm');
+  const mg1 = await page.evaluate(() => ({ owned: window.__game.save.data.inventory.weapons.includes('minigun'), locked: window.__game.loadouts.weaponLocked('minigun'), credits: window.__game.economy.credits, badges: [...document.querySelectorAll('#storeRoot .stDetail .stBadge')].map((b) => b.textContent) }));
+  check(mg1.owned && !mg1.locked && mg1.credits === 5200 && mg1.badges.includes('ÖZEL SİLAH') && mg1.badges.includes('ZIRH DELİCİ'), `Minigun satın alındı, teçhizatta açıldı (${mg1.credits} KR kaldı; ${mg1.badges.join(', ')})`);
+  await page.screenshot({ path: join(shots, '17c-store-weapon.png') });
   // Geri → ana menüde bakiye; görevde zırh kuşanılı
   await page.click('#stBack');
-  check((await page.textContent('#menuCreditsVal')) === '200 KR', 'Ana menüde bakiye 200 KR');
+  check((await page.textContent('#menuCreditsVal')) === '5.200 KR', 'Ana menüde bakiye 5.200 KR');
   await page.evaluate(() => window.__game.startMode('range', 'normal'));
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
   check((await page.textContent('#arVal')) === '50', 'Görevde HUD 50 ZP gösteriyor (§12/1)');
@@ -314,8 +330,12 @@ console.log('Bağımsız sürüm (dist/index.html)');
     info: document.querySelector('#loadoutRoot .loCard[data-id="rifle"] .loInfo')?.textContent,
     sniper: [...document.querySelectorAll('#loadoutRoot .loCard[data-id="sniper"] .stBadge')].map((b) => b.textContent),
     deploy: !document.getElementById('btnDeploy').disabled,
+    groups: [...document.querySelectorAll('#loadoutRoot .loGroup b')].map((b) => b.textContent),
+    minigun: document.querySelector('#loadoutRoot .loCard[data-id="minigun"] .loLock')?.textContent,
   }));
-  check(lo.slots.length === 6 && lo.names.length === 15, `Teçhizatta 6 yuva, ana silah yuvasında 15 kart (${lo.slots.join(' · ')})`);
+  check(lo.slots.length === 7 && lo.names.length === 15, `Teçhizatta 7 yuva (bıçak dahil), ana silah yuvasında 15 kart (${lo.slots.join(' · ')})`);
+  check(['Taarruz Tüfekleri', 'Taramalılar', 'Pompalılar', 'Keskin Nişancılar', 'Özel Silahlar'].every((g) => lo.groups.includes(g)), `TÜMÜ sınıflara ayrılmış (${lo.groups.join(' · ')})`);
+  check(/15\.000 KR/.test(lo.minigun || ''), `Minigun teçhizatta kilitli, fiyatıyla (${lo.minigun})`);
   check(['AKMS', 'Barrett M82A1', 'HK MG4', 'Colt M4A1'].every((n) => lo.names.includes(n)), `Silahlar gerçek adlarıyla (${lo.names.slice(0, 5).join(', ')}…)`);
   check(lo.bars === 6 && /7,62×39 mm · 30 mermi/.test(lo.info || ''), `Kartta altı istatistik çubuğu ve bilgi satırı (${lo.info})`);
   check(lo.sniper.includes('ÇATAL AYAK') && lo.sniper.includes('ZIRH DELİCİ'), `M82A1 rozetleri: ${lo.sniper.join(', ')}`);
@@ -364,7 +384,7 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#loadoutRoot .loSlot[data-slot="secondary"]');
   check((await page.$$('#loadoutRoot .loCard')).length === 3, 'Yan silah yuvasında yalnız 3 yan silah');
   await page.click('#loadoutRoot .loSlot[data-slot="primary"]');
-  await page.dblclick('#loadoutRoot .loCard[data-id="rifle"]');
+  await page.dblclick('#loadoutRoot .loCard[data-id="ak74"]');
   await page.screenshot({ path: join(shots, '01b-loadout.png') });
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
@@ -411,6 +431,21 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await waitGame(page, 2.6);
   const mag2 = await page.evaluate(() => window.__game.weapons.current.mag);
   check(mag2 >= 30, `Reload şarjörü doldurdu (${mag2})`);
+  // Bıçak: görevde 3. yuva, 3 tuşuyla ele alınır; sol tık keser, nişan yok, HUD'da BIÇAK; 1 ile ana silaha dönülür
+  check((await page.evaluate(() => window.__game.weapons.slots.join(','))) === 'ak74,d50,knife', 'Görevde yuvalar: 1 ana, 2 yan, 3 bıçak');
+  await page.keyboard.press('Digit3');
+  await page.waitForFunction(() => window.__game.weapons.currentId === 'knife' && window.__game.weapons.state === 'idle', null, { timeout: 60000, polling: 50 });
+  await page.mouse.down();
+  await waitGame(page, 0.05);
+  const kn = await page.evaluate(() => {
+    const g = window.__game;
+    return { st: g.weapons.state, held: g.weapons.meleeKnife, ads: g.weapons.canAds, hud: document.getElementById('aRes').textContent, vis: g.viewmodel.models.knife.root.visible, left: g.viewmodel.arms.left.g.visible };
+  });
+  await page.screenshot({ path: join(shots, '02b-knife.png') });
+  await page.mouse.up();
+  check(kn.st === 'melee' && kn.held && !kn.ads && kn.hud === 'BIÇAK' && kn.vis && !kn.left, `3 tuşu bıçağı ele aldı, sol tık kesti, nişan yok (${JSON.stringify(kn)})`);
+  await page.keyboard.press('Digit1');
+  await page.waitForFunction(() => window.__game.weapons.currentId === 'ak74' && window.__game.weapons.state === 'idle', null, { timeout: 60000, polling: 50 });
 
   // Karakola yaklaş (işaretçinin 24 m güneyi), düşmanlar fark etsin
   await page.evaluate(() => {
@@ -1874,7 +1909,7 @@ console.log('Etkileşimler');
   await page.dblclick('#loadoutRoot .loCard[data-id="d50"]');
   await page.click('#btnDeploy');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 });
-  check((await page.evaluate(() => window.__game.weapons.slots.join(','))) === 'mar556,d50', 'Seçilen teçhizatla başladı (MAR-556 + D-50)');
+  check((await page.evaluate(() => window.__game.weapons.slots.join(','))) === 'mar556,d50,knife', 'Seçilen teçhizatla başladı (MAR-556 + D-50 + bıçak)');
   const tp = (x, z, yaw) =>
     page.evaluate(([x, z, yaw]) => {
       const g = window.__game;
@@ -1902,7 +1937,7 @@ console.log('Etkileşimler');
     const g = window.__game;
     return { slots: g.weapons.slots.join(','), dropped: g.mission.pickups3.some((p) => p.id === 'mar556' && !p.taken) };
   });
-  check(swap.slots === 'shotgun,d50' && swap.dropped, `Pompalı ana silahın yerine geçti, MAR-556 yere düştü (${swap.slots})`);
+  check(swap.slots === 'shotgun,d50,knife' && swap.dropped, `Pompalı ana silahın yerine geçti, MAR-556 yere düştü (${swap.slots})`);
   // M82'yi evdeki masadan al
   await tp(-16.5, 39.1, Math.PI);
   await waitGame(page, 0.3);
@@ -2512,12 +2547,23 @@ console.log('Atış poligonu');
   }
   check(fired.length === 18, `On sekiz silahın hepsi ateş etti (${fired.join(', ')})`);
   // Minigun: 0,25 sn'de namlular dönüyor ama ateş yok; tam hızda saniyede ~30 atış, kayıştan düşer, nişan alınmaz
-  check(spinLog[0].spin > 0.2 && spinLog[0].spin < 1 && spinLog[1].spin === 1 && spinLog[1].shots - spinLog[0].shots >= 6 && spinLog[1].mag < 10000, `Minigun: önce namlu döner, sonra ateş (${JSON.stringify(spinLog)})`);
+  check(spinLog[0].spin > 0.2 && spinLog[0].spin < 1 && spinLog[1].spin === 1 && spinLog[1].shots - spinLog[0].shots >= 6 && spinLog[1].mag < 1000, `Minigun: önce namlu döner, sonra ateş (${JSON.stringify(spinLog)})`);
   await page.mouse.down({ button: 'right' });
   await waitGame(page, 0.6);
-  const mg = await page.evaluate(() => ({ ads: window.__game.player.adsT, spin: window.__game.weapons.current.spin, belt: document.getElementById('aRes').textContent, rot: window.__game.viewmodel.models.minigun.spinPivot?.rotation.z ?? null }));
+  const mg = await page.evaluate(() => ({ ads: window.__game.player.adsT, spin: window.__game.weapons.current.spin, res: document.getElementById('aRes').textContent, rot: window.__game.viewmodel.models.minigun.spinPivot?.rotation.z ?? null }));
   await page.mouse.up({ button: 'right' });
-  check(mg.ads === 0 && mg.spin > 0.9 && mg.belt === 'KAYIŞ' && mg.rot !== 0 && mg.rot !== null, `Minigun nişan almaz, sağ tık namluyu döndürür, HUD'da kayış (${JSON.stringify(mg)})`);
+  check(mg.ads === 0 && mg.spin > 0.9 && mg.res === '/ 9.000' && mg.rot !== 0 && mg.rot !== null, `Minigun nişan almaz, sağ tık namluyu döndürür, HUD'da 9.000 yedek (${JSON.stringify(mg)})`);
+  // Minigun kutu değiştirir: R ile kısa animasyon, kutu dolar; yarıda fişek kayışı modelde aşağı iner
+  await waitGame(page, 1.8);
+  await page.keyboard.press('KeyR');
+  await waitGame(page, 0.6);
+  const belt = await page.evaluate(() => {
+    const g = window.__game;
+    const m = g.viewmodel.models.minigun;
+    return { st: g.weapons.state, k: g.weapons.reloadInfo()?.k ?? -1, moved: m.parts.mag ? m.parts.mag.position.distanceTo(m.parts.mag.userData.base) : 0, hidden: m.parts.mag ? !m.parts.mag.visible : false };
+  });
+  await page.waitForFunction(() => window.__game.weapons.state === 'idle' && window.__game.weapons.current.mag === 1000, null, { timeout: 60000, polling: 50 });
+  check(belt.st === 'reloading' && (belt.moved > 0.05 || belt.hidden), `Minigun kutu değiştirdi, kayış yerinden çıktı (${JSON.stringify(belt)})`);
   // Nişangâhlar kendine özgü: kolimatörlü her silahta camda işaret, işaret dokuları birbirinden farklı
   const rets = await page.evaluate(() => {
     const V = window.__game.viewmodel.models;
@@ -2747,7 +2793,7 @@ console.log('Teçhizat ve sarf malzemeleri');
   await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
   await page.evaluate(() => (window.__game.input.lockFailed = true));
   const hud = await page.evaluate(() => ({ shown: !document.getElementById('kit').hidden, slots: [...document.querySelectorAll('#kit .kslot:not([hidden]) b')].map((b) => b.textContent), keys: [...document.querySelectorAll('#kit .kslot kbd')].map((k) => k.textContent) }));
-  check(hud.shown && hud.slots.join(',') === '×2,×3' && hud.keys.join(',') === '3,4', `HUD'da sarf yuvaları (${hud.keys.join('/')} → ${hud.slots.join(' ')})`);
+  check(hud.shown && hud.slots.join(',') === '×2,×3' && hud.keys.join(',') === '4,5', `HUD'da sarf yuvaları (${hud.keys.join('/')} → ${hud.slots.join(' ')})`);
   // Süreli kullanım: oyun saati yazılımsal GPU'da yavaş, süre doğrudan ilerletilir
   const use = await page.evaluate(() => {
     const g = window.__game;
@@ -2774,11 +2820,11 @@ console.log('Teçhizat ve sarf malzemeleri');
   check(use.healed === 90 && use.inv.medkit === 1, `İlk Yardım Kiti 3 sn'de +50 can (40 → ${use.healed}), envanterde ${use.inv.medkit} kaldı`);
   check(use.full.pts === 50 && use.inv.plate_pack === 2, `Zırh Plakası +50 ZP, azamide durdu (10 → ${use.full.pts}), envanterde ${use.inv.plate_pack}`);
   check(use.notStarted && use.hud === '×1,×2', `Can doluyken kit kullanılmaz; HUD adetleri güncel (${use.hud})`);
-  // Tuşla kullanım (3)
+  // Tuşla kullanım (4; 3 bıçağındır)
   await page.evaluate(() => (window.__game.player.health.hp = 50));
-  await page.keyboard.press('Digit3');
+  await page.keyboard.press('Digit4');
   await waitGame(page, 0.05);
-  check(await page.evaluate(() => !!window.__game.kit.using), '3 tuşu sarf yuvası 1’i kullandı');
+  check(await page.evaluate(() => !!window.__game.kit.using), '4 tuşu sarf yuvası 1’i kullandı');
   // Sis bombası: görüşü keser, mermi/patlama yolunu kesmez
   const smoke = await page.evaluate(() => {
     const g = window.__game;

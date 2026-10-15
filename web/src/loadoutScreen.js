@@ -1,6 +1,7 @@
-// Teçhizat ekranı (Operasyon Güncellemesi §5.5): solda yuvalar (ana/yan silah, zırh, kask, iki sarf), ortada
-// o yuvaya uygun kartlar, sağda seçili kartın ayrıntısı (silahta dönen 3D önizleme). Tıkla = seç, çift tıkla ya
-// da "Kuşan" = yuvaya tak, Esc = geri. Seçimler anında kayda yazılır; sonraki görev aynı teçhizatla açılır.
+// Teçhizat ekranı (Operasyon Güncellemesi §5.5): solda yuvalar (ana/yan silah, bıçak, zırh, kask, iki sarf), ortada
+// o yuvaya uygun kartlar, sağda seçili kartın ayrıntısı (silahta dönen 3D önizleme). Silah yuvasında kartlar
+// sınıflara ayrılır: TÜMÜ'de her sınıf başlıklı ayrı bölüm (Taarruz Tüfekleri, Taramalılar, Pompalılar…), sekmeyle
+// tek sınıf. Tıkla = seç, çift tıkla ya da "Kuşan" = yuvaya tak, Esc = geri. Seçimler anında kayda yazılır.
 // Kurallar loadout.js (silah, sarf) ve store.js (zırh/kask sahipliği); burası yalnız görünüm.
 import { ITEM_BY_ID, ITEMS } from './store.js';
 import { itemIcon } from './storeIcons.js';
@@ -14,6 +15,7 @@ const $ = (id) => document.getElementById(id);
 const SLOTS = [
   { id: 'primary', label: 'Ana silah', kind: 'weapon' },
   { id: 'secondary', label: 'Yan silah', kind: 'weapon' },
+  { id: 'melee', label: 'Bıçak', kind: 'weapon' },
   { id: 'armor', label: 'Zırh', kind: 'armor' },
   { id: 'helmet', label: 'Kask', kind: 'helmet' },
   { id: 'slot0', label: 'Sarf 1', kind: 'consumable', index: 0 },
@@ -203,7 +205,17 @@ export class LoadoutScreen {
     this.grid.className = `loGrid ${this.slot.kind}`;
     this.grid.innerHTML = '';
     if (this.slot.kind === 'weapon') this.classTabs(all);
-    for (const id of items) this.grid.appendChild(this.card(id));
+    // TÜMÜ'de sınıflar ayrı bölümler: her sınıfın başlığı (çoğul ad, sayı, kısa tanım) ve altında kartları
+    const grouped = this.slot.kind === 'weapon' && this.cls === 'all' && classesOf(all).length > 1;
+    let last = null;
+    for (const id of items) {
+      const t = weaponType(id);
+      if (grouped && t.id !== last) {
+        last = t.id;
+        this.grid.appendChild(this.groupHead(t, all.filter((x) => weaponType(x).id === t.id).length));
+      }
+      this.grid.appendChild(this.card(id));
+    }
     this.deployBtn.disabled = !this.lo.canDeploy();
     this.renderDetail();
   }
@@ -234,8 +246,23 @@ export class LoadoutScreen {
     this.grid.append(row);
     if (this.cls !== 'all') {
       const c = classes.find((x) => x.id === this.cls);
-      if (c) this.grid.append(el('div', 'loClassDesc', `${c.name} · ${c.desc}`));
+      if (c) this.grid.append(el('div', 'loClassDesc', `${c.group || c.name} · ${c.desc}`));
     }
+  }
+
+  // Sınıf bölümü başlığı: çoğul ad + silah sayısı, altında kısa tanım; tıklayınca o sınıfın sekmesi açılır
+  groupHead(c, n) {
+    const h = el('button', 'loGroup');
+    h.type = 'button';
+    h.dataset.cls = c.id;
+    h.append(el('b', null, c.group || c.name), el('em', null, String(n)), el('small', null, c.desc));
+    h.addEventListener('click', () => {
+      this.game.audio.uiClick();
+      this.cls = c.id;
+      this.sel = null;
+      this.render();
+    });
+    return h;
   }
 
   card(id) {

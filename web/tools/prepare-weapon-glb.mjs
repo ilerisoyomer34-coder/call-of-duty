@@ -15,7 +15,7 @@
 //                                                    yazdırır (noktaları seçmek için; köken değişmez)
 import { NodeIO, getBounds } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { dedup, prune, weld, simplify, quantize, join, transformMesh } from '@gltf-transform/functions';
+import { dedup, prune, weld, simplify, quantize, join, transformMesh, metalRough } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { Matrix4, Vector3, Box3 } from 'three';
 import { chromium } from 'playwright';
@@ -45,6 +45,14 @@ const countTris = () => {
   return n;
 };
 const trisBefore = countTris();
+// Eski "specular-glossiness" malzemesi (ör. bazuka): metal/pürüz düzenine çevrilir; parlaklık kanalı pürüz olur.
+// Dönüşümün eklediği yansıma/kırılma (KHR_materials_specular, ior 1000) atılır: oyun malzemesi düz PBR, boyalı
+// çelik ayna gibi parlamasın
+if (R.listExtensionsUsed().some((e) => e.extensionName === 'KHR_materials_pbrSpecularGlossiness')) {
+  await doc.transform(metalRough());
+  for (const m of R.listMaterials()) m.setExtension('KHR_materials_ior', null).setExtension('KHR_materials_specular', null);
+  await doc.transform(prune());
+}
 // Dokuların özgün sırası: boyama kuralları bu sıra numarasıyla yazılır (dedup/prune sırayı değiştirebilir)
 const texIndex = new Map(R.listTextures().map((t, i) => [t, i]));
 

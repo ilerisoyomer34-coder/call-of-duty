@@ -6,7 +6,7 @@ import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
 import { ARENA_BUILDERS } from './maps/index.js';
 import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat, bakeStatic } from './models.js';
-import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
+import { C4, SCORE, WEAPONS, WEAPON_ORDER, DEFAULT_LOADOUT, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
@@ -786,8 +786,10 @@ export class Mission {
       for (const id of WEAPON_ORDER) weapons[id] = null;
       return { weapons, slots: [...WEAPON_ORDER], grenades: 4, current: 'rifle' };
     }
+    // Görevde 1 ana, 2 yan silah, 3 bıçak (elde tutulur)
     const L = this.game.loadout;
-    return { weapons: { [L.primary]: null, [L.secondary]: null }, slots: [L.primary, L.secondary], grenades: 3, current: L.primary };
+    const melee = L.melee && WEAPONS[L.melee] ? L.melee : DEFAULT_LOADOUT.melee;
+    return { weapons: { [L.primary]: null, [L.secondary]: null, [melee]: null }, slots: [L.primary, L.secondary, melee], grenades: 3, current: L.primary };
   }
 
   pickupPrompt(p) {

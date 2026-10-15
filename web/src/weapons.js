@@ -68,6 +68,8 @@ export class PlayerWeapons {
     this.cookAction = 'grenade'; // pimi çekilen bombayı tutan tuş (el bombası ya da sarf yuvası)
     this.cookT = 0;
     this.meleeHitDone = false;
+    this.meleeKnife = false; // süren savuruş elde tutulan bıçağın mı (değilse V ile hızlı bıçak)
+    this.slashSide = 1; // elde bıçakta son savuruşun yönü (0 sağdan sola, 1 soldan sağa); ilk savuruş sağdan sola
     this.reload = null; // { t, dur, empty, inserted, phase }
     this.fireBuffer = 0;
     this.time = 0;
@@ -128,9 +130,12 @@ export class PlayerWeapons {
     }
     let dropped = null;
     let idx = this.slots.findIndex((s) => WEAPONS[s].category === d.category);
-    if (this.slots.length < 2 || idx < 0) {
-      this.slots.push(id);
-      idx = this.slots.length - 1;
+    const guns = this.slots.filter((s) => WEAPONS[s].category !== 'melee').length;
+    if (guns < 2 || idx < 0) {
+      // Bıçak hep son yuvada (3 tuşu) kalır: yeni silah ondan önceye girer
+      const knifeAt = this.slots.findIndex((s) => WEAPONS[s].category === 'melee');
+      if (knifeAt >= 0) this.slots.splice(knifeAt, 0, id);
+      else this.slots.push(id);
     } else {
       const old = this.slots[idx];
       const ow = this.owned[old];
@@ -174,14 +179,8 @@ export class PlayerWeapons {
   addAmmo(fraction = 0.25) {
     let any = false;
     for (const w of Object.values(this.owned)) {
-      // Roket gibi nadir cephane her torbadan çıkmaz
-      if (w.data.reloadType === 'none') {
-        // Fişek kayışı: torba kayışın bir bölümünü doldurur
-        const add = Math.ceil(w.data.magSize * (w.data.spin?.refill ?? fraction));
-        if (w.mag < w.data.magSize) any = true;
-        w.mag = Math.min(w.data.magSize, w.mag + add);
-        continue;
-      }
+      // Bıçağın cephanesi yok; roket gibi nadir cephane her torbadan çıkmaz
+      if (w.data.melee) continue;
       const add = w.data.pickupChance !== undefined ? (Math.random() < w.data.pickupChance ? 1 : 0) : Math.ceil(w.data.reserveMax * fraction);
       if (w.reserve < w.data.reserveMax && add > 0) any = true;
       w.reserve = Math.min(w.data.reserveMax, w.reserve + add);
@@ -193,8 +192,6 @@ export class PlayerWeapons {
   refill() {
     for (const w of Object.values(this.owned)) {
       w.reserve = w.data.reserveMax;
-      // Şarjörü değişmeyen silah (fişek kayışı): kutu kayışı doldurur
-      if (w.data.reloadType === 'none') w.mag = w.data.magSize;
     }
     this.grenades = GRENADE.maxCount + this.kitFrags;
     this.game.events.emit('ammo', this.current);
@@ -372,10 +369,16 @@ export class PlayerWeapons {
     }
 
     if (input.pressed('melee') && (this.state === 'idle' || this.state === 'reloading' || this.state === 'equipping')) {
+      // Elde bıçak varken hızlı bıçak da aynı savuruştur
+      if (d.melee) {
+        if (this.state !== 'reloading') this.startSlash();
+        return;
+      }
       this.cancelReload();
       this.state = 'melee';
       this.stateT = 0;
       this.meleeHitDone = false;
+      this.meleeKnife = false;
       P.stopSprint();
       g.audio.mech('melee');
       return;
@@ -400,6 +403,14 @@ export class PlayerWeapons {
     const pressed = input.pressed('fire');
     const held = input.isDown('fire');
     if (pressed) this.fireBuffer = 0.14; // yarı otomatikte tıklamayı kısa süre hatırla
+    // Elde bıçak: tetik keser (basılı tutulunca tempo aralığıyla art arda); mermi, sapma, tepme yok
+    if (d.melee) {
+      if (this.state === 'idle' && (held || this.fireBuffer > 0) && w.cooldown <= 0) {
+        this.fireBuffer = 0;
+        this.startSlash();
+      }
+      return;
+    }
 
     // Pompalıda ateş, reload'u yarıda keser
     if (this.state === 'reloading' && d.reloadType === 'shell' && (pressed || this.fireBuffer > 0) && w.mag > 0) {
@@ -789,17 +800,34 @@ export class PlayerWeapons {
     return { type: 'shell', phase: R.phase, k: clamp(R.t / dur, 0, 1), empty: R.empty };
   }
 
+  // Elde bıçak savuruşu: sırayla sağdan sola ve soldan sağa (görünüm modeli slashSide'a bakar)
+  startSlash() {
+    const w = this.current;
+    this.state = 'melee';
+    this.stateT = 0;
+    this.meleeHitDone = false;
+    this.meleeKnife = true;
+    this.slashSide = this.slashSide ? 0 : 1;
+    w.cooldown = 60 / w.data.rpm;
+    this.game.audio.mech('melee');
+  }
+
   updateMelee() {
     const g = this.game;
-    if (!this.meleeHitDone && this.stateT >= MELEE.hitTime) {
+    // Elde bıçakta isabet anı, menzil ve hasar silahın verisinden; hızlı bıçakta MELEE
+    const K = this.meleeKnife ? this.current.data : null;
+    const hitTime = K ? K.melee.hitTime : MELEE.hitTime;
+    const range = K ? K.range : MELEE.range;
+    const damage = K ? K.damage : MELEE.damage;
+    if (!this.meleeHitDone && this.stateT >= hitTime) {
       this.meleeHitDone = true;
       g.net?.onMelee();
       const cam = g.camera;
       cam.getWorldPosition(_o);
       cam.getWorldDirection(_fwd);
-      const target = g.enemies.meleeTarget(_o, _fwd, MELEE.range);
+      const target = g.enemies.meleeTarget(_o, _fwd, range);
       if (target) {
-        const out = target.takeDamage(MELEE.damage, { zone: 'torso', dir: _fwd, point: target.chestPos(), source: 'player', weapon: 'melee' });
+        const out = target.takeDamage(damage, { zone: 'torso', dir: _fwd, point: target.chestPos(), source: 'player', weapon: 'melee' });
         g.effects.impact(target.chestPos(), _tmp.copy(_fwd).negate(), 'flesh', 1.5);
         g.audio.impact('flesh', target.chestPos());
         g.events.emit('hitmarker', out.killed ? 'kill' : 'hit');
@@ -807,7 +835,7 @@ export class PlayerWeapons {
         g.player.shake(0.2);
         if (out.killed) g.addScore(SCORE.melee, 'BIÇAK');
       } else {
-        const wh = g.world.raycast(_o, _fwd, MELEE.range * 0.8, _hit);
+        const wh = g.world.raycast(_o, _fwd, range * 0.8, _hit);
         if (wh) {
           g.effects.impact(wh.point, wh.normal, wh.surface, 0.6, false);
           g.audio.impact(wh.surface, wh.point);
@@ -815,7 +843,7 @@ export class PlayerWeapons {
         }
       }
     }
-    if (this.stateT >= MELEE.cooldown * 0.75) {
+    if (this.stateT >= (K ? K.melee.time : MELEE.cooldown * 0.75)) {
       this.state = 'idle';
     }
   }

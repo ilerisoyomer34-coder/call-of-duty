@@ -474,7 +474,28 @@ export function buildRocket() {
   return g;
 }
 
+// Bıçak (hazır model inmezse): köken sapın ortası, uç -Z, ağız -Y; sap, balçak ve sırtı düz ağız
+export function buildKnife() {
+  const root = new THREE.Group();
+  const steel = mat(0x8c9196, 0.28, 0.85);
+  const grip = mat(0x1d1f1c, 0.85, 0.05);
+  B(root, 0.024, 0.032, 0.12, grip, 0, 0, 0.01); // sap
+  B(root, 0.03, 0.05, 0.008, steel, 0, -0.002, -0.054); // balçak
+  B(root, 0.005, 0.03, 0.16, steel, 0, 0.002, -0.138); // ağız
+  B(root, 0.004, 0.016, 0.04, steel, 0, 0.004, -0.226, 0.35); // uç
+  return {
+    root,
+    parts: {},
+    muzzle: new THREE.Vector3(0, 0.005, -0.24),
+    sight: new THREE.Vector3(0, 0, 0),
+    leftHand: new THREE.Vector3(0, 0, 0),
+    rightHand: new THREE.Vector3(0, 0, 0),
+    eject: new THREE.Vector3(0, 0, 0),
+  };
+}
+
 export function buildWeapon(id) {
+  if (id === 'knife') return buildKnife();
   if (id === 'pr10') return buildPumpRifle();
   if (id === 'pistol' || id === 'd50') return buildPistol();
   if (id === 'shotgun') return buildShotgun();

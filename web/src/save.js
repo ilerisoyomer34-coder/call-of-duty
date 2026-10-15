@@ -29,7 +29,7 @@ export function freshSave(startCredits = STORE.startCredits) {
     version: SAVE_VERSION,
     credits: startCredits,
     inventory: { armor: [], helmets: [], consumables: {}, upgrades: [], weapons: [] },
-    loadout: { primary: null, secondary: null, armor: null, helmet: null, slots: [null, null] },
+    loadout: { primary: null, secondary: null, melee: null, armor: null, helmet: null, slots: [null, null] },
     // Yapılmış bir kerelik geçişler (yeni kayıtta hepsi yapılmış sayılır: seçimine dokunulmaz)
     migrated: { detailedGuns: true },
     progress: { unlocked: 1, best: {} },

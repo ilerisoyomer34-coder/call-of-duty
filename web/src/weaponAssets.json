@@ -328,7 +328,7 @@
     },
     "length": 0.92,
     "tris": 21660,
-    "bytes": 419816,
+    "bytes": 420580,
     "materials": {
       "Material__180": {
         "map": "assets/weapons/kt9_t0.jpg",
@@ -381,6 +381,7 @@
       ]
     },
     "parts": [
+      "mag",
       "optic"
     ],
     "bounds": {
@@ -396,8 +397,8 @@
       ]
     },
     "length": 0.84,
-    "tris": 137684,
-    "bytes": 4510588,
+    "tris": 137680,
+    "bytes": 4506728,
     "materials": {
       "Material__35": {
         "map": "assets/weapons/mk4_t0.jpg",
@@ -673,6 +674,60 @@
       "author": "DJMaesen (https://sketchfab.com/bumstrum)",
       "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
       "source": "https://sketchfab.com/3d-models/sniper-cdefd833b4b5407ba32c53c9e7f50cae"
+    }
+  },
+  "bazooka": {
+    "file": "assets/weapons/bazooka.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.059,
+        -0.72
+      ],
+      "sight": [
+        -0.072,
+        0.11,
+        0.14
+      ],
+      "leftHand": [
+        0,
+        0.005,
+        -0.28
+      ],
+      "eject": [
+        0,
+        0.059,
+        0.63
+      ]
+    },
+    "parts": [],
+    "bounds": {
+      "min": [
+        -0.061,
+        -0.172,
+        -0.719
+      ],
+      "max": [
+        0.06,
+        0.12,
+        0.631
+      ]
+    },
+    "length": 1.35,
+    "tris": 4438,
+    "bytes": 77028,
+    "materials": {
+      "default": {
+        "map": "assets/weapons/bazooka_t0.jpg",
+        "normalMap": "assets/weapons/bazooka_t1.jpg",
+        "ormMap": "assets/weapons/bazooka_t3.jpg"
+      }
+    },
+    "credit": {
+      "title": "Bazooka M20",
+      "author": "Melvin Stubbe (https://sketchfab.com/MelvinEbbuts)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/bazooka-m20-a53d6716c9c24302a6fdd71ff70a7d63"
     }
   }
 }

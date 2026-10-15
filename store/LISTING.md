@@ -33,7 +33,7 @@ CEPHEYİ TUT
 • Üç zorluk seviyesi ve her görevde bonus hedefler.
 
 TEÇHİZATINI KUR
-• 18 silah: taarruz tüfekleri, makineliler, keskin nişancı tüfekleri, pompalı tüfekler, minigun ve roketatar.
+• 18 silah ve bıçak: taarruz tüfekleri, taramalılar, keskin nişancı tüfekleri, pompalılar, bazuka ve özel silah minigun.
 • Her silahın kendine özgü nişangâhı: kolimatör, holografik, ACOG ve farklı dürbünler.
 • Zırh yelekleri, kasklar, el bombası, sis ve ilk yardım.
 
@@ -80,7 +80,7 @@ HOLD THE LINE
 • Three difficulty levels and bonus objectives in every mission.
 
 BUILD YOUR LOADOUT
-• 18 weapons: assault rifles, machine guns, sniper rifles, shotguns, a minigun and a rocket launcher.
+• 18 weapons and a combat knife: assault rifles, machine guns, sniper rifles, shotguns, a bazooka and the special minigun.
 • Every weapon has its own sight: red dot, holographic, ACOG and distinct scopes.
 • Body armour, helmets, grenades, smoke and first aid.
 

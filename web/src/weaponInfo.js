@@ -63,7 +63,8 @@ const MODE_LABEL = { auto: 'Otomatik', burst: 'Seri', semi: 'Tek atış' };
 export function weaponInfoLine(id) {
   const d = WEAPONS[id];
   const m = META[id] || {};
-  const mag = d.reloadType === 'shell' ? `${d.magSize} fişek` : d.projectile ? `${d.magSize} roket` : `${d.magSize} mermi`;
+  if (d.melee) return [m.caliber, 'Elde taşınır', 'Nişan yok'].filter(Boolean).join(' · ');
+  const mag = d.reloadType === 'shell' ? `${d.magSize} fişek` : d.projectile ? `${d.magSize} roket` : `${d.magSize.toLocaleString('tr-TR')} mermi`;
   const modes = d.fireModes.map((f) => (f === 'burst' ? `${d.burstCount || 3}'lü seri` : MODE_LABEL[f] || f)).join(' / ');
   return [m.caliber, mag, modes].filter(Boolean).join(' · ');
 }
@@ -110,8 +111,9 @@ function maxima() {
   maxCache = {};
   for (const id of WEAPON_ORDER) {
     const d = WEAPONS[id];
-    // Roketatar ve döner makineli (dakikada 1800 atış) oranı belirlemez: diğer silahların çubukları ezilmesin
-    if (d.projectile || d.spin) continue;
+    // Bazuka, döner makineli (dakikada 1800 atış) ve bıçak (sapma/tepme yok) oranı belirlemez: diğer
+    // silahların çubukları ezilmesin
+    if (d.projectile || d.spin || d.melee) continue;
     const r = raw(d);
     for (const [k] of STAT_KEYS) maxCache[k] = Math.max(maxCache[k] || 0, r[k]);
   }

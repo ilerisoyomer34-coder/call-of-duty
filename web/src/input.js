@@ -30,9 +30,10 @@ export const BINDINGS = {
   nextWeapon: ['WheelDown'],
   prevWeapon: ['WheelUp'],
   swapWeapon: ['KeyX'],
-  // Sarf yuvaları (teçhizat): görevde 3 ve 4 boştur; poligonda bu tuşlar silah seçer, orada yuva yoktur
-  useItem1: ['Digit3'],
-  useItem2: ['Digit4'],
+  // Sarf yuvaları (teçhizat): görevde 1 ana, 2 yan silah, 3 bıçak; sarflar 4 ve 5'te. Poligonda bu tuşlar
+  // silah seçer, orada yuva yoktur
+  useItem1: ['Digit4'],
+  useItem2: ['Digit5'],
   tracker: ['KeyJ'], // bonus görev takipçisini daralt/aç
   // Komut çarkı (basılı tut, bırakınca verilir) ve bağlamsal işaret (Operasyon Güncellemesi §8.3)
   wheel: ['KeyT'],
@@ -81,8 +82,8 @@ export function applyBindingOverrides(over) {
 export const ACTION_LABELS = {
   forward: 'İleri', back: 'Geri', left: 'Sol', right: 'Sağ', jump: 'Zıpla', crouch: 'Çömel',
   sprint: 'Koş', fire: 'Ateş', ads: 'Nişan al', reload: 'Şarjör değiştir', interact: 'Etkileşim',
-  grenade: 'El bombası', melee: 'Bıçak', fireMode: 'Atış modu', leanLeft: 'Sola eğil', leanRight: 'Sağa eğil',
-  weapon1: 'Ana silah (poligonda 1–9)', weapon2: 'Yan silah', swapWeapon: 'Son silah', pause: 'Duraklat',
+  grenade: 'El bombası', melee: 'Hızlı bıçak', fireMode: 'Atış modu', leanLeft: 'Sola eğil', leanRight: 'Sağa eğil',
+  weapon1: 'Ana silah (poligonda 1–9)', weapon2: 'Yan silah', weapon3: 'Bıçağı eline al', swapWeapon: 'Son silah', pause: 'Duraklat',
   holdBreath: 'Nefesini tut (dürbün)', useItem1: 'Sarf yuvası 1', useItem2: 'Sarf yuvası 2', tracker: 'Görev takipçisi',
   cmdFollow: 'Takip edin', cmdHold: 'Pozisyonu koruyun', cmdSuppress: 'Baskı ateşi (nişangâhın baktığı yere)', cmdCover: 'Siper alın',
   cmdHeal: 'Beni iyileştir (medik)', cmdHoldFire: 'Ateşi kesin', cmdFreeFire: 'Serbest ateş',

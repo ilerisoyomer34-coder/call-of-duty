@@ -107,7 +107,7 @@ export class HUD {
     E.on('noAmmo', () => this.message('CEPHANE YOK', 'warn'));
     // Mevzi ateş açtı: bir kez büyük uyarı; mini haritada kalıcı işaret
     E.on('hmgFire', (m) => this.message(m?.warnText || 'AĞIR MAKİNELİ ATEŞİ · SİPER AL', 'warn'));
-    E.on('tankSpotted', () => this.message('TANK! · ROKETATAR YA DA C4 KULLAN', 'warn'));
+    E.on('tankSpotted', () => this.message('TANK! · BAZUKA YA DA C4 KULLAN', 'warn'));
     // Komutu alan askerin başında kısa süre komut simgesi (çağrı kodu → { text, until })
     this.cmdTags = new Map();
     E.on(EV.COMMAND_ISSUED, (p) => {
@@ -208,14 +208,21 @@ export class HUD {
     const d = w.data;
     const inf = this.game.cheats.infiniteAmmo;
     this.el.wName.textContent = weaponName(d.id);
-    this.el.wMode.textContent = `${d.kind} · ${MODE_LABEL[w.mode]}`;
-    this.el.aMag.textContent = inf ? '∞' : w.mag;
-    // Fişek kayışlı silahta (minigun) yedek yok: kayıştaki fişek sayısı binlik ayraçla, yanında KAYIŞ
-    this.el.aRes.textContent = d.reloadType === 'none' ? 'KAYIŞ' : `/ ${w.reserve}`;
-    if (d.reloadType === 'none' && !inf) this.el.aMag.textContent = w.mag.toLocaleString('tr-TR');
+    this.el.wMode.textContent = d.melee ? `${d.kind} · Yakın dövüş` : `${d.kind} · ${MODE_LABEL[w.mode]}`;
+    // Büyük sayılar (minigun kutusu ve yedeği) binlik ayraçla
+    this.el.aMag.textContent = inf ? '∞' : w.mag.toLocaleString('tr-TR');
+    this.el.aRes.textContent = `/ ${w.reserve.toLocaleString('tr-TR')}`;
+    const hint = this.el.reloadHint;
+    if (d.melee) {
+      // Elde bıçak: cephane yok, uyarı da yok
+      this.el.aMag.textContent = '—';
+      this.el.aRes.textContent = 'BIÇAK';
+      this.el.ammo.classList.remove('low');
+      hint.className = '';
+      return;
+    }
     const low = w.mag === 0 || (d.magSize > 3 && w.mag <= Math.ceil(d.magSize * 0.25));
     this.el.ammo.classList.toggle('low', low);
-    const hint = this.el.reloadHint;
     if (w.mag === 0 && w.reserve === 0) {
       hint.textContent = 'CEPHANE YOK · SİLAH DEĞİŞTİR';
       hint.className = 'on warn';

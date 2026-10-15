@@ -1,6 +1,6 @@
 # Demir Şafak
 
-Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: komutanı olduğun üç kişilik Alfa Timi'yle beş farklı haritada operasyona çıkıyorsun; timine çarktan, kısayollardan, işaretleyerek ya da Türkçe yazarak (isteğe bağlı sesle) komut verirsin. Kontrol noktalarını temizliyor, uçaksavarları ve yakıt pompalarını C4 ile patlatıyor, tankları roketatarla vuruyor, istihbarat topluyor ve helikopter gelene kadar iniş bölgesini tutuyorsun. Her bölüm helikoptere binip havalanınca biter, ardından sıradaki bölüm kendiliğinden başlar. Altı seviye kolaydan zora sıralı. İlk ikisi Kızılkum Vadisi'nde geçer; sonrakiler gün batımında bir limanda, yıkık bir şehirde, karlı bir dağ geçidinde ve gece bir rafineride. Zorlaştıkça düşman ağır makineli mevziler ve tanklar kurar, senin mangan da her seviyede daha profesyonel oynar.
+Tarayıcıda oynanan, birinci şahıs bakış açılı bir taktiksel savaş oyunu. Tek oyunculu, görev tabanlı: komutanı olduğun üç kişilik Alfa Timi'yle beş farklı haritada operasyona çıkıyorsun; timine çarktan, kısayollardan, işaretleyerek ya da Türkçe yazarak (isteğe bağlı sesle) komut verirsin. Kontrol noktalarını temizliyor, uçaksavarları ve yakıt pompalarını C4 ile patlatıyor, tankları bazukayla vuruyor, istihbarat topluyor ve helikopter gelene kadar iniş bölgesini tutuyorsun. Her bölüm helikoptere binip havalanınca biter, ardından sıradaki bölüm kendiliğinden başlar. Altı seviye kolaydan zora sıralı. İlk ikisi Kızılkum Vadisi'nde geçer; sonrakiler gün batımında bir limanda, yıkık bir şehirde, karlı bir dağ geçidinde ve gece bir rafineride. Zorlaştıkça düşman ağır makineli mevziler ve tanklar kurar, senin mangan da her seviyede daha profesyonel oynar.
 
 Oyun, `Docs/MASTER_PROMPT.md`'deki Unreal Engine 5 shooter planının tarayıcıda çalışan dikey kesitidir. Silah hissi, yapay zekâ, görev akışı ve arayüz o plandaki mimariyle kuruldu. Düşman askerleri hazır iskeletli bir karakterdir (Mixamo "Vanguard"); dört silah oyuncunun kendi Blender dosyalarından, dört silah, yakın dövüş bıçağı ve tahliye helikopteri Sketchfab'den gelir (hepsi CC BY 4.0; silah adları kurgusal, dokulardaki gerçek marka yazıları silindi); harita, diğer modeller, dokular ve sesler kodla üretilir.
 
@@ -53,12 +53,12 @@ Oyun aynı zamanda mağaza uygulaması olarak derlenir:
 | Şarjör değiştir | R | X |
 | Atış modu (tüfek) | B | D-pad yukarı |
 | El bombası (basılı tut: fitil pişir) | G | RB |
-| Bıçak | V | R3 |
+| Hızlı bıçak (her silahta) | V | R3 |
 | Etkileşim (C4, istihbarat, ikmal) | F (basılı tut) | LB |
 | Sola / sağa eğil | Q / E | D-pad sol / sağ |
-| Silahlar | 1 ana, 2 yan silah (poligonda 1–9), X son silah, tekerlek | Y |
+| Silahlar | 1 ana, 2 yan silah, 3 bıçak (elde; poligonda 1–9), X son silah, tekerlek | Y |
 | Dürbünde nefesini tut | Shift | L3 |
-| Sarf yuvaları (plaka, ilk yardım, sis, el bombası, adrenalin) | 3 / 4 | |
+| Sarf yuvaları (plaka, ilk yardım, sis, el bombası, adrenalin) | 4 / 5 | |
 | Komut çarkı (basılı tut, fareyle seç, bırak) | T | |
 | İşaretle (düşman → saldır, zemin → git, yaralı → kaldır; çift basış iptal) | Z | |
 | Tim kısayolları: takip, pozisyon, baskı, siper, beni iyileştir, ateşi kes, serbest ateş | F1, F2, F3, F4, F5, F8, F9 | |
@@ -115,10 +115,11 @@ Seviye ayarları `web/src/config.js` → `LEVELS`; harita ortamları → `MAPS`;
   | MR-82 Marret | .50 keskin nişancı, dürbün + nefes tutma | Blender (marret_m82) |
   | P-9 Sentinel | Tabanca | prosedürel |
   | D-50 Kartal | .50 ağır tabanca | Blender (golden_dessert_eagle_1) |
-  | RK-7 Yıldırım | Roketatar, alan hasarı | prosedürel |
+  | BZ-20 Yıldırım | Bazuka (M20), arkadan dolar, alan hasarı | Sketchfab (Bazooka M20, CC BY) |
 
 - **Teçhizat:** görevden önce ana ve yan silahı seçersin. Haritada yedi silah daha var; yerdekini F ile alınca aynı türdeki silahının yerine geçer, bıraktığın yere düşer.
-- **Silah hissi:** kare hızından bağımsız atış zamanlaması, kameradan hitscan ve namludan engel doğrulaması, oyuncunun karşı hareketini hesaba katan geri tepme toparlanması, sway, bob, nefes, koşu pozu, duvara yaklaşınca geri çekme, prosedürel reload (şarjör düşer, sol el yenisini takar, boş reload'da kurma kolu çekilir), pompa ve sürgü hareketi, namlu alevi, iz mermisi, kovan, yüzeye göre çarpma efekti ve ses, vuruş işaretleri (normal / kafa / öldürme).
+- **Bıçak ve özel silah:** bıçak görevde 3. yuvadadır, eline alınır (sol tık keser, nişan yok, elde bıçakla daha hızlı koşarsın); V ile her silahta hızlı bıçak da var. M134 Kasırga (minigun) oyunun özel silahıdır: mağazada 15.000 KR, çok yüksek hasar, zırh deler, 1.000'lik kutu + 9.000 yedek fişek. Teçhizat ekranında silahlar sınıflara ayrılır: Taarruz Tüfekleri, Taramalılar, Ağır Taramalılar, Pompalılar, Nişancı Tüfekleri, Keskin Nişancılar, Tabancalar, Bazukalar, Özel Silahlar, Bıçaklar.
+- **Silah hissi:** kare hızından bağımsız atış zamanlaması, kameradan hitscan ve namludan engel doğrulaması, oyuncunun karşı hareketini hesaba katan geri tepme toparlanması, sway, bob, nefes, koşu pozu, duvara yaklaşınca geri çekme, silaha özgü kısa şarjör değiştirme (HALO örnek alındı: şarjörün yeri ve ekseni her silahın kendi modelinden; AK'da şarjör öne devrilerek çıkar, tabancada boş şarjör kendiliğinden düşer, pompalıda fişek elde görünür, bazukada roket arkadan sürülür, minigunda fişek kayışı değişir; şarjör oturunca silah sıçrar, boşta kurma kolu çekilir), pompa ve sürgü hareketi, namlu alevi, iz mermisi, kovan, yüzeye göre çarpma efekti ve ses, vuruş işaretleri (normal / kafa / öldürme).
 - **Görüntü:** dünya ölçekli çözünürlükte, kenar yumuşatmalı (MSAA) ayrı bir hedefe çizilir; eller ve silah her zaman tam cihaz çözünürlüğünde, kenar yumuşatmalı çizilir. Telefonda performans korunurken silah ve eller keskin kalır. Ayarlarda "Dünya çözünürlüğü" seçilebilir; dokular kaliteye göre anizotropik süzmeyle örneklenir (yüksekte 16×, ortada 8×, düşükte 4×). Düşük kalite bilinçli performans modudur: tuvalde kenar yumuşatma kapalıdır. Birinci şahıs eller prosedürel eldivenli ellerdir (parmaklar kabzayı ve el kundağını kavrar).
 - **Askerler:** iskeletli hazır model; bekleme, yürüme ve koşma klipleri hıza göre karışır, adım döngüsü gerçek hıza bağlı olduğu için ayak kaymaz. Alt gövde hareket yönüne döner, üst gövde hedefe bakar; geri geri yürüme, yan adım, çömelme (bacak IK), iki elle silah tutuşu (kol IK), nişan / hazır / rahat duruşları, şarjör değiştirme, atışta geri tepme, isabette sarsılma, ölümde diz çöküp devrilme ve elden düşen silah. Türler renk tonu ve boyla ayrışır. Vuruş bölgeleri kemiklere bağlı kutulardır (kafa, gövde, kol-bacak). Model yüklenemezse kodla üretilen yedek askerler kullanılır. Uzaktaki askerler donmaz: yer ve yön her karede güncellenir, poz uzaklığa göre saniyede 30/15/8 kez hesaplanır; gölge menzili dışında yumuşak ayak gölgesi, karanlıkta kararmamaları için ortam yansıması alırlar.
 - **Düşman yapay zekâsı:** devriye, şüphelenme, araştırma, alarm yayma, siper bulma ve siperden göz atma, yan adım, hücum eden pompalılar, bastırma ateşi yapan ağır makineliler, mevzideki sehpalı makineliler, lazerle nişan alan keskin nişancılar, el bombası atma, düşük canda geri çekilme. Adil isabet: mesafe, hareketin, ilk atış ıskası ve zorluk hesaba katılır; aynı anda yalnızca sınırlı sayıda düşman sana ateş eder.
