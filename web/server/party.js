@@ -141,6 +141,15 @@ export class PartyManager {
     return { ok: true };
   }
 
+  // Hesap silindi: takımdan çıkar, ondan giden ya da ona gelen davetler düşer
+  forget(id) {
+    this.leave(id);
+    for (const [key, inv] of this.invites) if (inv.from === id || inv.to === id) this.invites.delete(key);
+    const t = this.grace.get(id);
+    if (t) clearTimeout(t);
+    this.grace.delete(id);
+  }
+
   onOffline(id) {
     if (!this.partyOf(id)) return;
     const p = this.partyOf(id);

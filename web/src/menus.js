@@ -1,5 +1,5 @@
 // Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, lisanslar, duraklatma, ölüm, zafer.
-import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS, EXTRACT } from './config.js';
+import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS, EXTRACT, APP } from './config.js';
 import { applyBindingOverrides } from './input.js';
 import { BindingsEditor } from './bindingsUi.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
@@ -15,8 +15,12 @@ import { renderBriefing, renderRewards, starsText } from './missionUi.js';
 import { speechSupported, recognitionCtor } from './radioChat.js';
 import { NameScreen, playerDisplay } from './nameScreen.js';
 import { parseServerInput } from './net/servers.js';
+import { errorText } from './net/social.js';
+import { Lobby } from './lobby.js';
+import { STORE_BUILD } from './platform.js';
 
 const $ = (id) => document.getElementById(id);
+const ACCOUNT_INFO = 'Ad, etiket, arkadaşlar ve bildirimler bu sunucudan kalıcı olarak silinir; cihazdaki ilerleme kalır';
 const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'licenseScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 // Atıfta yazılan değişiklik (CC BY değişikliğin belirtilmesini ister)
@@ -46,6 +50,8 @@ export class Menus {
     this.storeScreen = new StoreScreen(game, this);
     // Teçhizat: yuvalar, gerçek adlı silah kartları, dönen önizleme (loadoutScreen.js)
     this.loadoutScreen = new LoadoutScreen(game, this, this.storeScreen.store);
+    // Lobi: oyuncu kartı, günün görevleri, günlük ödül, BAŞLA (lobby.js)
+    this.lobby = new Lobby(game, this);
     // Kredi bakiyesi: her harcama/kazançta güncellenir
     this.updateCredits();
     game.events.on(EV.CREDITS_CHANGED, () => this.updateCredits());
@@ -61,6 +67,41 @@ export class Menus {
     $('menuHelloName').textContent = name;
     const sn = $('sPlayerName');
     if (sn) sn.textContent = name || '—';
+    this.refreshAccount();
+  }
+
+  // Ayarlar → Çevrim içi hesap: yalnız sunucuda hesap varken görünür. Silme iki basışlıdır (yanlışlıkla
+  // dokunuş hesabı götürmesin); App Store 5.1.1(v) ve Google Play hesabın uygulama içinden silinmesini ister
+  refreshAccount(info = ACCOUNT_INFO) {
+    const row = $('setAccount');
+    if (!row) return;
+    clearTimeout(this.deleteTimer);
+    const has = !!this.game.save.data.profile.token;
+    // Silindikten sonra satır sonucu göstermek için açık kalır (düğmesiz)
+    row.hidden = !has && info === ACCOUNT_INFO;
+    this.deleteArmed = false;
+    const b = $('btnDeleteAccount');
+    b.hidden = !has;
+    b.disabled = false;
+    b.textContent = 'Hesabı sil';
+    $('sAccountInfo').textContent = info;
+  }
+
+  async deleteAccount() {
+    const b = $('btnDeleteAccount');
+    if (!this.deleteArmed) {
+      this.deleteArmed = true;
+      b.textContent = 'Emin misin? Kalıcı · yeniden bas';
+      clearTimeout(this.deleteTimer);
+      this.deleteTimer = setTimeout(() => this.refreshAccount(), APP.confirmSec * 1000);
+      return;
+    }
+    clearTimeout(this.deleteTimer);
+    b.disabled = true;
+    b.textContent = 'Siliniyor…';
+    const r = (await this.game.social?.deleteAccount()) || { ok: false, error: 'network' };
+    if (r.ok) $('sServerUrl').value = '';
+    this.refreshAccount(r.ok ? 'Çevrim içi hesabın silindi. Bir sunucuya yeniden bağlanırsan yeni hesap açılır.' : `Silinemedi: ${errorText(r.error)}. Sunucuya bağlıyken yeniden dene.`);
   }
 
   // Ana menü açılırken: ad yoksa önce ad ekranı
@@ -121,6 +162,7 @@ export class Menus {
     if (!push && id === 'loadoutScreen') this.loadoutScreen?.refresh();
     for (const s of SCREENS) $(s).hidden = s !== id;
     this.current = id;
+    if (id === 'menu') this.lobby?.refresh();
     const first = $(id)?.querySelector('button, .diff');
     if (first && !this.game.input.touch.active) setTimeout(() => first.focus({ preventScroll: true }), 30);
   }
@@ -169,6 +211,10 @@ export class Menus {
       this.show('licenseScreen');
     });
     click('btnResume', () => g.resume());
+    click('btnPauseSound', () => g.toggleSound());
+    click('btnDeleteAccount', () => this.deleteAccount());
+    const priv = $('lnkPrivacy');
+    if (priv) priv.href = APP.privacyUrl;
     click('btnPauseSettings', () => this.openSettings());
     click('btnPauseControls', () => this.show('controlsScreen'));
     click('btnRestartCp', () => g.respawn());
@@ -211,6 +257,9 @@ export class Menus {
         this.game.audio.init();
         this.game.audio.uiClick();
         this.pendingDiff = key;
+        // Lobinin BAŞLA düğmesi son seçilen zorlukla açar
+        this.game.save.data.progress.lastDiff = key;
+        this.game.save.update(null);
         for (const x of list.children) {
           x.classList.toggle('sel', x.dataset.key === key);
           x.setAttribute('aria-checked', String(x.dataset.key === key));
@@ -373,6 +422,7 @@ export class Menus {
     set('sAdsMode', S.adsMode);
     set('sCrouchMode', S.crouchMode);
     set('sSprintMode', S.sprintMode);
+    chk('sMuted', S.muted);
     set('sMaster', S.masterVolume);
     set('sSfx', S.sfxVolume);
     set('sAmb', S.ambientVolume);
@@ -386,10 +436,12 @@ export class Menus {
     chk('sBlood', S.blood);
     chk('sDmgNum', S.damageNumbers);
     chk('sRealNames', S.realNames);
+    $('sRealNames').closest('.set').hidden = STORE_BUILD;
     chk('sReroll', S.rerollBonuses);
     set('sWheelSlow', String(S.wheelSlowMo));
     set('sChatSlow', String(S.chatSlowMo));
     set('sServerUrl', S.serverUrl || '');
+    this.refreshAccount();
     chk('sTts', S.tts);
     chk('sVoiceCmd', S.voiceCommands);
     // Tarayıcı desteklemiyorsa seslendirme / sesli komut satırı görünmez (§8.3/5)
@@ -433,6 +485,7 @@ export class Menus {
     S.adsMode = $('sAdsMode').value;
     S.crouchMode = $('sCrouchMode').value;
     S.sprintMode = $('sSprintMode').value;
+    S.muted = $('sMuted').checked;
     S.masterVolume = parseFloat($('sMaster').value);
     S.sfxVolume = parseFloat($('sSfx').value);
     S.ambientVolume = parseFloat($('sAmb').value);

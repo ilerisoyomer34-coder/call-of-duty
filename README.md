@@ -33,6 +33,16 @@ Site `gh-pages` dalından yayımlanır. Bu dalın kökü `web/dist/pwa/` klasör
 - **Elle:** `cd web && npm run deploy:pages`. Commit'lenmiş `dist/pwa/` klasörünü `gh-pages` dalına gönderir.
 - **Pages kapalıysa (404):** depoda **Settings → Pages** sayfasında **Deploy from a branch** seç, dal olarak `gh-pages`, klasör olarak `/ (root)` seç ve **Save**'e bas. GitHub mobil uygulamasında bu ayar yok, tarayıcıdan açılmalı.
 
+### App Store ve Google Play
+
+Oyun aynı zamanda mağaza uygulaması olarak derlenir:
+
+- **Mağaza sürümü:** `web/dist/app/` (çevrimdışı, yerel yazı tipleri, kurgusal silah adları).
+- **Yerel kabuk:** `mobile/` (Capacitor: Android Studio ve Xcode projeleri).
+- **Mağaza görselleri ve metinleri:** `store/`.
+- **Adım adım yayın:** [Docs/STORE_RELEASE.md](Docs/STORE_RELEASE.md). Hesap açma, imzalama, formlar, uygunluk listesi orada.
+- **Gizlilik politikası:** https://ilerisoyomer34-coder.github.io/call-of-duty/privacy.html
+
 ## Kontroller
 
 | Eylem | Klavye / fare | Gamepad |

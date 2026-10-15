@@ -37,4 +37,9 @@ export const EV = Object.freeze({
   NET_DEATH: 'NET_DEATH', // { killer } (yerel oyuncu)
   NET_ROUND: 'NET_ROUND', // { code: 1 maç başladı | 2 maç bitti, value }
   NET_MATCH_END: 'NET_MATCH_END', // { winner, reason, scoreA, scoreB }
+  // Oyuncu ilerlemesi (progression.js)
+  XP_GAINED: 'XP_GAINED', // { amount, reason, level, frac }
+  LEVEL_UP: 'LEVEL_UP', // { level, rank: { name, short }, credits }
+  CHALLENGE_DONE: 'CHALLENGE_DONE', // { id, name, credits, xp }
+  DAILY_CLAIMED: 'DAILY_CLAIMED', // { day, credits, xp }
 });

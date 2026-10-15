@@ -16,7 +16,9 @@
     l.rel = 'stylesheet';
     // CORS isteği: PWA'nın hizmet çalışanı yanıtı okuyup çevrimdışı için saklayabilsin (opak yanıt saklanmaz)
     l.crossOrigin = 'anonymous';
-    l.href = 'https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap';
+    // Mağaza uygulaması (dist/app) yazı tiplerini kendi içinden alır (çevrimdışı, Google'a istek yok): derleme
+    // __DS_FONTS'u fonts/fonts.css yapar (tools/build.mjs, src/fonts/)
+    l.href = window.__DS_FONTS || 'https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap';
     (document.head || document.documentElement).appendChild(l);
   } catch (e) { /* yazı tipi yoksa yedek yazı tipleri kullanılır */ }
 
@@ -349,9 +351,128 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* ---------- Menüler ---------- */
 .screen { position: absolute; inset: 0; display: flex; pointer-events: auto; overflow-y: auto; }
 .screen[hidden] { display: none !important; }
-#menu { background: linear-gradient(90deg, rgba(10,12,14,.92) 0%, rgba(10,12,14,.72) 38%, rgba(10,12,14,.05) 72%); }
-#menu .col { display: flex; flex-direction: column; justify-content: safe center; gap: 28px; padding-block: 40px; padding-inline: max(24px, 7vw) 24px; width: min(520px, 100%); box-sizing: border-box; }
 .eyebrow { font: 600 13px/1 var(--f-ui); letter-spacing: .32em; color: var(--amber); text-transform: uppercase; }
+/* ---------------- Lobi (ana sayfa, CODM düzeni) ----------------
+   Izgara: üst çubuk | sol (logo + modlar) · orta (3B operatör, boş) · sağ (günün görevleri) | alt (gezinme + BAŞLA) */
+#menu.lobby { display: grid; grid-template-columns: minmax(260px, 30%) 1fr minmax(260px, 300px); grid-template-rows: auto 1fr auto; gap: 14px 22px; padding: max(14px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px)); box-sizing: border-box; overflow: hidden; }
+.lbShade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(8,10,12,.88) 0%, rgba(8,10,12,.55) 26%, rgba(8,10,12,0) 46%, rgba(8,10,12,0) 66%, rgba(8,10,12,.6) 100%), linear-gradient(0deg, rgba(8,10,12,.85) 0%, rgba(8,10,12,0) 26%), linear-gradient(180deg, rgba(8,10,12,.7) 0%, rgba(8,10,12,0) 16%); }
+.lbTop, .lbLeft, .lbDaily, .lbStart, .lbBottom { position: relative; z-index: 1; }
+.lbTop { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.lbPlayer { appearance: none; display: flex; align-items: center; gap: 12px; padding: 6px 14px 6px 6px; background: linear-gradient(90deg, rgba(22,27,31,.92), rgba(22,27,31,.55)); border: 1px solid var(--line); border-left: 3px solid var(--amber); color: var(--sand); cursor: pointer; text-align: left; font-family: var(--f-ui); min-height: 52px; }
+.lbPlayer:hover, .lbPlayer:focus-visible { border-color: var(--amber); outline: none; }
+.lbEmblem { width: 42px; height: 42px; flex: none; display: grid; place-items: center; }
+.lbEmblem svg { width: 42px; height: 42px; }
+.lbWho { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lbWho .hello { margin: 0; font: 700 17px/1.1 var(--f-ui); letter-spacing: .03em; color: var(--sand); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.lbWho .hello b { font-weight: 700; }
+.lbWho small { font: 600 11px/1 var(--f-ui); letter-spacing: .2em; color: var(--amber); text-transform: uppercase; }
+.lbLvl { display: flex; flex-direction: column; align-items: center; padding: 0 10px; border-left: 1px solid var(--line); }
+.lbLvl small { font: 600 9px/1 var(--f-ui); letter-spacing: .2em; color: var(--sand-dim); }
+.lbLvl b { font: 400 24px/1 var(--f-num); color: #ffcf5c; }
+.lbXpBox { display: flex; flex-direction: column; gap: 5px; width: 150px; }
+.lbXp { display: block; height: 5px; background: rgba(231,220,196,.15); position: relative; overflow: hidden; }
+.lbXp i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #f0a33a, #ffcf5c); transition: width .5s ease; }
+.lbXpBox small { font: 400 11px/1 var(--f-num); color: var(--sand-dim); }
+.lbTopR { display: flex; align-items: center; gap: 10px; }
+.lbTopR .kr { margin: 0; min-height: 40px; box-sizing: border-box; align-items: center; }
+.lbIcon { appearance: none; width: 44px; height: 44px; display: grid; place-items: center; background: rgba(22,27,31,.8); border: 1px solid var(--line); color: var(--sand); cursor: pointer; padding: 0; }
+.lbIcon:hover, .lbIcon:focus-visible { border-color: var(--amber); color: #fff; outline: none; }
+.lbIcon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lbIcon .spk { fill: currentColor; stroke: none; }
+#btnSound .off { display: none; }
+body.muted #btnSound .off { display: inline; }
+body.muted #btnSound .on { display: none; }
+body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
+.lbLeft { grid-column: 1; grid-row: 2 / 4; display: flex; flex-direction: column; justify-content: center; gap: 20px; min-height: 0; padding-bottom: 64px; }
+.lbBrand .eyebrow { font-size: 11px; letter-spacing: .26em; }
+.lbBrand .title { font-size: clamp(40px, 5.4vw, 74px); line-height: .9; margin-top: 8px; }
+.lbBrand .title span { display: block; color: var(--amber); }
+.lbModes { gap: 8px; }
+#menu .lbMode { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid rgba(240,163,58,.45); background: linear-gradient(90deg, rgba(22,27,31,.88), rgba(22,27,31,.45)); font-size: 20px; letter-spacing: .1em; min-height: 64px; }
+#menu .lbMode:hover, #menu .lbMode:focus-visible { padding-left: 18px; border-color: var(--amber); background: linear-gradient(90deg, rgba(240,163,58,.18), rgba(22,27,31,.5)); }
+#menu .lbMode.primary { border-left-color: var(--amber); background: linear-gradient(90deg, rgba(240,163,58,.22), rgba(22,27,31,.5)); }
+.lbModeIco { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border: 1px solid rgba(240,163,58,.5); color: var(--amber); }
+.lbModeIco svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+#menu .lbMode small { font-size: 13px; margin-top: 5px; }
+#menuBrief[hidden] { display: none; }
+.lbDaily { grid-column: 3; grid-row: 2; align-self: start; display: flex; flex-direction: column; gap: 9px; padding: 14px; background: rgba(14,17,20,.84); border: 1px solid var(--line); border-top: 3px solid var(--amber); max-height: 100%; overflow: auto; box-sizing: border-box; }
+.lbDailyHead, .lbRewardHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
+.lbDailyHead b, .lbRewardHead b { white-space: nowrap; }
+.lbDailyHead b, .lbRewardHead b { font: 700 13px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand); }
+.lbDailyHead small, .lbRewardHead small { font: 500 11px/1.2 var(--f-ui); color: var(--sand-dim); text-align: right; }
+.lbRewardHead { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.lbChallenges { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lbChallenges li { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; font: 500 13px/1.25 var(--f-ui); color: var(--sand); }
+.lbChallenges li em { font: 400 11px/1.2 var(--f-num); font-style: normal; color: #ffcf5c; text-align: right; white-space: nowrap; }
+.lbChallenges li i { grid-column: 1 / -1; display: block; height: 4px; background: rgba(231,220,196,.13); position: relative; }
+.lbChallenges li i b { position: absolute; inset: 0 auto 0 0; background: var(--amber); }
+.lbChallenges li small { grid-column: 1 / -1; font: 400 11px/1 var(--f-num); color: var(--sand-dim); }
+.lbChallenges li.done { color: var(--sand-dim); }
+.lbChallenges li.done i b { background: #79c47a; }
+.lbPips { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.lbPips li { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 0; border: 1px solid var(--line); font: 400 10px/1 var(--f-num); color: var(--sand-dim); }
+.lbPips li b { font: 700 10px/1 var(--f-ui); letter-spacing: .06em; color: var(--sand-dim); }
+.lbPips li.got { background: rgba(121,196,122,.12); border-color: rgba(121,196,122,.45); }
+.lbPips li.now { border-color: var(--amber); background: rgba(240,163,58,.16); color: #ffcf5c; }
+.lbPips li.now b { color: var(--amber); }
+#menu .lbClaim { width: 100%; font-size: 15px; padding: 10px 12px; }
+/* Alınacak ödül: içte yanıp sönen çerçeve (görev paneli kaydırılabilir, dışa taşan kırpılırdı). Yalnız saydamlık oynar (gölge oynasaydı her karede yeniden çizim) */
+#menu .lbClaim { position: relative; }
+.lbClaim.ready::after { content: ''; position: absolute; inset: 0; border: 2px solid rgba(240,163,58,.55); pointer-events: none; animation: lbPulse 1.6s ease-in-out infinite; will-change: opacity; }
+@keyframes lbPulse { 50% { opacity: 0; } }
+.lbStart { grid-column: 3; grid-row: 3; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.lbNext { display: flex; flex-direction: column; gap: 3px; text-align: right; }
+.lbNext small { font: 600 10px/1 var(--f-ui); letter-spacing: .24em; color: var(--sand-dim); }
+.lbNext b { font: 700 16px/1.15 var(--f-ui); letter-spacing: .05em; color: var(--sand); }
+.lbNext span { font: 500 12px/1.2 var(--f-ui); color: var(--sand-dim); }
+.lbGo { appearance: none; border: 0; cursor: pointer; min-height: 64px; font: 900 30px/1 var(--f-display); letter-spacing: .14em; color: #1a1205; background: linear-gradient(180deg, #ffd06a, #f0a33a 60%, #d9861f); clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); box-shadow: 0 6px 24px rgba(240,163,58,.35); transition: filter .12s, transform .12s; }
+.lbGo:hover, .lbGo:focus-visible { filter: brightness(1.08); transform: translateY(-1px); outline: none; }
+.lbGo:active { transform: translateY(1px); }
+.lbBottom { grid-column: 1 / 3; grid-row: 3; align-self: end; display: flex; flex-wrap: wrap; gap: 6px; }
+.lbNav { appearance: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; background: rgba(14,17,20,.84); border: 1px solid var(--line); color: var(--sand); font: 700 13px/1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+.lbNav:hover, .lbNav:focus-visible { border-color: var(--amber); color: #fff; outline: none; }
+.lbNav[hidden] { display: none; }
+.lbNav svg { width: 20px; height: 20px; fill: none; stroke: var(--amber); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#menu .menuNotice { margin: 0; }
+#menu .pwaStatus { margin: 0; padding-left: 4px; }
+/* Dar masaüstü: görev paneli üst sağda daralır */
+@media (max-width: 1100px) { #menu.lobby { grid-template-columns: minmax(240px, 34%) 1fr minmax(230px, 260px); } .lbXpBox { width: 110px; } }
+/* Yatay telefon (kısa ekran): her şey kaydırmadan sığsın; açıklamalar ve görev ayrıntıları kısalır */
+@media (max-height: 520px) {
+  #menu.lobby { gap: 6px 12px; grid-template-columns: minmax(200px, 34%) 1fr minmax(200px, 240px); }
+  .lbPlayer { min-height: 40px; padding: 3px 10px 3px 3px; gap: 8px; }
+  .lbEmblem, .lbEmblem svg { width: 32px; height: 32px; }
+  .lbWho .hello { font-size: 14px; max-width: 130px; }
+  .lbLvl b { font-size: 18px; }
+  .lbXpBox { width: 90px; }
+  .lbIcon { width: 40px; height: 40px; }
+  .lbBrand .eyebrow { display: none; }
+  .lbBrand .title { font-size: clamp(26px, 6vh, 40px); margin: 0; }
+  .lbBrand .title span { display: inline; }
+  .lbLeft { gap: 8px; padding-bottom: 50px; justify-content: flex-start; }
+  #menu .lbMode { min-height: 42px; padding: 5px 10px; font-size: 15px; gap: 10px; }
+  #menu .lbMode small { display: none; }
+  .lbModeIco { width: 30px; height: 30px; }
+  .lbDaily { padding: 7px 9px; gap: 5px; }
+  .lbDailyHead small, .lbRewardHead small, .lbChallenges li small { display: none; }
+  .lbChallenges { gap: 5px; }
+  .lbChallenges li { font-size: 11.5px; gap: 2px 6px; }
+  .lbRewardHead { margin-top: 2px; padding-top: 6px; }
+  .lbPips li { padding: 2px 0; font-size: 9px; }
+  .lbPips li b { font-size: 9px; }
+  #menu .lbClaim { padding: 6px 8px; font-size: 12px; letter-spacing: .06em; }
+  .lbGo { min-height: 50px; font-size: 24px; }
+  .lbNext b { font-size: 13px; }
+  .lbNext span { display: none; }
+  .lbNav { min-height: 40px; padding: 0 9px; font-size: 11px; letter-spacing: .08em; }
+  .lbNav svg { width: 18px; height: 18px; }
+}
+/* Dikey ya da çok dar ekran: tek sütun, kaydırılabilir */
+@media (max-width: 700px) and (min-height: 521px) {
+  #menu.lobby { display: flex; flex-direction: column; overflow-y: auto; }
+  .lbLeft { padding-bottom: 0; }
+  .lbXpBox { display: none; }
+}
 .title { font: 900 clamp(52px, 11vw, 104px)/.86 var(--f-display); letter-spacing: .02em; margin: 10px 0 0; color: var(--sand); text-wrap: balance; }
 .sub { font: 400 15px/1.4 var(--f-num); color: var(--sand-dim); margin-top: 12px; }
 .menuList { display: flex; flex-direction: column; gap: 2px; }
@@ -361,7 +482,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .mbtn.primary { color: var(--amber); }
 .brief { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font: 400 15px/1.3 var(--f-ui); color: var(--sand-dim); max-width: 420px; }
 .brief b { font: 400 14px/1.3 var(--f-num); color: var(--amber); }
-@media (max-height: 640px) { #menu .brief { display: none; } }
 /* ---------- Mağaza (storeScreen.js) ---------- */
 #storeScreen .sheet.store { width: min(1080px, 100%); }
 .stHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -427,18 +547,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .pwaStatus .btn { padding: 7px 12px; font-size: 14px; }
 /* Yatay telefon (kısa ekran): başlık solda, düğmeler sağda; tümü kaydırmadan görünsün (yükleme düğmesi dahil) */
 @media (max-height: 520px) {
-  #menu { background: linear-gradient(90deg, rgba(10,12,14,.9) 0%, rgba(10,12,14,.8) 55%, rgba(10,12,14,.6) 100%); }
-  #menu .col { width: 100%; max-width: 1000px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-auto-rows: auto; column-gap: 32px; row-gap: 12px; align-content: center; padding-block: 14px; padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); }
-  #menu .col > div:first-child { grid-row: 1 / span 2; align-self: center; }
-  #menu .menuList, #menu .pwaStatus { grid-column: 2; }
-  #menu .eyebrow { font-size: 11px; letter-spacing: .2em; }
-  #menu .title { font-size: clamp(42px, 8.5vw, 72px); }
-  #menu .sub { font-size: 13px; }
-  #menu .kr { margin-top: 8px; padding: 4px 10px; }
-  #menu .kr b { font-size: 16px; }
-  #menu .mbtn { font-size: 19px; padding-block: 7px; }
-  #menu .mbtn small { display: none; }
-  #menu .pwaStatus { margin-top: 0; }
 }
 .panelScreen { background: rgba(10,12,14,.9); align-items: flex-start; justify-content: center; }
 .sheet { width: min(760px, 100%); box-sizing: border-box; padding-block: 40px; padding-inline: 20px; display: flex; flex-direction: column; gap: 20px; margin: auto 0; }
@@ -588,6 +696,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .onRow .acts { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .onRow .acts .btn { min-height: 38px; }
 .onEmpty { padding: 16px 6px; color: var(--sand-dim); font: 500 15px/1.4 var(--f-ui); }
+.onSub { padding: 14px 6px 4px; color: var(--sand-dim); font: 700 12px/1 var(--f-ui); letter-spacing: 0.14em; text-transform: uppercase; }
+.onRow .acts .btn.more { min-width: 44px; font-weight: 800; letter-spacing: 0.1em; }
+.btn.danger { border-color: #b8432f; color: #ffb4a3; }
 .onSearch { display: flex; gap: 8px; margin: 10px 0 4px; }
 .onSearch input { flex: 1; min-width: 0; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); font: 500 17px/1.2 var(--f-ui); padding: 10px 12px; min-height: 44px; box-sizing: border-box; outline: none; }
 .onSearch input:focus { border-color: #5ee7ff; }
@@ -1084,29 +1195,62 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
 
   <div id="clickToPlay" hidden><div>OYUNA DÖNMEK İÇİN TIKLA<small>Fare imleci oyuna kilitlenir · Esc ile duraklat</small></div></div>
 
-  <section id="menu" class="screen" hidden>
-    <div class="col">
-      <div>
+  <!-- Lobi (CODM düzeni): üst çubuk (oyuncu kartı, rütbe/XP, kredi, ses, ayarlar), solda mod kartları, ortada 3B
+       operatör (main.js → lobby), sağda günün görevleri ve günlük ödül, sağ altta BAŞLA, altta gezinme. menus.js → refreshLobby -->
+  <section id="menu" class="screen lobby" hidden>
+    <div class="lbShade" aria-hidden="true"></div>
+    <header class="lbTop">
+      <button type="button" class="lbPlayer" id="btnMenuName" title="Oyuncu adını değiştir">
+        <span class="lbEmblem" id="lbEmblem" aria-hidden="true"></span>
+        <span class="lbWho">
+          <span class="hello" id="menuHello" hidden><b id="menuHelloName"></b></span>
+          <small id="lbRank">Er</small>
+        </span>
+        <span class="lbLvl"><small>SEVİYE</small><b id="lbLevel">1</b></span>
+        <span class="lbXpBox"><i class="lbXp"><i id="lbXpBar"></i></i><small id="lbXpText">0 / 1.000 XP</small></span>
+      </button>
+      <div class="lbTopR">
+        <div class="kr" id="menuCredits" title="Kredi: görevlerden, günlük ödülden ve günün görevlerinden kazanılır, mağazada harcanır"><small>KR</small><b id="menuCreditsVal">0 KR</b></div>
+        <button type="button" class="lbIcon" id="btnSound" aria-label="Oyun sesi" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M16.5 9.5l5 5m0-5l-5 5"/></svg>
+        </button>
+        <button type="button" class="lbIcon" id="btnSettings" aria-label="Ayarlar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="lbLeft">
+      <div class="lbBrand">
         <div class="eyebrow">Operasyon · Kızılkum Vadisi · 05:42</div>
-        <h1 class="title">DEMİR<br>ŞAFAK</h1>
-        <div class="sub">Birinci şahıs taktiksel savaş · tek oyunculu görev</div>
-        <div class="hello" id="menuHello" hidden>Hoş geldin, <b id="menuHelloName"></b> <button class="linkBtn" id="btnMenuName" title="Oyuncu adını değiştir">değiştir</button></div>
-        <div class="kr" id="menuCredits" title="Kredi: görevlerden kazanılır, mağazada harcanır"><small>KREDİ</small><b id="menuCreditsVal">0 KR</b></div>
-        <div class="menuNotice" id="menuNotice" hidden></div>
+        <h1 class="title">DEMİR <span>ŞAFAK</span></h1>
       </div>
-      <div class="menuList" id="mainList">
-        <button class="mbtn primary" id="btnPlay">Göreve başla<small>Altı seviye, beş harita · kolaydan zora · mavi mangan seninle</small></button>
-        <button class="mbtn" id="btnOnline">Çevrim içi <span class="badge" id="onBadge" hidden></span><small id="btnOnlineSub">Arkadaşlar, istekler ve takım</small></button>
-        <button class="mbtn" id="btnRange">Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></button>
-        <button class="mbtn" id="btnStore">Mağaza<small>Zırh, kask, sarf malzemesi ve tim yükseltmeleri</small></button>
-        <button class="mbtn" id="btnSettings">Ayarlar</button>
-        <button class="mbtn" id="btnControls">Kontroller</button>
-        <button class="mbtn" id="btnCredits">Emeği geçenler</button>
-        <button class="mbtn" id="btnInstall" hidden>Uygulama olarak yükle<small>Ana ekrana ekle · tam ekran · internetsiz oyna</small></button>
+      <div class="menuList lbModes" id="mainList">
+        <button class="mbtn lbMode primary" id="btnPlay"><i class="lbModeIco" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></i><span>Kampanya<small>Altı seviye, beş harita · mavi mangan seninle</small></span></button>
+        <button class="mbtn lbMode" id="btnOnline"><i class="lbModeIco" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="9" r="3"/><circle cx="16.5" cy="9" r="3"/><path d="M2.5 19c.8-3.2 3-5 5.5-5s4.7 1.8 5.5 5M11 19c.8-3.2 3-5 5.5-5s4.7 1.8 5.5 5"/></svg></i><span>Çevrim içi <span class="badge" id="onBadge" hidden></span><small id="btnOnlineSub">Arkadaşlar, takım ve hızlı maç</small></span></button>
+        <button class="mbtn lbMode" id="btnRange"><i class="lbModeIco" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3"/></svg></i><span>Atış poligonu<small>Silahları 10–100 m hedeflerde dene</small></span></button>
       </div>
+      <div class="menuNotice" id="menuNotice" hidden></div>
       <div class="pwaStatus" id="pwaStatus" hidden><span id="pwaStatusText"></span><button class="btn" id="btnPwaUpdate" hidden>Güncelle</button></div>
-      <div class="brief" id="menuBrief"></div>
     </div>
+    <aside class="lbDaily" id="lbDaily" aria-label="Günün görevleri ve günlük ödül">
+      <div class="lbDailyHead"><b>GÜNÜN GÖREVLERİ</b><small>Her gün 00:00'da yenilenir</small></div>
+      <ol class="lbChallenges" id="lbChallenges"></ol>
+      <div class="lbRewardHead"><b>GÜNLÜK GİRİŞ ÖDÜLÜ</b><small id="lbStreak">Seri: 0 gün</small></div>
+      <ol class="lbPips" id="lbPips" aria-hidden="true"></ol>
+      <button type="button" class="btn lbClaim" id="btnDaily">Ödülü al</button>
+    </aside>
+    <div class="lbStart">
+      <div class="lbNext"><small>SIRADAKİ GÖREV</small><b id="lbNextName">Seviye 1</b><span id="lbNextSub"></span></div>
+      <button type="button" class="lbGo" id="btnQuick">BAŞLA</button>
+    </div>
+    <nav class="lbBottom" aria-label="Lobi">
+      <button type="button" class="lbNav" id="btnLoadoutMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h12l3-2h3v4h-3l-2 1H8l-1 6H4l1-6H3z"/></svg>Teçhizat</button>
+      <button type="button" class="lbNav" id="btnStore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H7"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>Mağaza</button>
+      <button type="button" class="lbNav" id="btnControls"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="7" width="19" height="11" rx="3"/><path d="M7 10.5v4M5 12.5h4M15.5 11.5h.01M18 13.5h.01"/></svg>Kontroller</button>
+      <button type="button" class="lbNav" id="btnCredits"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg>Emeği geçenler</button>
+      <button type="button" class="lbNav" id="btnInstall" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Uygulama olarak yükle</button>
+    </nav>
+    <div class="brief" id="menuBrief" hidden></div>
   </section>
 
   <section id="nameScreen" class="screen panelScreen" hidden>
@@ -1192,6 +1336,8 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
           <h3>Oyuncu</h3>
           <div class="set"><label>Oyuncu adı<small>Telsizde ve çevrim içi oyunda görünür</small></label><span class="setVal" id="sPlayerName">—</span><button class="btn small" id="btnSetName" type="button">Değiştir</button></div>
           <div class="set"><label for="sServerUrl">Çevrim içi sunucu<small>Sunucu sahibinin gönderdiği bağlantı (Çevrim içi ekranındaki alanla aynı)</small></label><input type="url" id="sServerUrl" class="setText" placeholder="https://…" spellcheck="false" autocomplete="off"></div>
+          <div class="set" id="setAccount" hidden><label>Çevrim içi hesap<small id="sAccountInfo">Ad, etiket, arkadaşlar ve bildirimler bu sunucudan kalıcı olarak silinir; cihazdaki ilerleme kalır</small></label><button class="btn small danger" id="btnDeleteAccount" type="button">Hesabı sil</button></div>
+          <div class="set"><label>Gizlilik<small>Hangi bilginin nerede tutulduğu</small></label><a class="btn small" id="lnkPrivacy" href="#" target="_blank" rel="noopener">Gizlilik politikası</a></div>
           <h3>Kontroller</h3>
           <div class="set"><label for="sSens">Fare hassasiyeti</label><input type="range" id="sSens" min="0.2" max="3" step="0.05"><output id="oSens"></output></div>
           <div class="set"><label for="sAdsSens">Nişan hassasiyeti</label><input type="range" id="sAdsSens" min="0.3" max="1.5" step="0.05"><output id="oAdsSens"></output></div>
@@ -1203,6 +1349,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
           <div class="set"><label for="sVoiceCmd">Sesli komut (N basılı)<small>Mikrofon izni ister; Türkçe konuş</small></label><input type="checkbox" class="toggle" id="sVoiceCmd"></div>
           <div class="set"><label for="sWheelSlow">Komut çarkında oyun hızı<small>Çark açıkken zaman yavaşlar</small></label><select id="sWheelSlow"><option value="1">Normal (yavaşlatma yok)</option><option value="0.5">%50</option><option value="0.3">%30</option><option value="0.15">%15</option></select></div>
           <h3>Ses</h3>
+          <div class="set"><label for="sMuted">Oyun sesi kapalı<small>Lobideki hoparlör düğmesi de açar/kapatır</small></label><input type="checkbox" class="toggle" id="sMuted"></div>
           <div class="set"><label for="sMaster">Ana ses</label><input type="range" id="sMaster" min="0" max="1" step="0.05"><output id="oMaster"></output></div>
           <div class="set"><label for="sSfx">Efektler</label><input type="range" id="sSfx" min="0" max="1" step="0.05"><output id="oSfx"></output></div>
           <div class="set"><label for="sAmb">Ortam ve müzik</label><input type="range" id="sAmb" min="0" max="1" step="0.05"><output id="oAmb"></output></div>
@@ -1266,6 +1413,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       <div><div class="eyebrow">Duraklatıldı</div><h2 id="pauseObj">Kontrol noktasını temizle</h2></div>
       <div class="menuList">
         <button class="mbtn primary" id="btnResume">Devam et</button>
+        <button class="mbtn" id="btnPauseSound">Ses: kapalı</button>
         <button class="mbtn" id="btnPauseSettings">Ayarlar</button>
         <button class="mbtn" id="btnPauseControls">Kontroller</button>
         <button class="mbtn" id="btnRestartCp">Kontrol noktasından başla</button>

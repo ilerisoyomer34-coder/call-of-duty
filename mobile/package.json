@@ -1,0 +1,22 @@
+{
+  "name": "demir-safak-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demir Şafak mağaza uygulaması (App Store / Google Play): web/dist/app'i saran Capacitor kabuğu",
+  "type": "module",
+  "scripts": {
+    "build:web": "npm --prefix ../web run build",
+    "sync": "npm run build:web && cap sync",
+    "android": "npm run sync && cap open android",
+    "ios": "npm run sync && cap open ios",
+    "assets": "node tools/make-native-assets.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

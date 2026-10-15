@@ -304,6 +304,14 @@ const SCOPE = {
     o += lineH(-32, 32, 0, 0.7, c) + lineV(0, -32, 32, 0.7, c);
     return o;
   },
+  // Klasik (eski tip av dürbünü): baştan başa ince artı, ortada küçük halka, alt kılda üç kısa menzil çizgisi
+  classic(s) {
+    const c = s.color;
+    let o = lineH(-100, 100, 0, 0.55, c) + lineV(0, -100, 100, 0.55, c);
+    o += `<circle cx="0" cy="0" r="6" fill="none" stroke="${s.accent}" stroke-width="0.6"/>`;
+    for (const y of [18, 30, 42]) o += lineH(-4 + y / 30, 4 - y / 30, y, 0.6, c);
+    return o;
+  },
   // Alman tipi direkli: sol/sağ kalın direkler, alttan sivri direk, ince yatay kıl, aydınlatmalı orta nokta
   post(s) {
     const c = s.color;

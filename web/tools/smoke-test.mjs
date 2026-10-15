@@ -21,7 +21,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 const errors = [];
 const SMOKE_NAME = 'Deneme';
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, profile, online, determinism
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, app, profile, online, netplay, determinism
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -114,6 +114,29 @@ console.log('Görsel kontrol (yüksek kalite)');
   const page = await openPage('standalone', 'high');
   await sleep(1500);
   await page.screenshot({ path: join(shots, '00-menu-high.png') });
+  // Lobi (CODM düzeni): 3B operatör, oyuncu kartı, günün görevleri, günlük ödül, ses varsayılan kapalı
+  const lb = await page.evaluate(() => {
+    const g = window.__game;
+    return {
+      op: !!g.lobbyOp && g.lobbyOp.root.parent === g.scene && !!g.lobbyOp.bones,
+      level: document.getElementById('lbLevel').textContent,
+      rank: document.getElementById('lbRank').textContent,
+      emblem: !!document.querySelector('#lbEmblem svg'),
+      challenges: document.querySelectorAll('#lbChallenges li').length,
+      pips: document.querySelectorAll('#lbPips li').length,
+      muted: g.settings.muted && document.body.classList.contains('muted') && g.audio.volumes.master === 0,
+    };
+  });
+  check(lb.op && lb.level === '1' && lb.rank === 'Er' && lb.emblem && lb.challenges === 3 && lb.pips === 7, `Lobi: iskeletli operatör, seviye ${lb.level} ${lb.rank}, ${lb.challenges} günün görevi, 7 günlük ödül`);
+  check(lb.muted, 'Oyun sesi varsayılan kapalı (hoparlör düğmesi sessiz)');
+  const kr0 = await page.evaluate(() => window.__game.economy.credits);
+  await page.click('#btnDaily');
+  const dl = await page.evaluate(() => ({ kr: window.__game.economy.credits, dis: document.getElementById('btnDaily').disabled, xp: window.__game.save.data.progression.xp, last: window.__game.save.data.progression.daily.last }));
+  check(dl.kr === kr0 + 500 && dl.dis && dl.xp === 100 && !!dl.last, `Günlük ödül alındı (+500 KR, +100 XP), düğme yarına kadar kapalı`);
+  await page.click('#btnSound');
+  const snd = await page.evaluate(() => ({ muted: window.__game.settings.muted, master: window.__game.audio.volumes.master, saved: window.__game.save.data.settings.muted }));
+  await page.click('#btnSound');
+  check(!snd.muted && snd.master > 0 && snd.saved === false && (await page.evaluate(() => window.__game.settings.muted)), 'Ses düğmesi açıp kapatıyor ve kayda yazıyor');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum köyü
@@ -292,14 +315,14 @@ console.log('Bağımsız sürüm (dist/index.html)');
     sniper: [...document.querySelectorAll('#loadoutRoot .loCard[data-id="sniper"] .stBadge')].map((b) => b.textContent),
     deploy: !document.getElementById('btnDeploy').disabled,
   }));
-  check(lo.slots.length === 6 && lo.names.length === 14, `Teçhizatta 6 yuva, ana silah yuvasında 14 kart (${lo.slots.join(' · ')})`);
+  check(lo.slots.length === 6 && lo.names.length === 15, `Teçhizatta 6 yuva, ana silah yuvasında 15 kart (${lo.slots.join(' · ')})`);
   check(['AKMS', 'Barrett M82A1', 'HK MG4', 'Colt M4A1'].every((n) => lo.names.includes(n)), `Silahlar gerçek adlarıyla (${lo.names.slice(0, 5).join(', ')}…)`);
   check(lo.bars === 6 && /7,62×39 mm · 30 mermi/.test(lo.info || ''), `Kartta altı istatistik çubuğu ve bilgi satırı (${lo.info})`);
   check(lo.sniper.includes('ÇATAL AYAK') && lo.sniper.includes('ZIRH DELİCİ'), `M82A1 rozetleri: ${lo.sniper.join(', ')}`);
   check(lo.deploy, 'GÖREVE BAŞLA etkin (ana silah seçili)');
-  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 14, null, { timeout: 120000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 15, null, { timeout: 120000 }).catch(() => {});
   const icons = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loImg')].map((i) => ({ ready: i.classList.contains('ready'), w: i.naturalWidth, src: i.src.slice(0, 5) })));
-  check(icons.filter((i) => i.ready && i.w === 512).length === 14, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready).length}/14, 512×256)`);
+  check(icons.filter((i) => i.ready && i.w === 512).length === 15, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready).length}/15, 512×256)`);
   // Silah sınıfları (CODM düzeni): TÜMÜ + sınıf sekmeleri; keskin nişancı sekmesinde M82 ve AWM, ayrıntıda nişangâh
   const tabs = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loClasses button')].map((b) => b.dataset.cls));
   check(tabs[0] === 'all' && ['ar', 'smg', 'lmg', 'marksman', 'sniper', 'shotgun', 'special'].every((c) => tabs.includes(c)), `Sınıf sekmeleri (${tabs.join(', ')})`);
@@ -309,6 +332,11 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#loadoutRoot .loCard[data-id="awm"]');
   const sightTxt = await page.textContent('#loadoutRoot .loDetail .stSight');
   check(/direkli/.test(sightTxt) && /10×/.test(sightTxt), `Ayrıntıda nişangâh: ${sightTxt}`);
+  // Pompalı nişancı tüfeği nişancı sekmesinde, kendi klasik dürbünüyle
+  await page.click('#loadoutRoot .loClasses button[data-cls="marksman"]');
+  await page.click('#loadoutRoot .loCard[data-id="pr10"]');
+  const prSight = await page.textContent('#loadoutRoot .loDetail .stSight');
+  check(/Klasik/.test(prSight) && /6×/.test(prSight), `Pompalı nişancı tüfeği klasik dürbünle: ${prSight}`);
   await page.click('#loadoutRoot .loClasses button[data-cls="all"]');
   // Önizleme dönüyor ve boş değil: iki ayrı anda tuvalde farklı, saydam olmayan pikseller
   const px = () =>
@@ -2349,7 +2377,7 @@ console.log('Atış poligonu');
     return { dummies: g.enemies.list.length, owned: Object.keys(g.weapons.owned) };
   });
   check(r.dummies === 10, `Mankenler yerleşti (${r.dummies})`);
-  check(r.owned.length === 17, `Poligonda on yedi silah (${r.owned.join(', ')})`);
+  check(r.owned.length === 18, `Poligonda on sekiz silah (${r.owned.join(', ')})`);
   await page.waitForFunction(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb)), 'Blender modelleri (MAR-556, MG-43, MR-82, D-50) yüklendi');
   // Sketchfab silahları: model, parçalar (şarjör, nişangah gövdesi) ve ayrı JPEG dokular
@@ -2426,9 +2454,9 @@ console.log('Atış poligonu');
     const id = await page.evaluate(() => window.__game.weapons.currentId);
     if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
   }
-  // 10.–17. silah: 1-9 tuşlarının ötesinde, doğrudan geçiş. Minigun namlular dönmeden ateş etmez: tetik uzun tutulur
+  // 10.–18. silah: 1-9 tuşlarının ötesinde, doğrudan geçiş. Minigun namlular dönmeden ateş etmez: tetik uzun tutulur
   const spinLog = [];
-  for (const id of ['k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun']) {
+  for (const id of ['k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10']) {
     await page.evaluate((w) => window.__game.weapons.switchTo(w), id);
     await page.waitForFunction((w) => window.__game.weapons.currentId === w && window.__game.weapons.state === 'idle', id, { timeout: 120000, polling: 50 });
     await waitGame(page, 0.3);
@@ -2444,7 +2472,7 @@ console.log('Atış poligonu');
     await waitGame(page, 0.1);
     if ((await page.evaluate(() => window.__game.stats.shots)) > before) fired.push(id);
   }
-  check(fired.length === 17, `On yedi silahın hepsi ateş etti (${fired.join(', ')})`);
+  check(fired.length === 18, `On sekiz silahın hepsi ateş etti (${fired.join(', ')})`);
   // Minigun: 0,25 sn'de namlular dönüyor ama ateş yok; tam hızda saniyede ~30 atış, kayıştan düşer, nişan alınmaz
   check(spinLog[0].spin > 0.2 && spinLog[0].spin < 1 && spinLog[1].spin === 1 && spinLog[1].shots - spinLog[0].shots >= 6 && spinLog[1].mag < 10000, `Minigun: önce namlu döner, sonra ateş (${JSON.stringify(spinLog)})`);
   await page.mouse.down({ button: 'right' });
@@ -3025,6 +3053,94 @@ console.log('PWA sürümü (dist/pwa)');
   server.close();
 }
 
+// ---------------- Mağaza uygulaması (dist/app, Capacitor kabuğunun içeriği) ----------------
+if (run('app')) {
+  console.log('Mağaza uygulaması (dist/app)');
+  // Capacitor sayfayı https://localhost köküne koyar: burada da kökten sunulur
+  const site = join(root, 'dist/app');
+  const AMIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.woff2': 'font/woff2', ...MIME };
+  const server = createServer((req, res) => {
+    const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    const file = join(site, path === '/' ? 'index.html' : path.slice(1));
+    if (!file.startsWith(site) || !existsSync(file) || statSync(file).isDirectory()) {
+      res.writeHead(404);
+      return res.end('yok');
+    }
+    res.writeHead(200, { 'content-type': AMIME[extname(file)] || 'application/octet-stream' });
+    res.end(readFileSync(file));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(ctx);
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  // Uygulama dışarıya istek atmamalı (yazı tipleri yerel, gizlilik politikası): her dış istek kaydedilir
+  const outside = [];
+  ctx.on('request', (r) => {
+    if (!r.url().startsWith(origin) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) outside.push(r.url());
+  });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`[app] pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`[app] console: ${m.text()}`);
+  });
+  await page.goto(`${origin}/`);
+  await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 120000 });
+  const a = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const g = window.__game;
+    return {
+      pwa: g.pwa,
+      manifest: !!document.querySelector('link[rel="manifest"]'),
+      app: document.body.classList.contains('app'),
+      native: !!g.native,
+      font: document.fonts.check('900 24px "Big Shoulders Stencil Display"') && [...document.fonts].some((f) => f.family.includes('Big Shoulders') && f.status === 'loaded'),
+      next: document.getElementById('lbNextSub').textContent,
+    };
+  });
+  check(a.pwa === null && !a.manifest && a.app && a.native, 'Uygulama sürümü: manifest ve hizmet çalışanı yok, geri tuşu bağlı (body.app)');
+  check(a.font, 'Yazı tipleri uygulamanın içinden yüklendi (fonts/fonts.css)');
+  check(outside.length === 0, `Açılışta dışarıya istek yok (${outside.slice(0, 3).join(', ') || 'yok'})`);
+  check(/AR-7/.test(a.next) && !/AKMS/.test(a.next), `Mağaza sürümünde kurgusal silah adları (${a.next})`);
+  // Ayarlar: gerçek ad anahtarı yok, gizlilik bağlantısı, hesapsızken hesap satırı gizli
+  await page.evaluate(() => window.__game.menus.openSettings());
+  const s = await page.evaluate(() => ({
+    real: document.getElementById('sRealNames').closest('.set').hidden,
+    priv: document.getElementById('lnkPrivacy').href,
+    acct: document.getElementById('setAccount').hidden,
+  }));
+  check(s.real && /privacy\.html$/.test(s.priv) && s.acct, `Ayarlar: gerçek ad anahtarı gizli, gizlilik bağlantısı (${s.priv}), hesap yokken silme satırı gizli`);
+  check(existsSync(join(site, 'privacy.html')) && existsSync(join(root, 'dist/pwa/privacy.html')) && /Hesabı sil/.test(readFileSync(join(root, 'dist/pwa/privacy.html'), 'utf8')), 'Gizlilik politikası uygulamada ve Pages sürümünde (hesap silme yolu yazılı)');
+  // Android geri tuşu = tarayıcı geçmişinde geri: Ayarlar → lobi, lobide uyarı, görevde duraklat / sürdür
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(() => window.__game.menus.current === 'menu', null, { timeout: 10000 }).catch(() => {});
+  check(await page.evaluate(() => window.__game.menus.current === 'menu'), 'Geri tuşu Ayarlar\'dan lobiye döndü');
+  await page.waitForFunction(() => history.state?.dsGuard, null, { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(() => /Çıkmak için/.test(document.getElementById('menuNotice').textContent), null, { timeout: 10000 }).catch(() => {});
+  check(await page.evaluate(() => /Çıkmak için/.test(document.getElementById('menuNotice').textContent)), 'Lobide geri tuşu: "Çıkmak için geri tuşuna yeniden bas"');
+  // Uyarı süresi geçince bekçi yeniden kurulur (tek basış uygulamayı kapatmasın)
+  await page.waitForFunction(() => history.state?.dsGuard, null, { timeout: 10000 }).catch(() => {});
+  check(await page.evaluate(() => !!history.state?.dsGuard), 'Uyarıdan sonra bekçi yeniden kuruldu');
+  await page.evaluate(() => window.__game.startMode('range', 'normal'));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 120000 });
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(() => window.__game.state === 'paused', null, { timeout: 10000 }).catch(() => {});
+  const p1 = await page.evaluate(() => window.__game.state);
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 10000 }).catch(() => {});
+  const p2 = await page.evaluate(() => window.__game.state);
+  check(p1 === 'paused' && p2 === 'playing', `Görevde geri tuşu duraklatır, ikinci basış sürdürür (${p1} → ${p2})`);
+  await ctx.close();
+  server.close();
+}
+
 // ---------------- Oyuncu adı (çok oyunculu S1) ----------------
 if (run('profile')) {
   console.log('Oyuncu adı');
@@ -3111,7 +3227,8 @@ if (run('online')) {
     await sleep(100);
   }
   const q = `?server=${encodeURIComponent(base)}`;
-  const online = (pg) => pg.waitForFunction(() => window.__game.social.status === 'online', null, { timeout: 30000 });
+  // İkinci sayfa açılınca yazılımsal GPU'yu ilkiyle paylaşır: ilk kareleri ~30 sn sürebilir (tek sayfada yok)
+  const online = (pg) => pg.waitForFunction(() => window.__game.social.status === 'online', null, { timeout: 90000, polling: 100 });
   const A = await openPage('online-A', 'low', { name: 'Ayla', query: q });
   const B = await openPage('online-B', 'low', { name: 'Barış', query: q });
   await Promise.all([online(A), online(B)]);
@@ -3174,6 +3291,29 @@ if (run('online')) {
   await A.click('.onTab[data-tab="requests"]');
   const req = await A.evaluate(() => ({ text: document.getElementById('onRequests').textContent, badge: document.getElementById('cntRequests').textContent }));
   check(/Cem/.test(req.text) && /Kabul et/.test(req.text) && req.badge === '1', `Çevrim dışıyken gelen istek açılışta bekliyordu (rozet ${req.badge})`);
+  // Mağaza kuralları (App Store 1.2): satırdaki "⋯" → adı bildir; yeniden "⋯" → engelle (istek düşer, engelliler listesinde)
+  await A.click('#onRequests .onRow .btn.more');
+  await A.click('#onRequests .onRow .btn:has-text("Adı bildir")');
+  await A.waitForFunction(() => /iletildi/.test(document.getElementById('onMsg').textContent), null, { timeout: 10000 }).catch(() => {});
+  check(await A.evaluate(() => /iletildi/.test(document.getElementById('onMsg').textContent)), 'Oyuncu satırından uygunsuz ad bildirildi');
+  await A.click('#onRequests .onRow .btn.more');
+  await A.click('#onRequests .onRow .btn.danger');
+  await A.waitForFunction(() => /Engellediklerin/.test(document.getElementById('onRequests').textContent), null, { timeout: 10000 }).catch(() => {});
+  const blk = await A.evaluate(() => document.getElementById('onRequests').textContent);
+  const cemSees = await fetch(`${base}/api/players?q=ayl`, { headers: { authorization: `Bearer ${c.token}` } }).then((r) => r.json());
+  check(/Engeli kaldır/.test(blk) && !/Kabul et/.test(blk) && !cemSees.players.length, 'Engellenen oyuncunun isteği düştü, engelliler listesinde; o da aramada bulamıyor');
+  // Ayarlar → Çevrim içi hesap → Hesabı sil (iki basış): sunucuda belirteç geçersiz, yeni hesap kendiliğinden açılmaz
+  const oldToken = await A.evaluate(() => window.__game.save.data.profile.token);
+  await A.evaluate(() => window.__game.menus.openSettings());
+  check(await A.isVisible('#btnDeleteAccount'), 'Ayarlar\'da "Hesabı sil" görünüyor (sunucuda hesap var)');
+  await A.click('#btnDeleteAccount');
+  check(/Emin misin/.test(await A.textContent('#btnDeleteAccount')), 'İlk basış onay istiyor');
+  await A.click('#btnDeleteAccount');
+  await A.waitForFunction(() => /silindi/.test(document.getElementById('sAccountInfo').textContent), null, { timeout: 15000 }).catch(() => {});
+  await sleep(1500);
+  const del = await A.evaluate(() => ({ info: document.getElementById('sAccountInfo').textContent, token: window.__game.save.data.profile.token, status: window.__game.social.status, reason: window.__game.social.reason }));
+  const gone = await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${oldToken}` } }).then((r) => r.status);
+  check(/silindi/.test(del.info) && !del.token && del.reason === 'deleted' && gone === 401, `Hesap silindi (sunucu ${gone}, durum ${del.status}/${del.reason}), yeniden kayıt yok`);
   await A.close();
   // Telefon: çevrim içi ekranı taşmaz, düğmeler dokunmaya uygun
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });

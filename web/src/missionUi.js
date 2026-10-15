@@ -2,6 +2,7 @@
 // tamamlanma/başarısızlık bildirimleri; menüde brifing ekranı; bölüm sonunda kredi dökümü ve yıldızlar.
 // Kurallar ve hesap missionSystem.js'te; burası yalnız görünüm.
 import { formatKR } from './economy.js';
+import { EV } from './events.js';
 import { bonusAmount, formatPar, RULES } from './missionSystem.js';
 import MISSIONS from './data/missions.json' with { type: 'json' };
 
@@ -27,6 +28,13 @@ export class MissionHud {
     this.game = game;
     this.root = $('tracker');
     this.toastEl = $('bonusToast');
+    // Görevde rütbe atlama ve günün görevi bildirimleri aynı kuyruktan (progression.js olayları)
+    game.events.on(EV.LEVEL_UP, (e) => {
+      if (game.mode === 'mission') this.toast(`▲ RÜTBE — Seviye ${e.level} · ${e.rank.name} +${formatKR(e.credits)}`, 'ok');
+    });
+    game.events.on(EV.CHALLENGE_DONE, (e) => {
+      if (game.mode === 'mission') this.toast(`★ GÜNÜN GÖREVİ — ${e.name} +${formatKR(e.credits)} · +${e.xp} XP`, 'ok');
+    });
     this.rows = [];
     this.toastT = 0;
     this.queue = [];

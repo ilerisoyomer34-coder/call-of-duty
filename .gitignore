@@ -20,3 +20,5 @@ DerivedDataCache/
 web/server/host.env
 web/server/bin/
 web/dist/artifact-assets/
+# Mağaza uygulaması derlemesi (her derlemede yeniden üretilir; mobile/ içinde npm run sync kopyalar)
+web/dist/app/

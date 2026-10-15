@@ -13,6 +13,7 @@
     "duplex": { "name": "Taktik dürbün (duplex)", "kind": "scope", "reticle": "duplex", "color": "#060606", "lens": "#284038", "zoom": "4×" },
     "mildot": { "name": "Keskin nişancı dürbünü (mil-dot)", "kind": "scope", "reticle": "mildot", "color": "#050505", "accent": "#ff3a22", "lens": "#203a3a", "zoom": "8×" },
     "post": { "name": "Keskin nişancı dürbünü (direkli)", "kind": "scope", "reticle": "post", "color": "#040404", "accent": "#ff2a14", "lens": "#30302a", "zoom": "10×" },
+    "classic": { "name": "Klasik dürbün (ince artı + halka)", "kind": "scope", "reticle": "classic", "color": "#0a0806", "accent": "#0a0806", "lens": "#4a3a1e", "zoom": "6×" },
     "none": { "name": "Nişan alınmaz", "kind": "none" }
   },
   "weapons": {
@@ -32,6 +33,7 @@
     "ak74": { "sight": "vzor", "housing": { "shape": "tube", "r": 0.0115, "len": 0.072 } },
     "bren2": { "sight": "iron" },
     "awm": { "sight": "post" },
-    "minigun": { "sight": "none" }
+    "minigun": { "sight": "none" },
+    "pr10": { "sight": "classic" }
   }
 }

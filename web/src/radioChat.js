@@ -158,7 +158,8 @@ export class RadioChat {
 
   // Seslendirme (ayar açıksa): askere göre perde ve hız
   tts(text, voice) {
-    if (!this.game.settings.tts || !speechSupported()) return;
+    // Oyun sesi kapalıyken seslendirme de susar
+    if (!this.game.settings.tts || this.game.settings.muted || !speechSupported()) return;
     try {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'tr-TR';

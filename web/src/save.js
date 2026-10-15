@@ -7,6 +7,7 @@
 //  - Depolama kapalıysa (gizli pencere) oyun bellekteki kayıtla çalışır.
 import { storage as browserStorage } from './util.js';
 import STORE from './data/store.json' with { type: 'json' };
+import { freshProgression, normalizeProgression } from './progression.js';
 
 export const SAVE_KEY = 'demirsafak.save';
 export const SAVE_VERSION = 1;
@@ -35,6 +36,8 @@ export function freshSave(startCredits = STORE.startCredits) {
     econLog: [],
     // Oyuncu kimliği: ad yerelde; etiket, kimlik ve belirteç sunucuya ilk bağlanınca gelir
     profile: freshProfile(),
+    // Rütbe/XP, günlük ödül serisi ve günün görevleri (progression.js)
+    progression: freshProgression(),
   };
 }
 
@@ -67,11 +70,14 @@ function normalize(raw, startCredits) {
   s.loadout = { ...d.loadout, ...(isObj(raw.loadout) ? raw.loadout : {}) };
   if (!Array.isArray(s.loadout.slots)) s.loadout.slots = [null, null];
   s.progress = isObj(raw.progress) ? { unlocked: isNum(raw.progress.unlocked) ? raw.progress.unlocked : 1, best: isObj(raw.progress.best) ? raw.progress.best : {} } : d.progress;
+  // Son seçilen zorluk (lobideki BAŞLA bununla açar)
+  if (isObj(raw.progress) && typeof raw.progress.lastDiff === 'string') s.progress.lastDiff = raw.progress.lastDiff;
   s.missions = isObj(raw.missions) ? raw.missions : {};
   s.stats = { ...d.stats, ...(isObj(raw.stats) ? raw.stats : {}) };
   s.settings = isObj(raw.settings) ? raw.settings : null;
   s.econLog = Array.isArray(raw.econLog) ? raw.econLog : [];
   s.profile = normalizeProfile(raw.profile);
+  s.progression = normalizeProgression(raw.progression);
   return s;
 }
 

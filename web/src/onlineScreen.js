@@ -48,6 +48,7 @@ export class OnlineScreen {
     this.results = [];
     this.searchTimer = null;
     this.confirmRemove = null;
+    this.modFor = null; // "⋯" ile bildir/engelle şeridi açık olan oyuncu
     $('btnOnline').addEventListener('click', () => {
       game.audio.init();
       game.audio.uiClick();
@@ -141,6 +142,39 @@ export class OnlineScreen {
       this.msg(errorText(e.code), 'bad');
       return null;
     }
+  }
+
+  // Oyuncu satırının eylemleri: "⋯" basılınca yerlerini bildir/engelle şeridi alır (App Store 1.2: kullanıcı
+  // içeriği olan uygulamada şikâyet ve engelleme). Şikâyet sunucu sahibine gider, engellenen seni bulamaz
+  withMod(p, acts) {
+    const S = this.social;
+    const redraw = () => {
+      this.renderFriends();
+      this.renderResults();
+      this.renderRequests();
+    };
+    if (this.modFor !== p.id) {
+      const more = button('⋯', () => {
+        this.modFor = p.id;
+        redraw();
+      }, 'btn small more');
+      more.title = 'Bildir ya da engelle';
+      more.setAttribute('aria-label', `${p.name}: bildir ya da engelle`);
+      return [...acts, more];
+    }
+    const done = () => {
+      this.modFor = null;
+      redraw();
+    };
+    return [
+      button('Adı bildir', () => this.act(() => S.report(p.id, 'name'), 'Şikâyetin sunucu sahibine iletildi').then(done)),
+      button('Taciz / hile bildir', () => this.act(() => S.report(p.id, 'abuse'), 'Şikâyetin sunucu sahibine iletildi').then(done)),
+      button('Engelle', () => this.act(() => S.block(p.id), `${displayName(p.name, p.tag)} engellendi`).then(() => {
+        this.results = this.results.filter((x) => x.id !== p.id);
+        done();
+      }), 'btn small danger'),
+      button('Vazgeç', done),
+    ];
   }
 
   render() {
@@ -278,7 +312,7 @@ export class OnlineScreen {
           this.act(() => this.social.remove(f.id), `${f.name} arkadaşlıktan çıkarıldı`);
         })
       );
-      box.append(row(f, STATUS_TEXT[f.status] || '', acts));
+      box.append(row(f, STATUS_TEXT[f.status] || '', this.withMod(f, acts)));
     }
   }
 
@@ -319,7 +353,7 @@ export class OnlineScreen {
       } else if (r === 'incoming') {
         acts.push(button('Kabul et', () => this.act(() => S.respond(p.id, true), `${p.name} ile artık arkadaşsınız`), 'btn small primary'), button('Reddet', () => this.act(() => S.respond(p.id, false), 'İstek reddedildi')));
       } else acts.push(el('span', 'st', 'Arkadaşsın'));
-      box.append(row(p, STATUS_TEXT[p.status] || '', acts));
+      box.append(row(p, STATUS_TEXT[p.status] || '', this.withMod(p, acts)));
     }
   }
 
@@ -334,7 +368,7 @@ export class OnlineScreen {
       box.append(row({ ...inv.from, status: 'menu' }, `Takım daveti · ${modeName(inv.mode)}`, [button('Katıl', () => this.act(() => S.respondInvite(inv.id, true), 'Takıma katıldın'), 'btn small primary'), button('Reddet', () => this.act(() => S.respondInvite(inv.id, false)))]));
     }
     for (const p of S.lists.incoming) {
-      box.append(row({ ...p, status: 'offline' }, 'Arkadaşlık isteği', [button('Kabul et', () => this.act(() => S.respond(p.id, true), `${p.name} ile artık arkadaşsınız`), 'btn small primary'), button('Reddet', () => this.act(() => S.respond(p.id, false), 'İstek reddedildi'))]));
+      box.append(row({ ...p, status: 'offline' }, 'Arkadaşlık isteği', this.withMod(p, [button('Kabul et', () => this.act(() => S.respond(p.id, true), `${p.name} ile artık arkadaşsınız`), 'btn small primary'), button('Reddet', () => this.act(() => S.respond(p.id, false), 'İstek reddedildi'))])));
     }
     for (const p of S.lists.outgoing) {
       box.append(row({ ...p, status: 'offline' }, 'Yanıt bekleniyor', [button('İptal', () => this.act(() => S.remove(p.id), 'İstek geri alındı'))]));
@@ -344,6 +378,11 @@ export class OnlineScreen {
       box.append(row({ ...n.from, status: 'offline' }, 'isteğini kabul etti'));
     }
     if (!box.children.length) box.append(el('div', 'onEmpty', 'Bekleyen istek ya da davet yok.'));
+    // Engellenenler: engel buradan kaldırılır
+    if (S.lists.blocked?.length) {
+      box.append(el('div', 'onSub', 'Engellediklerin'));
+      for (const p of S.lists.blocked) box.append(row({ ...p, status: 'offline' }, 'Engelli', [button('Engeli kaldır', () => this.act(() => S.unblock(p.id), 'Engel kaldırıldı'))]));
+    }
   }
 
   onParty(party) {

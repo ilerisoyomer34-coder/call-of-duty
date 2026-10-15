@@ -11,6 +11,9 @@ import { saveSettings } from '../settings.js';
 import { INVITE_PARAM, parseServerInput, probeServer, selectIdentity, rememberIdentity, forgetIdentity } from './servers.js';
 
 // Sunucu hata kodları → oyuncuya gösterilen metin
+// Sunucu, silinen hesabın açık bağlantılarını bu kodla kapatır (server/hub.js → kick)
+const ACCOUNT_DELETED = 4010;
+
 export const ERRORS = {
   name_short: 'Ad çok kısa',
   name_long: 'Ad çok uzun',
@@ -38,6 +41,7 @@ export const ERRORS = {
   bad_mode: 'Bu mod henüz açık değil',
   party_too_big: 'Takım bu mod için fazla kalabalık',
   no_party: 'Takım yok',
+  bad_reason: 'Geçersiz şikâyet gerekçesi',
   network: 'Sunucuya ulaşılamadı',
   server: 'Sunucu hatası',
 };
@@ -52,7 +56,7 @@ export class SocialClient {
     this.retry = 0;
     this.timer = null;
     this.pingTimer = null;
-    this.lists = { friends: [], incoming: [], outgoing: [] };
+    this.lists = { friends: [], incoming: [], outgoing: [], blocked: [] };
     this.notifications = [];
     this.invites = []; // gelen takım davetleri { id, from, mode, expires }
     this.party = null;
@@ -174,7 +178,7 @@ export class SocialClient {
     this.stop();
     this.info = null;
     this.retry = 0;
-    this.lists = { friends: [], incoming: [], outgoing: [] };
+    this.lists = { friends: [], incoming: [], outgoing: [], blocked: [] };
     this.notifications = [];
     this.invites = [];
     this.party = null;
@@ -195,6 +199,36 @@ export class SocialClient {
     const sec = steps[Math.min(this.retry, steps.length - 1)];
     this.retry++;
     this.timer = setTimeout(() => this.start(), sec * 1000);
+  }
+
+  // Çevrim içi hesabı kalıcı olarak sil (Ayarlar → "Çevrim içi hesabı sil"; mağaza kuralı). Cihazdaki ilerleme
+  // kalır. Sunucu bağlantısı da unutulur: oyuncu yeniden bağlanana dek kendiliğinden yeni hesap açılmaz
+  async deleteAccount() {
+    if (!this.profile.token) return { ok: false, error: 'unauthorized' };
+    try {
+      await this.fetch('DELETE', '/api/me');
+    } catch (e) {
+      return { ok: false, error: e.code || 'network' };
+    }
+    this.onAccountDeleted();
+    return { ok: true };
+  }
+
+  onAccountDeleted() {
+    if (this.reason === 'deleted') return;
+    this.stop();
+    this.game.save.update((d) => forgetIdentity(d.profile), { now: true });
+    this.game.settings.serverUrl = '';
+    saveSettings(this.game.settings);
+    this.info = null;
+    this.lists = { friends: [], incoming: [], outgoing: [], blocked: [] };
+    this.notifications = [];
+    this.invites = [];
+    this.party = null;
+    this.queue = null;
+    this.emitAll();
+    this.setStatus('off', 'deleted');
+    this.game.events.emit(EV.PROFILE_CHANGED, { name: this.profile.name, tag: null, fromServer: true });
   }
 
   async register() {
@@ -264,6 +298,8 @@ export class SocialClient {
         // Kimlik tanınmadı: yeniden kayıt
         this.game.save.update((d) => forgetIdentity(d.profile), { now: true });
       }
+      // Hesap silindi (bu ya da başka sekmede): yeni hesap kendiliğinden açılmasın
+      if (e.code === ACCOUNT_DELETED) return this.onAccountDeleted();
       if (!this.stopped) this.fail(this.status === 'online' ? 'lost' : 'network');
     };
   }
@@ -273,7 +309,7 @@ export class SocialClient {
     switch (m.t) {
       case 'welcome':
         this.retry = 0;
-        this.lists = { friends: m.friends || [], incoming: m.incoming || [], outgoing: m.outgoing || [] };
+        this.lists = { friends: m.friends || [], incoming: m.incoming || [], outgoing: m.outgoing || [], blocked: m.blocked || [] };
         this.notifications = m.notifications || [];
         this.party = m.party || null;
         this.queue = m.queue || null;
@@ -291,7 +327,7 @@ export class SocialClient {
         this.emitAll();
         break;
       case 'friends':
-        this.lists = { friends: m.friends || [], incoming: m.incoming || [], outgoing: m.outgoing || [] };
+        this.lists = { friends: m.friends || [], incoming: m.incoming || [], outgoing: m.outgoing || [], blocked: m.blocked || [] };
         ev.emit(EV.FRIENDS_CHANGED, this.lists);
         break;
       case 'presence': {
@@ -385,6 +421,16 @@ export class SocialClient {
   }
   remove(id) {
     return this.fetch('POST', '/api/friends/remove', { id });
+  }
+  // Engelle / engeli kaldır / bildir (reason: 'name' uygunsuz ad, 'abuse' taciz ya da hile)
+  block(id) {
+    return this.fetch('POST', '/api/block', { id });
+  }
+  unblock(id) {
+    return this.fetch('POST', '/api/unblock', { id });
+  }
+  report(id, reason) {
+    return this.fetch('POST', '/api/report', { id, reason });
   }
   async markSeen() {
     if (!this.notifications.some((n) => !n.seen)) return;

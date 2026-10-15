@@ -39,12 +39,33 @@ CREATE TABLE IF NOT EXISTS notifications (
   seen INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS notifications_to ON notifications (to_id, seen);
+-- Engelleme (by_id, target'ı engelledi): engellenen istek gönderemez, aramada görünmez; iki yönde de geçerli
+CREATE TABLE IF NOT EXISTS blocks (
+  by_id TEXT NOT NULL,
+  target TEXT NOT NULL,
+  created INTEGER NOT NULL,
+  PRIMARY KEY (by_id, target)
+);
+CREATE INDEX IF NOT EXISTS blocks_target ON blocks (target);
+-- Şikâyetler (uygunsuz ad, taciz/hile): sunucu sahibi server/moderate.mjs ile okur ve gereğini yapar.
+-- Ad o anki hâliyle saklanır (oyuncu adını değiştirse de neyin bildirildiği görülsün)
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  by_id TEXT NOT NULL,
+  target TEXT NOT NULL,
+  target_name TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
 -- Sunucunun kendi kalıcı değerleri (serverId: bir kez üretilir, veritabanı yaşadıkça aynı kalır)
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 `;
+
+// Aramada engellenenler ve engelleyenler görünmez (iki parametre: arayanın kimliği iki kez)
+const NOT_BLOCKED = 'id NOT IN (SELECT target FROM blocks WHERE by_id = ?) AND id NOT IN (SELECT by_id FROM blocks WHERE target = ?)';
 
 export const hashToken = (t) => createHash('sha256').update(String(t)).digest('hex');
 const pair = (x, y) => (x < y ? [x, y] : [y, x]);
@@ -64,8 +85,8 @@ export class Store {
       tagTaken: q('SELECT 1 FROM players WHERE name_fold = ? AND tag = ?'),
       rename: q('UPDATE players SET name = ?, name_fold = ?, tag = ? WHERE id = ?'),
       seen: q('UPDATE players SET last_seen = ? WHERE id = ?'),
-      search: q("SELECT id, name, tag FROM players WHERE name_fold LIKE ? ESCAPE '\\' AND id != ? ORDER BY (name_fold = ?) DESC, last_seen DESC LIMIT ?"),
-      searchTag: q("SELECT id, name, tag FROM players WHERE name_fold LIKE ? ESCAPE '\\' AND tag LIKE ? AND id != ? ORDER BY (name_fold = ?) DESC, last_seen DESC LIMIT ?"),
+      search: q(`SELECT id, name, tag FROM players WHERE name_fold LIKE ? ESCAPE '\\' AND id != ? AND ${NOT_BLOCKED} ORDER BY (name_fold = ?) DESC, last_seen DESC LIMIT ?`),
+      searchTag: q(`SELECT id, name, tag FROM players WHERE name_fold LIKE ? ESCAPE '\\' AND tag LIKE ? AND id != ? AND ${NOT_BLOCKED} ORDER BY (name_fold = ?) DESC, last_seen DESC LIMIT ?`),
       getFriendship: q('SELECT * FROM friendships WHERE a = ? AND b = ?'),
       insertFriendship: q('INSERT INTO friendships (a, b, status, requester, created) VALUES (?, ?, ?, ?, ?)'),
       acceptFriendship: q("UPDATE friendships SET status = 'accepted', created = ? WHERE a = ? AND b = ?"),
@@ -77,6 +98,18 @@ export class Store {
       notes: q('SELECT * FROM notifications WHERE to_id = ? ORDER BY id DESC LIMIT ?'),
       seenNotes: q('UPDATE notifications SET seen = 1 WHERE to_id = ?'),
       trimNotes: q('DELETE FROM notifications WHERE to_id = ? AND id NOT IN (SELECT id FROM notifications WHERE to_id = ? ORDER BY id DESC LIMIT ?)'),
+      delPlayer: q('DELETE FROM players WHERE id = ?'),
+      delFriendshipsOf: q('DELETE FROM friendships WHERE a = ? OR b = ?'),
+      delNotesOf: q('DELETE FROM notifications WHERE to_id = ? OR from_id = ?'),
+      delBlocksOf: q('DELETE FROM blocks WHERE by_id = ? OR target = ?'),
+      delReportsBy: q('DELETE FROM reports WHERE by_id = ?'),
+      addBlock: q('INSERT OR IGNORE INTO blocks (by_id, target, created) VALUES (?, ?, ?)'),
+      delBlock: q('DELETE FROM blocks WHERE by_id = ? AND target = ?'),
+      blockedBy: q('SELECT target, created FROM blocks WHERE by_id = ? ORDER BY created DESC'),
+      blockedEither: q('SELECT 1 FROM blocks WHERE (by_id = ? AND target = ?) OR (by_id = ? AND target = ?)'),
+      addReport: q('INSERT INTO reports (by_id, target, target_name, reason, created) VALUES (?, ?, ?, ?, ?)'),
+      reportsAll: q('SELECT * FROM reports ORDER BY id DESC LIMIT ?'),
+      reportCount: q('SELECT COUNT(*) AS n FROM reports WHERE target = ?'),
       getMeta: q('SELECT value FROM meta WHERE key = ?'),
       setMeta: q('INSERT INTO meta (key, value) VALUES (?, ?)'),
     };
@@ -136,13 +169,13 @@ export class Store {
     return { id, name, tag };
   }
 
-  // Ada göre önek araması; "ad#12" etiketle daraltır
+  // Ada göre önek araması; "ad#12" etiketle daraltır. Engelleşenler birbirini bulamaz
   search(selfId, q) {
     const [n, t] = String(q).split('#');
     const fold = foldName(n.trim()).replace(/[\\%_]/g, (c) => `\\${c}`);
     const lim = LIMITS.searchMax;
-    if (t !== undefined && /^\d{1,4}$/.test(t.trim())) return this.q.searchTag.all(`${fold}%`, `${t.trim()}%`, selfId, foldName(n.trim()), lim);
-    return this.q.search.all(`${fold}%`, selfId, foldName(n.trim()), lim);
+    if (t !== undefined && /^\d{1,4}$/.test(t.trim())) return this.q.searchTag.all(`${fold}%`, `${t.trim()}%`, selfId, selfId, selfId, foldName(n.trim()), lim);
+    return this.q.search.all(`${fold}%`, selfId, selfId, selfId, foldName(n.trim()), lim);
   }
 
   friendship(x, y) {
@@ -213,5 +246,60 @@ export class Store {
 
   markSeen(to) {
     this.q.seenNotes.run(to);
+  }
+
+  // Engelle: arkadaşlık ya da bekleyen istek de düşer
+  block(by, target, now = Date.now()) {
+    this.q.addBlock.run(by, target, now);
+    this.remove(by, target);
+  }
+
+  unblock(by, target) {
+    this.q.delBlock.run(by, target);
+  }
+
+  // Engellediklerim (en yeni önce): [{ id, name, tag, created }]
+  blocked(by) {
+    const out = [];
+    for (const r of this.q.blockedBy.all(by)) {
+      const p = this.player(r.target);
+      if (p) out.push({ ...p, created: r.created });
+    }
+    return out;
+  }
+
+  // İki oyuncudan biri öbürünü engellemiş mi
+  isBlocked(x, y) {
+    return !!this.q.blockedEither.get(x, y, y, x);
+  }
+
+  report(by, target, reason, now = Date.now()) {
+    const p = this.q.byId.get(target);
+    if (!p) return false;
+    this.q.addReport.run(by, target, `${p.name}#${p.tag}`, reason, now);
+    return true;
+  }
+
+  // Sunucu sahibi için (server/moderate.mjs): son şikâyetler, bildirilen oyuncunun toplam şikâyet sayısıyla
+  reports(limit = 50) {
+    return this.q.reportsAll.all(limit).map((r) => ({ ...r, total: this.q.reportCount.get(r.target).n, exists: !!this.q.byId.get(r.target) }));
+  }
+
+  // Hesap silme (mağaza kuralı: oyuncu hesabını oyunun içinden silebilmeli). Ad, etiket, belirteç, arkadaşlıklar ve
+  // kendisine giden ya da ondan gelen bildirimler tek işlemde gider; yarım silinmiş hesap kalmaz
+  deletePlayer(id) {
+    this.db.exec('BEGIN');
+    try {
+      this.q.delNotesOf.run(id, id);
+      this.q.delFriendshipsOf.run(id, id);
+      this.q.delBlocksOf.run(id, id);
+      this.q.delReportsBy.run(id);
+      const r = this.q.delPlayer.run(id);
+      this.db.exec('COMMIT');
+      return r.changes > 0;
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
   }
 }

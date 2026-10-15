@@ -55,9 +55,11 @@ CC BY 4.0: yazar ve lisans belirtilerek ticari dahil her amaçla kullanılabilir
 
 ### Prosedürel içerik
 
-AR-7 Vanguard, SMG-9 Akrep, SG-12 Breaker, P-9 Sentinel, RK-7 Yıldırım, düşman silahları, tanklar, uçaksavarlar, harita, dokular ve seslerin tamamı kodla üretilir. Helikopter modeli yüklenemezse kodla üretilen yedek helikopter kullanılır. Asker modeli yüklenemezse oyun kodla üretilen yedek askerlere döner.
+AR-7 Vanguard, SMG-9 Akrep, SG-12 Breaker, P-9 Sentinel, RK-7 Yıldırım, PR-10 Tayfun, düşman silahları, tanklar, uçaksavarlar, harita, dokular ve seslerin tamamı kodla üretilir. Helikopter modeli yüklenemezse kodla üretilen yedek helikopter kullanılır. Asker modeli yüklenemezse oyun kodla üretilen yedek askerlere döner.
 
 ### Yazılım ve yazı tipleri
 
 - three.js — MIT lisansı
-- Big Shoulders Stencil Display, Barlow Condensed, Share Tech Mono — SIL Open Font License (Google Fonts)
+- Big Shoulders Stencil Display, Barlow Condensed, Share Tech Mono — SIL Open Font License (Google Fonts). Mağaza uygulaması (`web/dist/app`) bunları kendi içinde taşır: `web/src/fonts/` (lisans metinleri `OFL-*.txt`, `tools/fetch-fonts.mjs`)
+
+Pompalı nişancı tüfeği PR-10 Tayfun kodla üretilir (`web/src/models.js → buildPumpRifle`). Yüklenen "Lightning pump action rifle" modeli Sketchfab Standard lisanslı olduğu için (ham dosya oyunla dağıtılamaz), AK-47 modeli CC BY-NC olduğu için (ticari kullanım yok) alınmadı.

@@ -16,9 +16,10 @@ import { Mission } from './mission.js';
 import { HUD } from './hud.js';
 import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
-import { preloadSoldier, setSoldierEnvironment } from './soldier.js';
+import { preloadSoldier, setSoldierEnvironment, createSoldier } from './soldier.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES } from './config.js';
+import { ProgressionSystem } from './progression.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp } from './models.js';
@@ -37,6 +38,8 @@ import { RadioChat, VoiceCommand } from './radioChat.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
+import { setupNative } from './native.js';
+import { STORE_BUILD } from './platform.js';
 import { SocialClient } from './net/social.js';
 import { OnlineScreen } from './onlineScreen.js';
 import { GameClient } from './net/gameClient.js';
@@ -144,6 +147,8 @@ function levelDifficulty(base, level) {
 }
 
 const _projView = new THREE.Matrix4();
+const _lobbyO = new THREE.Vector3();
+const _lobbyD = new THREE.Vector3();
 const _viewSphere = new THREE.Sphere(new THREE.Vector3(), 1.2);
 
 export class Game {
@@ -152,6 +157,14 @@ export class Game {
     // Ortak kayıt (kredi, envanter, teçhizat, ilerleme, ayarlar) ve kredi hareketlerinin tek giriş noktası
     this.save = getSave();
     this.economy = new EconomySystem(this.save, this.events);
+    // Rütbe/XP, günlük ödül ve günün görevleri: yalnız görevde ve çevrim içi maçta ilerler (poligon sayılmaz)
+    this.progression = new ProgressionSystem({
+      save: this.save,
+      economy: this.economy,
+      events: this.events,
+      mode: () => this.mode,
+      matchWon: (m) => !!this.net && m.winner === this.net.mySide,
+    });
     this.settings = loadSettings();
     applyBindingOverrides(this.settings.bindings);
     this.canvas = document.getElementById('game');
@@ -371,9 +384,12 @@ export class Game {
 
   applySettings() {
     const S = this.settings;
-    setRealNames(S.realNames);
+    // Mağaza sürümünde silahlar hep kurgusal adlı (gerçek üretici ve model adları tescilli marka: Docs/STORE_RELEASE.md)
+    setRealNames(S.realNames && !STORE_BUILD);
     if (this.weapons?.current) this.events.emit('weapon', this.weapons.current);
-    this.audio.setVolumes({ master: S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume });
+    // Sessiz anahtarı ana sesi sıfırlar; kaydırıcılar korunur (açınca eski düzey geri gelir)
+    this.audio.setVolumes({ master: S.muted ? 0 : S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume });
+    this.updateSoundButtons();
     this.hud.applySettings(S);
     this.voice?.refresh(S);
     if (this.effects) this.effects.bloodOn = S.blood;
@@ -382,6 +398,32 @@ export class Game {
     if (this.sun) this.sun.castShadow = q !== 'low' && this.renderer.shadowMap.enabled;
     if (this.envMap) setSoldierEnvironment(this.envMap, q !== 'low' && this.renderer.shadowMap.enabled);
     this.resize();
+  }
+
+  // Oyun sesini aç/kapat (lobi hoparlörü, duraklatma menüsü): kayda hemen yazılır
+  toggleSound() {
+    const S = this.settings;
+    S.muted = !S.muted;
+    saveSettings(S);
+    // Ses bağlamı ancak kullanıcı dokunuşuyla açılır: düğme basışı bu fırsattır
+    if (!S.muted) {
+      this.audio.init();
+      if (this.state === 'menu') this.audio.startMenuMusic();
+    }
+    this.applySettings();
+    if (!S.muted) this.audio.uiClick();
+  }
+
+  updateSoundButtons() {
+    const muted = !!this.settings.muted;
+    document.body.classList.toggle('muted', muted);
+    const p = document.getElementById('btnPauseSound');
+    if (p) p.textContent = muted ? 'Ses: kapalı · aç' : 'Ses: açık · kapat';
+    const b = document.getElementById('btnSound');
+    if (b) {
+      b.setAttribute('aria-pressed', muted ? 'true' : 'false');
+      b.title = muted ? 'Ses kapalı · açmak için dokun' : 'Ses açık · kapatmak için dokun';
+    }
   }
 
   // Tuval tam cihaz çözünürlüğünde (eller ve silah); dünya kaliteye ve "Dünya çözünürlüğü" ayarına göre
@@ -553,6 +595,14 @@ export class Game {
     M.radioQueue.length = 0;
     M.interactables.length = 0;
     this.menuT = 0;
+    // Lobi operatörü: tim askeri, silahıyla kameraya dönük durur (zemin yüksekliği ışınla)
+    const op = createSoldier(LOBBY.type, ALLY.colors);
+    const pos = new THREE.Vector3(LOBBY.op[0], 0, LOBBY.op[1]);
+    const hit = this.world.raycast(_lobbyO.set(pos.x, 8, pos.z), _lobbyD.set(0, -1, 0), 12);
+    if (hit) pos.y = hit.point.y;
+    this.scene.add(op.root);
+    this.lobbyOp = op;
+    this.lobbyState = { pos, yaw: LOBBY.opYaw, vel: { x: 0, z: 0 }, crouch: false, aimPitch: 0, stance: 'alert', reload: -1, throw: -1, dist: LOBBY.camDist, mount: null, hideGun: false, offscreen: false };
   }
 
   // Bonus görev takibi: görev başında kurulur (tekrar oynamada ayara göre farklı bonuslar)
@@ -970,7 +1020,12 @@ export class Game {
       if (I.pressed('console') && (this.state === 'playing' || this.state === 'paused')) this.console.toggle();
       switch (this.state) {
         case 'menu':
-          this.updateMenu(dt);
+          // Lobi durağan bir sahne: telefonda pil ve ısınma için en çok LOBBY.maxFps kare (ekran 60/120 Hz olsa da)
+          this.menuAcc = (this.menuAcc || 0) + dt;
+          if (this.menuAcc >= 1 / LOBBY.maxFps - 0.002) {
+            this.updateMenu(this.menuAcc);
+            this.menuAcc = 0;
+          }
           break;
         case 'playing':
         case 'dying':
@@ -1008,10 +1063,19 @@ export class Game {
     this.menuT = (this.menuT || 0) + dt;
     const t = this.menuT;
     const cam = this.camera;
-    cam.position.set(Math.sin(t * 0.04) * 55, 20 + Math.sin(t * 0.09) * 5, 10 + Math.cos(t * 0.04) * 80);
-    cam.lookAt(Math.sin(t * 0.03) * 12, 2, -20 + Math.sin(t * 0.05) * 30);
-    if (Math.abs(cam.fov - 55) > 0.1) {
-      cam.fov = 55;
+    // Lobi kamerası operatörün önünde; çok hafif nefes salınımı (CODM lobisi gibi durağan, canlı)
+    const st = this.lobbyState;
+    if (st) {
+      const fx = -Math.sin(st.yaw);
+      const fz = -Math.cos(st.yaw);
+      const sw = Math.sin(t * LOBBY.swaySpeed) * LOBBY.swayAmp;
+      cam.position.set(st.pos.x + fx * LOBBY.camDist + fz * sw, st.pos.y + LOBBY.camHeight + Math.sin(t * LOBBY.swaySpeed * 0.7) * LOBBY.swayAmp * 0.4, st.pos.z + fz * LOBBY.camDist - fx * sw);
+      // Bakış noktası operatörün solunda (kameradan bakınca): operatör ekranın sağına kayar
+      cam.lookAt(st.pos.x - fz * LOBBY.side, st.pos.y + LOBBY.lookHeight, st.pos.z + fx * LOBBY.side);
+      this.lobbyOp.animate(dt, st);
+    }
+    if (Math.abs(cam.fov - LOBBY.fov) > 0.1) {
+      cam.fov = LOBBY.fov;
       cam.updateProjectionMatrix();
     }
     cam.updateMatrixWorld();
@@ -1219,6 +1283,7 @@ async function boot() {
   }
   window.__game = game;
   game.pwa = pwa;
+  let invited = '';
   try {
     L.step('Asker modelleri yükleniyor', 0.4);
     await nextPaint();
@@ -1229,12 +1294,9 @@ async function boot() {
     L.step('Harita inşa ediliyor', 0.6);
     await nextPaint();
     // Davet bağlantısı (?sunucu=): sunucu Ayarlar'a kaydedilir, menüden sonra Çevrim içi ekranı açılır
-    const invited = game.social.consumeInvite();
+    invited = game.social.consumeInvite();
     if (invited) game.pendingNotice = 'Sunucu bağlantısı kaydedildi; Çevrim içi bölümünden bağlanılıyor.';
     game.showMenu();
-    // Çevrim içi: sunucu adresi ve ad varsa bağlan (yoksa durum "kapalı"; ad girilince kendiliğinden başlar)
-    game.social.start();
-    if (invited && game.save.data.profile.name) game.online.open();
     L.step('Gölgelendiriciler derleniyor', 0.85);
     await nextPaint();
     await game.precompile();
@@ -1243,7 +1305,14 @@ async function boot() {
     return;
   }
   L.ready();
+  // Çevrim içi: sunucu adresi ve ad varsa bağlan (yoksa durum "kapalı"; ad girilince kendiliğinden başlar).
+  // Gölgelendirici derlemesinden sonra: derleme ana iş parçacığını uzun süre tutar, sunucu yoklaması süresini
+  // doldurup "ulaşılamıyor" sayılır ve yeniden deneme aralığı büyür (yavaş telefonda bağlanma gecikirdi)
+  game.social.start();
+  if (invited && game.save.data.profile.name) game.online.open();
   pwa?.register();
+  // Mağaza uygulaması: Android geri tuşu (duraklat / geri dön / çift basışla çık)
+  game.native = setupNative(game);
   requestAnimationFrame((t) => game.frame(t));
   // İlk tıklamada menü müziği
   const startAudio = () => {

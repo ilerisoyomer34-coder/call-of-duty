@@ -20,4 +20,6 @@ export const LIMITS = {
   inviteMs: 60_000,
   partyGraceMs: 60_000, // bağlantısı kopan üye partide bu kadar bekler
   room: { max: 12, windowMs: 60_000 }, // deneme odası açma ve maç arama
+  block: { max: 30, windowMs: 3_600_000 },
+  report: { max: 10, windowMs: 3_600_000 },
 };

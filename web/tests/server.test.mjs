@@ -230,3 +230,59 @@ test('ev sunucusu: CLIENT_IP_HEADER verilince IP o başlıktan, sahte X-Forwarde
     await s.close();
   }
 });
+
+test('mağaza kuralları: engelle → aramada görünmez, istek atamaz; engeli kaldır; şikâyet kaydı', async () => {
+  const mk = async (n) => (await call('POST', '/api/session', { name: n })).body;
+  const ayse = await mk('Ayşe');
+  const troll = await mk('Trolcuk');
+  await call('POST', '/api/friends/request', { id: ayse.id }, troll.token);
+  assert.equal((await call('POST', '/api/block', { id: troll.id }, ayse.token)).body.ok, true);
+  const fl = (await call('GET', '/api/friends', undefined, ayse.token)).body;
+  assert.equal(fl.incoming.length, 0, 'engelleme bekleyen isteği düşürdü');
+  assert.equal(fl.blocked[0].id, troll.id);
+  // İki yönde: ne o Ayşe'yi bulur ne Ayşe onu; istek "bulunamadı" döner (engellendiğini öğrenmez)
+  assert.ok(!(await call('GET', '/api/players?q=ayş', undefined, troll.token)).body.players.some((p) => p.id === ayse.id));
+  assert.ok(!(await call('GET', '/api/players?q=trol', undefined, ayse.token)).body.players.some((p) => p.id === troll.id));
+  assert.equal((await call('POST', '/api/friends/request', { id: ayse.id }, troll.token)).body.error, 'not_found');
+  assert.equal((await call('POST', '/api/friends/request', { id: troll.id }, ayse.token)).body.error, 'not_found');
+  assert.equal((await call('POST', '/api/block', { id: ayse.id }, ayse.token)).body.error, 'self');
+  // Şikâyet: gerekçe listeden, kayıt adın o anki hâliyle
+  assert.equal((await call('POST', '/api/report', { id: troll.id, reason: 'xyz' }, ayse.token)).body.error, 'bad_reason');
+  assert.equal((await call('POST', '/api/report', { id: troll.id, reason: 'name' }, ayse.token)).body.ok, true);
+  const rep = srv.store.reports().find((r) => r.target === troll.id);
+  assert.equal(rep.target_name, `Trolcuk#${troll.tag}`);
+  assert.equal(rep.reason, 'name');
+  // Engeli kaldır: yeniden bulunur
+  await call('POST', '/api/unblock', { id: troll.id }, ayse.token);
+  assert.equal((await call('GET', '/api/friends', undefined, ayse.token)).body.blocked.length, 0);
+  assert.ok((await call('GET', '/api/players?q=trol', undefined, ayse.token)).body.players.some((p) => p.id === troll.id));
+});
+
+test('mağaza kuralları: hesabı sil → açık oturum 4010 ile kapanır, arkadaş listesinden düşer, belirteç geçersiz', async () => {
+  const mk = async (n) => (await call('POST', '/api/session', { name: n })).body;
+  const gidici = await mk('Gidici');
+  const kalan = await mk('Kalan');
+  await call('POST', '/api/friends/request', { id: kalan.id }, gidici.token);
+  await call('POST', '/api/friends/respond', { id: gidici.id, accept: true }, kalan.token);
+  const wg = connect(gidici.token);
+  const wk = connect(kalan.token);
+  await Promise.all([wg.opened, wk.opened]);
+  await Promise.all([wg.wait('welcome'), wk.wait('welcome')]);
+  const closed = new Promise((r) => wg.ws.on('close', (c) => r(c)));
+  const del = await call('DELETE', '/api/me', undefined, gidici.token);
+  assert.equal(del.body.ok, true);
+  assert.equal(await closed, 4010, 'silinen hesabın sekmesi kapandı');
+  const push = await wk.wait((m) => m.t === 'friends');
+  assert.equal(push.friends.length, 0, 'arkadaş listesinden düştü');
+  assert.equal((await call('GET', '/api/me', undefined, gidici.token)).status, 401);
+  assert.equal(srv.store.player(gidici.id), null);
+  wk.close();
+});
+
+test('mağaza uygulaması kökenleri: iOS capacitor://localhost ve Android https://localhost izinli', async () => {
+  for (const origin of ['capacitor://localhost', 'https://localhost']) {
+    const r = await call('GET', '/api/health', undefined, null, { origin });
+    assert.equal(r.status, 200, origin);
+  }
+  assert.equal((await call('GET', '/api/health', undefined, null, { origin: 'capacitor://kotu.example' })).status, 403);
+});

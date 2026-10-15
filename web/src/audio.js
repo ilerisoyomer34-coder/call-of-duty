@@ -822,6 +822,8 @@ const GUN_PROFILES = {
   bren: { vol: 0.86, crack: 1.0, crackFreq: 3150, crackDur: 0.055, body: 0.8, bodyFreq: 2650, bodyDur: 0.12, thump: 165, thumpGain: 0.75, thumpDur: 0.08, tail: 0.42, tailGain: 0.4, mech: 0.18 },
   // .338 Lapua: tok gürleme, uzun yankı
   awm: { vol: 1.08, crack: 1.35, crackFreq: 2200, crackDur: 0.11, body: 1.05, bodyFreq: 1600, bodyDur: 0.36, thump: 82, thumpGain: 1.15, thumpDur: 0.26, tail: 1.5, tailGain: 0.8, mech: 0 },
+  // Pompalı nişancı (.44-40): tok, kısa yankılı eski tüfek sesi
+  pr10: { vol: 1.0, crack: 1.15, crackFreq: 2300, crackDur: 0.09, body: 1.0, bodyFreq: 1700, bodyDur: 0.3, thump: 95, thumpGain: 1.0, thumpDur: 0.2, tail: 1.1, tailGain: 0.65, mech: 0 },
   // Döner makinelinin tek atışı (üç atışta bir çalınır; sürekli ses minigun())
   minigun: { vol: 0.7, crack: 0.85, crackFreq: 2500, crackDur: 0.03, body: 0.75, bodyFreq: 1800, bodyDur: 0.07, thump: 125, thumpGain: 0.65, thumpDur: 0.05, tail: 0.3, tailGain: 0.3, mech: 0 },
 };

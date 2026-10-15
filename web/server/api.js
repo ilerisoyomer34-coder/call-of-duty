@@ -44,6 +44,8 @@ function readBody(req) {
 }
 
 const str = (v) => (typeof v === 'string' ? v : '');
+// Şikâyet gerekçeleri: uygunsuz ad, taciz/hile (istemcide aynı kodlar → Türkçe metin)
+export const REPORT_REASONS = ['name', 'abuse'];
 
 export function createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker }) {
   const ipOf = makeIpOf(config);
@@ -62,7 +64,7 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
   const withStatus = (list) => list.map((x) => ({ ...x, status: hub.statusOf(x.id) }));
   const friendsOf = (id) => {
     const r = store.relations(id);
-    return { friends: withStatus(r.friends), incoming: r.incoming, outgoing: r.outgoing };
+    return { friends: withStatus(r.friends), incoming: r.incoming, outgoing: r.outgoing, blocked: store.blocked(id) };
   };
   // İlişki değişince iki tarafa güncel listeler (açık sekmeler yeniden çizsin)
   const pushFriends = (...ids) => {
@@ -94,6 +96,19 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       if (party) parties.push(party);
       return r;
     },
+    // Hesabı sil (App Store 5.1.1(v), Google Play hesap silme kuralı): kalıcıdır, geri alınamaz. Arkadaş listeleri
+    // güncellenir; oyuncunun açık sekmeleri kapanır. Cihazdaki ilerleme (kayıt) sunucuda değil, ona dokunulmaz
+    'DELETE /api/me': async (req) => {
+      const p = auth(req);
+      const r = store.relations(p.id);
+      const others = [...r.friends, ...r.incoming, ...r.outgoing].map((x) => x.id);
+      matchmaker.cancel(p.id);
+      parties.forget(p.id);
+      store.deletePlayer(p.id);
+      hub.kick(p.id);
+      pushFriends(...others);
+      return { ok: true };
+    },
     'GET /api/players': async (req, body, url) => {
       const p = auth(req);
       limit(`q:${p.id}`, LIMITS.search);
@@ -108,7 +123,8 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       const to = str(body.id);
       if (to === p.id) throw new HttpError(400, 'self');
       const other = store.player(to);
-      if (!other) throw new HttpError(404, 'not_found');
+      // Engelleşmiş oyuncu yokmuş gibi görünür (engellendiğini öğrenmesin)
+      if (!other || store.isBlocked(p.id, to)) throw new HttpError(404, 'not_found');
       const rel = store.relation(p.id, to);
       if (rel === 'friend') throw new HttpError(409, 'already_friends');
       if (rel === 'outgoing') throw new HttpError(409, 'already_requested');
@@ -148,6 +164,37 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       store.remove(p.id, other);
       pushFriends(p.id, other);
       return { relation: 'none' };
+    },
+    // Engelle / engeli kaldır / bildir (App Store 1.2: kullanıcı içeriği olan uygulamada zorunlu). Engellemek
+    // arkadaşlığı ve bekleyen isteği düşürür, takımdaysa ayrılır; şikâyet sunucu sahibine gider (server/moderate.mjs)
+    'POST /api/block': async (req, body) => {
+      const p = auth(req);
+      limit(`b:${p.id}`, LIMITS.block);
+      const other = str(body.id);
+      if (other === p.id) throw new HttpError(400, 'self');
+      if (!store.player(other)) throw new HttpError(404, 'not_found');
+      store.block(p.id, other);
+      const party = parties.partyOf(p.id);
+      if (party && party.members.includes(other)) parties.leave(p.id);
+      pushFriends(p.id, other);
+      return { ok: true };
+    },
+    'POST /api/unblock': async (req, body) => {
+      const p = auth(req);
+      store.unblock(p.id, str(body.id));
+      pushFriends(p.id);
+      return { ok: true };
+    },
+    'POST /api/report': async (req, body) => {
+      const p = auth(req);
+      limit(`rp:${p.id}`, LIMITS.report);
+      const other = str(body.id);
+      const reason = str(body.reason);
+      if (!REPORT_REASONS.includes(reason)) throw new HttpError(400, 'bad_reason');
+      if (other === p.id) throw new HttpError(400, 'self');
+      if (!store.report(p.id, other, reason)) throw new HttpError(404, 'not_found');
+      log('şikâyet', reason, other);
+      return { ok: true };
     },
     'GET /api/notifications': async (req) => ({ notifications: store.notifications(auth(req).id) }),
     'POST /api/notifications/seen': async (req) => {
@@ -209,6 +256,8 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
     if (!origin) return true; // tarayıcı dışı (curl, testler)
     if (origin === 'null') return config.allowNullOrigin;
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+    // Mağaza uygulaması (Capacitor): Android https://localhost (yukarıda), iOS capacitor://localhost
+    if (origin === 'capacitor://localhost') return true;
     return config.allowedOrigins.includes(origin);
   };
 
@@ -227,7 +276,7 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'access-control-allow-origin': origin || '*',
-        'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
+        'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
         'access-control-allow-headers': 'authorization, content-type',
         'access-control-max-age': '600',
         vary: 'Origin',

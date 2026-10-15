@@ -338,6 +338,68 @@ export function buildLauncher() {
   };
 }
 
+// Pompalı nişancı tüfeği (PR-10 Tayfun, Lightning tipi): sekizgen uzun namlu, altında tüp şarjör, ahşap pompa
+// ve dipçik, eski tip uzun dürbün (iki halka). Dürbün göz merceği gez noktası; pompa ayrı parça (her atışta çekilir)
+export function buildPumpRifle() {
+  const root = new THREE.Group();
+  const blued = mat(0x22262b, 0.38, 0.75);
+  const steel = mat(0x3a3f44, 0.32, 0.8);
+  const wood = mat(0x6b4426, 0.62, 0.05);
+  const woodDark = mat(0x4a2e18, 0.7, 0.05);
+  B(root, 0.036, 0.062, 0.21, blued, 0, 0.034, -0.05); // gövde
+  B(root, 0.004, 0.026, 0.06, steel, 0.0185, 0.045, -0.06); // kovan penceresi
+  cylZ(root, 0.0105, 0.52, blued, 0, 0.046, -0.41, 8); // sekizgen namlu
+  cylZ(root, 0.0125, 0.03, steel, 0, 0.046, -0.66, 8); // namlu ağzı bileziği
+  cylZ(root, 0.0085, 0.42, steel, 0, 0.022, -0.37, 10); // tüp şarjör
+  cylZ(root, 0.0095, 0.02, blued, 0, 0.022, -0.585, 10); // şarjör kapağı
+  B(root, 0.004, 0.012, 0.008, steel, 0, 0.061, -0.645); // arpacık
+  B(root, 0.006, 0.03, 0.05, blued, 0, -0.012, -0.012); // tetik korkuluğu
+  B(root, 0.004, 0.018, 0.006, steel, 0, -0.006, -0.012); // tetik
+  // Dipçik: bilek ve kundak, lastik pabuç
+  B(root, 0.03, 0.05, 0.1, wood, 0, -0.005, 0.1, -0.22);
+  B(root, 0.038, 0.11, 0.17, wood, 0, -0.035, 0.22, -0.08);
+  B(root, 0.04, 0.115, 0.012, mat(0x161616, 0.9, 0), 0, -0.04, 0.31, -0.08);
+  // Eski tip dürbün: uzun ince gövde, geniş objektif, göz merceği, iki halka ve ayar kuleleri
+  const sy = 0.104;
+  cylZ(root, 0.0115, 0.3, blued, 0, sy, -0.12, 18);
+  const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.0115, 0.06, 18), blued);
+  bell.rotation.x = -Math.PI / 2;
+  bell.position.set(0, sy, -0.3);
+  root.add(bell);
+  cylZ(root, 0.02, 0.03, blued, 0, sy, -0.345, 18);
+  cylZ(root, 0.016, 0.05, blued, 0, sy, 0.045, 18);
+  const elev = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.016, 10), steel); // yükseklik kulesi
+  elev.position.set(0, sy + 0.016, -0.12);
+  root.add(elev);
+  const wind = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.016, 10), steel); // yan kule
+  wind.rotation.z = Math.PI / 2;
+  wind.position.set(0.016, sy, -0.12);
+  root.add(wind);
+  for (const z of [-0.2, -0.04]) {
+    B(root, 0.026, 0.006, 0.014, steel, 0, sy - 0.014, z); // halka
+    B(root, 0.012, 0.03, 0.012, steel, 0, sy - 0.034, z); // ayak
+  }
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.0185, 18), new THREE.MeshBasicMaterial({ color: 0x7a6a3a, transparent: true, opacity: 0.35, depthWrite: false }));
+  lens.position.set(0, sy, -0.3605);
+  lens.rotation.y = Math.PI;
+  root.add(lens);
+  // Pompa: kanallı ahşap el kundağı, tüp şarjörün üstünde kayar
+  const pump = new THREE.Group();
+  pump.position.set(0, 0.024, -0.3);
+  B(pump, 0.038, 0.034, 0.17, wood, 0, 0, 0);
+  for (let i = 0; i < 6; i++) B(pump, 0.04, 0.036, 0.006, woodDark, 0, 0, -0.07 + i * 0.028);
+  root.add(pump);
+  return {
+    root,
+    parts: { pump },
+    muzzle: new THREE.Vector3(0, 0.046, -0.68),
+    sight: new THREE.Vector3(0, sy, 0.07),
+    leftHand: new THREE.Vector3(0, -0.012, -0.3),
+    rightHand: new THREE.Vector3(0, -0.035, 0.03),
+    eject: new THREE.Vector3(0.022, 0.05, -0.06),
+  };
+}
+
 // Uçan roket (dünya sahnesi)
 export function buildRocket() {
   const g = new THREE.Group();
@@ -357,6 +419,7 @@ export function buildRocket() {
 }
 
 export function buildWeapon(id) {
+  if (id === 'pr10') return buildPumpRifle();
   if (id === 'pistol' || id === 'd50') return buildPistol();
   if (id === 'shotgun') return buildShotgun();
   if (id === 'smg') return buildSMG();

@@ -34,6 +34,14 @@ export const MOVEMENT = {
 
 // Çevrim içi (çok oyunculu S2–S3). serverUrl boşsa çevrim içi kapalı ("Sunucu henüz kurulmadı"); VPS kurulunca
 // buraya adres yazılıp derlenir (Docs/DEPLOY.md). Geliştirmede ?server=http://localhost:8790 ya da Ayarlar.
+// Mağaza uygulaması (Capacitor, dist/app) ve yasal sayfalar (Docs/STORE_RELEASE.md)
+export const APP = {
+  // Mağaza kaydına da yazılan gizlilik politikası (src/pwa/privacy.html → Pages)
+  privacyUrl: 'https://ilerisoyomer34-coder.github.io/call-of-duty/privacy.html',
+  backExitSec: 2, // Android geri tuşu: ana menüde bu süre içinde ikinci basış uygulamadan çıkar
+  confirmSec: 4, // "Hesabı sil" gibi iki basışlı onayların bekleme süresi
+};
+
 export const NET = {
   serverUrl: '',
   // Davet bağlantısı bu adrese ?sunucu= ekler (arkadaşlar oyunu Pages'ten açar; ev sunucusu server/host.mjs)
@@ -838,6 +846,52 @@ export const WEAPONS = {
     tracerEvery: 1,
     flashSize: 0.24,
   },
+  // Pompalı nişancı tüfeği (Lightning tipi, kodla modellendi): her atıştan sonra pompa çekilir (dürbün açık kalır),
+  // tüp şarjör fişek fişek dolar; yarı otomatik nişancıdan yavaş ama ağır vurur, keskin nişancıdan çevik
+  pr10: {
+    id: 'pr10',
+    name: 'PR-10 Tayfun',
+    kind: 'Pompalı Nişancı',
+    category: 'primary',
+    pump: true,
+    pumpDelay: 0.22,
+    flashSize: 0.17,
+    fireModes: ['semi'],
+    rpm: 75,
+    pellets: 1,
+    range: 400,
+    damage: 92,
+    falloff: { start: 70, end: 180, min: 0.8 },
+    zones: { head: 2.6, torso: 1.0, limb: 0.85 },
+    magSize: 8,
+    reserveMax: 48,
+    reserveStart: 24,
+    reloadType: 'shell',
+    reloadStart: 0.4,
+    reloadPerShell: 0.48,
+    reloadEnd: 0.42,
+    chamber: false,
+    spread: { hip: 4.5, perShot: 1.6, max: 7, recovery: 6, adsMult: 0.02, crouchMult: 0.8, moveMult: 1.5, airMult: 3.0 },
+    recoil: {
+      pattern: [[0.0, 3.2], [0.3, 3.0]],
+      random: 0.5,
+      adsMult: 0.8,
+      recoveryDelay: 0.12,
+      recovery: 6,
+      kick: 2.0,
+      kickRot: 2.2,
+      shake: 0.32,
+    },
+    ads: { fovMult: 0.22, time: 0.3, moveMult: 0.6, sensMult: 0.95, vmFov: 38 },
+    mobility: 0.95,
+    equipTime: 0.55,
+    unequipTime: 0.35,
+    hip: { pos: [0.16, -0.18, -0.36] },
+    adsDist: 0.16,
+    sound: 'pr10',
+    noise: 90,
+    tracerEvery: 1,
+  },
   // Altı namlulu döner makineli: namlular tam hıza çıkmadan ateş etmez (sağ tık önceden döndürür), 10.000'lik
   // fişek kayışı (şarjör değişmez, cephane kutusu kayışı doldurur), nişan alınmaz, çok ağır. Çevrim içinde yok
   minigun: {
@@ -891,7 +945,7 @@ export const WEAPONS = {
 // Tuş sırası: 1-9 (poligonda hepsi, görevde ana + yan silah)
 // Sketchfab silahları sonda: poligonda 1-9 tuşları eski dizilişte kalır, yenilere tekerlekle geçilir
 // Yeni silahlar hep sona eklenir: çevrim içi protokol silahı bu dizideki sırasıyla taşır
-export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun'];
+export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10'];
 export const DEFAULT_LOADOUT = { primary: 'rifle', secondary: 'pistol' };
 
 export const GRENADE = {
@@ -1360,6 +1414,22 @@ export const RENDER = {
 
 // Teçhizat ekranındaki silah görselleri (Operasyon Güncellemesi §5.4): oyunun kendi modelinden stüdyo
 // çizimi (kart simgesi) ve sağ paneldeki dönen, sürüklenebilen önizleme
+// Lobi (ana sayfa) 3B sahnesi: menü haritasında kameraya dönük operatör (tim askeri modeli). Kamera önünde durur,
+// operatör ekranın ortasının biraz sağında (sol sütun modlar, sağ sütun görevler); hafif nefes salınımı
+export const LOBBY = {
+  op: [0, 86], // operatörün haritadaki yeri (x, z): Kızılkum yolu, arkasında köy
+  opYaw: Math.PI, // kameraya (güneye) dönük
+  type: 'allyElite',
+  camDist: 3.4,
+  camHeight: 1.5,
+  lookHeight: 1.15,
+  side: 0.32, // bakış noktası operatörün bu kadar solunda (m, kameradan bakınca): operatör ekranın sağına kayar
+  fov: 38,
+  swayAmp: 0.06, // kamera salınımı (m)
+  swaySpeed: 0.35,
+  maxFps: 30, // lobide çizim sınırı (pil): operatör nefes alır, kamera yavaş salınır; 30 kare yeter
+};
+
 // Nişangâh görünümü (data/sights.json türleri, reticles.js çizimleri)
 export const SIGHT_VIEW = {
   reticleZ: 0.03, // açık gövdesi olmayan (prosedürel) kolimatörde işaretin gez noktasından ilerisi (m)

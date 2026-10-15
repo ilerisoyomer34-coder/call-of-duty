@@ -6,6 +6,9 @@
 //                       bunlar dist/artifact-assets/ altına üretilir (depoya girmez, her derlemede yenilenir)
 //  dist/pwa/          → yüklenebilir web uygulaması (gh-pages dalına yayımlanır, tools/deploy-pages.mjs): three.js paketin içinde,
 //                       modeller gerçek dosya, manifest + simgeler + hizmet çalışanı (ilk açılıştan sonra çevrimdışı)
+//  dist/app/          → mağaza uygulaması (App Store / Google Play, Capacitor kabuğu: mobile/). PWA gibi ama manifest ve
+//                       hizmet çalışanı yok (dosyalar zaten uygulamanın içinde), yazı tipleri yerel (src/fonts/), __STORE__
+//                       açık (kurgusal silah adları, geri tuşu). Depoya girmez; mobile/ içinde `npm run sync` kopyalar
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync, rmSync, copyFileSync } from 'node:fs';
@@ -72,7 +75,8 @@ async function threeGlobalPlugin() {
   };
 }
 
-// kind: 'standalone' (her şey gömülü), 'artifact' (three dışarıdan, GLB'ler .txt), 'pwa' (three içeride, dosyalar olduğu gibi)
+// kind: 'standalone' (her şey gömülü), 'artifact' (three dışarıdan, GLB'ler .txt), 'pwa' ve 'app' (three içeride, dosyalar
+// olduğu gibi; 'app' mağaza sürümü bayrağıyla)
 async function bundle(kind) {
   const artifact = kind === 'artifact';
   const plugins = [kind === 'standalone' ? assetsPlugin('embed') : assetsPlugin('url', artifact ? publishedPath : (p) => p)];
@@ -85,7 +89,7 @@ async function bundle(kind) {
     target: 'es2020',
     write: false,
     legalComments: 'none',
-    define: { __BUILD_HASH__: JSON.stringify(BUILD_HASH) },
+    define: { __BUILD_HASH__: JSON.stringify(BUILD_HASH), __STORE__: kind === 'app' ? 'true' : 'false' },
     plugins,
   });
   return r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
@@ -209,9 +213,30 @@ const sw = readFileSync(join(root, 'src/pwa/sw.js'), 'utf8')
 if (/'__VERSION__'|= __FILES__;/.test(sw)) throw new Error('sw.js şablonundaki yer tutucular değiştirilemedi');
 writeFileSync(join(pwaDir, 'sw.js'), sw);
 const pwaBytes = pwaFiles.reduce((n, f) => n + statSync(join(pwaDir, f)).size, 0);
+// Gizlilik politikası: mağaza kayıtlarındaki adres (APP.privacyUrl). Önbelleğe girmez, her açılışta güncel gelir
+copyFileSync(join(root, 'src/pwa/privacy.html'), join(pwaDir, 'privacy.html'));
+
+// Mağaza uygulaması (dist/app/): her derlemede sıfırdan
+const appDir = join(root, 'dist/app');
+rmSync(appDir, { recursive: true, force: true });
+mkdirSync(join(appDir, 'fonts'), { recursive: true });
+const appHead = `<meta name="theme-color" content="${PWA.color}">
+<script>window.__DS_FONTS = 'fonts/fonts.css';</script>
+`;
+// Google Fonts'a ön bağlantı da kurulmasın (gizlilik politikası: açılışta dışarıya istek yok)
+const appHtml = page(await bundle('app'), appHead).replace(/<link rel="preconnect"[^>]*>\n?/g, '');
+writeFileSync(join(appDir, 'index.html'), appHtml);
+for (const p of listAssets()) {
+  mkdirSync(dirname(join(appDir, p)), { recursive: true });
+  copyFileSync(join(root, p), join(appDir, p));
+}
+for (const f of readdirSync(join(root, 'src/fonts'))) copyFileSync(join(root, 'src/fonts', f), join(appDir, 'fonts', f));
+copyFileSync(join(root, 'src/pwa/privacy.html'), join(appDir, 'privacy.html'));
+const appBytes = [...listAssets(), 'index.html'].reduce((n, f) => n + statSync(join(appDir, f)).size, 0);
 
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
 const assetKb = Object.values(publishFiles).reduce((n, p) => n + statSync(join(root, '..', p)).size, 0) / 1024;
 console.log(`dist/index.html     ${kb(standalone)}  (three@${THREE_VERSION} ve modeller gömülü)`);
 console.log(`dist/artifact.html  ${kb(artifactHtml)} + ${assetKb.toFixed(0)} KB ayrı dosya (three CDN)`);
 console.log(`dist/pwa/           ${kb(pwaHtml)} sayfa, ${pwaFiles.length} dosya ${(pwaBytes / 1048576).toFixed(1)} MB önbellekte (sürüm ${pwaVersion})`);
+console.log(`dist/app/           ${kb(appHtml)} sayfa, ${(appBytes / 1048576).toFixed(1)} MB (mağaza uygulaması, depoya girmez)`);

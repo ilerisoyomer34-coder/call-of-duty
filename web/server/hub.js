@@ -69,6 +69,12 @@ export class Hub {
     for (const f of this.store.relations(id).friends) if (this.isOnline(f.id)) this.send(f.id, msg);
   }
 
+  // Silinen hesabın açık sekmeleri kapatılır (4010: istemci hesabı unutur ve yeniden bağlanmaz; 4001 olsaydı
+  // aynı adla kendiliğinden yeni hesap açardı)
+  kick(id, code = 4010) {
+    for (const ws of [...(this.sockets.get(id) || [])]) ws.close(code, 'account_deleted');
+  }
+
   closeAll() {
     for (const set of this.sockets.values()) for (const ws of set) ws.terminate();
     this.sockets.clear();
