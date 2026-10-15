@@ -15,14 +15,15 @@ function setup(consumables = {}) {
 
 test('boş kayıtta varsayılan silahlar; bozuk değerler onarılır', () => {
   const { save, lo } = setup();
-  assert.equal(save.data.loadout.primary, 'rifle');
-  assert.equal(save.data.loadout.secondary, 'pistol');
+  // Varsayılanlar hazır (ayrıntılı) modeller
+  assert.equal(save.data.loadout.primary, 'ak74');
+  assert.equal(save.data.loadout.secondary, 'd50');
   assert.equal(save.data.loadout.slots.length, SLOT_COUNT);
   save.data.loadout.primary = 'pistol'; // yan silah ana yuvada olamaz
   save.data.loadout.armor = 'armor_plate'; // sahip olunmayan zırh
   save.data.loadout.slots = ['medkit', 'medkit', 'yok'];
   lo.repair();
-  assert.equal(save.data.loadout.primary, 'rifle');
+  assert.equal(save.data.loadout.primary, 'ak74');
   assert.equal(save.data.loadout.armor, null);
   assert.deepEqual(save.data.loadout.slots, ['medkit', null]);
 });

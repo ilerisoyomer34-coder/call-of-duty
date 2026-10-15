@@ -78,6 +78,62 @@ export function mergeStaticParts(root, keep = []) {
   return root;
 }
 
+// Hiç oynamayan modeli (yerdeki silah) malzeme başına tek ağa indirir: bütün alt düğümlerin dönüşleri köke göre
+// geometriye işlenir. Ayrıntılı silah modeli 10–30 parçadır; her parça ayrı çizim çağrısıydı (gölge geçişinde bir
+// daha). Dizi malzemeli ya da saydam parçalar olduğu gibi kalır
+export function bakeStatic(root) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const byMat = new Map();
+  const keep = [];
+  root.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh) return;
+    for (let p = o; p && p !== root; p = p.parent) if (!p.visible) return;
+    if (Array.isArray(o.material) || o.material.transparent || !o.geometry.attributes.normal) {
+      keep.push(o);
+      return;
+    }
+    // Aynı görünümlü malzemeler tek grupta (ad değil görünüm: Blender çıktısında "Çelik", "Çelik.001" gibi aynı
+    // malzemenin kopyaları olur, yükleyici de her parçaya ayrı nesne verebilir)
+    const M = o.material;
+    const key = [M.type, M.color?.getHex(), M.emissive?.getHex(), M.map?.uuid, M.normalMap?.uuid, M.roughnessMap?.uuid, M.metalnessMap?.uuid, M.emissiveMap?.uuid, M.aoMap?.uuid, M.roughness?.toFixed(2), M.metalness?.toFixed(2), M.opacity, M.side, M.vertexColors, M.flatShading].join('|');
+    if (!byMat.has(key)) byMat.set(key, []);
+    byMat.get(key).push(o);
+  });
+  const out = new THREE.Group();
+  for (const list of byMat.values()) {
+    const material = list[0].material;
+    let geos = list.map((o) => {
+      const g = o.geometry.clone();
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      return g.applyMatrix4(_bakeM.multiplyMatrices(inv, o.matrixWorld));
+    });
+    // Birleştirme için hepsi aynı biçimde: biri dizinsizse hepsi dizinsiz
+    if (geos.some((g) => !g.index)) geos = geos.map((g) => (g.index ? g.toNonIndexed() : g));
+    const merged = mergeGeometries(geos, false);
+    if (!merged) {
+      keep.push(...list);
+      continue;
+    }
+    const m = new THREE.Mesh(merged, material);
+    m.castShadow = list.some((o) => o.castShadow);
+    m.receiveShadow = list.some((o) => o.receiveShadow);
+    out.add(m);
+  }
+  for (const o of keep) {
+    const c = o.clone();
+    _bakeM.multiplyMatrices(inv, o.matrixWorld).decompose(c.position, c.quaternion, c.scale);
+    out.add(c);
+  }
+  // Geometri kökün kendi uzayında: kökün yerel dönüşümü (yön, ölçek) gruba taşınır
+  out.position.copy(root.position);
+  out.quaternion.copy(root.quaternion);
+  out.scale.copy(root.scale);
+  return out;
+}
+const _bakeM = new THREE.Matrix4();
+
 // Grubun tüm meshlerini tek geometriye (köşe renkli) birleştirir: çizim çağrısını azaltır.
 export function mergeGroup(group, material) {
   group.updateMatrixWorld(true);

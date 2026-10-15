@@ -382,7 +382,13 @@ class SkinnedSoldier {
     this.blob = new THREE.Mesh(blob.geo, blob.mat);
     this.blob.position.y = 0.03;
     this.blob.renderOrder = 1;
+    this.blob.visible = false;
     this.root.add(this.blob);
+    // Gerçek gölge düşürenler (yakında): gövde ağları (yakın ve uzak model) ve tüfek. Uzakta ayak gölgesine geçilir
+    this.casters = [this.gun];
+    this.body.traverse((o) => {
+      if (o.isSkinnedMesh) this.casters.push(o);
+    });
 
     this.body.updateMatrixWorld(true);
     this.meshes = this.buildHitboxes();
@@ -484,7 +490,8 @@ class SkinnedSoldier {
     this.root.position.copy(st.pos);
     this.root.rotation.set(0, st.yaw, 0, 'YXZ');
     // Gölge haritasının menzili dışında (ya da gölgeler kapalıyken) ayak gölgesi: asker havada durmasın
-    this.blob.visible = st.dist > A.blobFrom || !realShadows;
+    // Uzakta gerçek gölge yerine ayak gölgesi: gövde gölge geçişinde bir daha çizilmez
+    this.useBlob(st.dist > A.blobFrom || !realShadows);
     // Uzak model: eşikte gidip gelmesin diye geri dönüş biraz daha yakında
     if (this.lo.length) {
       const far = this.far ? st.dist > A.meshLodDist - A.meshLodHyst : st.dist > A.meshLodDist;
@@ -498,9 +505,18 @@ class SkinnedSoldier {
     this.lodT += dt;
     let every = st.dist > A.lodVeryFar ? A.lodRates[2] : st.dist > A.lodFar ? A.lodRates[1] : st.dist > A.lodNear ? A.lodRates[0] : 0;
     if (st.offscreen) every = Math.max(every, A.offscreenRate);
-    if (this.lodT < every) return;
+    // Süresiz adım yok: Safari aynı zaman damgasıyla iki kare verebiliyor (dt = 0). Sıfır adımda dönüş hızı
+    // 0/0 = NaN olur, NaN karışım ağırlıklarından kemiklere yayılır: asker görünmez kalır, namlusu NaN olur,
+    // ateş edince ses API'si "non-finite" hatası fırlatıp oyun döngüsünü durdururdu
+    if (this.lodT < every || !(this.lodT > 0)) return;
     const step = Math.min(this.lodT, 0.25);
     this.lodT = 0;
+    // Yine de bozuk bir durum kalırsa (eski kayıt, beklenmedik değer) kendini onarır
+    if (!Number.isFinite(this.moveT + this.runT + this.phase + this.legYaw + this.hipYaw + this.crouchT + this.aimT + this.readyT + this.pitch)) {
+      this.resetState();
+      this.legYaw = st.yaw;
+      this.phase = 0;
+    }
 
     // 1) Hareket karışımı
     const sp = Math.hypot(st.vel.x, st.vel.z);
@@ -515,7 +531,7 @@ class SkinnedSoldier {
     // Bacaklar dünyada kendi yönünü tutar: yerinde dönerken gövde önden döner, bacaklar adım atarak yetişir
     const prevLeg = this.legYaw;
     this.legYaw = dampAngle(this.legYaw, st.yaw + hipTarget, sp > 0.25 ? 12 : 4, step);
-    const turnRate = Math.abs(angleDiff(prevLeg, this.legYaw)) / step;
+    const turnRate = Math.abs(angleDiff(prevLeg, this.legYaw)) / step; // step > 0 (yukarıda)
     this.hipYaw = clamp(angleDiff(st.yaw, this.legYaw), -A.hipTurnMax, A.hipTurnMax);
     this.legYaw = st.yaw + this.hipYaw;
     const spAnim = Math.max(sp, Math.min(turnRate * A.turnStep, A.turnStepMax));
@@ -689,6 +705,13 @@ class SkinnedSoldier {
     }
   }
 
+  // Ayak gölgesi ya da gerçek gölge (ikisi birden değil)
+  useBlob(on) {
+    if (on === this.blob.visible) return;
+    this.blob.visible = on;
+    for (const m of this.casters) m.castShadow = !on;
+  }
+
   fire(k = 1) {
     this.recoil.impulse(A.recoilKick * 25 * k);
     this.flinch.impulse(0.15 * k);
@@ -702,7 +725,7 @@ class SkinnedSoldier {
   // Silah elden düşer (asıl silah gizlenir; yere düşen kopya ortak geometriyi kullanır).
   // Mevzi nişancısının elinde tüfek yoktu: düşecek bir şey yok
   die(info, game) {
-    this.blob.visible = false; // devrilen gövdeyle birlikte eğilmesin
+    this.useBlob(false); // devrilen gövdeyle birlikte eğilmesin
     if (!this.gun.visible) return;
     this.gun.updateMatrixWorld();
     const drop = new THREE.Mesh(this.gun.geometry, this.gun.material);

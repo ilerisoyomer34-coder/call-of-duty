@@ -1,0 +1,11 @@
+{
+  "name": "Demir Şafak kapak görseli (poster)",
+  "source": "Kullanıcının kendi görseli; oturuma yükledi (2026-10-15)",
+  "license": "Proje sahibine ait; üçüncü taraf lisansı yok",
+  "original": "original/demir-safak-poster.png",
+  "size": [1024, 1536],
+  "used": [
+    "web/assets/ui/cover.jpg (yükleme ekranı, tools/make-cover.mjs)",
+    "store/google-play/feature-graphic.jpg (tools/store-assets.mjs art)"
+  ]
+}

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
 import { ARENA_BUILDERS } from './maps/index.js';
-import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat } from './models.js';
+import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat, bakeStatic } from './models.js';
 import { C4, SCORE, WEAPONS, WEAPON_ORDER, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
@@ -114,6 +114,8 @@ class WeaponPickup {
     const g = this.mission.game;
     if (this.model) this.model.removeFromParent();
     const holder = new THREE.Group();
+    // Parçalar malzeme başına tek ağa: yerdeki silah 10–30 çizim çağrısı yerine birkaç
+    obj = bakeStatic(obj);
     holder.add(obj);
     holder.rotation.z = Math.PI / 2;
     this.root.add(holder);
@@ -122,7 +124,9 @@ class WeaponPickup {
     holder.position.y = this.root.position.y - box.min.y + 0.005;
     obj.traverse((o) => {
       if (!o.isMesh) return;
-      o.castShadow = true;
+      // Yerdeki silah gölge düşürmez: ayrıntılı modelin onlarca parçası gölge geçişinde bir daha çizilirdi,
+      // yere yatmış silahın gölgesi zaten görünmez
+      o.castShadow = false;
       o.material = o.material.clone();
       o.material.envMap = g.envMap;
       o.material.envMapIntensity = 0.7;

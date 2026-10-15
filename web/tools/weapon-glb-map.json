@@ -90,8 +90,8 @@
     "forward": "-z",
     "up": "+y",
     "scaleTo": 0.84,
-    "ratio": 0.06,
-    "error": 0.007,
+    "ratio": 0.2,
+    "error": 0.002,
     "materials": {
       "*": {
         "baseColor": [
@@ -362,9 +362,7 @@
         0.03,
         0.024
       ]
-    },
-    "texMax": 1024,
-    "texMaxData": 1024
+    }
   },
   "ak74": {
     "source": "SourceAssets/Sketchfab/ak74_du/original/low-poly_ak-74m_zenitco.glb",
@@ -457,8 +455,6 @@
       "mag": "^mag$",
       "bolt": "^(boltback|bolt)$"
     },
-    "texMax": 1024,
-    "texMaxData": 1024,
     "hand": [
       0,
       0.025,

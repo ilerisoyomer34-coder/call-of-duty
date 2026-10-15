@@ -20,7 +20,7 @@ import { preloadSoldier, setSoldierEnvironment, createSoldier } from './soldier.
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
 import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY } from './config.js';
-import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
+import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS, assetImageUrl } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp } from './models.js';
 import { warnOnce } from './util.js';
@@ -148,6 +148,7 @@ function levelDifficulty(base, level) {
 
 const _projView = new THREE.Matrix4();
 const _lobbyO = new THREE.Vector3();
+const _sunFwd = new THREE.Vector3();
 const _lobbyD = new THREE.Vector3();
 const _viewSphere = new THREE.Sphere(new THREE.Vector3(), 1.2);
 
@@ -445,7 +446,7 @@ export class Game {
     const rw = Math.max(1, Math.round(w * worldPR));
     const rh = Math.max(1, Math.round(h * worldPR));
     if (worldPR < canvasPR - 0.01) {
-      const samples = RENDER.msaa[q];
+      const samples = (this.isTouch ? RENDER.touchMsaa : RENDER.msaa)[q];
       if (!this.worldRT || this.worldRT.samples !== samples) {
         this.worldRT?.dispose();
         this.worldRT = new THREE.WebGLRenderTarget(rw, rh, { type: THREE.HalfFloatType, samples });
@@ -471,6 +472,11 @@ export class Game {
   // (ACES + sRGB burada). Ölçek 1 ise doğrudan tuvale.
   drawWorld(cam) {
     const r = this.renderer;
+    // Dokunmatik cihazda gölge haritası her N karede bir yenilenir (gölge geçişi sahneyi bir kez daha çizer;
+    // gölge kamerası da yalnız yenilenen karede taşınır, eski harita yeni matrisle karışmaz)
+    const every = this.isTouch ? RENDER.touchShadowEvery : 1;
+    r.shadowMap.autoUpdate = every <= 1;
+    if (every > 1 && (this.shadowFrame = ((this.shadowFrame || 0) + 1) % every) === 0) r.shadowMap.needsUpdate = true;
     if (this.worldRT) {
       r.setRenderTarget(this.worldRT);
       r.clear();
@@ -499,6 +505,9 @@ export class Game {
     const horizon = new THREE.Color(env.sky.horizon);
     scene.fog = new THREE.Fog(horizon, env.fog[0], env.fog[1]);
     scene.background = horizon;
+    // Sisin bittiği yerden ötesi ufuk rengiyle aynı: çizmeye gerek yok (gökyüzü uzak düzlemde, kırpılmaz)
+    this.camera.far = env.fog[1] + RENDER.farPastFog;
+    this.camera.updateProjectionMatrix();
     const sky = new THREE.Mesh(
       new THREE.SphereGeometry(900, 32, 16),
       new THREE.ShaderMaterial({
@@ -1007,6 +1016,9 @@ export class Game {
   frame(now) {
     requestAnimationFrame((t) => this.frame(t));
     const last = this.lastNow ?? now;
+    // Zaman ilerlemediyse (Safari aynı zaman damgasıyla iki kare verebilir) kare atlanır: sıfır adımlı
+    // güncellemeler bölmelerde NaN üretir, çizilecek yeni bir şey de yoktur
+    if (this.lastNow !== undefined && !(now > last)) return;
     this.lastNow = now;
     let dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     // Komut çarkı açıkken oyun yavaşlar (ayar); çarkın kendisi gerçek girdilerle çalışır
@@ -1172,8 +1184,14 @@ export class Game {
   followSun(center) {
     const sun = this.sun;
     const snap = 2;
-    const cx = Math.round(center.x / snap) * snap;
-    const cz = Math.round(center.z / snap) * snap;
+    // Gölge haritası bakılan yere: merkez oyuncunun önüne kayar (arkada kalan yer haritadan çıkar, çözünürlük
+    // görünen alana harcanır, arkadaki nesneler gölge geçişinde çizilmez)
+    this.camera.getWorldDirection(_sunFwd);
+    _sunFwd.y = 0;
+    const len = _sunFwd.length();
+    const ahead = len > 1e-3 ? RENDER.shadowAhead / len : 0;
+    const cx = Math.round((center.x + _sunFwd.x * ahead) / snap) * snap;
+    const cz = Math.round((center.z + _sunFwd.z * ahead) / snap) * snap;
     sun.target.position.set(cx, 0, cz);
     sun.position.set(cx + this.sunDir.x * 150, this.sunDir.y * 150, cz + this.sunDir.z * 150);
     this.sky.position.copy(this.camera.position);
@@ -1263,6 +1281,13 @@ const NULL_INPUT = {
 
 async function boot() {
   const L = loadingScreen();
+  // Kapak görseli yükleme ekranında (bağımsız sürümde gömülü data: adresi, öbürlerinde sayfanın yanındaki dosya)
+  const cover = assetImageUrl('assets/ui/cover.jpg');
+  const ld = document.getElementById('loading');
+  if (cover && ld) {
+    ld.style.setProperty('--cover', `url("${cover}")`);
+    ld.classList.add('hasCover');
+  }
   // PWA sürümünde yükleme düğmesi ve güncelleme satırı (diğer sürümlerde null)
   const pwa = setupPwa();
   L.step('Grafik sistemi başlatılıyor', 0.15);

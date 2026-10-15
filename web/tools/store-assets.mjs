@@ -165,29 +165,28 @@ if (run('art')) {
   writeFileSync(join(out, 'google-play/icon-512.png'), await ip.screenshot({ clip: { x: 0, y: 0, width: 512, height: 512 } }));
   console.log('google-play/icon-512.png');
   await ip.close();
-  // Tanıtım görseli (1024×500): lobi sahnesi (arayüz gizli, operatör sağda) + oyun adı ve tek cümle
-  const { ctx, page } = await openGame({ width: 1024, height: 500, scale: 1, touch: false });
-  await page.evaluate(() => {
-    document.getElementById('menu').style.visibility = 'hidden';
-    const c = document.createElement('div');
-    c.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;justify-content:center;padding:0 0 0 64px;background:linear-gradient(90deg,rgba(8,10,12,.94) 0%,rgba(8,10,12,.75) 38%,rgba(8,10,12,0) 62%);color:#e9e1cf';
-    c.innerHTML = '';
-    const e = document.createElement('div');
-    e.textContent = 'TAKTİK SAVAŞ · ALFA TİMİ';
-    e.style.cssText = "font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.3em;color:#a59f92";
-    const t = document.createElement('div');
-    t.innerHTML = 'DEMİR<br><span style="color:#f0a33a">ŞAFAK</span>';
-    t.style.cssText = "font:900 118px/.86 'Big Shoulders Stencil Display',sans-serif;letter-spacing:.03em;margin-top:14px";
-    const s = document.createElement('div');
-    s.textContent = 'Timini yönet. Cepheyi tut. Şafakla dön.';
-    s.style.cssText = "font:600 26px/1.2 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-top:18px";
-    c.append(e, t, s);
-    document.body.appendChild(c);
+  // Tanıtım görseli (1024×500): kapak posteri (assets/ui/cover.jpg) solda tam boy, sağda posterin bulanık hâli
+  // üstünde oyunun yazı tipleriyle slogan (posterde oyunun adı zaten yazılı)
+  const fp = await browser.newPage({ viewport: { width: 1024, height: 500 } });
+  await fp.setContent(`<!doctype html><html><head><link rel="stylesheet" href="${origin}/fonts/fonts.css"></head>
+<body style="margin:0;width:1024px;height:500px;overflow:hidden;background:#0d1013;position:relative;color:#e9e1cf">
+<div style="position:absolute;inset:-30px;background:url('${origin}/assets/ui/cover.jpg') center/cover;filter:blur(22px) brightness(.34) saturate(1.2)"></div>
+<img src="${origin}/assets/ui/cover.jpg" style="position:absolute;left:0;top:0;height:500px;-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)">
+<div style="position:absolute;left:380px;right:44px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center">
+<div id="e" style="font:700 19px/1 'Barlow Condensed',sans-serif;letter-spacing:.3em;color:#f0a33a"></div>
+<div id="t" style="font:900 70px/.95 'Big Shoulders Stencil Display',sans-serif;letter-spacing:.03em;margin-top:16px;white-space:pre-line"></div>
+<div id="s" style="font:600 24px/1.25 'Barlow Condensed',sans-serif;letter-spacing:.05em;margin-top:18px;color:#d8cfbb"></div>
+</div></body></html>`);
+  await fp.evaluate(async () => {
+    document.getElementById('e').textContent = 'TAKTİK SAVAŞ · ALFA TİMİ';
+    document.getElementById('t').textContent = 'TİMİNİ YÖNET.\nCEPHEYİ TUT.';
+    document.getElementById('s').textContent = '6 görev, 18 silah, komut çarkı ve sesli komut. Reklamsız, internetsiz oynanır.';
+    await document.fonts.ready;
+    await Promise.all([...document.images].map((i) => i.decode()));
   });
-  await waitGame(page, 0.3);
-  writeFileSync(join(out, 'google-play/feature-graphic.jpg'), await page.screenshot({ type: 'jpeg', quality: 92 }));
+  writeFileSync(join(out, 'google-play/feature-graphic.jpg'), await fp.screenshot({ type: 'jpeg', quality: 92 }));
   console.log('google-play/feature-graphic.jpg');
-  await ctx.close();
+  await fp.close();
 }
 
 await browser.close();

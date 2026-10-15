@@ -47,13 +47,13 @@ test('yeni kayıt varken eski anahtarlar yok sayılır', () => {
 
 test('bozuk ya da eksik alanlar varsayılana döner, bilinmeyen alanlar korunur', () => {
   const { save } = migrateSave(
-    { version: 1, credits: -50, inventory: 'x', loadout: { primary: 'rifle', slots: 3 }, stats: { kills: 9 }, futureField: { a: 1 } },
+    { version: 1, credits: -50, inventory: 'x', loadout: { primary: 'mar556', slots: 3 }, stats: { kills: 9 }, futureField: { a: 1 } },
     () => null,
     1000
   );
   assert.equal(save.credits, 0, 'kredi eksi olamaz');
   assert.deepEqual(save.inventory.helmets, []);
-  assert.equal(save.loadout.primary, 'rifle');
+  assert.equal(save.loadout.primary, 'mar556');
   assert.deepEqual(save.loadout.slots, [null, null]);
   assert.equal(save.stats.kills, 9);
   assert.equal(save.stats.revivesGiven, 0);
@@ -100,4 +100,14 @@ test('oyuncu kimliği: boş başlar, eski anahtardaki ad alınır, bozuk alan d�
   assert.equal(r.data.credits, 1000);
   assert.equal(r.data.profile.name, 'Ömer');
   assert.equal(r.data.profile.token, 'x');
+});
+
+test('bir kerelik geçiş: eski varsayılan kod modelli silahlar hazır modellere geçer, sonra seçim korunur', () => {
+  const { save } = migrateSave({ version: 1, credits: 10, loadout: { primary: 'rifle', secondary: 'pistol' } }, () => null, 1000);
+  assert.equal(save.loadout.primary, 'ak74');
+  assert.equal(save.loadout.secondary, 'd50');
+  assert.equal(save.migrated.detailedGuns, true);
+  // Oyuncu AR-7'yi yeniden seçti: sonraki açılışta dokunulmaz
+  const again = migrateSave({ ...save, loadout: { ...save.loadout, primary: 'rifle' } }, () => null, 1000).save;
+  assert.equal(again.loadout.primary, 'rifle');
 });

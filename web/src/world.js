@@ -17,8 +17,10 @@ const FACES = [
   { n: [0, 0, -1], r: [-1, 0, 0], u: [0, 1, 0] },
 ];
 
+// Birleştirme kuyruğu: bir malzeme × bir harita hücresi
 class Batch {
-  constructor() {
+  constructor(mat) {
+    this.mat = mat;
     this.pos = [];
     this.nor = [];
     this.uv = [];
@@ -29,6 +31,8 @@ class Batch {
     return this.pos.length / 3;
   }
 }
+
+const _sphere = new THREE.Sphere();
 
 // Örnekleri harita hücrelerine böl (RENDER.instanceCell): her hücre ayrı InstancedMesh, görüş konisi kırpması
 // hücre hücre işler (tek dev örnek ağı bütün haritayı kapsar, hiç kırpılmaz)
@@ -131,17 +135,22 @@ export class World extends CollisionWorld {
     return M;
   }
 
-  batch(matKey) {
-    let b = this.batches.get(matKey);
+  // Statik geometri malzeme × harita hücresi (RENDER.worldCell) başına birleşir: her parça kendi sınır küresiyle
+  // görüş ve gölge konisinde ayrı kırpılır; bakılmayan yerin duvarları çizilmez. Tek dev ağ bütün haritayı
+  // kapsardı, arkada kalan şehir de her karede çizilirdi. Hücreden büyük parçalar (zemin, uzun duvar) ayrı kuyrukta
+  batch(matKey, x = 0, z = 0, size = 0) {
+    const C = RENDER.worldCell;
+    const key = size > C ? `${matKey}|*` : `${matKey}|${Math.floor(x / C)},${Math.floor(z / C)}`;
+    let b = this.batches.get(key);
     if (!b) {
-      b = new Batch();
-      this.batches.set(matKey, b);
+      b = new Batch(matKey);
+      this.batches.set(key, b);
     }
     return b;
   }
 
   addBoxGeometry(cx, cy, cz, w, h, d, mat, rotY = 0, tint = null, uvScale = 1, skipBottom = false) {
-    const b = this.batch(mat);
+    const b = this.batch(mat, cx, cz, Math.max(w, d));
     const tile = (this.materials[mat]?.userData.tile || 2) / uvScale;
     const hx = w / 2;
     const hy = h / 2;
@@ -196,7 +205,9 @@ export class World extends CollisionWorld {
 
   // Hazır bir BufferGeometry'yi matrisle dönüştürüp birleştirme kuyruğuna ekler.
   addGeometry(geo, mat, matrix, tint = null) {
-    const b = this.batch(mat);
+    if (!geo.boundingSphere) geo.computeBoundingSphere();
+    _sphere.copy(geo.boundingSphere).applyMatrix4(matrix);
+    const b = this.batch(mat, _sphere.center.x, _sphere.center.z, _sphere.radius * 2);
     const g = geo.index ? geo : geo;
     const pos = g.attributes.position;
     const nor = g.attributes.normal;
@@ -222,8 +233,9 @@ export class World extends CollisionWorld {
 
   finalize() {
     this.meshes = [];
-    for (const [key, b] of this.batches) {
+    for (const b of this.batches.values()) {
       if (!b.idx.length) continue;
+      const key = b.mat;
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(b.nor, 3));

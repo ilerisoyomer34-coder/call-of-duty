@@ -358,7 +358,7 @@ console.log('Bağımsız sürüm (dist/index.html)');
   const px2 = await px();
   check(!!px1 && px1.n > 200 && px2 && px2.sum !== px1.sum, `Sağ panelde 3D önizleme çiziliyor ve dönüyor (${px1?.n} piksel)`);
   await page.click('#loadoutRoot .loCard[data-id="lmg"]');
-  check((await page.textContent('#loadoutRoot .loDetail .stName')) === 'HK MG4' && (await page.evaluate(() => window.__game.loadout.primary)) === 'rifle', 'Tıklamak yalnız seçer (ayrıntı değişti, teçhizat aynı)');
+  check((await page.textContent('#loadoutRoot .loDetail .stName')) === 'HK MG4' && (await page.evaluate(() => window.__game.loadout.primary)) === 'ak74', 'Tıklamak yalnız seçer (ayrıntı değişti, teçhizat aynı)');
   await page.dblclick('#loadoutRoot .loCard[data-id="lmg"]');
   check((await page.evaluate(() => window.__game.save.data.loadout.primary)) === 'lmg' && (await page.isVisible('#loadoutRoot .loCard[data-id="lmg"] .loCheck')), 'Çift tıklama kuşandı (✓) ve kayda yazıldı');
   await page.click('#loadoutRoot .loSlot[data-slot="secondary"]');
@@ -388,7 +388,8 @@ console.log('Bağımsız sürüm (dist/index.html)');
   console.log('   ', JSON.stringify(info));
   check(info.enemies >= 25, `Düşmanlar yerleşti (${info.enemies})`);
   check(info.covers > 100, `Siper noktaları üretildi (${info.covers})`);
-  check(info.weapon === 'rifle' && info.hudName === 'AKMS', `Başlangıç silahı ${info.hudName} (gerçek ad)`);
+  // Varsayılan ana silah hazır (ayrıntılı) model: kodla kurulmuş kutu tüfek değil
+  check(info.weapon === 'ak74' && info.hudName === 'AK-74M Zenitco', `Başlangıç silahı ${info.hudName} (gerçek ad, hazır model)`);
   await sleep(1500);
   await page.screenshot({ path: join(shots, '02-start.png') });
 
@@ -701,7 +702,10 @@ console.log('Görevler ve bonuslar');
   check(await page.evaluate(() => window.__game.run.tracker.state[2].failed && document.querySelectorAll('#tracker .trRow')[2].classList.contains('failed')), 'Sarf kullanınca "Tutumlu" bozuldu (gri)');
   await page.screenshot({ path: join(shots, '19b-tracker.png') });
   // Görev sonu: kredi dökümü, yıldızlar, kayıt
-  const c0 = await page.evaluate(() => window.__game.economy.credits);
+  const c0 = await page.evaluate(() => {
+    window.__rwT0 = Date.now();
+    return window.__game.economy.credits;
+  });
   await page.evaluate(() => window.__game.onMissionComplete());
   await page.waitForFunction((c) => /1\.700 KR/.test(document.querySelector('#victoryRewards .rwTotal b')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
   // Bölüm kartının geri sayımı gerçek saatle işler: yavaş makinede "Tekrar oyna"dan önce sonraki bölümü açmasın
@@ -711,10 +715,12 @@ console.log('Görevler ve bonuslar');
     total: document.querySelector('#victoryRewards .rwTotal b').textContent,
     stars: document.querySelector('#victoryRewards .rwStars').textContent,
     credits: window.__game.economy.credits,
+    // Görev sonu XP'si seviye atlatıp ayrıca kredi verebilir (ilerleme: levelUp/challenge): görev ödülünden ayrı sayılır
+    prog: window.__game.save.data.econLog.filter((e) => e.t >= window.__rwT0 && ['levelUp', 'challenge'].includes(e.reason)).reduce((n, e) => n + e.delta, 0),
     rec: window.__game.save.data.missions['1'],
   }));
   check(res.rows.join(' | ') === '✔Ana hedef=+1.000 KR | ✔Keskin Göz=+200 KR | ✔Dokunulmaz=+500 KR | ✖Tutumlu=—', `Sonuç dökümü (${res.rows.join(' | ')})`);
-  check(res.total === '1.700 KR' && res.credits === c0 + 1700 && res.stars === '★★☆', `Toplam ${res.total}, kredi ${c0} → ${res.credits}, ${res.stars}`);
+  check(res.total === '1.700 KR' && res.credits - res.prog === c0 + 1700 && res.stars === '★★☆', `Toplam ${res.total}, kredi ${c0} → ${res.credits} (rütbe/görev ödülü ${res.prog}), ${res.stars}`);
   check(res.rec?.completed && res.rec.stars === 2 && res.rec.bonusDone.join(',') === 'headhunter,untouchable', 'Sonuç kayda yazıldı (2 yıldız, tamamlanan bonuslar)');
   await page.screenshot({ path: join(shots, '19c-results.png') });
   // Tekrar: ana hedef %50, daha önce alınan bonus %25, ilk kez alınan tam
@@ -725,7 +731,7 @@ console.log('Görevler ve bonuslar');
     window.__game.onMissionComplete();
     window.__game.menus.stopCountdown();
   });
-  const again = await page.evaluate(() => ({ total: window.__game.save.data.econLog.at(-1)?.delta, rows: [...document.querySelectorAll('#victoryRewards .rwRow b')].map((b) => b.textContent) }));
+  const again = await page.evaluate(() => ({ total: window.__game.save.data.econLog.findLast((e) => /^Görev /.test(e.reason))?.delta, rows: [...document.querySelectorAll('#victoryRewards .rwRow b')].map((b) => b.textContent) }));
   check(again.total === 500 + 125 + 200 && again.rows.join(',') === '+500 KR,—,+125 KR,+200 KR', `Tekrar oranları: ana %50, Dokunulmaz %25, Tutumlu ilk kez tam (${again.rows.join(', ')})`);
   // Yarıda bırak: bonus yok, öldürme başına teselli
   await page.click('#btnAgain');
@@ -811,6 +817,32 @@ console.log('Alfa Timi ve komutlar');
   check(id.gun.join(',') === '30,30,100', `Role göre silah: şarjör ${id.gun.join('/')} (makineli tüfekçide 100)`);
   check(id.armor.every((a) => a === 50), `Tim Zırhı Sv. 1: her askerde ${id.armor[0]} ZP`);
   check(id.roster.length === 3 && id.label === 'Takip', `HUD tim listesi (${id.roster.join(', ')} · ${id.label})`);
+  // Sıfır süreli kare (Safari aynı zaman damgasını iki kez verebilir) askeri bozmaz; bozuk durum kendini onarır;
+  // NaN konumlu ses oyunu durdurmaz (iPad'de "The provided value is non-finite" ile döngü duruyordu)
+  const nan = await page.evaluate(() => {
+    const g = window.__game;
+    const a = g.allies.list[0];
+    const m = a.model;
+    const st = { pos: a.pos.clone(), yaw: a.yaw + 0.5, vel: { x: 0, z: 0 }, crouch: false, aimPitch: 0, stance: 'aim', reload: -1, throw: -1, dist: 5, mount: null, hideGun: false, offscreen: false };
+    const finite = () => Number.isFinite(m.muzzleWorld(a.pos.clone()).x) && Number.isFinite(m.moveT);
+    m.lodT = 0;
+    m.animate(0, st);
+    const zero = finite();
+    m.moveT = NaN;
+    m.lodT = 0;
+    m.animate(1 / 60, st);
+    const healed = finite();
+    g.audio.init();
+    let audio = true;
+    try {
+      g.audio.gunshot('rifle', { x: NaN, y: 0, z: 0 });
+      g.audio.impact('dirt', { x: 0, y: NaN, z: 0 });
+    } catch {
+      audio = false;
+    }
+    return { zero, healed, audio };
+  });
+  check(nan.zero && nan.healed && nan.audio, `Sıfır süreli karede asker bozulmaz, NaN'dan kendini onarır, NaN konumlu ses hata vermez (${JSON.stringify(nan)})`);
   // Zırh askerin canını korur
   const arm = await page.evaluate(() => {
     const a = window.__game.allies.list[0];
@@ -1427,10 +1459,15 @@ console.log('Telsiz kutusu ve yazılı komut');
     const a1 = g.allies.list[0];
     const said = [];
     if (window.speechSynthesis) window.speechSynthesis.speak = (u) => said.push({ t: u.text, l: u.lang, p: u.pitch });
+    // Oyun sessiz başlar ve sessizken seslendirme de susar: denemede ses açık
+    g.settings.muted = false;
     g.settings.tts = false;
     g.events.emit('radio', `${a1.radioLabel}: Sessiz satır`, 'squad');
     g.settings.tts = true;
     g.events.emit('radio', `${a1.radioLabel}: Sesli satır`, 'squad');
+    // Sessizken seslendirme yok
+    g.settings.muted = true;
+    g.events.emit('radio', `${a1.radioLabel}: Sessizde satır`, 'squad');
     g.settings.tts = false;
     const sub0 = document.getElementById('radio').textContent;
     g.hud.radio('Alfa-1: tim satırı', 'squad');
@@ -2456,7 +2493,8 @@ console.log('Atış poligonu');
   }
   // 10.–18. silah: 1-9 tuşlarının ötesinde, doğrudan geçiş. Minigun namlular dönmeden ateş etmez: tetik uzun tutulur
   const spinLog = [];
-  for (const id of ['k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10']) {
+  // Minigun en sonda: aşağıdaki kayış ve nişan kontrolleri elde minigun varken yapılır
+  for (const id of ['k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'pr10', 'minigun']) {
     await page.evaluate((w) => window.__game.weapons.switchTo(w), id);
     await page.waitForFunction((w) => window.__game.weapons.currentId === w && window.__game.weapons.state === 'idle', id, { timeout: 120000, polling: 50 });
     await waitGame(page, 0.3);
@@ -3107,7 +3145,7 @@ if (run('app')) {
   check(a.pwa === null && !a.manifest && a.app && a.native, 'Uygulama sürümü: manifest ve hizmet çalışanı yok, geri tuşu bağlı (body.app)');
   check(a.font, 'Yazı tipleri uygulamanın içinden yüklendi (fonts/fonts.css)');
   check(outside.length === 0, `Açılışta dışarıya istek yok (${outside.slice(0, 3).join(', ') || 'yok'})`);
-  check(/AR-7/.test(a.next) && !/AKMS/.test(a.next), `Mağaza sürümünde kurgusal silah adları (${a.next})`);
+  check(/AK-74 Poyraz/.test(a.next) && /D-50 Kartal/.test(a.next) && !/Zenitco|Desert/.test(a.next), `Mağaza sürümünde kurgusal silah adları (${a.next})`);
   // Ayarlar: gerçek ad anahtarı yok, gizlilik bağlantısı, hesapsızken hesap satırı gizli
   await page.evaluate(() => window.__game.menus.openSettings());
   const s = await page.evaluate(() => ({

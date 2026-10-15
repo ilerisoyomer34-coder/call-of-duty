@@ -785,7 +785,21 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 #deathScreen { background: radial-gradient(ellipse at center, rgba(60,6,4,.55), rgba(10,12,14,.9)); }
 #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ink); pointer-events: auto; padding: 24px; box-sizing: border-box; overflow-y: auto; }
 #loading[hidden] { display: none; }
-#loading .ld { width: min(460px, 100%); display: flex; flex-direction: column; gap: 12px; }
+#loading .ld { position: relative; z-index: 1; width: min(460px, 100%); display: flex; flex-direction: column; gap: 12px; }
+/* Kapak görseli (assets/ui/cover.jpg, main.js boot → --cover): arkada bulanık ve koyu hâli, önde posterin tamamı.
+   Yatayda poster solda tam boy, yükleme bilgisi sağda; dikeyde poster üstte, bilgi altta */
+#loading { --cover: none; --coverW: min(66.7vh, 52vw); }
+#loading .ldCover { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#loading .ldCover::before { content: ''; position: absolute; inset: -32px; background: var(--cover) center / cover no-repeat; filter: blur(20px) brightness(.32) saturate(1.15); }
+#loading .ldCover::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: var(--coverW); background: var(--cover) center top / cover no-repeat; -webkit-mask-image: linear-gradient(90deg, #000 78%, transparent); mask-image: linear-gradient(90deg, #000 78%, transparent); }
+@media (min-aspect-ratio: 1/1) {
+  #loading.hasCover { justify-content: flex-end; padding-right: max(5vw, 24px); }
+  #loading.hasCover .ld { width: min(460px, calc(100% - var(--coverW))); }
+}
+@media (max-aspect-ratio: 1/1) {
+  #loading .ldCover::after { width: 100%; height: 64vh; bottom: auto; -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent); mask-image: linear-gradient(180deg, #000 72%, transparent); }
+  #loading.hasCover { align-items: flex-end; }
+}
 #loading .ld-k { font: 600 12px/1 var(--f-ui); letter-spacing: .32em; color: var(--amber); text-transform: uppercase; }
 #loading .ld-t { font: 600 16px/1.2 var(--f-ui); letter-spacing: .3em; color: var(--sand); }
 #loading .ld-bar { height: 3px; background: rgba(231,220,196,.14); overflow: hidden; }
@@ -1447,6 +1461,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
   <div id="socialToasts" aria-live="polite"></div>
 
   <div id="loading" role="status" aria-live="polite">
+    <div class="ldCover" aria-hidden="true"></div>
     <div class="ld">
       <div class="ld-k">Demir Şafak</div>
       <div class="ld-t" id="ldTitle">HAZIRLANIYOR</div>

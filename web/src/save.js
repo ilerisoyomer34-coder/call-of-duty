@@ -8,6 +8,7 @@
 import { storage as browserStorage } from './util.js';
 import STORE from './data/store.json' with { type: 'json' };
 import { freshProgression, normalizeProgression } from './progression.js';
+import { DEFAULT_LOADOUT } from './config.js';
 
 export const SAVE_KEY = 'demirsafak.save';
 export const SAVE_VERSION = 1;
@@ -29,6 +30,8 @@ export function freshSave(startCredits = STORE.startCredits) {
     credits: startCredits,
     inventory: { armor: [], helmets: [], consumables: {}, upgrades: [], weapons: [] },
     loadout: { primary: null, secondary: null, armor: null, helmet: null, slots: [null, null] },
+    // Yapılmış bir kerelik geçişler (yeni kayıtta hepsi yapılmış sayılır: seçimine dokunulmaz)
+    migrated: { detailedGuns: true },
     progress: { unlocked: 1, best: {} },
     missions: {},
     stats: { revivesGiven: 0, timesDowned: 0, commandsIssued: 0, kills: 0, missionsCompleted: 0 },
@@ -78,6 +81,14 @@ function normalize(raw, startCredits) {
   s.econLog = Array.isArray(raw.econLog) ? raw.econLog : [];
   s.profile = normalizeProfile(raw.profile);
   s.progression = normalizeProgression(raw.progression);
+  // Bir kerelik geçiş: eski varsayılan kod modelli silahlar (AR-7, P-9) ayrıntılı hazır modellere geçer. Bayrak
+  // kayda yazılır; oyuncu AR-7'yi sonradan yeniden seçerse dokunulmaz
+  s.migrated = isObj(raw.migrated) ? { ...raw.migrated } : {};
+  if (!s.migrated.detailedGuns) {
+    if (s.loadout.primary === 'rifle') s.loadout.primary = DEFAULT_LOADOUT.primary;
+    if (s.loadout.secondary === 'pistol') s.loadout.secondary = DEFAULT_LOADOUT.secondary;
+    s.migrated.detailedGuns = true;
+  }
   return s;
 }
 

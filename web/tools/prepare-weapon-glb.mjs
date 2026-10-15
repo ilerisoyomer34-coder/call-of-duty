@@ -213,7 +213,8 @@ for (const m of R.listMaterials()) {
       const idx = texIndex.get(tex);
       const rule = cfg.textures?.[idx] || {};
       const srgb = slot === 'baseColor' || slot === 'emissive';
-      const max = rule.max || (slot === 'baseColor' ? cfg.texMax || 2048 : cfg.texMaxData || 1024);
+      // Bütün dokular özgün çözünürlüğünde, en çok 2K (kullanıcı isteği: silahlar "kare kare" değil, verildiği gibi 2K)
+      const max = rule.max || (slot === 'baseColor' ? cfg.texMax || 2048 : cfg.texMaxData || 2048);
       const file = `assets/weapons/${id}_t${idx}.jpg`;
       texFile.set(tex, file);
       texJobs.push({ file, image: Buffer.from(tex.getImage()).toString('base64'), mime: tex.getMimeType(), max, paint: rule.paint || [], quality: srgb ? 0.88 : 0.92 });

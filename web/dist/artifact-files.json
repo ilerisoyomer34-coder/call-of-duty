@@ -6,6 +6,7 @@
   "assets/props/containers.glb.txt": "web/dist/artifact-assets/assets/props/containers.glb.txt",
   "assets/props/helicopter.glb.txt": "web/dist/artifact-assets/assets/props/helicopter.glb.txt",
   "assets/props/pine.glb.txt": "web/dist/artifact-assets/assets/props/pine.glb.txt",
+  "assets/ui/cover.jpg": "web/assets/ui/cover.jpg",
   "assets/weapons/ak74.glb.txt": "web/dist/artifact-assets/assets/weapons/ak74.glb.txt",
   "assets/weapons/awm.glb.txt": "web/dist/artifact-assets/assets/weapons/awm.glb.txt",
   "assets/weapons/awm_t0.jpg": "web/assets/weapons/awm_t0.jpg",

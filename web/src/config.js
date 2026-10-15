@@ -946,7 +946,8 @@ export const WEAPONS = {
 // Sketchfab silahları sonda: poligonda 1-9 tuşları eski dizilişte kalır, yenilere tekerlekle geçilir
 // Yeni silahlar hep sona eklenir: çevrim içi protokol silahı bu dizideki sırasıyla taşır
 export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10'];
-export const DEFAULT_LOADOUT = { primary: 'rifle', secondary: 'pistol' };
+// Varsayılan teçhizat hazır (ayrıntılı) modeller: oyuncunun ilk gördüğü silah kutulardan kurulu kod modeli olmasın
+export const DEFAULT_LOADOUT = { primary: 'ak74', secondary: 'd50' };
 
 export const GRENADE = {
   fuse: 3.2,
@@ -1406,10 +1407,19 @@ export const RENDER = {
   worldPixelRatio: { high: 2, medium: 1.5, low: 1 }, // dünyanın en yüksek piksel oranı (masaüstü)
   touchWorldPixelRatio: { high: 1.5, medium: 1.15, low: 0.85 }, // dokunmatik cihazlarda
   msaa: { high: 4, medium: 4, low: 2 }, // dünya hedefinin kenar yumuşatma örnek sayısı
+  touchMsaa: { high: 4, medium: 2, low: 2 }, // dokunmatik cihazlarda (küçük ekranda fark az, piksel maliyeti yüksek)
   anisotropy: { high: 16, medium: 8, low: 4 }, // doku süzme üst sınırı (cihazın izin verdiğiyle sınırlı)
   // Örneklenmiş hazır modeller (ağaç, konteyner) bu boyda (m) kare hücrelere bölünür: her hücre ayrı InstancedMesh,
   // bakış ve gölge konisinin dışındaki hücreler hiç çizilmez. Küçük hücre = az üçgen, çok çizim çağrısı
   instanceCell: 40,
+  // Statik dünya geometrisi (duvar, bina, kum torbası) de bu boyda hücrelere bölünüp malzeme başına birleşir
+  worldCell: 64,
+  // Kamera uzak düzlemi sisin bittiği yerin bu kadar ötesi (m): tamamen sise gömülmüş geometri çizilmez
+  farPastFog: 30,
+  // Gölge haritasının merkezi oyuncunun bu kadar önünde (m; harita ±48 m): bakılan yer kaplanır
+  shadowAhead: 20,
+  // Dokunmatik cihazlarda gölge haritası bu kadar karede bir yenilenir (gölge geçişinin maliyeti yarıya iner)
+  touchShadowEvery: 2,
 };
 
 // Teçhizat ekranındaki silah görselleri (Operasyon Güncellemesi §5.4): oyunun kendi modelinden stüdyo

@@ -40,12 +40,12 @@ Mixamo koşulları özetle: karakter ve animasyonlar kişisel ve ticari projeler
 |---|---|---|---|---|
 | K8 Bozkurt | [low-poly C8 IUR](https://sketchfab.com/3d-models/low-poly-c8-iur-0204eaad7005420cb0694d4af81f1485) | [D_U](https://sketchfab.com/DU1701) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Sergi şarjörü ve fişek atıldı, yönlendirildi, ölçeklendi, parçalara ayrıldı |
 | KR-4 Atmaca | [low-poly Colt M4A1](https://sketchfab.com/3d-models/low-poly-colt-m4a1-c0313e9f6c164de8903615c4297a2485) | [D_U](https://sketchfab.com/DU1701) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Aynı işlemler |
-| MK-4 Doğan | [m4 Carbine Rifle](https://sketchfab.com/3d-models/m4-carbine-rifle-37cafb82ae144484a26e9ab71a0f8f0e) | [Pieter Ferreira](https://sketchfab.com/Badboy17Aiden) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 588 bin → 71 bin üçgen, nişangah gövdesi ayrı, dokudaki model yazısı silindi |
+| MK-4 Doğan | [m4 Carbine Rifle](https://sketchfab.com/3d-models/m4-carbine-rifle-37cafb82ae144484a26e9ab71a0f8f0e) | [Pieter Ferreira](https://sketchfab.com/Badboy17Aiden) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | 588 bin → 138 bin üçgen, dokular 2048 px JPEG, nişangah gövdesi ayrı, dokudaki model yazısı silindi |
 | KT-9 Kaplan | [Gun](https://sketchfab.com/3d-models/gun-a66b52ede9af472a9a9e0946154d603c) | [Dries Deryckere](https://sketchfab.com/deryckeredries) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Dokulardaki gerçek marka, seri no, üretici adresi ve bir kişi fotoğrafı silindi |
 | AK-74 Poyraz | [low-poly AK-74M Zenitco](https://sketchfab.com/3d-models/low-poly-ak-74m-zenitco-35ad8e37a513453cbbbd04064fa5fb79) | [D_U](https://sketchfab.com/DU1701) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Sergi şarjörü ve fişekler atıldı, yönlendirildi, 0,94 m'ye ölçeklendi; şarjör, sürgü taşıyıcı ve kolimatör ayrı parça |
 | BR-2 Şimşek | [low-poly CZ Bren 2](https://sketchfab.com/3d-models/low-poly-cz-bren-2-90b2de2d55e9458f9c7d8ffeac9003af) | [D_U](https://sketchfab.com/DU1701) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Sergi şarjörü ve fişek atıldı, yönlendirildi, 0,70 m'ye ölçeklendi; şarjör ve kurma kolu ayrı parça |
-| NT-33 Şahin | [Sniper](https://sketchfab.com/3d-models/sniper-cdefd833b4b5407ba32c53c9e7f50cae) | [DJMaesen](https://sketchfab.com/bumstrum) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Yönlendirildi, 1,20 m'ye ölçeklendi; şarjör ve sürgü ayrı parça (sürgü animasyonu), dokular 2048 px PNG'den 1024 px JPEG'e küçültüldü (dokularda yazı yok) |
-| Yakın dövüş bıçağı | [Knife](https://sketchfab.com/3d-models/knife-8374ea78a11c4be5a2f145448c17c90e) | [CG Lab34](https://sketchfab.com/tuandesigner.mtc) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Yönlendirildi, 30 cm'ye ölçeklendi, dokular 2048 px PNG'den 1024 px JPEG'e küçültüldü (dokularda yazı yok) |
+| NT-33 Şahin | [Sniper](https://sketchfab.com/3d-models/sniper-cdefd833b4b5407ba32c53c9e7f50cae) | [DJMaesen](https://sketchfab.com/bumstrum) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Yönlendirildi, 1,20 m'ye ölçeklendi; şarjör ve sürgü ayrı parça (sürgü animasyonu), dokular 2048 px PNG'den 2048 px JPEG'e çevrildi (dokularda yazı yok) |
+| Yakın dövüş bıçağı | [Knife](https://sketchfab.com/3d-models/knife-8374ea78a11c4be5a2f145448c17c90e) | [CG Lab34](https://sketchfab.com/tuandesigner.mtc) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Yönlendirildi, 30 cm'ye ölçeklendi, dokular 2048 px PNG'den 2048 px JPEG'e çevrildi (dokularda yazı yok) |
 
 M134 Kasırga (minigun) kullanıcının kendi Blender modelidir (`SourceAssets/Weapons/minigun/`, `Tools/blender/export_weapon.py`).
 
@@ -56,6 +56,10 @@ CC BY 4.0: yazar ve lisans belirtilerek ticari dahil her amaçla kullanılabilir
 ### Prosedürel içerik
 
 AR-7 Vanguard, SMG-9 Akrep, SG-12 Breaker, P-9 Sentinel, RK-7 Yıldırım, PR-10 Tayfun, düşman silahları, tanklar, uçaksavarlar, harita, dokular ve seslerin tamamı kodla üretilir. Helikopter modeli yüklenemezse kodla üretilen yedek helikopter kullanılır. Asker modeli yüklenemezse oyun kodla üretilen yedek askerlere döner.
+
+### Kapak görseli
+
+Yükleme ekranındaki ve Google Play tanıtım görselindeki "Demir Şafak" posteri proje sahibine aittir (`SourceAssets/Cover/`); üçüncü taraf lisansı yoktur.
 
 ### Yazılım ve yazı tipleri
 

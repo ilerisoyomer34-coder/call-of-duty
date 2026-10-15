@@ -81,6 +81,7 @@ export class Audio {
   }
 
   setListener(x, y, z, yaw) {
+    if (!Number.isFinite(x + y + z + yaw)) return;
     const L = this.listener;
     L.x = x;
     L.y = y;
@@ -96,6 +97,8 @@ export class Audio {
     const dz = pos.z - L.z;
     const dy = pos.y - L.y;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    // Bozuk konum (NaN) sessiz geçer: Web Audio sonlu olmayan değerde hata fırlatır, ses oyunu durdurmamalı
+    if (!Number.isFinite(dist)) return { gain: 0, pan: 0, dist: 0 };
     // Dinleyicinin sağ vektörü: yaw=0 → +X
     const rx = Math.cos(L.yaw);
     const rz = -Math.sin(L.yaw);
