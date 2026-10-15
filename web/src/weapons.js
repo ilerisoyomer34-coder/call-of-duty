@@ -227,7 +227,8 @@ export class PlayerWeapons {
 
   switchTo(id) {
     if (!this.owned[id] || id === this.currentId && this.state !== 'unequipping') return;
-    if (this.state === 'melee' || this.state === 'throwing' || this.state === 'cooking') return;
+    // Hızlı bıçak ve el bombası bitmeden silah değişmez; elde tutulan bıçağın savuruşu ise kesilebilir (tuş yutulmasın)
+    if ((this.state === 'melee' && !this.meleeKnife) || this.state === 'throwing' || this.state === 'cooking') return;
     this.cancelReload();
     this.pending = id;
     if (this.state === 'equipping' && this.stateT < 0.1) {
