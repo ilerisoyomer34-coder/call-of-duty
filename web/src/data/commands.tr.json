@@ -2,6 +2,7 @@
   "_doc": "Yerel Türkçe telsiz sözlüğü. Türkçe ve ASCII yazım, ekler, yaygın eş anlamlılar, yön/mesafe ve sekiz adıma kadar sıralı emir desteklenir. Desteklenmeyen eylemler açıkça bildirilir; bulut yapay zekâ bağlantısı gerektirmez.",
   "minScore": 0.6,
   "priority": [
+    "THROW_GRENADE",
     "HOLD_FIRE",
     "HEAL_PLAYER",
     "TAKE_COVER",
@@ -376,6 +377,31 @@
         "odayı tara",
         "çevrede devriye gez"
       ]
+    },
+    "THROW_GRENADE": {
+      "label": "El bombası at",
+      "roots": [],
+      "phrases": [
+        "bomba at",
+        "bombayı at",
+        "bomba fırlat",
+        "bombayı fırlat",
+        "el bombası at",
+        "el bombasını at",
+        "el bombası fırlat",
+        "el bombasını fırlat",
+        "bomba kullan",
+        "bomba yolla",
+        "bomba gönder",
+        "at bomba",
+        "fırlat bomba"
+      ],
+      "weight": 1.4,
+      "say": "El bombası atın!",
+      "confirm": [
+        "Hedefe el bombası atıyorum!",
+        "Anlaşıldı, bomba hazırlıyorum!"
+      ]
     }
   },
   "addressees": {
@@ -451,7 +477,7 @@
       "Pozisyonu koruyun"
     ]
   },
-  "help": "Adla hitap edin: “Demir sola 20 metre git, sonra bekle”. Takip, bekle, siper, saldırı, baskı, ateşi kes/serbest, alan temizliği ve medik emirleri kullanılabilir. “Durum raporu” ve “emirleri iptal et” de çalışır. Bina/ağaç hedeflerini nişangâhla gösterin; görev ve tahliye noktalarını adlarıyla söyleyin. Sekiz adıma kadar emir sırayla yürütülür. Son emri “aynısını yap” ile tekrarlayın; beklettikten sonra “devam et” deyin. “Aynı yere git” son verilen noktayı kullanır. “Şimdi bekle” son hitap edilen askere gider; “herkes bekle” tüm timi durdurur.",
+  "help": "Adla hitap edin: “Demir sola 20 metre git, sonra bekle”. Takip, bekle, siper, saldırı, baskı, ateşi kes/serbest, alan temizliği, el bombası ve medik emirleri kullanılabilir. “Durum raporu” ve “emirleri iptal et” de çalışır. Bina/ağaç hedeflerini nişangâhla gösterin; görev ve tahliye noktalarını adlarıyla söyleyin. Sekiz adıma kadar emir sırayla yürütülür. Son emri “aynısını yap” ile tekrarlayın; beklettikten sonra “devam et” deyin. “Aynı yere git” son verilen noktayı kullanır. “Şimdi bekle” son hitap edilen askere gider; “herkes bekle” tüm timi durdurur. “Demir bomba at” baktığınız yönde, “Demir sağa 20 metre bomba at” belirtilen noktaya atar. Yakın dost, engel veya menzil sorunu varsa asker gerekçesini söyler.",
   "unsupported": [
     {
       "patterns": [
@@ -462,10 +488,12 @@
     },
     {
       "patterns": [
-        "(?:bomba|c4|patlayici)[a-z ]*(?:at|firlat|yerlestir|kur|patlat)",
+        "(?:c4|patlayici)[a-z ]*(?:at|firlat|yerlestir|kur|patlat)",
+        "bomba[a-z ]*(?:yerlestir|kur|patlat)",
+        "(?:sis|duman) bomba",
         "(?:patlat|imha et)[a-z ]*(?:tank|arac|helikopter)"
       ],
-      "say": "Takıma patlayıcı kullandırma emri henüz desteklenmiyor. Silah ateşi için hedefi gösterip “saldır” veya “baskı ateşi” diyebilirsiniz."
+      "say": "Telsizden el bombası atılabilir; C4 yerleştirme, sis bombası ve uzaktan patlatma emri henüz yok. Hedefi gösterip “Demir bomba at” deyin."
     },
     {
       "patterns": [

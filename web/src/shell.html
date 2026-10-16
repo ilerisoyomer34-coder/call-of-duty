@@ -943,21 +943,29 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .kslot u { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--amber); transform-origin: left center; transform: scaleX(0); }
 
 /* ---------- Telsiz kutusu (radioChat.js): sol alt, tim listesinin üstünde; Enter ile yazılı komut ---------- */
-body:not(.playing) #radioLog { display: none; }
+body:not(.playing) #radioLog, body:not(.squad) #radioLog, body.online #radioLog { display: none; }
+body.radioCollapsed #radio, body.squad #radio { display: none; }
 #radioLog { position: absolute; left: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); width: min(400px, 42vw); display: flex; flex-direction: column; gap: 4px; }
-.rlList { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+#radioLog:not(.open) { width: auto; }
+#radioLog:not(.open) .rlSugg { display: none; }
+.rlBar { flex: 0 0 auto; display: flex; }
+#btnRadioToggle { min-height: 44px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #7fd38a; border-radius: 6px; background: rgba(13,16,19,.92); color: #b8e8c0; font: 700 12px/1 var(--f-ui); letter-spacing: .06em; cursor: pointer; pointer-events: auto; touch-action: manipulation; }
+#btnRadioToggle:focus-visible, .rlClose:focus-visible { outline: 2px solid #5ee7ff; outline-offset: 2px; }
+.rlBadge { min-width: 20px; padding: 4px; border-radius: 12px; background: #7fd38a; color: #0d1013; text-align: center; font-size: 11px; }
+.rlBadge[hidden], .rlList[hidden] { display: none; }
+.rlList { min-height: 0; display: flex; flex-direction: column; gap: 2px; overflow: hidden; overscroll-behavior: contain; overflow-wrap: anywhere; touch-action: pan-y; }
 .rl { font: 500 14px/1.25 var(--f-ui); color: var(--sand); text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); transition: opacity .3s; }
 .rl[hidden] { display: none; }
 .rl b { font-weight: 700; letter-spacing: .02em; }
-#radioLog.open { background: rgba(13,16,19,.86); border: 1px solid var(--line); padding: 8px 10px; pointer-events: auto; }
-#radioLog.open .rlList { max-height: 38vh; overflow-y: auto; }
-.rlForm { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+#radioLog.open { box-sizing: border-box; max-height: min(340px, 42dvh); background: rgba(13,16,19,.92); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; pointer-events: auto; }
+#radioLog.open .rlList { flex: 1 1 auto; overflow-y: auto; }
+.rlForm { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
 .rlForm[hidden] { display: none; }
 .rlForm b { font: 700 13px/1 var(--f-ui); color: #5ee7ff; white-space: nowrap; }
-.rlForm input { flex: 1; min-width: 0; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); font: 500 15px/1.2 var(--f-ui); padding: 6px 8px; outline: none; }
+.rlForm input { flex: 1; min-width: 0; min-height: 44px; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); font: 500 16px/1.2 var(--f-ui); padding: 6px 8px; outline: none; }
 .rlForm input:focus { border-color: #5ee7ff; }
-.rlClose { background: none; border: 1px solid var(--line); color: var(--sand-dim); font: 600 13px/1 var(--f-ui); padding: 6px 8px; cursor: pointer; }
-.rlSugg { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
+.rlClose { min-width: 44px; min-height: 44px; background: none; border: 1px solid var(--line); color: var(--sand-dim); font: 600 13px/1 var(--f-ui); padding: 6px 8px; cursor: pointer; touch-action: manipulation; }
+.rlSugg { flex: 0 1 auto; max-height: 76px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
 .rlSugg[hidden] { display: none; }
 .rlSugg button { background: rgba(13,16,19,.85); border: 1px solid #7fd38a; color: #7fd38a; font: 600 13px/1 var(--f-ui); padding: 6px 10px; cursor: pointer; }
 /* Konuşan asker: tim listesindeki satırı ve başındaki etiket 1 sn parlar */
@@ -1042,7 +1050,7 @@ body:not(.playing) #radioLog { display: none; }
 #netGraph[hidden], #netGraphCanvas[hidden] { display: none; }
 #netGraph pre { margin: 0; font: 400 11px/1.35 var(--f-num); color: #cfe9d2; white-space: pre; }
 /* Çevrim içinde görev öğeleri yok */
-body.online #objective, body.online #score, body.online #tracker, body.online #squad, body.online #tbNade, body.online #tbChat, body.online #tbVoice, body.online #tbUse { display: none !important; }
+body.online #objective, body.online #score, body.online #tracker, body.online #squad, body.online #tbNade, body.online #tbVoice, body.online #tbUse { display: none !important; }
 body.touch .mhSide { min-width: 70px; padding: 3px 8px; }
 body.touch .mhSide b { font-size: 20px; }
 body.touch .mhFeed { top: calc(8px + env(safe-area-inset-top, 0px)); }
@@ -1089,18 +1097,18 @@ body.downed #touch .tb.dn { display: flex; }
 .tb.sq2 { width: 54px; height: 40px; border-radius: 6px; font-size: 10px; border-color: rgba(127,211,138,.6); }
 #tbWheel { right: calc(186px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); }
 #tbPing { right: calc(248px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); }
-#tbChat { right: calc(248px + env(safe-area-inset-right, 0px)); top: calc(114px + env(safe-area-inset-top, 0px)); }
 #tbVoice { right: calc(310px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); font-size: 9px; }
-body:not(.squad) #tbWheel, body:not(.squad) #tbPing, body:not(.squad) #tbChat, body:not(.voicecmd) #tbVoice, body:not(.squad) #tbVoice { display: none; }
+body:not(.squad) #tbWheel, body:not(.squad) #tbPing, body:not(.voicecmd) #tbVoice, body:not(.squad) #tbVoice { display: none; }
 /* Telefonda telsiz kutusu altta, sol sütunla sağdaki düğmeler arasında; yazarken klavye altı kapattığı için üstte */
-body.touch #radioLog { bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+body.touch #radioLog { left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
 body.touch .rl { font-size: 12px; }
-body.touch #radioLog.open { left: 50%; width: min(560px, 82vw); transform: translateX(-50%); top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; }
-body.touch #radioLog.open .rlList { max-height: 26vh; }
+body.touch #radioLog.open { left: 50%; width: min(560px, 82vw); max-height: min(220px, 46dvh); transform: translateX(-50%); top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; }
+body.touch #radioLog.open .rlList { flex: 1 1 auto; }
 #rotateHint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; background: var(--ink); font: 700 20px/1.4 var(--f-ui); letter-spacing: .12em; padding: 24px; pointer-events: auto; }
 @media (orientation: portrait) and (pointer: coarse) { body.playing #rotateHint { display: flex; } }
 
 @media (max-width: 900px), (max-height: 520px) {
+  #radioLog.open { left: 50%; width: min(560px, 82vw); max-height: min(220px, 46dvh); transform: translateX(-50%); top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; }
   #minimap { width: 110px; height: 110px; }
   #score { display: none; }
   #objective { max-width: 30vw; padding: 6px 9px 7px; }
@@ -1204,9 +1212,8 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
     <div class="tb item" id="tbItem1" data-action="useItem1" hidden></div>
     <div class="tb item" id="tbItem2" data-action="useItem2" hidden></div>
     <div class="tb" id="tbUse" data-action="interact" hidden>KULLAN</div>
-    <div class="tb sq2" id="tbWheel" data-action="wheel">TELSİZ</div>
+    <div class="tb sq2" id="tbWheel" data-action="wheel">EMİRLER</div>
     <div class="tb sq2" id="tbPing" data-action="ping">İŞARET</div>
-    <div class="tb sq2" id="tbChat" data-action="chat">SOHBET</div>
     <div class="tb sq2" id="tbVoice" data-action="voice">MİKROFON</div>
     <div class="tb" id="tbPause" data-action="pause">II</div>
   </div>
@@ -1424,7 +1431,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       <div class="grid2" id="keyTables"></div>
       <p class="keyNote" id="keyNote" aria-live="polite"></p>
       <p class="tip"><b>Gamepad:</b> sol çubuk hareket, sağ çubuk bakış, RT ateş, LT nişan, A zıpla, B çömel, X şarjör, Y silah, RB el bombası, LB etkileşim, sağ çubuğa basma bıçak.</p>
-      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. TELSİZ komut çarkını açar (komuta dokun, ortaya dokunarak muhatabı değiştir); İŞARET nişangâhın baktığı yere göre komut verir (düşman → saldır, zemin → git, yaralı → kaldır), hızlı iki dokunuş iptal eder. SOHBET yazılı komut satırını açar ("Kaya beni iyileştir", "Herkes siper alsın!"); MİKROFON basılıyken Türkçe konuşarak komut verilir (tarayıcı destekliyorsa).</p>
+      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. EMİRLER komut çarkını açar (komuta dokun, ortaya dokunarak muhatabı değiştir); İŞARET nişangâhın baktığı yere göre komut verir (düşman → saldır, zemin → git, yaralı → kaldır), hızlı iki dokunuş iptal eder. TELSİZ AÇ yazılı komut panelini açar, TELSİZ KAPAT veya ✕ paneli tamamen gizler ("Kaya beni iyileştir", "Herkes siper alsın!"); MİKROFON basılıyken Türkçe konuşarak komut verilir (tarayıcı destekliyorsa).</p>
       <div class="row"><button class="btn primary" data-back>Geri</button><button class="btn" id="btnKeysReset">Varsayılan tuşlar</button></div>
     </div>
   </section>

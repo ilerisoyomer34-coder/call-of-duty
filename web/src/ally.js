@@ -162,6 +162,7 @@ export class Ally {
     this.peekPhase = 'show';
     this.peekT = 0;
     this.grenadeT = rand(2, 6); // ilk bomba için kısa bekleme; sonrakiler grenade.cooldown
+    this.grenadeUntil = 0; // açık telsiz emri ilk seviyeden kullanılabilir; atışlar arası bekleme ortaktır
     this.throwAnim = null;
     this.reviving = null; // ayıltmaya gittiği dost
     this.reviveT = 0;
@@ -233,6 +234,7 @@ export class Ally {
       g.events.emit(EV.ALLY_DOWNED, { allyId: this.callsign, ally: this });
       this.registerReviveInteract();
       this.target = null;
+      g.commands?.drop(this, this.throwAnim?.cmd, 'down');
       this.throwAnim = null;
       this.reviving = null;
       this.flanking = null;
@@ -351,7 +353,18 @@ export class Ally {
   setOrder(commandId, cmd, i = 0, n = 1) {
     const g = this.game;
     const C = g.commands;
+    if (this.throwAnim?.cmd && !this.throwAnim.released) {
+      C.drop(this, this.throwAnim.cmd, 'replaced');
+      this.throwAnim = null;
+    }
     switch (commandId) {
+      case 'THROW_GRENADE': {
+        const problem = this.grenadeProblem(cmd.pos);
+        if (problem) { C.fail(this, cmd, problem.reason, problem.line); return; }
+        this.throwAnim = { t: 0, target: cmd.pos.clone(), released: false, cmd };
+        this.grenadeT = ALLY.grenade.cooldown;
+        return;
+      }
       case 'HOLD_FIRE':
         this.holdFire = true;
         C.complete(this, cmd);
@@ -750,7 +763,8 @@ export class Ally {
     // Hedef bir an görünmez olunca hemen dönmez (faceHold); kısa yer değiştirmede gövdeyi hareket yönüne
     // çevirmez, yan/geri adımla gider. Eskiden yarım metre için 100°'yi aşan dönüşler yapıp geri dönüyordu
     let face;
-    if (this.target && this.targetVisible) {
+    if (this.throwAnim) face = dirToYaw(this.throwAnim.target.x - this.pos.x, this.throwAnim.target.z - this.pos.z);
+    else if (this.target && this.targetVisible) {
       face = dirToYaw(this.target.pos.x - this.pos.x, this.target.pos.z - this.pos.z);
       this.faceYaw = face;
       this.faceUntil = g.time + ALLY.faceHold;
@@ -1007,15 +1021,55 @@ export class Ally {
     return true;
   }
 
-  // El bombası: toplu düşmana ya da çalışan mevziye; oyuncuya ve dostlara uzak noktaya
+  grenadeFlight(target, precise = false) {
+    const from = this.headPos(new THREE.Vector3());
+    from.y += 0.2;
+    const tgt = target.clone();
+    if (!precise) tgt.add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
+    const time = clamp(from.distanceTo(tgt) / 14, 0.8, 1.7);
+    const vel = tgt.sub(from).divideScalar(time);
+    vel.y += 0.5 * 15 * time;
+    return { from, vel, time };
+  }
+
+  // Komut yalnız gerçek bir atışa dönüşebiliyorsa onaylanır. Elden çıkarken de tekrar kontrol edilir.
+  grenadeProblem(target, checkReady = true) {
+    const g = this.game; const G = ALLY.grenade;
+    if (!target) return { reason: 'no-target', line: 'Bomba hedefini nişangâhla gösterin komutanım.' };
+    if (checkReady && this.throwAnim) return { reason: 'busy', line: 'Önce elimdeki bombayı atmalıyım komutanım.' };
+    if (checkReady && this.grenadeUntil > g.time) return { reason: 'cooldown', line: `Yeni bomba için ${Math.ceil(this.grenadeUntil - g.time)} saniye beklemeliyim.` };
+    const distance = this.pos.distanceTo(target);
+    if (distance < G.range[0] || distance > G.range[1]) return { reason: 'range', line: 'Bomba hedefi 9–28 metre aralığında olmalı komutanım.' };
+    if (target.distanceTo(g.player.pos) < G.safe || g.allies.list.some((a) => a !== this && !a.dead && a.pos.distanceTo(target) < G.safe)) return { reason: 'friendly-near', line: 'Hedefe çok yakın dost var; bombayı atmıyorum komutanım.' };
+    const { from, vel, time } = this.grenadeFlight(target, true);
+    let previous = from;
+    for (let i = 1; i <= 12; i++) {
+      const t = time * i / 12;
+      const next = from.clone().addScaledVector(vel, t); next.y -= 0.5 * 15 * t * t;
+      const ray = next.clone().sub(previous); const length = ray.length();
+      const hit = g.world.raycast(previous, ray.divideScalar(length), length, {});
+      if (hit && (!hit.point || hit.point.distanceTo(target) > 1)) return { reason: 'blocked', line: 'Bomba yolu kapalı komutanım; başka bir nokta gösterin.' };
+      previous = next;
+    }
+    return null;
+  }
+
+  // El bombası: telsiz emri veya üst kademelerde otonom atış.
   updateGrenade(dt, weaponsFree) {
     const g = this.game;
     const A = this.throwAnim;
     if (A) {
+      if (A.cmd && !A.released && !g.commands.active.has(A.cmd.id)) { this.throwAnim = null; return; }
       A.t += dt;
       if (!A.released && A.t >= SOLDIER_ANIM.throwRelease) {
+        if (A.cmd) {
+          const problem = this.grenadeProblem(A.target, false);
+          if (problem) { g.commands.fail(this, A.cmd, problem.reason, problem.line); this.throwAnim = null; return; }
+        }
         A.released = true;
-        this.releaseGrenade(A.target);
+        this.releaseGrenade(A.target, !!A.cmd);
+        this.grenadeUntil = g.time + ALLY.grenade.cooldown;
+        if (A.cmd) g.commands.complete(this, A.cmd, 'El bombası atıldı, dikkat!');
       }
       if (A.t >= SOLDIER_ANIM.throwTime) this.throwAnim = null;
       return;
@@ -1036,19 +1090,14 @@ export class Ally {
     if (!T.mount && n < G.cluster && !hidden) return;
     this.throwAnim = { t: 0, target: (T.mount ? T.mount.pivot(_v3) : T.pos).clone(), released: false };
     this.grenadeT = G.cooldown * rand(0.8, 1.3);
+    this.grenadeUntil = g.time + G.cooldown;
     g.allies.grenadeT = G.cooldown * 0.4;
     this.say('grenade', true);
   }
 
-  releaseGrenade(target) {
+  releaseGrenade(target, precise = false) {
     const g = this.game;
-    const from = this.headPos(new THREE.Vector3());
-    from.y += 0.2;
-    const tgt = target.clone().add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
-    const dist = from.distanceTo(tgt);
-    const t = clamp(dist / 14, 0.8, 1.7);
-    const grav = 15;
-    const vel = new THREE.Vector3((tgt.x - from.x) / t, (tgt.y - from.y) / t + 0.5 * grav * t, (tgt.z - from.z) / t);
+    const { from, vel } = this.grenadeFlight(target, precise);
     g.grenades.spawn(from, vel, rand(2.4, 2.9), 'ally');
   }
 

@@ -1539,7 +1539,7 @@ console.log('Telsiz kutusu ve yazılı komut');
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();
 
-  // Telefon: SOHBET düğmesi satırı üstte açar, yazılan komut verilir; telsiz kutusu panellere ve düğmelere binmez
+  // Telefon: telsiz kapalı başlar, mesajlar paneli açmaz; aç/kapat düğmesi ve sınırlı panel
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
@@ -1568,16 +1568,16 @@ console.log('Telsiz kutusu ve yazılı komut');
   const ml = await mp.evaluate(() => {
     const r = (el) => el.getBoundingClientRect();
     const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
-    const box = r(document.querySelector('#radioLog .rlList'));
+    const box = r(document.getElementById('btnRadioToggle'));
     const others = ['objective', 'health', 'ammo', 'squad', 'tracker', 'tbSwap', 'tbCrouch', 'tbItem1', 'tbItem2'].map((id) => document.getElementById(id)).filter((el) => el && !el.hidden && getComputedStyle(el).display !== 'none');
-    return { over: others.filter((el) => hit(box, r(el))).map((el) => el.id), box: { l: Math.round(box.left), r: Math.round(box.right), t: Math.round(box.top), b: Math.round(box.bottom) }, chat: getComputedStyle(document.getElementById('tbChat')).display !== 'none' };
+    return { over: others.filter((el) => hit(box, r(el))).map((el) => el.id), box: { l: Math.round(box.left), r: Math.round(box.right), t: Math.round(box.top), b: Math.round(box.bottom) }, chat: getComputedStyle(document.getElementById('btnRadioToggle')).display !== 'none', collapsed: document.getElementById('radioMessages').hidden && !window.__game.chat.open };
   });
-  check(ml.over.length === 0 && ml.box.b <= 390 && ml.chat, `Telefonda telsiz kutusu boşlukta (${JSON.stringify(ml.box)}${ml.over.length ? ` · çakışan: ${ml.over.join(', ')}` : ''}), SOHBET düğmesi var`);
+  check(ml.over.length === 0 && ml.box.b <= 390 && ml.chat && ml.collapsed, `Telefonda telsiz kutusu boşlukta (${JSON.stringify(ml.box)}${ml.over.length ? ` · çakışan: ${ml.over.join(', ')}` : ''}), TELSİZ AÇ düğmesi var, geçmiş kapalı`);
   await mp.screenshot({ path: join(shots, '23c-mobile-radio.png') });
-  await mp.tap('#tbChat');
+  await mp.tap('#btnRadioToggle');
   await mp.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
   const mo = await mp.evaluate(() => ({ open: window.__game.chat.open, focus: document.activeElement?.id, top: document.querySelector('#radioLog .rlForm').getBoundingClientRect().bottom }));
-  check(mo.open && mo.focus === 'chatInput' && mo.top < 390 / 2, `SOHBET satırı ekranın üst yarısında açıldı (alt kenar ${Math.round(mo.top)} px), yazı alanı odakta`);
+  check(mo.open && mo.focus === 'chatInput' && mo.top < 390 / 2, `Telsiz paneli ekranın üst yarısında açıldı (alt kenar ${Math.round(mo.top)} px), yazı alanı odakta`);
   await mp.keyboard.type('alfa 3 baskı ateşi aç');
   await mp.screenshot({ path: join(shots, '23d-mobile-chat.png') });
   await mp.keyboard.press('Enter');

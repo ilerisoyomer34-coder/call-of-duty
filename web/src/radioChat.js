@@ -1,6 +1,6 @@
 // Telsiz / konuşma kutusu (Operasyon Güncellemesi §8.4, §8.7). Telsiz kuyruğundan (mission.radio) çıkan her satır
 // burada da bir satır olur: Komutan camgöbeği, askerler kendi renginde, sistem ve karargâh sarı, düşman kırmızı.
-// Kapalıyken son 6 satır görünür ve 8 sn sonra solar; Enter sohbet satırını açar (tüm geçmiş görünür, kaydırılır).
+// Kapalıyken yalnız TELSİZ AÇ ve yeni mesaj sayacı görünür. Düğme/Enter paneli açar; kapatma/Esc gizler.
 // Yazılan Türkçe cümle ayrıştırıcıdan (commandParser.js) komuta dönüşür; anlaşılmazsa asker sorar, üç öneri çıkar
 // ve satır açık kalır. Spam kuralları kuyruktadır (mission.radio, ally.say); bu kutu yalnız gösterir.
 // İsteğe bağlı seslendirme speechSynthesis (tr-TR, askere göre perde/hız); isteğe bağlı sesli komut
@@ -11,21 +11,9 @@ import { parseCommand } from './commandParser.js';
 import { playerLabel } from './nameScreen.js';
 
 const FADE_SEC = 8;
-const SHOW_LINES = 6;
-const SHOW_LINES_TOUCH = 3; // telefonda ekran dar: son üç satır
 const HISTORY = 60;
 const TALK_MS = 1000; // konuşan askerin HUD satırı ve etiketi bu kadar parlar
 const COLORS = { player: '#5ee7ff', system: '#ffd36a', warn: '#ff6a5a' };
-const TOUCH_BAND = 110; // telefonda kutunun kapladığı alt şerit (px): bu şeride inen panel ve düğmelerden kaçılır
-const TOUCH_MIN_W = 140;
-
-// Görünen öğenin ekrandaki kutusu (gizliyse null)
-function visibleRect(id) {
-  const el = document.getElementById(id);
-  if (!el || el.hidden || !el.offsetParent) return null;
-  const r = el.getBoundingClientRect();
-  return r.width ? r : null;
-}
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,6 +33,7 @@ export class RadioChat {
     this.game = game;
     this.lines = []; // { el, t }
     this.open = false;
+    this.unread = 0;
     this.time = 0;
     this.suggT = 0;
     this.fadeT = 0;
@@ -58,9 +47,29 @@ export class RadioChat {
     const host = $('app') || document.body;
     this.box = document.createElement('div');
     this.box.id = 'radioLog';
+    this.box.addEventListener('keydown', (e) => e.stopPropagation());
+    const bar = document.createElement('div');
+    bar.className = 'rlBar';
+    this.toggle = document.createElement('button');
+    this.toggle.type = 'button';
+    this.toggle.id = 'btnRadioToggle';
+    this.toggle.setAttribute('aria-controls', 'radioMessages chatInput');
+    this.toggle.title = 'Telsizi aç / kapat · Enter ile aç, Esc ile kapat';
+    this.toggleLabel = document.createElement('span');
+    this.badge = document.createElement('span');
+    this.badge.className = 'rlBadge';
+    this.toggle.append(this.toggleLabel, this.badge);
+    this.toggle.addEventListener('click', () => {
+      const g = this.game;
+      if (this.open) this.closeChat();
+      else if (g.mode === 'mission' && g.state === 'playing' && g.player.alive && !g.wheel?.open) this.openChat();
+    });
+    bar.appendChild(this.toggle);
     this.list = document.createElement('div');
+    this.list.id = 'radioMessages';
     this.list.className = 'rlList';
-    // Sohbet satırı ve öneriler (Enter ya da SOHBET ile açılır)
+    this.list.hidden = true;
+    // Sohbet satırı ve öneriler (Enter ya da TELSİZ AÇ ile açılır)
     this.form = document.createElement('form');
     this.form.className = 'rlForm';
     this.form.hidden = true;
@@ -88,19 +97,16 @@ export class RadioChat {
     this.sugg = document.createElement('div');
     this.sugg.className = 'rlSugg';
     this.sugg.hidden = true;
-    this.box.append(this.list, this.form, this.sugg);
+    this.box.append(bar, this.list, this.form, this.sugg);
     // Menü ekranlarının altında kalsın (onlar #app'te daha sonra gelir)
-    const touch = $('touch');
-    if (touch) touch.after(this.box);
+    const overlay = $('clickToPlay') || $('touch');
+    if (overlay) overlay.after(this.box);
     else host.appendChild(this.box);
+    document.body.classList.add('radioCollapsed');
+    this.updateToggle();
     this.form.addEventListener('submit', (e) => {
       e.preventDefault();
       this.submit(this.input.value);
-    });
-    // SOHBET düğmesi: telefonda klavye yalnız dokunuşun içinde odaklanan alana açılır (bir sonraki karede değil)
-    $('tbChat')?.addEventListener('touchend', () => {
-      const g = this.game;
-      if (g.mode === 'mission' && g.state === 'playing' && g.player.alive && !g.wheel?.open) this.openChat();
     });
     // Oyun girdisi yazı alanındaki tuşları zaten yok sayar (input.js); Esc yalnız sohbeti kapatsın, duraklatmasın
     this.input.addEventListener('keydown', (e) => {
@@ -128,6 +134,7 @@ export class RadioChat {
 
   // Satır ekle. kind: 'player' | 'ally' | 'system' | 'warn'
   add(who, text, kind = 'system', color = null) {
+    const atBottom = this.list.scrollHeight - this.list.scrollTop - this.list.clientHeight < 24;
     const el = document.createElement('div');
     el.className = `rl ${kind}`;
     const b = document.createElement('b');
@@ -137,24 +144,21 @@ export class RadioChat {
     this.list.appendChild(el);
     this.lines.push({ el, t: this.time });
     while (this.lines.length > HISTORY) this.lines.shift().el.remove();
-    this.layout();
+    if (!this.open) { this.unread = Math.min(100, this.unread + 1); this.updateToggle(); }
+    this.layout(atBottom);
   }
 
-  // Görünür satırlar: kapalıyken son 6 (telefonda 3) ve 8 sn'den yeni olanlar, son 1,5 sn'de solar; açıkken hepsi
-  layout() {
-    const n = this.lines.length;
-    const show = this.game.input.touch.active ? SHOW_LINES_TOUCH : SHOW_LINES;
-    for (let i = 0; i < n; i++) {
-      const l = this.lines[i];
-      const age = this.time - l.t;
-      const vis = this.open || (i >= n - show && age < FADE_SEC);
-      if (l.el.hidden === vis) l.el.hidden = !vis;
-      if (!vis) continue;
-      // DOM'a yalnız değişince yaz (tarayıcı "0.50"yi "0.5" diye saklar)
-      const op = this.open ? '1' : String(+Math.min(1, Math.max(0, (FADE_SEC - age) / 1.5)).toFixed(2));
-      if (l.el.style.opacity !== op) l.el.style.opacity = op;
-    }
-    if (this.open) this.list.scrollTop = this.list.scrollHeight;
+  updateToggle() {
+    this.toggleLabel.textContent = this.open ? 'TELSİZ KAPAT' : 'TELSİZ AÇ';
+    this.toggle.setAttribute('aria-expanded', String(this.open));
+    this.badge.hidden = this.open || !this.unread;
+    this.badge.textContent = this.unread > 99 ? '99+' : String(this.unread);
+    this.badge.setAttribute('aria-label', `${this.unread} yeni telsiz mesajı`);
+  }
+
+  // Kapalı panelde mesajlar birikmeye devam eder, ekranı açmaz.
+  layout(scrollToEnd = false) {
+    if (this.open && scrollToEnd) this.list.scrollTop = this.list.scrollHeight;
   }
 
   // Seslendirme (ayar açıksa): askere göre perde ve hız
@@ -178,44 +182,29 @@ export class RadioChat {
   openChat() {
     if (!this.open) {
       this.open = true;
+      this.unread = 0;
+      this.updateToggle();
       // Satırın başında oyuncunun adı (ad sonradan değişebilir)
       this.tag.textContent = `${playerLabel(this.game, SQUAD.playerCallsign)} ›`;
       this.box.classList.add('open');
+      document.body.classList.remove('radioCollapsed');
+      this.list.hidden = false;
       this.form.hidden = false;
       this.input.value = '';
-      this.layout();
+      this.layout(true);
       this.place();
       this.game.input.exitLock?.();
     }
     this.input.focus();
   }
 
-  // Masaüstünde kutu sol altta, tim listesinin (yoksa can panelinin) hemen üstünde. Dokunmatikte altta: soldaki
-  // panellerle sağ alttaki başparmak düğmeleri arasındaki boşluğa sığdırılır (açıkken CSS üstte ortalar)
+  // Masaüstünde tim listesinin üstü; telefonda kapalı düğme sol altta,
+  // açık ve yüksekliği sınırlı panel klavyenin üstünde (CSS).
   place() {
     const g = this.game;
     const st = this.box.style;
-    if (g.input.touch.active) {
+    if (g.input.touch.active || (this.open && matchMedia('(max-width: 900px), (max-height: 520px)').matches)) {
       if (st.bottom) st.bottom = '';
-      if (this.open) {
-        if (st.left) st.left = st.width = '';
-        return;
-      }
-      const band = innerHeight - TOUCH_BAND;
-      let left = 16;
-      let right = innerWidth - 16;
-      for (const id of ['tracker', 'ammo', 'health', 'squad']) {
-        const b = visibleRect(id);
-        if (b && b.bottom > band) left = Math.max(left, b.right + 8);
-      }
-      for (const id of ['tbSwap', 'tbItem1', 'tbItem2', 'tbCrouch', 'tbJump']) {
-        const b = visibleRect(id);
-        if (b && b.bottom > band && b.left > left) right = Math.min(right, b.left - 8);
-      }
-      const l = `${Math.round(left)}px`;
-      const w = `${Math.round(Math.max(TOUCH_MIN_W, right - left))}px`;
-      if (st.left !== l) st.left = l;
-      if (st.width !== w) st.width = w;
       return;
     }
     const sq = $('squad');
@@ -226,16 +215,19 @@ export class RadioChat {
   }
 
   closeChat() {
-    if (!this.open) return;
+    const wasOpen = this.open;
     this.open = false;
+    this.updateToggle();
     this.box.classList.remove('open');
+    document.body.classList.add('radioCollapsed');
+    this.list.hidden = true;
     this.form.hidden = true;
     this.sugg.hidden = true;
     this.input.blur();
     this.layout();
     this.place();
     const g = this.game;
-    if (g.state === 'playing' && !g.input.touch.active) g.input.requestLock?.();
+    if (wasOpen && g.state === 'playing' && !g.input.touch.active) g.input.requestLock?.();
   }
 
   // Yazılan ya da söylenen cümle → komut (inputMethod: 'text' | 'voice'). Anlaşılmazsa satır açık kalır
@@ -283,7 +275,6 @@ export class RadioChat {
     this.fadeT -= dt;
     if (this.fadeT <= 0) {
       this.fadeT = 0.25;
-      this.layout();
       this.place();
     }
   }
@@ -291,6 +282,7 @@ export class RadioChat {
   clear() {
     for (const l of this.lines) l.el.remove();
     this.lines = [];
+    this.unread = 0;
     this.closeChat();
     this.sugg.hidden = true;
   }
