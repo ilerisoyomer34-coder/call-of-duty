@@ -316,17 +316,19 @@ export class World extends CollisionWorld {
     const B = this.bounds;
     if (!q || !B) return;
     if (!grassGeo) {
+      // Her düzlemin arka yüzü ayrı (ters dönmüş) bir kopya: çift yüzlü malzemede three.js arka yüzün normalini
+      // ters çevirir, yukarı bakan normal aşağı döner ve öbeğin yarısı güneş almayıp simsiyah görünürdü
       const a = new THREE.PlaneGeometry(1, 1);
       a.translate(0, 0.5, 0);
-      const b = a.clone().rotateY(Math.PI / 2);
-      const c = a.clone().rotateY(Math.PI / 4);
-      grassGeo = mergeGeometries([a, b, c]);
+      const planes = [];
+      for (const r of [0, Math.PI / 2, Math.PI / 4]) planes.push(a.clone().rotateY(r), a.clone().rotateY(r + Math.PI));
+      grassGeo = mergeGeometries(planes);
       const n = grassGeo.attributes.normal;
       for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
       grassGeo.userData.shared = true;
     }
     if (!this.grassMat) {
-      this.grassMat = new THREE.MeshStandardMaterial({ map: this.T.grassBlades, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
+      this.grassMat = new THREE.MeshStandardMaterial({ map: this.T.grassBlades, alphaTest: 0.45, roughness: 1, metalness: 0 });
       addWind(this.grassMat, WIND.grass, 0, 1);
     }
     const area = (B.maxx - B.minx) * (B.maxz - B.minz);

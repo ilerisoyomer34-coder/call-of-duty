@@ -570,6 +570,7 @@ class SkinnedSoldier {
     this.recoil.reset();
     this.hipYaw = 0;
     this.legYaw = 0;
+    this.turning = false;
     this.back = false;
     this.moveT = 0;
     this.runT = 0;
@@ -626,7 +627,8 @@ class SkinnedSoldier {
     const step = Math.min(this.lodT, 0.25);
     this.lodT = 0;
     // Yine de bozuk bir durum kalırsa (eski kayıt, beklenmedik değer) kendini onarır
-    if (!Number.isFinite(this.moveT + this.runT + this.phase + this.legYaw + this.hipYaw + this.crouchT + this.aimT + this.readyT + this.pitch)) {
+    const springs = this.recoil.x + this.flinch.x + this.twist.x;
+    if (!Number.isFinite(this.moveT + this.runT + this.phase + this.legYaw + this.hipYaw + this.crouchT + this.aimT + this.readyT + this.pitch + springs) || Math.abs(springs) > 10) {
       this.resetState();
       this.legYaw = st.yaw;
       this.phase = 0;
@@ -642,9 +644,22 @@ class SkinnedSoldier {
       else if (this.back && a < A.backwardExit) this.back = false;
       hipTarget = clamp(this.back ? angleDiff(0, rel + Math.PI) : rel, -A.hipTurnMax, A.hipTurnMax);
     }
-    // Bacaklar dünyada kendi yönünü tutar: yerinde dönerken gövde önden döner, bacaklar adım atarak yetişir
+    // Bacaklar dünyada kendi yönünü tutar: yerinde dönerken gövde önden döner, bacaklar adım atarak yetişir.
+    // Dururken ayaklar yere basılı kalır; gövde ile bacak arasındaki açı turnStart'ı aşınca bacaklar birkaç
+    // hızlı adımla hizalanır. Eskiden bacaklar bakışı sürekli izliyordu: nişan alırken bakış azıcık kaydıkça
+    // asker yerinde sayıyordu (ayakları durmadan kıpırdayan "tavuk" duruşu)
     const prevLeg = this.legYaw;
-    this.legYaw = dampAngle(this.legYaw, st.yaw + hipTarget, sp > 0.25 ? 12 : 4, step);
+    if (sp > 0.25) {
+      this.turning = false;
+      this.legYaw = dampAngle(this.legYaw, st.yaw + hipTarget, 12, step);
+    } else {
+      const off = Math.abs(angleDiff(this.legYaw, st.yaw));
+      if (!this.turning && off > A.turnStart) this.turning = true;
+      if (this.turning) {
+        this.legYaw = dampAngle(this.legYaw, st.yaw, A.turnSpeed, step);
+        if (off < A.turnEnd) this.turning = false;
+      }
+    }
     const turnRate = Math.abs(angleDiff(prevLeg, this.legYaw)) / step; // step > 0 (yukarıda)
     this.hipYaw = clamp(angleDiff(st.yaw, this.legYaw), -A.hipTurnMax, A.hipTurnMax);
     this.legYaw = st.yaw + this.hipYaw;

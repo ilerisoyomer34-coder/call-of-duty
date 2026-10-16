@@ -1297,6 +1297,10 @@ export const SOLDIER_ANIM = {
   hipTurnMax: 70 * Math.PI / 180, // alt gövde bu kadar dönebilir; kalanını üst gövde tamamlar
   turnStep: 0.35, // yerinde dönerken bacakların attığı adım (m / rad): dönüş hızı adım hızına çevrilir
   turnStepMax: 1.1, // yerinde dönüş adımının üst sınırı (m/s)
+  // Dururken ayaklar yerinde kalır; gövde bacaklardan bu kadar dönünce (rad) bacaklar adım atıp hizalanır
+  turnStart: 0.75,
+  turnEnd: 0.08, // hizalama bu açının altında biter
+  turnSpeed: 9, // hizalanma hızı (birkaç hızlı adım)
   backwardEnter: 115 * Math.PI / 180, // hareket bakıştan bu kadar saparsa geri geri yürür
   backwardExit: 75 * Math.PI / 180,
   crouchDrop: 0.42, // çömelirken kalçanın inişi (m)
@@ -1369,6 +1373,8 @@ export const ALLY = {
   // kapalı sayar, duvara yaslanmış oyuncuya (tedavi, canlandırma) ancak son birkaç metre düz gidilerek ulaşılır
   directDist: 4,
   settle: [0.9, 1.6], // hedefe varış / yeniden yürümeye başlama mesafesi (m)
+  faceHold: 2.0, // hedef gözden kaybolunca o yöne bakmayı sürdürme süresi (s)
+  faceMoveDist: 3.0, // bundan kısa yer değiştirmede gövde hareket yönüne dönmez, yan/geri adımla gider (m)
   viewRange: 60,
   thinkInterval: 0.15,
   loseTargetTime: 2.5,
@@ -1386,6 +1392,10 @@ export const ALLY = {
   stuckCheck: 0.8, // takılma denetimi aralığı (s)
   stuckMove: 0.3, // bu sürede bundan az ilerleyen dost takılmış sayılır (m)
   fireLaneDeg: 12, // oyuncunun nişan hattındaki dost kenara çekilir
+  fireLaneMargin: 0.8, // hattın dışına kaydırılan hedefin koni kenarından payı (m)
+  coverSwitchGain: 3, // yeni siper ancak bu kadar daha iyi puanlıysa değiştirilir (sürekli siper değiştirmesin)
+  coverHold: 4, // hedef kaybolduktan sonra siperde bekleme süresi (s)
+  coverHoldDist: 9, // oyuncu ilerleyip düzen yeri siperden bu kadar uzaklaşınca siper bırakılır (m)
   stealth: 0.6, // düşmanın dostu fark etme hızı çarpanı: manga oyuncunun arkasında, dikkat çekmemeye çalışır
   colors: { uniform: 0x3d5a8a, vest: 0x243650, helmet: 0x2f4b78, skin: 0xa77b5b, band: 0x4aa3ff },
   // Kademe taktiklerinin ayarları (hangi taktiğin açık olduğu ALLY_TIERS'ta)

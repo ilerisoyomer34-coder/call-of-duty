@@ -56,6 +56,9 @@ export function rayCylinder(o, d, cx, cz, r, y0, y1, maxT) {
 }
 
 // Yay-sönüm (spring-damper) — prosedürel animasyonların temel taşı.
+// Yayın en uzun tümleme adımı (sn): en sert yay (k 900, c 40) için de kararlı aralıkta
+const SPRING_MAX_STEP = 1 / 60;
+
 export class Spring {
   constructor(stiffness = 120, damping = 14) {
     this.k = stiffness;
@@ -67,10 +70,17 @@ export class Spring {
   impulse(v) {
     this.v += v;
   }
+  // Adım uzunsa alt adımlara bölünür. Yarı örtük Euler sert yayda büyük adımda kararsızdır: ekran dışındaki ya
+  // da uzaktaki askerin pozu 0,1–0,125 sn'de bir güncellenir, bu adımda geri tepme yayı 2 sn'de 10⁷'ye
+  // çıkıyordu (asker görüşe girince silah göğe kalkıyor, kollar çırpınıyordu: "tavuk gibi" hareket)
   update(dt) {
-    const a = -this.k * (this.x - this.target) - this.c * this.v;
-    this.v += a * dt;
-    this.x += this.v * dt;
+    const n = dt > SPRING_MAX_STEP ? Math.ceil(dt / SPRING_MAX_STEP) : 1;
+    const h = dt / n;
+    for (let i = 0; i < n; i++) {
+      const a = -this.k * (this.x - this.target) - this.c * this.v;
+      this.v += a * h;
+      this.x += this.v * h;
+    }
     return this.x;
   }
   reset() {

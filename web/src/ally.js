@@ -133,6 +133,8 @@ export class Ally {
     this.run = false;
     this.crouch = false;
     this.settled = false;
+    this.coverKeepUntil = 0;
+    this.faceUntil = 0;
     this.aimPitch = 0;
     this.sayT = rand(2, 5);
     this.weapon.mag = this.C.magSize;
@@ -602,12 +604,17 @@ export class Ally {
     }
     let goal = this.slotGoal;
     if (weaponsFree && this.target) {
+      this.coverKeepUntil = g.time + ALLY.coverHold;
       this.coverT -= dt;
       if (this.coverT <= 0) {
         this.coverT = rand(2, 3.5);
         this.pickCover();
       }
       if (this.cover) goal = this.cover.pos;
+    } else if (this.cover && g.time < this.coverKeepUntil && this.cover.pos.distanceTo(this.slotGoal) < ALLY.coverHoldDist) {
+      // Hedef bir an kayboldu (öldü, siperin ardına geçti): siperde bekler. Eskiden siperi hemen bırakıp düzen
+      // yerine yürüyor, yeni hedef görünce siperine geri koşuyordu
+      goal = this.cover.pos;
     } else this.releaseCover();
     // Emir: pozisyonu koru / oraya git / siper al / temizle / iyileştir. Noktası olan emirde çatışma siperi
     // o noktanın çevresinden seçilir (slotGoal yerine emir noktası)
@@ -644,13 +651,13 @@ export class Ally {
     if (g.time < this.selfCoverUntil && this.cover) goal = this.cover.pos;
     // Oyuncunun nişan hattındaysa kenara çekil; oyuncuyu tedavi ederken ya da kaldırırken yanından ayrılmaz
     // (yoksa tam önünde duran medik tedaviyi yarıda bırakıp kenara kaçar)
+    // Hattın içinde kalan hedef (siper, düzen yeri) hattın dışına kaydırılır. Eskiden askerin kendisi 2,2 m yana
+    // çekiliyor, hattan çıkınca hedefi yine hatta kaldığı için geri dönüyordu: oyuncunun önünde durmadan
+    // ileri-geri koşturuyordu
     const tending = this.order.id === 'HEAL_PLAYER' || (g.allies.rescue.reviver === this && P.down);
-    if (!tending && this.inFireLane()) {
-      const c = Math.cos(P.yaw);
-      const s = Math.sin(P.yaw);
-      const side = (this.pos.x - P.pos.x) * c - (this.pos.z - P.pos.z) * s >= 0 ? 1 : -1;
-      _v.set(this.pos.x + c * 2.2 * side, this.pos.y, this.pos.z - s * 2.2 * side);
-      if (g.nav.isWalkable(_v.x, _v.z)) goal = _v;
+    if (!tending) {
+      const shifted = this.outOfFireLane(goal, _v);
+      if (shifted) goal = shifted;
     }
 
     // Çok geride kaldıysa (ör. kontrol noktası, dar geçit) oyuncunun görmediği anda yanına al
@@ -740,11 +747,17 @@ export class Ally {
     }
 
     // Bakış: hedef → hareket yönü → oyuncunun baktığı yön
+    // Hedef bir an görünmez olunca hemen dönmez (faceHold); kısa yer değiştirmede gövdeyi hareket yönüne
+    // çevirmez, yan/geri adımla gider. Eskiden yarım metre için 100°'yi aşan dönüşler yapıp geri dönüyordu
     let face;
-    if (this.target && this.targetVisible) face = dirToYaw(this.target.pos.x - this.pos.x, this.target.pos.z - this.pos.z);
-    else if (this.threatYaw != null && g.time - this.lastHurt < 3) face = this.threatYaw;
-    else if (this.horizSpeed > 0.4) face = dirToYaw(this.vel.x, this.vel.z);
-    else face = P.yaw;
+    if (this.target && this.targetVisible) {
+      face = dirToYaw(this.target.pos.x - this.pos.x, this.target.pos.z - this.pos.z);
+      this.faceYaw = face;
+      this.faceUntil = g.time + ALLY.faceHold;
+    } else if (this.threatYaw != null && g.time - this.lastHurt < 3) face = this.threatYaw;
+    else if (this.faceUntil > g.time) face = this.faceYaw;
+    else if (this.horizSpeed > 0.4 && (this.run || dist > ALLY.faceMoveDist)) face = dirToYaw(this.vel.x, this.vel.z);
+    else face = this.horizSpeed > 0.4 ? this.yaw : P.yaw;
     this.yaw = dampAngle(this.yaw, face, this.targetVisible ? 8 : 4, dt);
 
     this.updateWeapon(dt, weaponsFree && !hiding && !this.throwAnim);
@@ -1050,23 +1063,30 @@ export class Ally {
     let bestScore = -Infinity;
     let evals = 0;
     const head = T.eyePos(_v3);
-    for (const c of cands) {
-      if (c.taken && c.taken !== this) continue;
+    // Puan askerin şimdiki yerine bağlı değil: yürürken öbür siper yakınlaşınca ona dönüp iki siper arasında
+    // gidip gelmesin. Şimdiki siper hâlâ geçerliyse ancak belirgin daha iyisi (coverSwitchGain) onu değiştirir
+    const score = (c) => -c.pos.distanceTo(this.slotGoal);
+    const valid = (c) => {
       const tx = T.pos.x - c.pos.x;
       const tz = T.pos.z - c.pos.z;
       const dT = Math.hypot(tx, tz);
-      if (dT < 5 || (c.normal.x * tx + c.normal.z * tz) / dT < 0.3) continue;
+      if (dT < 5 || (c.normal.x * tx + c.normal.z * tz) / dT < 0.3) return false;
       // Geriye çekilmesin: siper hedefe düzen yerinden daha uzak olmamalı
-      if (dT > Math.hypot(T.pos.x - this.slotGoal.x, T.pos.z - this.slotGoal.z) + 1) continue;
-      if (evals++ > 6) break;
+      if (dT > Math.hypot(T.pos.x - this.slotGoal.x, T.pos.z - this.slotGoal.z) + 1) return false;
       _v2.set(c.pos.x, 1.6, c.pos.z);
-      if (!g.world.lineOfSight(_v2, head)) continue; // ayağa kalkınca hedefi görmeli
-      const score = -c.pos.distanceTo(this.slotGoal) - c.pos.distanceTo(this.pos) * 0.3;
-      if (score > bestScore) {
-        bestScore = score;
+      return g.world.lineOfSight(_v2, head); // ayağa kalkınca hedefi görmeli
+    };
+    for (const c of cands) {
+      if (c === this.cover || (c.taken && c.taken !== this)) continue;
+      if (evals++ > 6) break;
+      if (!valid(c)) continue;
+      const s = score(c);
+      if (s > bestScore) {
+        bestScore = s;
         best = c;
       }
     }
+    if (this.cover && this.cover.pos.distanceTo(this.slotGoal) < 7 && valid(this.cover) && (!best || bestScore < score(this.cover) + ALLY.coverSwitchGain)) return;
     if (best !== this.cover) {
       this.releaseCover();
       if (best) {
@@ -1080,6 +1100,33 @@ export class Ally {
   releaseCover() {
     if (this.cover && this.cover.taken === this) this.cover.taken = null;
     this.cover = null;
+  }
+
+  // Nokta oyuncunun nişan konisindeyse koninin dışındaki en yakın yürünebilir nokta (yana, askerin bulunduğu
+  // tarafa); değilse null
+  outOfFireLane(p, out) {
+    const g = this.game;
+    const P = g.player;
+    const dx = p.x - P.pos.x;
+    const dz = p.z - P.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 1 || d > 25) return null;
+    const fx = -Math.sin(P.yaw);
+    const fz = -Math.cos(P.yaw);
+    const along = dx * fx + dz * fz;
+    if (along / d <= Math.cos(ALLY.fireLaneDeg * DEG)) return null;
+    // Sağ vektör (cos, -sin); yan uzaklık koninin kenarına + pay
+    const rx = Math.cos(P.yaw);
+    const rz = -Math.sin(P.yaw);
+    const lat = dx * rx + dz * rz;
+    const need = along * Math.tan(ALLY.fireLaneDeg * DEG) + ALLY.fireLaneMargin;
+    const mySide = (this.pos.x - P.pos.x) * rx + (this.pos.z - P.pos.z) * rz >= 0 ? 1 : -1;
+    for (const side of [mySide, -mySide]) {
+      const k = side * need - lat;
+      out.set(p.x + rx * k, p.y, p.z + rz * k);
+      if (g.nav.isWalkable(out.x, out.z)) return out;
+    }
+    return null;
   }
 
   // Oyuncunun önünde, nişan konisinin içinde mi?

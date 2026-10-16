@@ -3427,7 +3427,8 @@ if (run('online')) {
   const pp = await A.evaluate(() => ({ count: document.getElementById('ppCount').textContent, lead: document.querySelector('#ppMembers .onRow').textContent, find: document.getElementById('btnPartyFind').disabled, note: document.getElementById('ppNote').textContent }));
   check(/2 kişi/.test(pp.count) && /Lider/.test(pp.lead) && !pp.find && /karışık oyuncularla/.test(pp.note), `Takım kuruldu: ${pp.count}; "Maç ara" lidere açık`);
   await A.click('.ppMode:nth-child(2)');
-  await B.waitForFunction(() => window.__game.social.party?.mode === 'dm', null, { timeout: 10000, polling: 100 });
+  // B oyunda (yazılımsal GPU'da çok yavaş kareler): öbür iki sayfalı beklemeler gibi uzun
+  await B.waitForFunction(() => window.__game.social.party?.mode === 'dm', null, { timeout: 45000, polling: 100 });
   // B oyunda ve yavaş: bekleyen HTTP yanıtları da işlensin (eski parti görünümü yenisini ezmemeli)
   await waitGame(B, 0.5);
   const bMode = await B.evaluate(() => ({ mode: window.__game.social.party.mode, leaderId: window.__game.social.party.leader, me: window.__game.save.data.profile.id, members: window.__game.social.party.members.map((m) => m.name) }));
