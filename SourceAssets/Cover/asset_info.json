@@ -5,7 +5,6 @@
   "original": "original/demir-safak-poster.png",
   "size": [1024, 1536],
   "used": [
-    "web/assets/ui/cover.jpg (yükleme ekranı, tools/make-cover.mjs)",
-    "store/google-play/feature-graphic.jpg (tools/store-assets.mjs art)"
+    "store/google-play/feature-graphic.jpg (tools/store-assets.mjs art; oyunun açılış ekranından kaldırıldı)"
   ]
 }

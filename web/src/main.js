@@ -22,7 +22,7 @@ import { VehicleSystem } from './vehicle.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
 import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT } from './config.js';
-import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS, assetImageUrl } from './assets.js';
+import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, updateWind } from './models.js';
 import { warnOnce } from './util.js';
@@ -1305,14 +1305,6 @@ const NULL_INPUT = {
 
 async function boot() {
   const L = loadingScreen();
-  // Kapak görseli yalnız uygulama açılırken (bağımsız sürümde gömülü data: adresi, öbürlerinde sayfanın yanındaki
-  // dosya). Görev yüklemelerinde gösterilmez: bekçinin show() çağrısı hasCover sınıfını siler
-  const cover = assetImageUrl('assets/ui/cover.jpg');
-  const ld = document.getElementById('loading');
-  if (cover && ld) {
-    ld.style.setProperty('--cover', `url("${cover}")`);
-    ld.classList.add('hasCover');
-  }
   // PWA sürümünde yükleme düğmesi ve güncelleme satırı (diğer sürümlerde null)
   const pwa = setupPwa();
   L.step('Grafik sistemi başlatılıyor', 0.15);

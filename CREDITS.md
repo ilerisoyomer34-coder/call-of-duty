@@ -69,7 +69,7 @@ AR-7 Vanguard, SMG-9 Akrep, SG-12 Breaker, P-9 Sentinel, PR-10 Tayfun, bazukanı
 
 ### Kapak görseli
 
-Yükleme ekranındaki ve Google Play tanıtım görselindeki "Demir Şafak" posteri proje sahibine aittir (`SourceAssets/Cover/`); üçüncü taraf lisansı yoktur.
+Google Play tanıtım görselindeki "Demir Şafak" posteri proje sahibine aittir (`SourceAssets/Cover/`); üçüncü taraf lisansı yoktur.
 
 ### Yazılım ve yazı tipleri
 
