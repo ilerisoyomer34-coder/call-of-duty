@@ -1341,7 +1341,7 @@ console.log('Komut çarkı, işaret ve tuş atama');
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();
 
-  // Telefon: TELSİZ düğmesi çarkı açar, dilime dokununca komut; İŞARET düğmesi; paneller üst üste binmez
+  // Telefon: sağlık listesi yok; tek İLETİŞİM düğmesi yalnız mikrofon ve telsizi açar
   const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await seedName(mctx);
   await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
@@ -1370,35 +1370,32 @@ console.log('Komut çarkı, işaret ve tuş atama');
   const lay = await mp.evaluate(() => {
     const r = (id) => document.getElementById(id).getBoundingClientRect();
     const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
-    const ids = ['objective', 'health', 'ammo', 'squad', 'tracker'].filter((id) => !document.getElementById(id).hidden);
+    const ids = ['objective', 'health', 'ammo', 'squad', 'tracker'].filter((id) => !document.getElementById(id).hidden && getComputedStyle(document.getElementById(id)).display !== 'none');
     const over = [];
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) if (hit(r(ids[i]), r(ids[j]))) over.push(`${ids[i]}/${ids[j]}`);
-    const btn = ['tbWheel', 'tbPing'].map((id) => document.getElementById(id)).map((b) => getComputedStyle(b).display !== 'none' && b.getBoundingClientRect().bottom <= innerHeight);
-    return { ids, over, btn, tr: r('tracker').bottom, h: innerHeight };
+    return { ids, over, tr: r('tracker').bottom, h: innerHeight,
+      squadHidden: getComputedStyle(document.getElementById('squad')).display === 'none',
+      removed: !document.getElementById('tbWheel') && !document.getElementById('tbPing'),
+      closed: document.getElementById('mobileCommsPanel').hidden };
   });
-  check(lay.over.length === 0 && lay.ids.length >= 4 && lay.tr <= lay.h, `Telefonda HUD panelleri üst üste binmiyor (${lay.ids.join(', ')}${lay.over.length ? ` · çakışan: ${lay.over.join(', ')}` : ''})`);
-  check(lay.btn.every(Boolean), 'Telefonda TELSİZ ve İŞARET düğmeleri görünüyor');
+  check(lay.over.length === 0 && lay.ids.length >= 4 && lay.tr <= lay.h, `Telefonda HUD panelleri üst üste binmiyor (${lay.ids.join(', ')})`);
+  check(lay.squadHidden && lay.removed && lay.closed, 'Mobil sağlık listesi, EMİRLER ve İŞARET yok; iletişim bölmesi kapalı');
   await mp.screenshot({ path: join(shots, '22d-mobile-squad.png') });
-  await mp.tap('#tbWheel');
-  await mp.waitForFunction(() => window.__game.wheel.open, null, { timeout: 30000 }).catch(() => {});
-  const mw = await mp.evaluate(() => ({ open: window.__game.wheel.open, touch: document.getElementById('wheel').classList.contains('touch') }));
-  await mp.screenshot({ path: join(shots, '22e-mobile-wheel.png') });
-  // Ortaya dokun: muhatap değişir; "Siper al" dilimine dokun: komut verilir
-  await mp.tap('#wheel .wCenter');
-  const addr = await mp.evaluate(() => document.querySelector('#wheel .wAddr').textContent);
-  const box = await mp.evaluate(() => {
-    const p = document.querySelector('#wheel .wSlice path[data-cmd="TAKE_COVER"]').getBoundingClientRect();
-    return { x: p.left + p.width / 2, y: p.top + p.height / 2 };
-  });
-  await mp.touchscreen.tap(box.x, box.y);
-  await waitGame(mp, 0.1);
-  const mw2 = await mp.evaluate(() => ({ open: window.__game.wheel.open, ev: window.__ev.at(-1) }));
-  check(mw.open && mw.touch && addr === 'ALFA-1' && !mw2.open && mw2.ev?.id === 'TAKE_COVER' && mw2.ev.m === 'wheel' && mw2.ev.who.join() === 'Alfa-1', `Dokunmatik çark: ortaya dokunuş muhatabı ${addr} yaptı, dilim komutu verdi (${JSON.stringify(mw2.ev)})`);
-  await mp.tap('#tbPing');
-  await waitGame(mp, 0.1);
-  // Yeni komut önceki çark komutunu geçersiz kılar (o komut "replaced" ile düşer): işaretten çıkanı ara
-  const mpg = await mp.evaluate(() => window.__ev.filter((e) => e.m === 'ping').at(-1));
-  check(mpg?.m === 'ping', `İŞARET düğmesi bağlamsal komut verdi (${mpg?.id})`);
+  await mp.tap('#btnCommsToggle');
+  const panel = await mp.evaluate(() => ({
+    open: !document.getElementById('mobileCommsPanel').hidden,
+    buttons: [...document.querySelectorAll('#mobileCommsPanel button')].map(b => b.id),
+  }));
+  check(panel.open && panel.buttons.join() === 'tbVoice,btnMobileRadio', 'İLETİŞİM yalnız MİKROFON ve TELSİZ düğmelerini açıyor');
+  await mp.screenshot({ path: join(shots, '22e-mobile-comms.png') });
+  await mp.tap('#btnMobileRadio');
+  const chat = await mp.evaluate(() => ({ open: window.__game.chat.open, panelClosed: document.getElementById('mobileCommsPanel').hidden, focus: document.activeElement.id }));
+  check(chat.open && chat.panelClosed && chat.focus === 'chatInput', 'TELSİZ komut panelini açıyor, küçük bölme kapanıyor');
+  await mp.tap('.rlClose');
+  await mp.tap('#btnCommsToggle');
+  await mp.tap('#btnCommsToggle');
+  const closed = await mp.evaluate(() => !window.__game.chat.open && document.getElementById('mobileCommsPanel').hidden && document.getElementById('btnCommsToggle').getAttribute('aria-expanded') === 'false');
+  check(closed, 'İletişim bölmesi tekrar dokunulduğunda kapanıyor');
   await mctx.close();
 }
 
@@ -1568,13 +1565,14 @@ console.log('Telsiz kutusu ve yazılı komut');
   const ml = await mp.evaluate(() => {
     const r = (el) => el.getBoundingClientRect();
     const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
-    const box = r(document.getElementById('btnRadioToggle'));
+    const box = r(document.getElementById('btnCommsToggle'));
     const others = ['objective', 'health', 'ammo', 'squad', 'tracker', 'tbSwap', 'tbCrouch', 'tbItem1', 'tbItem2'].map((id) => document.getElementById(id)).filter((el) => el && !el.hidden && getComputedStyle(el).display !== 'none');
-    return { over: others.filter((el) => hit(box, r(el))).map((el) => el.id), box: { l: Math.round(box.left), r: Math.round(box.right), t: Math.round(box.top), b: Math.round(box.bottom) }, chat: getComputedStyle(document.getElementById('btnRadioToggle')).display !== 'none', collapsed: document.getElementById('radioMessages').hidden && !window.__game.chat.open };
+    return { over: others.filter((el) => hit(box, r(el))).map((el) => el.id), box: { l: Math.round(box.left), r: Math.round(box.right), t: Math.round(box.top), b: Math.round(box.bottom) }, chat: getComputedStyle(document.getElementById('mobileComms')).display !== 'none', collapsed: document.getElementById('radioMessages').hidden && !window.__game.chat.open };
   });
-  check(ml.over.length === 0 && ml.box.b <= 390 && ml.chat && ml.collapsed, `Telefonda telsiz kutusu boşlukta (${JSON.stringify(ml.box)}${ml.over.length ? ` · çakışan: ${ml.over.join(', ')}` : ''}), TELSİZ AÇ düğmesi var, geçmiş kapalı`);
+  check(ml.over.length === 0 && ml.box.b <= 390 && ml.chat && ml.collapsed, `Telefonda telsiz kutusu boşlukta (${JSON.stringify(ml.box)}${ml.over.length ? ` · çakışan: ${ml.over.join(', ')}` : ''}), İLETİŞİM düğmesi var, geçmiş kapalı`);
   await mp.screenshot({ path: join(shots, '23c-mobile-radio.png') });
-  await mp.tap('#btnRadioToggle');
+  await mp.tap('#btnCommsToggle');
+  await mp.tap('#btnMobileRadio');
   await mp.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
   const mo = await mp.evaluate(() => ({ open: window.__game.chat.open, focus: document.activeElement?.id, top: document.querySelector('#radioLog .rlForm').getBoundingClientRect().bottom }));
   check(mo.open && mo.focus === 'chatInput' && mo.top < 390 / 2, `Telsiz paneli ekranın üst yarısında açıldı (alt kenar ${Math.round(mo.top)} px), yazı alanı odakta`);
