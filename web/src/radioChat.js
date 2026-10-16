@@ -57,6 +57,21 @@ export class RadioChat {
     this.box = document.createElement('div');
     this.box.id = 'radioLog';
     this.box.addEventListener('keydown', (e) => e.stopPropagation());
+    this.commsToggle = $('btnCommsToggle');
+    this.commsPanel = $('mobileCommsPanel');
+    this.commsBadge = $('commsUnread');
+    this.commsToggle?.addEventListener('click', () => {
+      const g = this.game;
+      if (g.mode !== 'mission' || g.state !== 'playing' || !g.player.alive) return;
+      const open = this.commsPanel.hidden;
+      if (this.open) this.closeChat();
+      this.setCommsOpen(open);
+    });
+    $('btnMobileRadio')?.addEventListener('click', () => this.openChat());
+    $('mobileComms')?.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') this.setCommsOpen(false);
+    });
     const bar = document.createElement('div');
     bar.className = 'rlBar';
     this.toggle = document.createElement('button');
@@ -190,6 +205,18 @@ export class RadioChat {
     this.badge.hidden = this.open || !this.unread;
     this.badge.textContent = this.unread > 99 ? '99+' : String(this.unread);
     this.badge.setAttribute('aria-label', `${this.unread} yeni telsiz mesajı`);
+    if (this.commsBadge) {
+      this.commsBadge.hidden = this.open || !this.unread;
+      this.commsBadge.textContent = this.badge.textContent;
+      this.commsBadge.setAttribute('aria-label', `${this.unread} yeni telsiz mesajı`);
+    }
+  }
+
+  setCommsOpen(open) {
+    if (!this.commsPanel) return;
+    this.commsPanel.hidden = !open;
+    this.commsToggle.setAttribute('aria-expanded', String(open));
+    if (!open) this.game.voice?.stop();
   }
 
   // Kapalı panelde mesajlar birikmeye devam eder, ekranı açmaz.
@@ -216,6 +243,7 @@ export class RadioChat {
   }
 
   openChat() {
+    this.setCommsOpen(false);
     if (!this.open) {
       this.open = true;
       this.unread = 0;
@@ -261,6 +289,7 @@ export class RadioChat {
   }
 
   closeChat() {
+    this.setCommsOpen(false);
     const wasOpen = this.open;
     this.open = false;
     this.updateToggle();
@@ -420,6 +449,7 @@ export class VoiceCommand {
     this.chat = chat;
     this.rec = null;
     this.active = false;
+    this.button = $('tbVoice');
     const Ctor = recognitionCtor();
     this.supported = !!Ctor;
     if (!Ctor) return;
@@ -430,14 +460,23 @@ export class VoiceCommand {
       this.rec.maxAlternatives = 1;
       this.rec.onresult = (e) => {
         const text = e.results?.[0]?.[0]?.transcript;
-        if (text) chat.submit(text, 'voice');
+        const g = chat.game;
+        if (text && g.state === 'playing' && g.mode === 'mission' && g.player.alive) chat.submit(text, 'voice');
       };
-      this.rec.onend = () => (this.active = false);
+      this.rec.onend = () => this.setActive(false);
       // MİKROFON düğmesi: izin istemi dokunuşun içinde başlasın
-      $('tbVoice')?.addEventListener('touchstart', () => this.start());
-      $('tbVoice')?.addEventListener('touchend', () => this.stop());
+      this.button?.addEventListener('pointerdown', (e) => {
+        const g = chat.game;
+        if (g.mode !== 'mission' || g.state !== 'playing' || !g.player.alive || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.button.setPointerCapture(e.pointerId);
+        this.start();
+      });
+      for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) this.button?.addEventListener(event, () => this.stop());
+      window.addEventListener('blur', () => this.stop());
       this.rec.onerror = (e) => {
-        this.active = false;
+        this.setActive(false);
         // Mikrofon izni verilmediyse ya da hizmet yoksa bir kez söylenir
         if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') chat.add('TELSİZ', 'Mikrofon izni yok: sesli komut kapalı.', 'warn');
       };
@@ -446,24 +485,40 @@ export class VoiceCommand {
     }
   }
 
-  // Dokunmatik MİKROFON düğmesi yalnız destek varken ve ayar açıkken görünür
+  // Bölmede mikrofon hep görünür; kullanılamıyorsa nedeni düğmede yazılır.
   refresh(settings) {
-    document.body.classList.toggle('voicecmd', this.supported && !!settings.voiceCommands);
+    const enabled = this.supported && !!settings.voiceCommands;
+    document.body.classList.toggle('voicecmd', enabled);
+    this.hint = !this.supported ? 'Desteklenmiyor' : !settings.voiceCommands ? 'Ayarlarda kapalı' : 'Basılı tut';
+    if (this.button) {
+      this.button.disabled = !enabled;
+      this.button.title = `Mikrofon · ${this.hint}`;
+      this.button.querySelector('small').textContent = this.active ? 'Dinleniyor…' : this.hint;
+    }
+    if (!enabled) this.stop();
+  }
+
+  setActive(active) {
+    this.active = active;
+    this.button?.classList.toggle('on', active);
+    this.button?.setAttribute('aria-pressed', String(active));
+    if (this.button) this.button.querySelector('small').textContent = active ? 'Dinleniyor…' : this.hint || 'Basılı tut';
   }
 
   start() {
     if (!this.supported || this.active) return;
     try {
       this.rec.start();
-      this.active = true;
+      this.setActive(true);
       this.chat.add('TELSİZ', '🎤 Dinliyorum…', 'system');
     } catch {
-      this.active = false;
+      this.setActive(false);
     }
   }
 
   stop() {
     if (!this.active) return;
+    this.setActive(false);
     try {
       this.rec.stop();
     } catch {

@@ -1,6 +1,6 @@
 # Telsiz düzeltmesi
 
-Bilgisayarda ve telefonda TELSİZ AÇ düğmesiyle paneli açın; TELSİZ KAPAT veya ✕ ile tamamen gizleyin. Bilgisayarda Enter ile açıp Esc ile kapatabilirsiniz. Komutu yazıp Enter ile gönderin. Panel başlangıçta kapalıdır; yeni mesajlar paneli açmaz, düğmedeki sayaçta birikir. Mobilde açık panel ekran yüksekliğinin en fazla %46’sını kullanır ve geçmiş kendi içinde kaydırılır. Sesli komut açık ve tarayıcı destekliyorsa N tuşunu basılı tutarak konuşabilirsiniz. Yazı ve tanınan konuşma aynı komut sistemine gider.
+Telefonda İLETİŞİM düğmesiyle küçük bölmeyi açın; bölmede yalnız MİKROFON ve TELSİZ vardır. TELSİZ yazılı komut panelini açar. İLETİŞİM tekrar basılınca bölme kapanır. Mobilde takım arkadaşlarının sağlık listesi, EMİRLER ve İŞARET düğmeleri kaldırılmıştır. Bilgisayarda TELSİZ AÇ düğmesiyle paneli açın; TELSİZ KAPAT veya ✕ ile tamamen gizleyin. Bilgisayarda Enter ile açıp Esc ile kapatabilirsiniz. Komutu yazıp Enter ile gönderin. Panel başlangıçta kapalıdır; yeni mesajlar paneli açmaz, düğmedeki sayaçta birikir. Mobilde açık panel ekran yüksekliğinin en fazla %46’sını kullanır ve geçmiş kendi içinde kaydırılır. Sesli komut açık ve tarayıcı destekliyorsa telefonda bölmedeki MİKROFON düğmesini, bilgisayarda N tuşunu basılı tutarak konuşabilirsiniz. Mikrofon kullanılamıyorsa nedeni düğmede görünür. Yazı ve tanınan konuşma aynı komut sistemine gider.
 
 - `Demir sola 20 metre git, sonra bekle`
 - `Kaya beni iyileştir`
@@ -48,6 +48,6 @@ Telsize (Enter) yazılan ya da mikrofona (N) söylenen her soru cevaplanır, her
 
 ## Doğrulama
 
-`node --test --test-timeout=60000 tests/*.test.mjs`: 187 test geçti. Telsiz testleri adım sırasını, çoklu muhatabı, olumsuz komutları, hedef seçimini, mesafeyi, plan iptalini, yol hatasını, konuşma bağlamını ve yazı/ses girişini kapsar. El bombası testleri gerçek asker mantığından atış üretimini, ilk kademede kullanımı, grup atışını, sıralı planı, uçuş hesabını, iptali, menzili, dost kontrolünü, engelleri ve bekleme süresini doğrular.
+`node --test tests/parser.test.mjs tests/commands.test.mjs tests/ally-grenade.test.mjs`: 42 ilgili test geçti. Telsiz testleri adım sırasını, çoklu muhatabı, olumsuz komutları, hedef seçimini, mesafeyi, plan iptalini, yol hatasını, konuşma bağlamını ve yazı/ses girişini kapsar. El bombası testleri gerçek asker mantığından atış üretimini, ilk kademede kullanımı, grup atışını, sıralı planı, uçuş hesabını, iptali, menzili, dost kontrolünü, engelleri ve bekleme süresini doğrular.
 
 `npm run build`: bağımsız HTML, Artifact, PWA ve uygulama paketleri üretildi. Tarayıcıda Demir'in hareketten sonra beklemesi ve Kaya'nın sağlık/emir raporu vermesi kontrol edildi. Mikrofonla gerçek konuşma tanıma bu ortamda denenmedi; tarayıcının konuşma tanıma hizmetine bağlıdır.

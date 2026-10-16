@@ -543,7 +543,7 @@ export class HUD {
     this.squadT = 0.25;
     const list = this.game.allies.list;
     box.hidden = !list.length || this.game.mode !== 'mission';
-    // Tim varken dokunmatik TELSİZ/İŞARET düğmeleri görünür
+    // Tim varken mobil İLETİŞİM düğmesi görünür; sağlık listesi mobilde CSS ile gizlidir
     document.body.classList.toggle('squad', !box.hidden);
     if (box.hidden) return;
     // Can paneli zırh satırıyla uzayıp kısalır: liste hep hemen üstünde dursun. Dokunmatikte sol sütun dolu:

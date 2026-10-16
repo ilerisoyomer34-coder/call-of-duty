@@ -1040,7 +1040,7 @@ body.touch .rlPeek { font-size: 12px; max-width: 34vw; }
 #netGraph[hidden], #netGraphCanvas[hidden] { display: none; }
 #netGraph pre { margin: 0; font: 400 11px/1.35 var(--f-num); color: #cfe9d2; white-space: pre; }
 /* Çevrim içinde görev öğeleri yok */
-body.online #objective, body.online #score, body.online #tracker, body.online #squad, body.online #tbNade, body.online #tbVoice, body.online #tbUse { display: none !important; }
+body.online #objective, body.online #score, body.online #tracker, body.online #squad, body.online #tbNade, body.online #tbUse { display: none !important; }
 body.touch .mhSide { min-width: 70px; padding: 3px 8px; }
 body.touch .mhSide b { font-size: 20px; }
 body.touch .mhFeed { top: calc(8px + env(safe-area-inset-top, 0px)); }
@@ -1083,13 +1083,21 @@ body.downed #touch .tb.dn { display: flex; }
 #tbItem1 { right: calc(262px + env(safe-area-inset-right, 0px)); bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
 #tbItem2 { right: calc(254px + env(safe-area-inset-right, 0px)); bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 #tbPause { right: calc(196px + env(safe-area-inset-right, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; border-radius: 6px; }
-/* Tim: pause'un altında iki küçük düğme (görevde; poligonda tim yok) */
-.tb.sq2 { width: 54px; height: 40px; border-radius: 6px; font-size: 10px; border-color: rgba(127,211,138,.6); }
-#tbWheel { right: calc(186px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); }
-#tbPing { right: calc(248px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); }
-#tbVoice { right: calc(310px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); font-size: 9px; }
-body:not(.squad) #tbWheel, body:not(.squad) #tbPing, body:not(.voicecmd) #tbVoice, body:not(.squad) #tbVoice { display: none; }
-/* Telefonda telsiz kutusu altta, sol sütunla sağdaki düğmeler arasında; yazarken klavye altı kapattığı için üstte */
+/* Mobilde tek iletişim düğmesi; yalnız mikrofon ve telsiz açılan bölmede. */
+#mobileComms { display: none; position: absolute; right: calc(186px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); pointer-events: auto; }
+body.touch.playing.squad.radioCollapsed:not(.online):not(.downed) #mobileComms { display: block; }
+#btnCommsToggle, .commsAction { min-height: 44px; padding: 8px 12px; border: 1px solid #7fd38a; border-radius: 6px; background: rgba(13,16,19,.94); color: #b8e8c0; font: 700 12px/1 var(--f-ui); letter-spacing: .06em; cursor: pointer; touch-action: manipulation; }
+#btnCommsToggle { display: flex; align-items: center; gap: 8px; }
+#btnCommsToggle[aria-expanded="true"] { background: #243c2d; }
+#btnCommsToggle:focus-visible, .commsAction:focus-visible { outline: 2px solid #5ee7ff; outline-offset: 2px; }
+#mobileCommsPanel { position: absolute; right: 0; top: calc(100% + 8px); display: flex; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(13,16,19,.96); }
+#mobileCommsPanel[hidden] { display: none; }
+.commsAction { min-width: 108px; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.commsAction small { font: 500 11px/1 var(--f-ui); letter-spacing: 0; }
+.commsAction:disabled { color: var(--sand-dim); border-color: var(--line); cursor: default; }
+.commsAction.on { color: var(--ink); background: #7fd38a; }
+body.touch #radioLog:not(.open) { display: none; }
+/* Yazarken panel klavyenin üstünde kalır. */
 body.touch #radioLog { left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
 body.touch .rl { font-size: 12px; }
 body.touch #radioLog.open { left: 50%; width: min(560px, 82vw); max-height: min(220px, 46dvh); transform: translateX(-50%); top: calc(6px + env(safe-area-inset-top, 0px)); bottom: auto; }
@@ -1126,7 +1134,7 @@ body.touch #ammo { top: calc(142px + env(safe-area-inset-top, 0px)); bottom: aut
 body.touch #ammo .n, body.touch #ammo .g { justify-content: flex-start; }
 body.touch #radio { bottom: auto; top: calc(44px + env(safe-area-inset-top, 0px)); width: 46vw; font-size: 14px; }
 body.touch #reloadHint { top: calc(50% + 34px); }
-body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: auto; left: 222px; width: 150px; }
+body.touch #squad { display: none; }
 @media (prefers-reduced-motion: reduce) {
   #message.on, #feed div, #introCard.on, #hitmarker.show { animation-duration: .01s; }
 }
@@ -1202,9 +1210,6 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
     <div class="tb item" id="tbItem1" data-action="useItem1" hidden></div>
     <div class="tb item" id="tbItem2" data-action="useItem2" hidden></div>
     <div class="tb" id="tbUse" data-action="interact" hidden>KULLAN</div>
-    <div class="tb sq2" id="tbWheel" data-action="wheel">EMİRLER</div>
-    <div class="tb sq2" id="tbPing" data-action="ping">İŞARET</div>
-    <div class="tb sq2" id="tbVoice" data-action="voice">MİKROFON</div>
     <div class="tb" id="tbPause" data-action="pause">II</div>
   </div>
 
@@ -1234,6 +1239,13 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
   <div id="netGraph" hidden><pre id="netGraphText"></pre><canvas id="netGraphCanvas" width="220" height="56" hidden></canvas></div>
 
   <div id="clickToPlay" hidden><div>OYUNA DÖNMEK İÇİN TIKLA<small>Fare imleci oyuna kilitlenir · Esc ile duraklat</small></div></div>
+  <div id="mobileComms">
+    <button id="btnCommsToggle" type="button" aria-expanded="false" aria-controls="mobileCommsPanel" title="Mikrofon ve telsizi aç / kapat">İLETİŞİM<span id="commsUnread" class="rlBadge" hidden></span></button>
+    <div id="mobileCommsPanel" role="group" aria-label="Mikrofon ve telsiz" hidden>
+      <button id="tbVoice" class="commsAction" type="button" aria-pressed="false">MİKROFON<small>Basılı tut</small></button>
+      <button id="btnMobileRadio" class="commsAction" type="button">TELSİZ<small>Yazılı komut</small></button>
+    </div>
+  </div>
 
   <!-- Lobi (CODM düzeni): üst çubuk (oyuncu kartı, rütbe/XP, kredi, ses, ayarlar), solda mod kartları, ortada 3B
        operatör (main.js → lobby), sağda günün görevleri ve günlük ödül, sağ altta BAŞLA, altta gezinme. menus.js → refreshLobby -->
@@ -1421,7 +1433,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
       <div class="grid2" id="keyTables"></div>
       <p class="keyNote" id="keyNote" aria-live="polite"></p>
       <p class="tip"><b>Gamepad:</b> sol çubuk hareket, sağ çubuk bakış, RT ateş, LT nişan, A zıpla, B çömel, X şarjör, Y silah, RB el bombası, LB etkileşim, sağ çubuğa basma bıçak.</p>
-      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. EMİRLER komut çarkını açar (komuta dokun, ortaya dokunarak muhatabı değiştir); İŞARET nişangâhın baktığı yere göre komut verir (düşman → saldır, zemin → git, yaralı → kaldır), hızlı iki dokunuş iptal eder. TELSİZ AÇ yazılı komut panelini açar, TELSİZ KAPAT veya ✕ paneli tamamen gizler ("Kaya beni iyileştir", "Herkes siper alsın!"); MİKROFON basılıyken Türkçe konuşarak komut verilir (tarayıcı destekliyorsa).</p>
+      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. İLETİŞİM düğmesi küçük bölmeyi açar veya kapatır. Bölmede yalnız MİKROFON ve TELSİZ vardır. TELSİZ yazılı komut panelini açar ("Kaya beni iyileştir", "Herkes siper alsın!"); TELSİZ KAPAT veya ✕ paneli gizler. MİKROFON basılıyken Türkçe konuşarak komut verilir; desteklenmiyorsa veya ayarlarda kapalıysa nedeni düğmede gösterilir. Takım arkadaşlarının sağlık listesi mobilde gizlidir.</p>
       <div class="row"><button class="btn primary" data-back>Geri</button><button class="btn" id="btnKeysReset">Varsayılan tuşlar</button></div>
     </div>
   </section>
