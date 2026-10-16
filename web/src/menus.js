@@ -450,6 +450,7 @@ export class Menus {
     this.refreshAccount();
     chk('sTts', S.tts);
     chk('sVoiceCmd', S.voiceCommands);
+    chk('sButtonIcons', S.buttonIcons);
     // Tarayıcı desteklemiyorsa seslendirme / sesli komut satırı görünmez (§8.3/5)
     $('sTts').closest('.set').hidden = !speechSupported();
     $('sVoiceCmd').closest('.set').hidden = !recognitionCtor();
@@ -510,6 +511,7 @@ export class Menus {
     S.chatSlowMo = parseFloat($('sChatSlow').value) || 1;
     S.tts = $('sTts').checked;
     S.voiceCommands = $('sVoiceCmd').checked;
+    S.buttonIcons = $('sButtonIcons').checked;
   }
 
   saveSettings() {

@@ -1542,7 +1542,7 @@ console.log('Telsiz kutusu ve yazılı komut');
   // Cevap telsiz kuyruğunda önceki satırların arkasından gelir (satırlar arası bekleme)
   const want = `Bölgede ${qa0.alive} düşman kaldı`;
   await page.waitForFunction((w) => window.__game.chat.lines.some((l) => l.el.textContent.includes(w)), want, { timeout: 90000, polling: 100 }).catch(() => {});
-  const qa = await page.evaluate(() => ({ lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-4), peek: document.querySelector('#radioLog .rlPeek')?.hidden === false ? document.querySelector('#radioLog .rlPeek').textContent : '' }));
+  const qa = await page.evaluate(() => ({ lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-4), peek: document.getElementById('commsPeek')?.hidden === false ? document.getElementById('commsPeek').textContent : '' }));
   check(!qa0.ai && qa.lines.some((l) => l.startsWith('[YUVA]') && l.includes(want)) && qa.peek.includes(want), `Yapay zekâsız soru yerel cevaplandı, kapalı panelde önizlendi ("${qa.peek}")`);
   // Artifact yolu: 'sample' (izleyicinin Claude hesabı) taklit edilir. Uzun cümle yapay zekâya gider; cevap konuşanın
   // ağzından telsize, eylem tek plan olarak tim komutuna; talimat ve oyun durumu sorunun içinde
@@ -1578,6 +1578,26 @@ console.log('Telsiz kutusu ve yazılı komut');
     window.__game.ai.sample = null;
     window.__game.settings.muted = true;
   });
+  // PC: kapalı telsiz paneli görünmez; duraklatma ve İLETİŞİM sağ üstte (mini haritanın solunda), duraklat üstte
+  const pc = await page.evaluate(() => {
+    const r = (id) => document.getElementById(id).getBoundingClientRect();
+    const vis = (id) => getComputedStyle(document.getElementById(id)).display !== 'none';
+    const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+    const p = r('btnCommsPause');
+    const t = r('btnCommsToggle');
+    return { pause: vis('btnCommsPause'), comms: vis('mobileComms'), log: vis('radioLog'), order: p.bottom <= t.top + 1, map: hit(t, r('minimap')) || hit(p, r('minimap')), right: Math.round(innerWidth - t.right) };
+  });
+  check(pc.pause && pc.comms && !pc.log && pc.order && !pc.map, `PC: duraklat ve altında İLETİŞİM sağ üstte, eski telsiz düğmesi yok (${JSON.stringify(pc)})`);
+  await page.screenshot({ path: join(shots, '23f-pc-comms.png') });
+  // Oyunda imleç kilitli (tıklama tuvale gider): kilit bırakılınca düğme tıklanır (gerçekte Enter ile telsiz açıkken)
+  await page.evaluate(() => {
+    window.__game.input.exitLock();
+    window.__game.input.lockFailed = true;
+  });
+  await page.click('#btnCommsPause');
+  const paused = await page.evaluate(() => window.__game.state);
+  await page.evaluate(() => window.__game.resume());
+  check(paused === 'paused', `PC: duraklat düğmesi oyunu duraklattı (${paused})`);
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();
@@ -1627,6 +1647,42 @@ console.log('Telsiz kutusu ve yazılı komut');
   await mp.keyboard.press('Enter');
   const me = await mp.evaluate(() => ({ ev: window.__ev.at(-1), open: window.__game.chat.open }));
   check(me.ev?.id === 'SUPPRESS' && me.ev.who.join() === 'Alfa-3' && me.ev.m === 'text' && !me.open, `Telefonda yazılı komut: "alfa 3 baskı ateşi aç" → ${me.ev?.id} ${me.ev?.who?.join()}`);
+  // Ayrı BIÇAK düğmesi yok; SİLAH onun eski yerinde (sağdan 186, alttan 196 px) ve başka düğmeye binmiyor
+  const sw = await mp.evaluate(() => {
+    const el = document.getElementById('tbSwap');
+    const b = el.getBoundingClientRect();
+    const hit = (a, c) => a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1;
+    const over = [...document.querySelectorAll('#touch .tb')].filter((x) => x !== el && getComputedStyle(x).display !== 'none' && hit(b, x.getBoundingClientRect())).map((x) => x.id);
+    return { knife: !!document.getElementById('tbMelee'), right: Math.round(innerWidth - b.right), bottom: Math.round(innerHeight - b.bottom), over };
+  });
+  check(!sw.knife && Math.abs(sw.right - 186) <= 2 && Math.abs(sw.bottom - 196) <= 2 && !sw.over.length, `BIÇAK düğmesi kaldırıldı, SİLAH onun yerinde (${JSON.stringify(sw)})`);
+  // Ayarlar → "Düğmelerde simge": yazılar gizlenir, her düğmede simge (yazı ekran okuyucuya aria-label)
+  const ic = await mp.evaluate(() => {
+    const g = window.__game;
+    g.settings.buttonIcons = true;
+    g.applySettings();
+    const btns = [...document.querySelectorAll('#touch .tb[data-icon], #mobileComms [data-icon]')];
+    const shown = (el) => el && getComputedStyle(el).display !== 'none';
+    return {
+      n: btns.length,
+      icons: btns.filter((b) => shown(b.querySelector(':scope > .ico')) && b.querySelector('.ico svg')).length,
+      labels: btns.filter((b) => shown(b.querySelector(':scope > .lbl'))).length,
+      fire: document.getElementById('tbFire').getAttribute('aria-label'),
+      row: !!document.getElementById('sButtonIcons'),
+    };
+  });
+  await mp.screenshot({ path: join(shots, '23e-mobile-icons.png') });
+  await mp.evaluate(() => { window.__game.settings.buttonIcons = false; window.__game.applySettings(); });
+  check(ic.row && ic.n >= 12 && ic.icons === ic.n && ic.labels === 0 && ic.fire === 'ATEŞ', `Düğmelerde simge: ${ic.icons}/${ic.n} düğme simgeli, yazı gizli, aria-label "${ic.fire}"`);
+  // Telefonda yapay zekâ/yerel cevabı İLETİŞİM düğmesinin altında önizlenir (kapalı panel görünmez)
+  await mp.evaluate(() => window.__game.chat.submit('kaç düşman kaldı?'));
+  await mp.waitForFunction(() => document.getElementById('commsPeek').hidden === false, null, { timeout: 90000, polling: 100 }).catch(() => {});
+  const pk = await mp.evaluate(() => {
+    const p = document.getElementById('commsPeek');
+    const b = p.getBoundingClientRect();
+    return { shown: !p.hidden && getComputedStyle(p).display !== 'none', text: p.textContent, inView: b.bottom <= innerHeight && b.left >= 0 };
+  });
+  check(pk.shown && pk.inView && /düşman kaldı/.test(pk.text), `Telefonda cevap önizlemesi İLETİŞİM altında ("${pk.text}")`);
   await mctx.close();
 }
 

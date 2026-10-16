@@ -38,6 +38,7 @@ import { CommandWheel } from './commandWheel.js';
 import { PingSystem } from './ping.js';
 import { RadioChat, VoiceCommand } from './radioChat.js';
 import { AiRadio } from './aiRadio.js';
+import { prepareButtonIcons, applyButtonIcons } from './buttonIcons.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
@@ -228,6 +229,8 @@ export class Game {
     // Telsiz kutusu (sol alt; Enter ile yazılı komut) ve isteğe bağlı sesli komut (N). Yapay zekâ (game.ai):
     // Artifact'ta izleyicinin Claude hesabı, başka yerde yapay zekâsı açık sunucu; yoksa yerel telsiz
     this.ai = new AiRadio(this);
+    // Düğme yazıları .lbl'e alınır, simgeler eklenir (Ayarlar → "Düğmelerde simge" yalnız sınıf değiştirir)
+    prepareButtonIcons();
     this.chat = new RadioChat(this);
     this.voice = new VoiceCommand(this.chat);
     this.voice.refresh(this.settings);
@@ -391,6 +394,7 @@ export class Game {
     this.isTouch = true;
     document.body.classList.add('touch');
     if (this.state === 'playing') this.input.enableTouch(true);
+    this.voice?.refresh(this.settings); // mikrofon ipucu: telefonda "Basılı tut", PC'de "N · basılı tut"
   }
 
   applySettings() {
@@ -403,6 +407,7 @@ export class Game {
     this.updateSoundButtons();
     this.hud.applySettings(S);
     this.voice?.refresh(S);
+    applyButtonIcons(S.buttonIcons);
     if (this.effects) this.effects.bloodOn = S.blood;
     const q = resolveQuality(S.quality, this.isTouch);
     this.renderQuality = q;

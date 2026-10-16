@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   chatSlowMo: 0.3, // telsiz satırına yazarken oyun saatinin çarpanı
   tts: false, // askerlerin telsiz repliklerini seslendir (speechSynthesis, tr-TR)
   voiceCommands: true, // N basılı sesli komut (tarayıcı desteklemiyorsa arayüzde görünmez)
+  buttonIcons: false, // dokunmatik ve iletişim düğmelerinde yazı yerine simge (buttonIcons.js)
   rerollBonuses: false, // bitirilmiş bölüm tekrar oynanınca bonus görevler havuzdan rastgele seçilir
   serverUrl: '', // çevrim içi sunucu adresi; boşsa config.js → NET.serverUrl (geliştirme ve test için)
   onlineMode: 'tdm', // takımsızken "Maç ara"nın modu (takımda modu lider seçer)

@@ -64,10 +64,14 @@ export class RadioChat {
       const g = this.game;
       if (g.mode !== 'mission' || g.state !== 'playing' || !g.player.alive) return;
       const open = this.commsPanel.hidden;
-      if (this.open) this.closeChat();
+      // Telefonda açık panel bölmeyle çakışır: kapanır. PC'de panel açıkken imleç serbest; kapatmak imleci kilitler
+      // ve bölmedeki düğmelere tıklanamaz, bu yüzden panel açık kalır
+      if (this.open && g.input.touch.active) this.closeChat();
       this.setCommsOpen(open);
     });
     $('btnMobileRadio')?.addEventListener('click', () => this.openChat());
+    // PC'de duraklat düğmesi iletişim düğmesinin üstünde (telefonda #tbPause dokunmatik katmanında)
+    $('btnCommsPause')?.addEventListener('click', () => this.game.pause());
     $('mobileComms')?.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Escape') this.setCommsOpen(false);
@@ -121,11 +125,15 @@ export class RadioChat {
     this.sugg = document.createElement('div');
     this.sugg.className = 'rlSugg';
     this.sugg.hidden = true;
-    // Panel kapalıyken gelen yapay zekâ cevabı kısa süre burada görünür (sorulan sorunun cevabı kaybolmasın)
-    this.peekEl = document.createElement('div');
-    this.peekEl.className = 'rlPeek';
-    this.peekEl.hidden = true;
-    this.box.append(bar, this.peekEl, this.list, this.form, this.sugg);
+    // Panel kapalıyken gelen yapay zekâ cevabı kısa süre İLETİŞİM düğmesinin altında görünür (sorulan sorunun
+    // cevabı kaybolmasın; kapalı panel tamamen gizli)
+    this.peekEl = $('commsPeek');
+    if (!this.peekEl) {
+      this.peekEl = document.createElement('div');
+      this.peekEl.className = 'rlPeek';
+      this.peekEl.hidden = true;
+    }
+    this.box.append(bar, this.list, this.form, this.sugg);
     // Menü ekranlarının altında kalsın (onlar #app'te daha sonra gelir)
     const overlay = $('clickToPlay') || $('touch');
     if (overlay) overlay.after(this.box);
@@ -269,18 +277,8 @@ export class RadioChat {
     const st = this.box.style;
     if (g.input.touch.active || (this.open && matchMedia('(max-width: 900px), (max-height: 520px)').matches)) {
       if (st.bottom) st.bottom = '';
-      // Telefonda kapalı düğme sol altta; sol sütunun bonus takipçisi uzayıp aşağı inerse üstüne binmesin: sağına kayar
-      let left = '';
-      const tr = $('tracker');
-      if (!this.open && g.input.touch.active && tr && !tr.hidden && tr.offsetParent) {
-        const a = this.toggle.getBoundingClientRect();
-        const b = tr.getBoundingClientRect();
-        if (b.height && a.top < b.bottom && b.top < a.bottom) left = `${Math.round(b.right + 8)}px`;
-      }
-      if (st.left !== left) st.left = left;
       return;
     }
-    if (st.left) st.left = '';
     const sq = $('squad');
     const ref = sq && !sq.hidden && sq.offsetHeight ? sq : $('health');
     if (!ref?.offsetParent) return;
@@ -489,7 +487,7 @@ export class VoiceCommand {
   refresh(settings) {
     const enabled = this.supported && !!settings.voiceCommands;
     document.body.classList.toggle('voicecmd', enabled);
-    this.hint = !this.supported ? 'Desteklenmiyor' : !settings.voiceCommands ? 'Ayarlarda kapalı' : 'Basılı tut';
+    this.hint = !this.supported ? 'Desteklenmiyor' : !settings.voiceCommands ? 'Ayarlarda kapalı' : this.chat.game.isTouch ? 'Basılı tut' : 'N · basılı tut';
     if (this.button) {
       this.button.disabled = !enabled;
       this.button.title = `Mikrofon · ${this.hint}`;

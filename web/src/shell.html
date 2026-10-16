@@ -1057,6 +1057,15 @@ body.touch .mhRow { grid-template-columns: 1fr 40px 40px 48px 40px; font-size: 1
 #stickKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(231,220,196,.45); transform: translate(-50%, -50%); }
 .tb { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(231,220,196,.4); background: rgba(13,16,19,.45); color: var(--sand); font: 700 12px/1 var(--f-ui); letter-spacing: .06em; display: flex; align-items: center; justify-content: center; text-align: center; }
 .tb.on, .tb.latched { background: rgba(240,163,58,.55); border-color: var(--amber); }
+/* Düğmelerde simge (Ayarlar → "Düğmelerde simge", buttonIcons.js): yazı .lbl, simge .ico */
+[data-icon] > .ico { display: none; }
+[data-icon] > .ico svg { display: block; width: 100%; height: 100%; }
+body.btnIcons [data-icon] > .ico { display: block; width: 26px; height: 26px; }
+body.btnIcons [data-icon] > .lbl { display: none; }
+body.btnIcons .tb.big > .ico { width: 36px; height: 36px; }
+body.btnIcons #tbSwap > .ico { width: 30px; height: 30px; }
+body.btnIcons #btnCommsToggle > .ico { width: 22px; height: 22px; }
+body.btnIcons .commsAction { align-items: center; }
 .tb.big { width: 84px; height: 84px; font-size: 15px; border-color: rgba(224,81,63,.7); }
 #tbFire { right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 #tbAds { right: calc(122px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
@@ -1064,8 +1073,8 @@ body.touch .mhRow { grid-template-columns: 1fr 40px 40px 48px 40px; font-size: 1
 #tbCrouch { right: calc(198px + env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
 #tbReload { right: calc(40px + env(safe-area-inset-right, 0px)); bottom: calc(200px + env(safe-area-inset-bottom, 0px)); }
 #tbNade { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(232px + env(safe-area-inset-bottom, 0px)); }
-#tbSwap { right: calc(260px + env(safe-area-inset-right, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
-#tbMelee { right: calc(186px + env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
+/* Ayrı BIÇAK düğmesi yok (bıçak 3. yuvada): SİLAH onun eski yerinde, yuvalar arasında döner */
+#tbSwap { right: calc(186px + env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px)); width: 50px; height: 50px; }
 #tbUse { left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); margin-left: -34px; width: 68px; height: 68px; border-color: var(--amber); }
 #tbUse[hidden] { display: none; }
 /* Yere düşünce yalnız bakış, sürünme, YARDIM, PES ET ve adrenalin yuvası kalır */
@@ -1085,7 +1094,16 @@ body.downed #touch .tb.dn { display: flex; }
 #tbPause { right: calc(196px + env(safe-area-inset-right, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); width: 44px; height: 44px; border-radius: 6px; }
 /* Mobilde tek iletişim düğmesi; yalnız mikrofon ve telsiz açılan bölmede. */
 #mobileComms { display: none; position: absolute; right: calc(186px + env(safe-area-inset-right, 0px)); top: calc(66px + env(safe-area-inset-top, 0px)); pointer-events: auto; }
-body.touch.playing.squad.radioCollapsed:not(.online):not(.downed) #mobileComms { display: block; }
+body.playing.squad.radioCollapsed:not(.online):not(.downed) #mobileComms { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+/* PC: duraklat düğmesi üstte (telefondaki #tbPause yerinde), İLETİŞİM altında. Fare kilitliyken Esc/Enter/N */
+.commsPause { display: none; width: 44px; height: 44px; border: 2px solid rgba(231,220,196,.4); border-radius: 6px; background: rgba(13,16,19,.45); color: var(--sand); font: 700 13px/1 var(--f-ui); cursor: pointer; }
+body:not(.touch) #mobileComms { top: calc(14px + env(safe-area-inset-top, 0px)); right: 200px; }
+/* PC'de telsiz paneli açıkken de görünür: imleç o sırada serbest, MİKROFON ve duraklat tıklanabilir (oyunda imleç kilitli) */
+body:not(.touch).playing.squad:not(.online):not(.downed) #mobileComms { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+body:not(.touch) .commsPause { display: block; }
+body.touch .pcKey { display: none; }
+#commsPeek { position: absolute; right: 0; top: calc(100% + 8px); width: max-content; max-width: min(380px, 40vw); }
+#mobileCommsPanel:not([hidden]) ~ #commsPeek { display: none; }
 #btnCommsToggle, .commsAction { min-height: 44px; padding: 8px 12px; border: 1px solid #7fd38a; border-radius: 6px; background: rgba(13,16,19,.94); color: #b8e8c0; font: 700 12px/1 var(--f-ui); letter-spacing: .06em; cursor: pointer; touch-action: manipulation; }
 #btnCommsToggle { display: flex; align-items: center; gap: 8px; }
 #btnCommsToggle[aria-expanded="true"] { background: #243c2d; }
@@ -1096,7 +1114,8 @@ body.touch.playing.squad.radioCollapsed:not(.online):not(.downed) #mobileComms {
 .commsAction small { font: 500 11px/1 var(--f-ui); letter-spacing: 0; }
 .commsAction:disabled { color: var(--sand-dim); border-color: var(--line); cursor: default; }
 .commsAction.on { color: var(--ink); background: #7fd38a; }
-body.touch #radioLog:not(.open) { display: none; }
+/* Kapalı telsiz paneli görünmez (telefon ve PC): açmak İLETİŞİM → TELSİZ ya da Enter */
+#radioLog:not(.open) { display: none; }
 /* Yazarken panel klavyenin üstünde kalır. */
 body.touch #radioLog { left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
 body.touch .rl { font-size: 12px; }
@@ -1197,19 +1216,18 @@ body.touch #squad { display: none; }
     <div id="moveZone"></div>
     <div id="lookZone"></div>
     <div id="stick" hidden><div id="stickKnob"></div></div>
-    <div class="tb big" id="tbFire" data-action="fire" data-look>ATEŞ</div>
-    <div class="tb" id="tbAds" data-action="ads">NİŞAN</div>
-    <div class="tb" id="tbJump" data-action="jump">ZIPLA</div>
-    <div class="tb" id="tbCrouch" data-action="crouch">ÇÖMEL</div>
-    <div class="tb" id="tbReload" data-action="reload">ŞARJÖR</div>
-    <div class="tb" id="tbNade" data-action="grenade">BOMBA</div>
-    <div class="tb" id="tbSwap" data-action="nextWeapon">SİLAH</div>
-    <div class="tb" id="tbMelee" data-action="melee">BIÇAK</div>
-    <div class="tb dn" id="tbHelp" data-action="interact">YARDIM</div>
-    <div class="tb dn" id="tbGiveUp" data-action="swapWeapon">PES ET</div>
+    <div class="tb big" id="tbFire" data-action="fire" data-look data-icon="fire">ATEŞ</div>
+    <div class="tb" id="tbAds" data-action="ads" data-icon="ads">NİŞAN</div>
+    <div class="tb" id="tbJump" data-action="jump" data-icon="jump">ZIPLA</div>
+    <div class="tb" id="tbCrouch" data-action="crouch" data-icon="crouch">ÇÖMEL</div>
+    <div class="tb" id="tbReload" data-action="reload" data-icon="reload">ŞARJÖR</div>
+    <div class="tb" id="tbNade" data-action="grenade" data-icon="grenade">BOMBA</div>
+    <div class="tb" id="tbSwap" data-action="nextWeapon" data-icon="weapon">SİLAH</div>
+    <div class="tb dn" id="tbHelp" data-action="interact" data-icon="help">YARDIM</div>
+    <div class="tb dn" id="tbGiveUp" data-action="swapWeapon" data-icon="giveUp">PES ET</div>
     <div class="tb item" id="tbItem1" data-action="useItem1" hidden></div>
     <div class="tb item" id="tbItem2" data-action="useItem2" hidden></div>
-    <div class="tb" id="tbUse" data-action="interact" hidden>KULLAN</div>
+    <div class="tb" id="tbUse" data-action="interact" data-icon="use" hidden>KULLAN</div>
     <div class="tb" id="tbPause" data-action="pause">II</div>
   </div>
 
@@ -1239,12 +1257,16 @@ body.touch #squad { display: none; }
   <div id="netGraph" hidden><pre id="netGraphText"></pre><canvas id="netGraphCanvas" width="220" height="56" hidden></canvas></div>
 
   <div id="clickToPlay" hidden><div>OYUNA DÖNMEK İÇİN TIKLA<small>Fare imleci oyuna kilitlenir · Esc ile duraklat</small></div></div>
+  <!-- İletişim (telefon ve PC): duraklatmanın altında tek düğme; bölmede yalnız MİKROFON ve TELSİZ. PC'de duraklat
+       düğmesi de burada (telefonda #touch → #tbPause). Panel kapalıyken yapay zekâ cevabı #commsPeek'te önizlenir -->
   <div id="mobileComms">
-    <button id="btnCommsToggle" type="button" aria-expanded="false" aria-controls="mobileCommsPanel" title="Mikrofon ve telsizi aç / kapat">İLETİŞİM<span id="commsUnread" class="rlBadge" hidden></span></button>
+    <button id="btnCommsPause" class="commsPause" type="button" title="Duraklat (Esc)" aria-label="Duraklat">II</button>
+    <button id="btnCommsToggle" type="button" aria-expanded="false" aria-controls="mobileCommsPanel" title="Mikrofon ve telsizi aç / kapat · PC: Enter telsiz, N mikrofon (basılı)" data-icon="comms">İLETİŞİM<span id="commsUnread" class="rlBadge" hidden></span></button>
     <div id="mobileCommsPanel" role="group" aria-label="Mikrofon ve telsiz" hidden>
-      <button id="tbVoice" class="commsAction" type="button" aria-pressed="false">MİKROFON<small>Basılı tut</small></button>
-      <button id="btnMobileRadio" class="commsAction" type="button">TELSİZ<small>Yazılı komut</small></button>
+      <button id="tbVoice" class="commsAction" type="button" aria-pressed="false" data-icon="mic">MİKROFON<small>Basılı tut</small></button>
+      <button id="btnMobileRadio" class="commsAction" type="button" data-icon="radio">TELSİZ<small>Yazılı komut<span class="pcKey"> · Enter</span></small></button>
     </div>
+    <div id="commsPeek" class="rlPeek" aria-live="polite" hidden></div>
   </div>
 
   <!-- Lobi (CODM düzeni): üst çubuk (oyuncu kartı, rütbe/XP, kredi, ses, ayarlar), solda mod kartları, ortada 3B
@@ -1399,6 +1421,7 @@ body.touch #squad { display: none; }
           <div class="set"><label for="sSprintMode">Koşma</label><select id="sSprintMode"><option value="hold">Basılı tut</option><option value="toggle">Aç / kapa</option></select></div>
           <div class="set"><label for="sChatSlow">Telsize yazarken oyun hızı<small>Enter ile açılan komut satırı</small></label><select id="sChatSlow"><option value="1">Normal (yavaşlatma yok)</option><option value="0.5">%50</option><option value="0.3">%30</option><option value="0.15">%15</option></select></div>
           <div class="set"><label for="sVoiceCmd">Sesli komut (N basılı)<small>Mikrofon izni ister; Türkçe konuş</small></label><input type="checkbox" class="toggle" id="sVoiceCmd"></div>
+          <div class="set"><label for="sButtonIcons">Düğmelerde simge<small>Ateş, nişan, zıpla, şarjör, silah gibi düğmelerde yazı yerine küçük simgeler</small></label><input type="checkbox" class="toggle" id="sButtonIcons"></div>
           <div class="set"><label for="sWheelSlow">Komut çarkında oyun hızı<small>Çark açıkken zaman yavaşlar</small></label><select id="sWheelSlow"><option value="1">Normal (yavaşlatma yok)</option><option value="0.5">%50</option><option value="0.3">%30</option><option value="0.15">%15</option></select></div>
           <h3>Ses</h3>
           <div class="set"><label for="sMuted">Oyun sesi kapalı<small>Lobideki hoparlör düğmesi de açar/kapatır</small></label><input type="checkbox" class="toggle" id="sMuted"></div>
@@ -1433,7 +1456,7 @@ body.touch #squad { display: none; }
       <div class="grid2" id="keyTables"></div>
       <p class="keyNote" id="keyNote" aria-live="polite"></p>
       <p class="tip"><b>Gamepad:</b> sol çubuk hareket, sağ çubuk bakış, RT ateş, LT nişan, A zıpla, B çömel, X şarjör, Y silah, RB el bombası, LB etkileşim, sağ çubuğa basma bıçak.</p>
-      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. İLETİŞİM düğmesi küçük bölmeyi açar veya kapatır. Bölmede yalnız MİKROFON ve TELSİZ vardır. TELSİZ yazılı komut panelini açar ("Kaya beni iyileştir", "Herkes siper alsın!"); TELSİZ KAPAT veya ✕ paneli gizler. MİKROFON basılıyken Türkçe konuşarak komut verilir; desteklenmiyorsa veya ayarlarda kapalıysa nedeni düğmede gösterilir. Takım arkadaşlarının sağlık listesi mobilde gizlidir.</p>
+      <p class="tip"><b>Dokunmatik:</b> ekranın solunda parmağını sürükleyerek yürü (joystick'i yukarı taşırsan koşarsın), sağ tarafta sürükleyerek bak. Büyük ATEŞ düğmesi basılıyken de nişanı çevirebilirsin. NİŞAN'a bir kez dokun: nişan alırsın, tekrar dokununca bırakırsın. İLETİŞİM düğmesi küçük bölmeyi açar veya kapatır. Bölmede yalnız MİKROFON ve TELSİZ vardır. TELSİZ yazılı komut panelini açar ("Kaya beni iyileştir", "Kaç düşman kaldı?"); TELSİZ KAPAT veya ✕ paneli gizler. MİKROFON basılıyken Türkçe konuşarak komut verilir ya da soru sorulur; desteklenmiyorsa veya ayarlarda kapalıysa nedeni düğmede gösterilir. Ayrı bıçak düğmesi yok: SİLAH ana silah, yan silah ve bıçak arasında döner. Ayarlar → "Düğmelerde simge" yazıların yerine küçük simgeler koyar. Takım arkadaşlarının sağlık listesi mobilde gizlidir.</p>
       <div class="row"><button class="btn primary" data-back>Geri</button><button class="btn" id="btnKeysReset">Varsayılan tuşlar</button></div>
     </div>
   </section>
