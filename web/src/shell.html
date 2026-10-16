@@ -171,6 +171,22 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #crosshair .t, #crosshair .b { width: 2px; height: 9px; left: -1px; }
 #crosshair .l, #crosshair .r { width: 9px; height: 2px; top: -1px; }
 #crosshair .dot { width: 2px; height: 2px; left: -1px; top: -1px; }
+/* Araçta: tank göstergesi alt ortada, nişangâh geniş (top), silah/sarf panelleri gizli */
+#vehicleHud { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); min-width: 300px; padding: 10px 14px; text-align: left; }
+#vehicleHud .vhName { font-weight: 800; letter-spacing: .14em; font-size: 13px; color: var(--accent, #e8c46a); }
+#vehicleHud .vhArmor { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; font-size: 11px; letter-spacing: .1em; }
+#vehicleHud .vhBar { flex: 1; height: 6px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; }
+#vehicleHud .vhBar i { display: block; height: 100%; width: 100%; background: #8fd16a; transition: width .2s; }
+#vehicleHud.low .vhBar i { background: #e2533c; }
+#vehicleHud .vhRow { display: flex; justify-content: space-between; font-size: 12px; }
+#vehicleHud .vhGun { color: #e8a24a; }
+#vehicleHud .vhGun.ready { color: #8fd16a; }
+#vehicleHud .vhKeys { margin-top: 4px; font-size: 10px; opacity: .65; }
+body.touch #vehicleHud .vhKeys { display: none; }
+body.inVehicle #ammo, body.inVehicle #kit, body.inVehicle #tbItem1, body.inVehicle #tbItem2 { display: none !important; }
+body.inVehicle #crosshair .t, body.inVehicle #crosshair .b { height: 16px; }
+body.inVehicle #crosshair .l, body.inVehicle #crosshair .r { width: 16px; }
+body.inVehicle #crosshair { --ch: #ffd27a; }
 #hitmarker { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
 #hitmarker i { position: absolute; width: 2px; height: 11px; background: #fff; left: -1px; top: -5px; box-shadow: 0 0 2px #000; }
 #hitmarker i:nth-child(1) { transform: rotate(45deg) translateY(-12px); }
@@ -1162,6 +1178,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
     <div id="visor" hidden></div>
     <div id="ammo" class="panel"><div class="w" id="wName"></div><div class="m" id="wMode"></div><div class="n"><span class="mag" id="aMag">30</span><span class="res" id="aRes">/ 150</span></div><div class="g" id="nades"></div><div id="slots"></div><div id="kit" hidden></div></div>
     <div id="reloadHint">R · ŞARJÖR DEĞİŞTİR</div>
+    <div id="vehicleHud" class="panel" hidden><div class="vhName">TANK</div><div class="vhArmor"><span>ZIRH</span><span class="vhBar"><i></i></span><b>%100</b></div><div class="vhRow"><span class="vhGun ready">TOP HAZIR</span><span class="vhSpeed">0 km/s</span></div><div class="vhKeys">WASD sür · Fare kule · Sol tık top · Sağ tık makineli · E in</div></div>
     <div id="interact" class="panel"><kbd id="interactKey">F</kbd><span id="interactText"></span><span class="p"><i id="interactBar"></i></span></div>
     <div id="feed"></div>
     <div id="radio"></div>
@@ -1330,7 +1347,7 @@ body.touch #squad { top: calc(92px + env(safe-area-inset-top, 0px)); bottom: aut
 
   <section id="diffScreen" class="screen panelScreen" hidden>
     <div class="sheet">
-      <div><div class="eyebrow">Göreve başla · Kızılkum'dan gece rafinerisine</div><h2>Seviye seç</h2></div>
+      <div><div class="eyebrow">Göreve başla · Kızılkum'dan Son Kale'ye</div><h2>Seviye seç</h2></div>
       <div class="levels" id="levelList"></div>
       <h3>Zorluk</h3>
       <div class="seg" id="diffList" role="radiogroup" aria-label="Zorluk"></div>

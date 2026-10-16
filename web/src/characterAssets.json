@@ -23,5 +23,178 @@
       "tris": 2345,
       "bytes": 282360
     }
+  },
+  "squad_forest": {
+    "file": "assets/characters/squad_forest.glb",
+    "materials": {
+      "squad_forest_body": {
+        "map": "assets/characters/squad_forest_diffuse.jpg",
+        "normalMap": "assets/characters/squad_forest_normal.jpg",
+        "ormMap": "assets/characters/squad_forest_orm.jpg"
+      }
+    },
+    "clips": [],
+    "clipsFrom": "soldier",
+    "hipRatio": 1.1286,
+    "natural": true,
+    "tris": 16059,
+    "bytes": 1359336,
+    "lod": null,
+    "credit": {
+      "title": "3 soldier low poly (outdated)",
+      "author": "buh (https://sketchfab.com/buh-late)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/3-soldier-low-poly-outdated-9b5bd75966764a87ae09c8b77e21f4c2"
+    }
+  },
+  "squad_desert": {
+    "file": "assets/characters/squad_desert.glb",
+    "materials": {
+      "squad_desert_body": {
+        "map": "assets/characters/squad_desert_diffuse.jpg",
+        "normalMap": "assets/characters/squad_desert_normal.jpg",
+        "ormMap": "assets/characters/squad_desert_orm.jpg"
+      }
+    },
+    "clips": [],
+    "clipsFrom": "soldier",
+    "hipRatio": 1.1286,
+    "natural": true,
+    "tris": 16051,
+    "bytes": 1380566,
+    "lod": null,
+    "credit": {
+      "title": "3 soldier low poly (outdated)",
+      "author": "buh (https://sketchfab.com/buh-late)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/3-soldier-low-poly-outdated-9b5bd75966764a87ae09c8b77e21f4c2"
+    }
+  },
+  "squad_woodland": {
+    "file": "assets/characters/squad_woodland.glb",
+    "materials": {
+      "squad_woodland_body": {
+        "map": "assets/characters/squad_woodland_diffuse.jpg",
+        "normalMap": "assets/characters/squad_woodland_normal.jpg",
+        "ormMap": "assets/characters/squad_woodland_orm.jpg"
+      }
+    },
+    "clips": [],
+    "clipsFrom": "soldier",
+    "hipRatio": 1.1358,
+    "natural": true,
+    "tris": 16470,
+    "bytes": 1099704,
+    "lod": {
+      "file": "assets/characters/squad_woodland_lod.glb",
+      "tris": 3805,
+      "bytes": 194860
+    },
+    "credit": {
+      "title": "3 soldier low poly (outdated)",
+      "author": "buh (https://sketchfab.com/buh-late)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/3-soldier-low-poly-outdated-9b5bd75966764a87ae09c8b77e21f4c2"
+    }
+  },
+  "robot": {
+    "file": "assets/characters/robot.glb",
+    "kind": "rigid",
+    "materials": {
+      "Hands": {
+        "map": "assets/characters/robot_hands_baseColor.jpg",
+        "normalMap": "assets/characters/robot_hands_normal.jpg",
+        "ormMap": "assets/characters/robot_hands_orm.jpg",
+        "aoMap": "assets/characters/robot_hands_orm.jpg",
+        "emissiveMap": "assets/characters/robot_hands_emissive.jpg"
+      },
+      "Torse": {
+        "map": "assets/characters/robot_torse_baseColor.jpg",
+        "normalMap": "assets/characters/robot_torse_normal.jpg",
+        "ormMap": "assets/characters/robot_torse_orm.jpg",
+        "aoMap": "assets/characters/robot_torse_orm.jpg",
+        "emissiveMap": "assets/characters/robot_torse_emissive.jpg"
+      },
+      "Legs": {
+        "map": "assets/characters/robot_legs_baseColor.jpg",
+        "normalMap": "assets/characters/robot_legs_normal.jpg",
+        "ormMap": "assets/characters/robot_legs_orm.jpg",
+        "aoMap": "assets/characters/robot_legs_orm.jpg",
+        "emissiveMap": "assets/characters/robot_legs_emissive.jpg"
+      }
+    },
+    "height": 2.9,
+    "joints": {
+      "pelvis": [
+        0,
+        1.648,
+        0.035
+      ],
+      "torso": [
+        0,
+        1.804,
+        0.035
+      ],
+      "shoulderL": [
+        -0.754,
+        2.655,
+        0.263
+      ],
+      "shoulderR": [
+        0.754,
+        2.655,
+        0.263
+      ],
+      "hipL": [
+        -0.775,
+        1.764,
+        0.035
+      ],
+      "kneeL": [
+        -0.775,
+        0.899,
+        -0.281
+      ],
+      "ankleL": [
+        -0.775,
+        0.256,
+        0.105
+      ],
+      "hipR": [
+        0.775,
+        1.764,
+        0.035
+      ],
+      "kneeR": [
+        0.775,
+        0.899,
+        -0.281
+      ],
+      "ankleR": [
+        0.775,
+        0.256,
+        0.105
+      ]
+    },
+    "muzzles": {
+      "L": [
+        -0.891,
+        2.224,
+        -0.608
+      ],
+      "R": [
+        0.891,
+        2.224,
+        -0.608
+      ]
+    },
+    "tris": 34921,
+    "bytes": 4305465,
+    "credit": {
+      "title": "Combat Robot",
+      "author": "ILUSHANDRO (https://sketchfab.com/ILUSHANDRO)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/combat-robot-55fe65bbb4074979ac0cb44850df4ddc"
+    }
   }
 }

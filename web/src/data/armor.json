@@ -16,7 +16,7 @@
   "defaultPen": 0.3,
   "explosivePen": 0.5,
   "_enemyWeaponPen": "Düşman silahlarının zırh delmesi (config.js → ENEMY_WEAPONS kimlikleri; coax: tankın eş eksenli makinelisi, shell: tank topu)",
-  "enemyWeaponPen": { "rifle": 0.35, "shotgun": 0.1, "lmg": 0.3, "sniper": 0.75, "flak": 0.5, "hmg": 0.6, "coax": 0.35, "shell": 0.5 },
+  "enemyWeaponPen": { "rifle": 0.35, "shotgun": 0.1, "lmg": 0.3, "sniper": 0.75, "flak": 0.5, "hmg": 0.6, "coax": 0.35, "shell": 0.5, "robotGun": 0.45 },
   "_playerZones": "Oyuncunun vurulduğu bölge, isabetin oyuncu silindirindeki yüksekliğinden: tepeden headTop metre kafa, alttan legFrac oranı bacak, arası gövde. Bölge çarpanı zırhtan önce uygulanır.",
   "playerZones": { "headTop": 0.26, "legFrac": 0.45, "mult": { "head": 1.5, "torso": 1.0, "leg": 0.75 } },
   "_enemyArmor": "Düşmanlara zırh: türe göre parça ve zorluğa göre olasılık (0–1); fromLevel bu seviyeden başlar; levelScale seviyeye göre olasılık çarpanı (en çok 1; olasılığı 1 olan tür hep zırhlıdır). Görev ve zorluk değişince yalnız bu tablo değişir.",

@@ -313,7 +313,7 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#btnPlay');
   await sleep(200);
   check(await page.isVisible('#diffScreen'), 'Seviye ekranı görünüyor');
-  check((await page.$$('#levelList .lvl')).length === 6, 'Altı seviye listelendi');
+  check((await page.$$('#levelList .lvl')).length === 10, 'On seviye listelendi');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .lvl .m')].map((m) => m.textContent));
   check(/Kızılkum/.test(cards[0]) && /Liman/.test(cards[2]) && /Gece Rafinerisi/.test(cards[5]), 'Kartlarda harita adları (Kızılkum → Gece Rafinerisi)');
   check(/Komando/.test(cards[5]) && /5 makineli yuvası/.test(cards[5]) && !/makineli/.test(cards[0]), 'Son seviye: komando manga, 5 makineli yuvası; ilk seviyede yuva yok');
@@ -777,13 +777,20 @@ console.log('Görevler ve bonuslar');
     const V = g.player.pos.constructor;
     for (const e of g.enemies.list.filter((x) => x.alive).slice(0, 2)) e.takeDamage(9999, { zone: 'torso', source: 'player', weapon: 'rifle', dir: new V(0, 0, -1) });
     const c = g.economy.credits;
+    window.__qT0 = Date.now();
     g.pause();
     return c;
   });
   await page.click('#btnQuit');
   await page.waitForFunction(() => !document.getElementById('menuNotice').hidden, null, { timeout: 30000 }).catch(() => {});
-  const q = await page.evaluate(() => ({ notice: document.getElementById('menuNotice').textContent, credits: window.__game.economy.credits, plays: window.__game.save.data.missions['1'].plays }));
-  check(q.credits === c1 + 40 && /teselli ödülü \+40 KR/.test(q.notice) && q.plays === 3, `Yarıda bırakınca teselli: "${q.notice}"`);
+  // Öldürmelerin XP'si rütbe atlatabilir, günün görevini bitirebilir: o krediler ayrı sayılır (günün görevleri tarihe bağlı)
+  const q = await page.evaluate(() => ({
+    notice: document.getElementById('menuNotice').textContent,
+    credits: window.__game.economy.credits,
+    prog: window.__game.save.data.econLog.filter((e) => e.t >= window.__qT0 && ['levelUp', 'challenge'].includes(e.reason)).reduce((n, e) => n + e.delta, 0),
+    plays: window.__game.save.data.missions['1'].plays,
+  }));
+  check(q.credits - q.prog === c1 + 40 && /teselli ödülü \+40 KR/.test(q.notice) && q.plays === 3, `Yarıda bırakınca teselli: "${q.notice}" (kredi ${c1} → ${q.credits}, rütbe/görev ödülü ${q.prog}, oynama ${q.plays})`);
   await page.click('#btnPlay');
   check(/★★☆/.test(await page.textContent('#levelList .lvl:nth-child(1)')), 'Seviye kartında kazanılan yıldızlar');
   // Konsol: tüm görevleri tamamla / sıfırla
@@ -2001,8 +2008,12 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     await page.waitForFunction(() => window.__game.state === 'playing' || window.__game.state === 'error', null, { timeout: 90000 });
     await page.evaluate(() => (window.__game.input.lockFailed = true));
   };
-  const expect = { 1: ['kizilkum', 0, 'Er'], 2: ['kizilkum', 0, 'Onbaşı'], 3: ['harbor', 2, 'Çavuş'], 4: ['ruins', 3, 'Çavuş'], 5: ['pass', 4, 'Uzman Çavuş'], 6: ['refinery', 5, 'Komando'] };
-  for (const id of [1, 2, 3, 4, 5, 6]) {
+  const expect = {
+    1: ['kizilkum', 0, 'Er'], 2: ['kizilkum', 0, 'Onbaşı'], 3: ['harbor', 2, 'Çavuş'], 4: ['ruins', 3, 'Çavuş'], 5: ['pass', 4, 'Uzman Çavuş'], 6: ['refinery', 5, 'Komando'],
+    7: ['forest', 3, 'Komando'], 8: ['factory', 3, 'Komando'], 9: ['coast', 4, 'Komando'], 10: ['core', 5, 'Komando'],
+  };
+  // Rafineri en sona: ardından gelen algı ve maliyet ölçümleri en kalabalık gece haritasında yapılır
+  for (const id of [1, 2, 3, 4, 5, 7, 8, 9, 10, 6]) {
     await start(id);
     const r = await page.evaluate(() => {
       const g = window.__game;
@@ -2068,11 +2079,12 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     check(r.state === 'playing' && r.map === map, `Seviye ${id}: ${map} haritası açıldı`);
     check(r.gunners === hmg, `Seviye ${id}: ${hmg} ağır makineli mevzi (${r.gunners})`);
     check(r.rank === rank, `Seviye ${id}: manga kademesi ${rank} (etiket "${r.tag}")`);
-    const tanks = { 4: 1, 5: 2, 6: 2 }[id] || 0;
+    // Fabrika ve kıyıda düşman tanklarına ek olarak haritada boş bırakılmış birer tank (ele geçirilir)
+    const tanks = { 4: 1, 5: 2, 6: 2, 8: 2, 9: 3 }[id] || 0;
     check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
-    if (id === 1 || id === 5) check(r.trees > 0 && r.treeInst.trunk === r.trees && r.treeInst.leaf === r.trees && r.treeInst.alpha, `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, ${r.treeInst.cells} hücre: bakılmayan hücre çizilmez)`);
-    if (id !== 5) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk ve hücre başına bir çizim çağrısı)`);
+    if ([1, 5, 7, 9].includes(id)) check(r.trees > 0 && r.treeInst.trunk === r.trees && r.treeInst.leaf === r.trees && r.treeInst.alpha, `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, ${r.treeInst.cells} hücre: bakılmayan hücre çizilmez)`);
+    if (![5, 7, 9].includes(id)) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk ve hücre başına bir çizim çağrısı)`);
     if (id >= 3) {
       await waitGame(page, 1.0);
       await page.screenshot({ path: join(shots, `14-map-${map}.png`) });
@@ -2095,6 +2107,60 @@ console.log('Haritalar, mevziler ve manga kademeleri');
   });
   console.log(`    düşman güncellemesi (medyan): ${cost.toFixed(2)} ms`);
   check(cost < 6, `Düşman güncellemesi makul (${cost.toFixed(2)} ms)`);
+
+  // --- Savaş robotu (Kara Orman): model, hasar kuralları, ölüm ---
+  await start(7);
+  const robotRes = await page.evaluate(() => {
+    const g = window.__game;
+    g.cheats.god = true;
+    const robots = g.enemies.list.filter((e) => e.robot);
+    const r = robots[0];
+    if (!r) return { robots: 0 };
+    const hit = (weapon) => {
+      const hp = r.health.hp;
+      r.takeDamage(40, { source: 'player', weapon, zone: 'torso' });
+      return hp - r.health.hp;
+    };
+    const bullet = hit('ak74');
+    const blast = hit('rpg');
+    const knife = hit('knife');
+    let err = null;
+    try {
+      r.takeDamage(100000, { source: 'player', weapon: 'rpg', zone: 'torso' });
+      for (let i = 0; i < 90; i++) g.enemies.update(1 / 60);
+    } catch (e) {
+      err = e.message;
+    }
+    return { robots: robots.length, rigid: !!r.model.j?.torso, boxes: r.model.meshes.length, bullet, blast, knife, dead: !r.alive, err };
+  });
+  check(robotRes.robots > 0 && robotRes.rigid && robotRes.boxes >= 6, `Kara Orman: ${robotRes.robots} savaş robotu hazır modelle (${robotRes.boxes} vuruş kutusu)`);
+  check(robotRes.bullet < 40 && robotRes.blast > 40 && robotRes.knife < robotRes.bullet, `Robot zırhı: tüfek mermisi ${robotRes.bullet?.toFixed(1)}, roket ${robotRes.blast?.toFixed(1)}, bıçak ${robotRes.knife?.toFixed(1)} (40 ham hasardan)`);
+  check(robotRes.dead && !robotRes.err, `Robot patlayıp çöker, enkaz güncellemesi hatasız${robotRes.err ? ` (${robotRes.err})` : ''}`);
+
+  // --- Ele geçirilen tank (Çelik Fabrika): bin, sür, dön, ateş et, in ---
+  await start(8);
+  const tankRes = await page.evaluate(() => {
+    const g = window.__game;
+    g.cheats.god = true;
+    const t = g.mission.tanks.find((v) => v.side === 'neutral' && v.canEnter());
+    if (!t) return { free: false };
+    g.vehicles.enter(t);
+    const p0 = t.pos.clone();
+    const yaw0 = t.yaw;
+    const fake = { down: new Set(['forward']), isDown(a) { return this.down.has(a); }, pressed: () => false, released: () => false, move() { return { x: this.down.has('right') ? 1 : this.down.has('left') ? -1 : 0, y: this.down.has('forward') ? 1 : 0 }; }, consumeLook: () => ({ dx: 0, dy: 0 }) };
+    for (let i = 0; i < 120; i++) g.vehicles.drive(1 / 30, fake);
+    const moved = t.pos.distanceTo(p0);
+    fake.down = new Set(['fire', 'left', 'forward']);
+    for (let i = 0; i < 30; i++) g.vehicles.drive(1 / 30, fake);
+    const res = { free: true, driving: !!g.vehicles.driving, side: t.side, moved, turned: Math.abs(t.yaw - yaw0), reload: t.reloadT, hud: !document.getElementById('vehicleHud').hidden, body: document.body.classList.contains('inVehicle'), near: g.player.pos.distanceTo(t.pos) };
+    g.vehicles.exit();
+    res.out = !g.vehicles.driving && !document.body.classList.contains('inVehicle') && g.player.alive;
+    return res;
+  });
+  check(tankRes.free && tankRes.driving && tankRes.side === 'player', 'Çelik Fabrika: boş tanka binildi');
+  check(tankRes.moved > 10 && tankRes.turned > 0.1, `Tank sürülür (4 sn'de ${tankRes.moved?.toFixed(1)} m, ${tankRes.turned?.toFixed(2)} rad dönüş)`);
+  check(tankRes.reload > 0 && tankRes.hud && tankRes.body && tankRes.near < 1, `Tank topu ateşlendi (dolum ${tankRes.reload?.toFixed(1)} sn), araç göstergesi açık, oyuncu tankla birlikte`);
+  check(tankRes.out, 'Tanktan inildi, oyuncu sağ ve gösterge kapandı');
 
   // --- Ağır makineli mevzi (Liman, kapıdaki yuva) ---
   await start(3);
@@ -2275,7 +2341,10 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     for (let k = 0; k < 64 && !at; k++) {
       for (const d of [30, 36, 26]) {
         const p = new V(a.pos.x + Math.sin(k * 0.1) * d, 0, a.pos.z + Math.cos(k * 0.1) * d);
-        if (g.nav.isWalkable(p.x, p.z) && g.world.lineOfSight(p.clone().setY(1.5), e.eyePos(new V()))) {
+        // Nişancı hem şimdiki yerinden hem de taret oyuncuya döndüğünde oturacağı yerden görmeli (koltuk taretle
+        // döner; yalnız ilk yerden bakılınca bir siper köşesinin ardındaki sınır noktası seçilebiliyordu)
+        const facing = a.seatPos(new V(), Math.atan2(-(p.x - a.pos.x), -(p.z - a.pos.z))).add(new V(0, 1.62, 0));
+        if (g.nav.isWalkable(p.x, p.z) && g.world.lineOfSight(p.clone().setY(1.5), e.eyePos(new V())) && g.world.lineOfSight(p.clone().setY(1.5), facing)) {
           at = p;
           break;
         }
@@ -2304,6 +2373,8 @@ console.log('Haritalar, mevziler ve manga kademeleri');
       if (i >= 450 && bursts > 0 && g.player.health.hp < hp0) break;
     }
     const res = { gunner: e.type, fired: e.shotCount - s0, bursts, dmg: Math.round(hp0 - g.player.health.hp), warned: a.warned };
+    // Tanı: ateş edilmediyse nedeni (nişancı yerinde mi, çatışmada mı, taret nereye bakıyor)
+    res.diag = { at: at.toArray().map((v) => +v.toFixed(2)), hp0, alive: g.player.alive, down: !!g.player.down, st: e.aiState, mounted: !!e.mount, eAlive: e.alive, vis: e.visible, react: +e.reactionT.toFixed(2), duck: +e.duckT.toFixed(2), aim: +a.aimYaw.toFixed(2), world: +a.worldYaw.toFixed(2), wrecked: !!a.wrecked, mag: e.weapon.mag, reload: +e.weapon.reloadT.toFixed(2) };
     g.cheats.god = true;
     e.takeDamage(999, { zone: 'head', dir: new V(0, 0, 1), source: 'cheat' });
     g.mission.aa[1].destroyed = true; // öbür topun göğe ateşi sayımı karıştırmasın
@@ -2322,7 +2393,7 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     res.after = tr;
     return res;
   });
-  check(aa.gunner === 'aaGunner' && aa.fired >= 5 && aa.dmg > 0, `Uçaksavar oyuncuya döndü ve ateş etti (${aa.fired} mermi, ${aa.bursts} parça patlaması, hasar ${aa.dmg})`);
+  check(aa.gunner === 'aaGunner' && aa.fired >= 5 && aa.dmg > 0, `Uçaksavar oyuncuya döndü ve ateş etti (${aa.fired} mermi, ${aa.bursts} parça patlaması, hasar ${aa.dmg})${aa.fired >= 5 && aa.dmg > 0 ? '' : ` ${JSON.stringify(aa.diag)}`}`);
   check(aa.warned, 'Uçaksavar ilk atışta HUD uyarısı verdi');
   check(aa.after === 0, `Nişancı ölünce uçaksavar sustu (${aa.after} izli mermi)`);
 

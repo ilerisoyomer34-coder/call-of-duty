@@ -34,7 +34,10 @@ for (const id of [...Object.keys(MAP_BUILDERS), ...Object.keys(ARENA_BUILDERS)])
       assert.equal(!!h1, !!h2);
       if (h1) {
         hits++;
-        assert.ok(Math.abs(h1.dist - h2.dist) < 1e-3, `ışın ${i}: ${h1.dist} ≠ ${h2.dist}`);
+        // Kutu kenarları 0,1 mm'ye yuvarlanır; yatay yüzeye (kütük, kaya tepesi) çok yatık gelen ışında bu fark
+        // eğimin tersiyle büyür (y eğimi 0,02 → 5 kat)
+        const tol = h1.normal.y !== 0 ? Math.max(1e-3, 2e-4 / Math.abs(d.y)) : 1e-3;
+        assert.ok(Math.abs(h1.dist - h2.dist) < tol, `ışın ${i}: ${h1.dist} ≠ ${h2.dist}`);
         assert.equal(h1.surface, h2.surface);
       }
     }

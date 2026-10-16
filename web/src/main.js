@@ -17,12 +17,14 @@ import { HUD } from './hud.js';
 import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment, createSoldier } from './soldier.js';
+import { preloadRobot, setRobotEnvironment } from './robot.js';
+import { VehicleSystem } from './vehicle.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS, assetImageUrl } from './assets.js';
 import { AllyManager } from './ally.js';
-import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp } from './models.js';
+import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, updateWind } from './models.js';
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
 import { EconomySystem } from './economy.js';
@@ -266,11 +268,14 @@ export class Game {
   // Hazır asker modeli: gelmezse (dosya yok, ağ hatası, zaman aşımı) prosedürel askerle devam edilir
   async loadCharacters() {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('zaman aşımı')), CHARACTER_TIMEOUT_MS));
+    // Savaş robotu askerle birlikte iner (gelmezse robotlar ağır asker görünümünde savaşır)
+    const robot = Promise.race([preloadRobot(), timeout]).catch((err) => warnOnce('robot-model', `Robot modeli yüklenemedi (${err.message})`));
     try {
       await Promise.race([preloadSoldier(), timeout]);
     } catch (err) {
       warnOnce('soldier-model', `Asker modeli yüklenemedi, basit asker kullanılıyor (${err.message})`);
     }
+    await robot;
   }
 
   // Hazır araç modelleri (Sketchfab): gelmezse prosedürel modelle devam edilir; açılışı bekletmesin diye kısa süre sınırı
@@ -370,6 +375,8 @@ export class Game {
     }
     setSoldierEnvironment(this.envMap, this.renderer.shadowMap.enabled && (this.renderQuality || 'medium') !== 'low');
     setPropEnvironment(this.envMap);
+    setRobotEnvironment(this.envMap);
+    this.effects?.setEnvironment(this.envMap);
     return env;
   }
 
@@ -540,10 +547,13 @@ export class Game {
     this.world = new World(scene, this.textures);
     this.effects = new Effects(scene, this.textures, this.audio, this.quality);
     this.effects.bloodOn = this.settings.blood;
+    this.effects.setEnvironment(this.envMap);
     this.enemies = new EnemyManager(this);
     this.allies = new AllyManager(this);
     this.grenades = new GrenadeSystem(this);
     this.weapons = new PlayerWeapons(this);
+    this.vehicles?.clear();
+    this.vehicles = new VehicleSystem(this);
     this.barrels = [];
     this.debris = [];
     // Menü arka planı Kızılkum'un köy bölümü (toplar göğe ateş eder)
@@ -605,7 +615,7 @@ export class Game {
     M.interactables.length = 0;
     this.menuT = 0;
     // Lobi operatörü: tim askeri, silahıyla kameraya dönük durur (zemin yüksekliği ışınla)
-    const op = createSoldier(LOBBY.type, ALLY.colors);
+    const op = createSoldier(LOBBY.type, ALLY.colors, LOBBY.model, LOBBY.gun);
     const pos = new THREE.Vector3(LOBBY.op[0], 0, LOBBY.op[1]);
     const hit = this.world.raycast(_lobbyO.set(pos.x, 8, pos.z), _lobbyD.set(0, -1, 0), 12);
     if (hit) pos.y = hit.point.y;
@@ -751,6 +761,7 @@ export class Game {
   }
 
   respawn() {
+    this.vehicles?.exit(false, true);
     this.menus.hideAll();
     this.effects.add.clear();
     this.effects.smoke.clear();
@@ -926,7 +937,10 @@ export class Game {
       if (head) this.stats.headshots++;
       if (info.weapon !== 'melee') this.addScore(SCORE.kill + (head ? SCORE.headshot : 0), head ? 'KAFA VURUŞU' : 'ETKİSİZ', head);
     }
-    if (this.mode === 'mission' && Math.random() < 0.5) this.mission.spawnPouch(enemy.pos);
+    if (enemy.robot) {
+      if (info.source === 'player') this.addScore(ROBOT.score, 'ROBOT İMHA EDİLDİ');
+      this.stats.robots = (this.stats.robots || 0) + 1;
+    } else if (this.mode === 'mission' && Math.random() < 0.5) this.mission.spawnPouch(enemy.pos);
     this.events.emit('enemyKilled', enemy, info);
     const byPlayer = info.source === 'player';
     this.events.emit(EV.ENEMY_KILLED, {
@@ -938,6 +952,8 @@ export class Game {
       armorBroken: !!enemy.armorBrokenBy,
       underSuppression: !!this.squadSuppressing?.(enemy),
       killer: byPlayer ? 'player' : info.source === 'ally' ? info.attacker?.callsign || 'ally' : info.source,
+      enemyType: enemy.type,
+      inVehicle: byPlayer && !!this.vehicles?.driving,
     });
   }
 
@@ -1072,6 +1088,7 @@ export class Game {
 
   updateMenu(dt) {
     this.time += dt;
+    updateWind(this.time);
     this.menuT = (this.menuT || 0) + dt;
     const t = this.menuT;
     const cam = this.camera;
@@ -1102,6 +1119,7 @@ export class Game {
   updatePlaying(dt) {
     const I = this.input;
     this.time += dt;
+    updateWind(this.time);
     this.net?.frame(dt);
     if (this.state === 'playing' && I.pressed('pause') && !this.console.open) {
       this.pause();
@@ -1114,12 +1132,18 @@ export class Game {
     const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine;
     if (this.mode === 'mission' && canAct && !this.wheel.open && I.pressed('chat')) this.chat.openChat();
     if (this.console.open || cine) I.consumeLook();
+    const driving = this.vehicles.driving;
     if (cine) {
+      if (driving) this.vehicles.exit(false, true);
       this.player.update(dt, NULL_INPUT);
       this.player.applyCamera(this.camera, dt); // görüş açısı (dürbün kapanır) ve dinleyici güncel kalsın
       this.mission.takeoffCamera(this.camera);
       const c = this.camera.position;
       this.audio.setListener(c.x, c.y, c.z, this.player.yaw);
+    } else if (driving) {
+      // Araçta: oyuncunun yerine araç sürülür, kamera arkadan (vehicle.js); komut çarkı kapalı
+      if (this.wheel.open) this.wheel.close(false);
+      this.vehicles.drive(dt, canAct ? I : NULL_INPUT);
     } else {
       // Komut çarkı (T): açıkken fare dilim seçer (bakış dönmez), 1–4 ve tekerlek muhatap seçer
       const cmdOk = canAct && this.mode === 'mission';
@@ -1134,7 +1158,7 @@ export class Game {
     this.viewFrustum.setFromProjectionMatrix(_projView);
     const wheelOpen = this.wheel.open;
     // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur); çark açıkken 3/4 muhatap seçer
-    this.kit.update(dt, canAct && !wheelOpen ? I : NULL_INPUT, canAct);
+    this.kit.update(dt, canAct && !wheelOpen && !driving ? I : NULL_INPUT, canAct && !driving);
     if (canAct && this.mode === 'mission' && !wheelOpen) {
       for (const action in SHORTCUTS) if (I.pressed(action)) this.commands.issue(SHORTCUTS[action], this.commands.addressee, { inputMethod: 'shortcut' });
       // Bağlamsal işaret (Z): nişangâhın baktığı şeye göre saldır / git / kaldır / temizle; çift basış iptal
@@ -1147,7 +1171,7 @@ export class Game {
     this.commands.update();
     this.ping.update(dt);
     // Çevrim içinde geri sayım ve maç sonunda silah kullanılmaz (sunucu da kabul etmez)
-    const armed = canAct && !this.kit.using && !wheelOpen && !(this.net && (this.net.frozen || this.net.state !== 'playing'));
+    const armed = canAct && !driving && !this.kit.using && !wheelOpen && !(this.net && (this.net.frozen || this.net.state !== 'playing'));
     this.weapons.update(dt, armed ? I : NULL_INPUT, armed);
     this.enemies.update(dt);
     this.allies.update(dt);
@@ -1201,7 +1225,7 @@ export class Game {
     const r = this.renderer;
     this.followSun(this.player.pos);
     this.drawWorld(this.camera);
-    if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory' && !this.mission?.takeoff) this.viewmodel.render(r);
+    if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory' && !this.mission?.takeoff && !this.vehicles?.driving) this.viewmodel.render(r);
   }
 }
 

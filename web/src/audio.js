@@ -252,6 +252,20 @@ export class Audio {
     }
   }
 
+  // Savaş robotunun adımı: derin gümbürtü ve metal tıkırtı
+  robotStep(pos) {
+    if (!this.ctx) return;
+    const sp = this.spatial(pos, 6, 90);
+    if (sp.gain < 0.03 || !this.voice(0.4)) return;
+    const t = this.now;
+    const dest = this.out(sp.pan);
+    dest.gain.value = sp.gain * 0.9;
+    this.tone(dest, t, 0.35, { freq: 62, freqEnd: 34, gain: 0.9 });
+    this.noiseBurst(dest, t, 0.22, { type: 'lowpass', freq: 380, gain: 0.8 });
+    this.noiseBurst(dest, t + 0.03, 0.08, { type: 'bandpass', freq: rand(1100, 1600), q: 5, gain: 0.35 });
+    this.tone(dest, t + 0.02, 0.18, { type: 'triangle', freq: rand(180, 230), gain: 0.15 });
+  }
+
   land(intensity = 1) {
     if (!this.ctx) return;
     const t = this.now;
@@ -782,6 +796,62 @@ export class Audio {
     src.start();
     lfo.start();
     this.rotor = { src, lfo, out, pan };
+  }
+
+  // Tank motoru (oyuncu sürerken): gürleyen dizel (alçak geçirgen gürültü + testere dişi), devir ile perde ve ses
+  engine(on) {
+    if (!this.ctx) return;
+    if (!on) {
+      if (!this.eng) return;
+      const e = this.eng;
+      this.eng = null;
+      e.out.gain.setTargetAtTime(0, this.ctx.currentTime, 0.15);
+      setTimeout(() => {
+        try {
+          e.src.stop();
+          e.osc.stop();
+        } catch {
+          // zaten durmuş
+        }
+      }, 800);
+      return;
+    }
+    if (this.eng) return;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 180;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 32;
+    const of = ctx.createBiquadFilter();
+    of.type = 'lowpass';
+    of.frequency.value = 220;
+    const og = ctx.createGain();
+    og.gain.value = 0.35;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    src.connect(f);
+    f.connect(out);
+    osc.connect(of);
+    of.connect(og);
+    og.connect(out);
+    out.connect(this.sfx);
+    src.start();
+    osc.start();
+    this.eng = { src, osc, f, out };
+  }
+
+  updateEngine(rpm) {
+    const e = this.eng;
+    if (!e) return;
+    const t = this.ctx.currentTime;
+    e.osc.frequency.setTargetAtTime(30 + rpm * 38, t, 0.1);
+    e.f.frequency.setTargetAtTime(160 + rpm * 420, t, 0.1);
+    e.out.gain.setTargetAtTime(0.32 + rpm * 0.35, t, 0.1);
   }
 
   updateRotor(pos) {

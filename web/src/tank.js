@@ -1,9 +1,12 @@
-// Düşman tankı: siper arkasında sabit mevzi. Taret hedefe dönüş hızıyla döner; ana top mermisi roket
+// Tank. Düşman tankı siper arkasında sabit mevzidir: taret hedefe dönüş hızıyla döner; ana top mermisi roket
 // altyapısıyla uçar (grenades.spawnRocket, sahibi 'enemy'), eş eksenli makineli anlık ışınla ateş eder.
 // Zırh mermiyi durdurur (kıvılcım); hasarı roket ve C4 verir, el bombası az işler. Hedef seçimi düşman
 // askeriyle aynı arayüzü kullanır: oyuncu ya da dost asker (pos, alive, chestPos, takeDamage).
+// Taraf (side): 'enemy' → yapay zekâ; 'neutral' → terk edilmiş (ağır hasarda mürettebat kaçar ya da haritada boş
+// bırakılmış), oyuncu binebilir; 'player' → oyuncu sürüyor (vehicle.js: sürüş, kamera, kule ve top bu sınıfta).
 import * as THREE from 'three';
 import { TANK, C4, ALLY } from './config.js';
+import { EV } from './events.js';
 import { buildTank, buildC4 } from './models.js';
 import { rand, clamp, angleDiff, dirToYaw, damp, randomInCone, rayCylinder, DEG } from './util.js';
 import { enemyPen, playerZoneAt } from './armor.js';
@@ -24,26 +27,48 @@ export class Tank {
     this.group = def.group || 'village';
     this.pos = def.pos.clone();
     this.yaw = def.yaw; // gövdenin baktığı yön
+    this.side = def.side || 'enemy';
+    this.kind = 'tank';
+    this.name = 'TANK';
     const m = buildTank(TANK);
     this.model = m;
     m.root.position.copy(this.pos);
     m.root.rotation.y = this.yaw;
     game.scene.add(m.root);
     m.root.updateMatrixWorld(true);
-    // Çarpıştırıcılar: dönük gövdenin eksen hizalı sınırı + taret. Mermi bunlarda durur (onShot: ipucu)
+    this.cols = [];
+    this.box = {};
+    this.rebuildColliders();
+    this.c4Spot = new THREE.Vector3(); // gövdede oyuncuya en yakın nokta (C4 buraya konur)
+    this.vel = 0; // sürülürken ileri hız (m/s)
+    this.turnVel = 0;
+    this.engine = 0; // motor devri (0–1): ses ve titreşim
+    this.lastKnown = new THREE.Vector3();
+    this.reset(true);
+  }
+
+  // Çarpıştırıcılar: dönük gövdenin eksen hizalı sınırı + taret. Mermi bunlarda durur (onShot: ipucu).
+  // Tank yer değiştirince eskileri silinip yeniden kurulur (gezinme ağı ilk yerine göre kalır)
+  rebuildColliders() {
+    const W = this.game.world;
+    for (const c of this.cols) W.removeCollider(c);
+    this.cols.length = 0;
+    const m = this.model;
+    m.root.updateMatrixWorld(true);
     const c = Math.abs(Math.cos(this.yaw));
     const s = Math.abs(Math.sin(this.yaw));
     const hx = (TANK.hullWidth / 2) * c + (TANK.hullLen / 2) * s;
     const hz = (TANK.hullWidth / 2) * s + (TANK.hullLen / 2) * c;
-    this.box = { minx: this.pos.x - hx, maxx: this.pos.x + hx, minz: this.pos.z - hz, maxz: this.pos.z + hz, maxy: TANK.colliderH };
-    const W = game.world;
-    W.addCollider(this.box.minx, 0, this.box.minz, this.box.maxx, TANK.colliderH, this.box.maxz, 'metal', this);
+    Object.assign(this.box, { minx: this.pos.x - hx, maxx: this.pos.x + hx, minz: this.pos.z - hz, maxz: this.pos.z + hz, maxy: TANK.colliderH });
+    this.cols.push(W.addCollider(this.box.minx, this.pos.y, this.box.minz, this.box.maxx, this.pos.y + TANK.colliderH, this.box.maxz, 'metal', this));
     const tp = m.turret.getWorldPosition(new THREE.Vector3());
     const th = TANK.turretHalf;
-    W.addCollider(tp.x - th, TANK.colliderH, tp.z - th, tp.x + th, TANK.turretColH, tp.z + th, 'metal', this);
-    this.c4Spot = new THREE.Vector3(); // gövdede oyuncuya en yakın nokta (C4 buraya konur)
-    this.lastKnown = new THREE.Vector3();
-    this.reset(true);
+    this.cols.push(W.addCollider(tp.x - th, this.pos.y + TANK.colliderH, tp.z - th, tp.x + th, this.pos.y + TANK.turretColH, tp.z + th, 'metal', this));
+  }
+
+  // Oyuncu binebilir mi: imha edilmemiş, düşman mürettebatı yok
+  canEnter() {
+    return !this.destroyed && this.side !== 'enemy';
   }
 
   // Başlangıç ya da kontrol noktasına dönüş: imha edilmediyse tam can, taret ileri, uyanık değil
@@ -140,7 +165,13 @@ export class Tank {
     if (this.destroyed) return;
     // C4 noktası: gövde kutusunda oyuncuya en yakın yer (etkileşim buradan ölçülür)
     const P = g.player.pos;
-    this.c4Spot.set(clamp(P.x, this.box.minx, this.box.maxx), 1.1, clamp(P.z, this.box.minz, this.box.maxz));
+    this.c4Spot.set(clamp(P.x, this.box.minx, this.box.maxx), this.pos.y + 1.1, clamp(P.z, this.box.minz, this.box.maxz));
+    // Terk edilmiş tank boşta durur; oyuncunun sürdüğü tank vehicle.js'ten sürülür (drive)
+    if (this.side !== 'enemy') {
+      this.recoil = Math.max(0, this.recoil - dt * 2.2);
+      this.model.gun.position.z = TANK.gunZ + this.recoil * 0.45;
+      return;
+    }
     if (g.cheats.aiOff) return; // konsoldaki "yapay zekâyı dondur" tankı da durdurur
     this.thinkT -= dt;
     if (this.thinkT <= 0) {
@@ -280,7 +311,11 @@ export class Tank {
 
   // Patlama: gövde kutusuna uzaklığa göre hasar. Ağır patlayıcı (roket, C4) tam, hafif (el bombası, varil) az işler
   onExplosion(pos, radius, damage, owner) {
-    if (this.destroyed || owner === 'enemy') return;
+    if (this.destroyed) return;
+    // Düşman patlaması düşman tankına işlemez; oyuncunun kendi topunun sıçraması da kendi tankına
+    const mine = this.side === 'player';
+    if (owner === 'enemy' && !mine) return;
+    if (mine && (owner === 'player' || owner === 'ally')) return;
     const b = this.box;
     const dx = Math.max(b.minx - pos.x, 0, pos.x - b.maxx);
     const dz = Math.max(b.minz - pos.z, 0, pos.z - b.maxz);
@@ -289,7 +324,8 @@ export class Tank {
     const reach = radius * TANK.splashReach;
     if (d > reach) return;
     const f = d <= TANK.hitRadius ? 1 : clamp(1 - (d - TANK.hitRadius) / Math.max(0.1, reach - TANK.hitRadius), 0, 1);
-    const mult = damage >= TANK.explosiveHeavy ? TANK.heavyMult : TANK.lightMult;
+    let mult = damage >= TANK.explosiveHeavy ? TANK.heavyMult : TANK.lightMult;
+    if (mine && owner === 'enemy') mult = TANK.vsPlayerMult; // düşman topu oyuncunun tankını ciddi yaralar
     this.damage(damage * mult * f, owner);
   }
 
@@ -303,7 +339,175 @@ export class Tank {
       g.audio.hitmarker(this.hp <= 0 ? 'kill' : 'hit');
     }
     if (this.hp <= 0) this.destroy();
-    else if (owner === 'player') g.events.emit('message', `TANK HASAR ALDI · %${Math.round((this.hp / TANK.hp) * 100)}`, 'info');
+    else if (this.side === 'enemy' && this.hp < TANK.hp * TANK.bailRatio) this.bail();
+    else if (owner === 'player' && this.side === 'enemy') g.events.emit('message', `TANK HASAR ALDI · %${Math.round((this.hp / TANK.hp) * 100)}`, 'info');
+  }
+
+  // Ağır hasarda mürettebat tankı terk eder: iki asker iner ve savaşır, tank boşalır (oyuncu binebilir)
+  bail() {
+    const g = this.game;
+    this.side = 'neutral';
+    this.foe = null;
+    this.visible = false;
+    const fx = Math.cos(this.yaw);
+    const fz = -Math.sin(this.yaw);
+    for (let i = 0; i < TANK.crew; i++) {
+      const sd = i % 2 ? 1 : -1;
+      const p = new THREE.Vector3(this.pos.x + fx * sd * (TANK.hullWidth / 2 + 1.2), this.pos.y, this.pos.z + fz * sd * (TANK.hullWidth / 2 + 1.2));
+      const e = g.enemies.spawn({ type: 'rifleman', pos: p, yaw: this.yaw, group: this.group, rush: true, rushTarget: g.player.pos.clone() });
+      e.enterCombat(true);
+    }
+    g.events.emit('message', 'TANK MÜRETTEBATI KAÇTI · TANKA BİNEBİLİRSİN [E]', 'info');
+    g.events.emit(EV.TANK_ABANDONED, { tank: this });
+    g.mission?.radio('YUVA', 'Tankın mürettebatı kaçıyor! Tank boş, istersen bin ve kullan.', 0.5);
+  }
+
+  // --- Oyuncunun sürüşü (vehicle.js çağırır) ---
+  // I: girdi; aim: kameranın nişan noktası (dünya). Gövde WASD ile, taret ve top kameraya döner
+  drive(dt, I, aim) {
+    const g = this.game;
+    const D = TANK.drive;
+    // Gaz ve dönüş: ileri/geri hız rampası, durunca fren; dönüş yerinde de yapılır (paletler)
+    // Klavye, dokunmatik çubuk ve oyun kolu aynı hareket vektöründen
+    const mv = I.move();
+    const thr = clamp(mv.y, -1, 1);
+    const steer = -mv.x;
+    const target = thr > 0 ? thr * D.maxFwd : thr * D.maxBack;
+    const a = Math.sign(target - this.vel) === Math.sign(this.vel) || this.vel === 0 ? D.accel : D.brake;
+    this.vel += clamp(target - this.vel, -a * dt, a * dt);
+    this.turnVel = damp(this.turnVel, clamp(steer, -1, 1) * D.turn * (this.vel < -0.1 ? -1 : 1), 6, dt);
+    const nyaw = this.yaw + this.turnVel * dt;
+    const fx = -Math.sin(nyaw);
+    const fz = -Math.cos(nyaw);
+    const nx = this.pos.x + fx * this.vel * dt;
+    const nz = this.pos.z + fz * this.vel * dt;
+    const B = g.world.bounds;
+    const inside = !B || (nx > B.minx + 3 && nx < B.maxx - 3 && nz > B.minz + 3 && nz < B.maxz - 3);
+    if (inside && !this.blocked(nx, nz, nyaw)) {
+      this.pos.x = nx;
+      this.pos.z = nz;
+      this.yaw = nyaw;
+    } else if (!this.blocked(this.pos.x, this.pos.z, nyaw)) {
+      this.yaw = nyaw;
+      this.vel *= -0.2; // çarptı: hafif geri sekme
+      if (Math.abs(this.vel) > 0.5) g.player.shake(0.25);
+    } else this.vel = 0;
+    const m = this.model;
+    m.root.position.copy(this.pos);
+    m.root.rotation.y = this.yaw;
+    this.engine = damp(this.engine, Math.min(1, Math.abs(this.vel) / D.maxFwd + Math.abs(this.turnVel) * 0.3), 4, dt);
+    // Gövde ivmede öne-arkaya yatar, motor titreşir
+    m.root.rotation.x = -this.recoil * 0.04 - (target - this.vel) * 0.004 + Math.sin(g.time * 40) * 0.002 * this.engine;
+    this.rebuildColliders();
+    this.crush();
+    // Taret: nişan noktasına dönüş hızıyla; top eğimi sınırlı
+    m.gun.updateMatrixWorld(true);
+    const pivot = m.gun.getWorldPosition(_v);
+    const rel = angleDiff(this.yaw, dirToYaw(aim.x - pivot.x, aim.z - pivot.z));
+    const step = D.turretTurn * dt;
+    let cur = this.aimYaw + clamp(angleDiff(this.aimYaw, rel), -step, step);
+    cur = Math.atan2(Math.sin(cur), Math.cos(cur));
+    const pitch = clamp(Math.atan2(aim.y - pivot.y, Math.hypot(aim.x - pivot.x, aim.z - pivot.z)), D.pitchMin, D.pitchMax);
+    this.setAim(cur, damp(this.aimPitch, pitch, 6, dt));
+    this.recoil = Math.max(0, this.recoil - dt * 2.2);
+    m.gun.position.z = TANK.gunZ + this.recoil * 0.45;
+    this.reloadT -= dt;
+    this.coaxCd -= dt;
+    if (I.isDown('fire') && this.reloadT <= 0) this.fireMainPlayer();
+    if (I.isDown('ads') && this.coaxCd <= 0) this.fireCoaxPlayer();
+  }
+
+  // Gövde (dönük dikdörtgen) bir engelle çakışıyor mu: alçak engeller (kum torbası, beton blok) ezilip geçilir
+  blocked(x, z, yaw) {
+    const W = this.game.world;
+    const hl = TANK.hullLen / 2;
+    const hw = TANK.hullWidth / 2;
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    const ex = hw * Math.abs(c) + hl * Math.abs(s);
+    const ez = hw * Math.abs(s) + hl * Math.abs(c);
+    for (const col of W.query(x - ex, z - ez, x + ex, z + ez)) {
+      if (col.owner === this || col.max.y - this.pos.y < TANK.drive.climb || col.min.y > this.pos.y + TANK.colliderH) continue;
+      // Ayrık eksen testi (2B): kutunun eksenleri ve gövdenin eksenleri
+      const cx = (col.min.x + col.max.x) / 2 - x;
+      const cz = (col.min.z + col.max.z) / 2 - z;
+      const bx = (col.max.x - col.min.x) / 2;
+      const bz = (col.max.z - col.min.z) / 2;
+      if (Math.abs(cx) > bx + ex || Math.abs(cz) > bz + ez) continue;
+      // Gövde ekseni: sağ (c, -s), ileri (-s, -c)
+      const pr = Math.abs(cx * c - cz * s);
+      if (pr > hw + bx * Math.abs(c) + bz * Math.abs(s)) continue;
+      const pf = Math.abs(-cx * s - cz * c);
+      if (pf > hl + bx * Math.abs(s) + bz * Math.abs(c)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  // Ezme: hızla giden tank önündeki düşman askerini öldürür (robotu yalnız sarsar)
+  crush() {
+    const g = this.game;
+    if (Math.abs(this.vel) < TANK.drive.crush) return;
+    const c = Math.cos(this.yaw);
+    const s = Math.sin(this.yaw);
+    for (const e of g.enemies.list) {
+      if (!e.alive) continue;
+      const dx = e.pos.x - this.pos.x;
+      const dz = e.pos.z - this.pos.z;
+      const r = Math.abs(dx * c - dz * s);
+      const f = Math.abs(-dx * s - dz * c);
+      if (r > TANK.hullWidth / 2 + 0.3 || f > TANK.hullLen / 2 + 0.4) continue;
+      if (e.robot) {
+        e.takeDamage(30, { zone: 'limb', dir: new THREE.Vector3(-s, 0, -c), source: 'player', weapon: 'tank' });
+        this.vel *= 0.3;
+      } else e.takeDamage(500, { zone: 'torso', dir: new THREE.Vector3(-s, 0, -c), source: 'player', weapon: 'tank' });
+    }
+  }
+
+  // Oyuncunun top atışı: namlunun baktığı yöne mermi (sahibi oyuncu); kamera sarsılır
+  fireMainPlayer() {
+    const g = this.game;
+    this.reloadT = TANK.drive.reload;
+    this.recoil = 1;
+    const gun = this.model.gun;
+    gun.updateMatrixWorld(true);
+    const muzzle = gun.localToWorld(_mz.copy(this.model.points.muzzle));
+    const dir = _dir.set(0, 0, -1).transformDirection(gun.matrixWorld);
+    g.grenades.spawnRocket(muzzle, dir, TANK.playerShell, 'player');
+    g.effects.explosion(muzzle, TANK.muzzleFx);
+    g.audio.explosion(muzzle, 0.9);
+    g.player.shake(0.45);
+    g.makeNoise(this.pos, 150, 'gunshot');
+    g.events.emit(EV.VEHICLE_FIRED, { vehicle: this, weapon: 'main' });
+  }
+
+  // Oyuncunun eş eksenli makinelisi: anlık ışın, düşmana ve robota hasar
+  fireCoaxPlayer() {
+    const g = this.game;
+    const K = TANK.playerCoax;
+    this.coaxCd = 60 / K.rpm;
+    const gun = this.model.gun;
+    const muzzle = gun.localToWorld(_mz.copy(this.model.points.coax));
+    const base = _v2.set(0, 0, -1).transformDirection(gun.matrixWorld);
+    const d = randomInCone(base, K.errDeg * DEG, _dir, 0.8);
+    const wh = g.world.raycast(muzzle, d, K.range, _hit);
+    const eh = g.enemies.raycast(muzzle, d, wh ? wh.dist : K.range);
+    let end;
+    if (eh?.enemy) {
+      const out = eh.enemy.takeDamage(K.damage, { zone: eh.zone, dir: d.clone(), point: eh.point, source: 'player', weapon: 'coax' });
+      g.effects.impact(eh.point, _aim.copy(d).negate(), out.armorHit ? 'metal' : 'flesh', 0.6);
+      if (!out.armorHit) g.effects.bloodSpatter(eh.point, d, g.world, 0.7);
+      g.events.emit('hitmarker', out.killed ? 'kill' : 'hit');
+      end = eh.point;
+    } else if (wh) {
+      g.effects.impact(wh.point, wh.normal, wh.surface, 0.7);
+      if (wh.collider?.owner?.onShot && wh.collider.owner !== this) wh.collider.owner.onShot();
+      end = wh.point;
+    } else end = _v.copy(muzzle).addScaledVector(d, K.range);
+    g.effects.tracer(muzzle, end, 420, 0.03);
+    g.audio.gunshot('enemyLmg', muzzle);
+    g.effects.enemyMuzzle(muzzle, d);
+    g.makeNoise(this.pos, 70, 'gunshot');
   }
 
   plant() {
@@ -340,12 +544,13 @@ export class Tank {
     }
   }
 
-  // İmha: büyük patlama, kararmış gövde, yana kaymış taret, uzun süre yanan ateş
+  // İmha: büyük patlama, kararmış gövde, yana kaymış taret, uzun süre yanan ateş. İçinde oyuncu varsa fırlar
   destroy() {
     const g = this.game;
     if (this.destroyed) return;
     this.destroyed = true;
     this.hp = 0;
+    if (g.vehicles?.driving === this) g.vehicles.onDestroyed(this);
     const m = this.model;
     for (const mesh of m.meshes) mesh.material = m.burnt;
     m.turret.rotation.z = 0.12;
@@ -367,7 +572,7 @@ export class Tank {
         }
       },
     });
-    g.addScore(TANK.score, 'TANK İMHA EDİLDİ');
+    if (this.side !== 'player') g.addScore(TANK.score, 'TANK İMHA EDİLDİ');
     g.stats.tanks = (g.stats.tanks || 0) + 1;
     g.events.emit('tankDestroyed', this);
     g.events.emit('message', 'TANK İMHA EDİLDİ', 'info');

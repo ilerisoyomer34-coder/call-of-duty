@@ -1,7 +1,7 @@
 // Oyuncu karakteri (AShooterCharacter karşılığı): hareket, bakış, geri tepme telafisi,
 // nişan alma, çömelme, eğilme, koşma, ayak sesleri, sağlık/yenilenme, kamera sarsıntısı ve etkileşim.
 import * as THREE from 'three';
-import { MOVEMENT as M, KIT, BALANCE, SIM, ONLINE, SIGHT_VIEW } from './config.js';
+import { MOVEMENT as M, KIT, BALANCE, SIM, ONLINE, SIGHT_VIEW, BLOOD } from './config.js';
 import { TICK_DT } from '../shared/constants.js';
 import { createPlayerState, resetPlayerState, createInputCmd, stepPlayer, SIM_EV, BTN } from '../shared/sim/movement.js';
 import { updateInputCmd } from './inputCmd.js';
@@ -105,6 +105,17 @@ export class Player {
     this.breath = 1;
     this.breathTired = false;
     this.scopeAmp = 0;
+  }
+
+  // Yer değiştir (araçtan inince): can, zırh ve süreler korunur; yalnız konum, hız ve bakış
+  teleport(pos, yaw) {
+    this.pos.copy(pos);
+    this.vel.set(0, 0, 0);
+    this.state.grounded = true;
+    this.syncRender();
+    this.yaw = yaw;
+    this.crouched = false;
+    this.camY = pos.y + M.eyeStand;
   }
 
   get grounded() {
@@ -315,6 +326,8 @@ export class Player {
       W.cookT = 0;
     }
     g.save?.update((d) => (d.stats.timesDowned = (d.stats.timesDowned || 0) + 1));
+    // Altında kan yayılır: sürünürken bıraktığı göl yerinde kalır
+    g.effects.bloodPool(this.pos, BLOOD.downedPoolSize, BLOOD.downedPoolTime, 0.5, g.world);
     g.events.emit(EV.PLAYER_DOWNED, { downCount: g.stats.downs, bleedSec: this.bleed.total });
     g.events.emit('message', 'YERE DÜŞTÜN', 'warn');
   }

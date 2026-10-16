@@ -15,14 +15,15 @@
 //   5) Tepkiler: atışta geri tepme, isabette sarsılma ve burulma, ölümde silah yere düşer.
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { loadCharacterAsset, loadCharacterLod } from './assets.js';
+import { loadCharacterAsset, loadCharacterLod, loadWeaponAsset, CHARACTER_ASSETS, WEAPON_ASSETS } from './assets.js';
 import { warnOnce } from './util.js';
 import { buildSoldier, buildEnemyGun, mergeGroup, ENEMY_GUN_KIND, ENEMY_GUN_POINTS } from './models.js';
 import { SOLDIER_ANIM, SOLDIER_LOOKS, SOLDIER_HITBOXES } from './config.js';
 import { clamp, damp, dampAngle, angleDiff, dirToYaw, lerp, smoothstep, rand, Spring } from './util.js';
 
 const A = SOLDIER_ANIM;
-let template = null;
+let template = null; // düşman askeri (soldier); kliplerin sahibi
+const templates = new Map(); // karakter kimliği → şablon (soldier + Alfa Timi askerleri)
 let envMap = null; // haritanın yansıma haritası (setSoldierEnvironment)
 let realShadows = true; // gölge haritası açık mı (düşük kalitede kapalı: ayak gölgesi her mesafede)
 
@@ -51,8 +52,11 @@ function blobAssets() {
 export function setSoldierEnvironment(tex, shadowsOn) {
   envMap = tex;
   realShadows = shadowsOn;
-  if (!template) return;
-  for (const L of template.looks.values()) {
+  for (const m of worldGunMats.values()) {
+    if (!m.envMap !== !tex) m.needsUpdate = true;
+    m.envMap = tex;
+  }
+  for (const T of templates.values()) for (const L of T.looks.values()) {
     for (const m of L.values()) {
       if (!m.isMeshStandardMaterial) continue;
       if (!m.envMap !== !tex) m.needsUpdate = true;
@@ -187,11 +191,40 @@ function handQuat(out, fingerW, palmW, hand) {
   return out.setFromRotationMatrix(_m2);
 }
 
+// Klipler başka şablondan (Alfa Timi askerleri, tools/prepare-squad.mjs): iskelet aynı adlı ve aynı dinlenme
+// dönüşlü, yalnız kemik boyları farklı. Bu yüzden kalça dışındaki konum ve ölçek izleri atılır (kemik boyunu
+// eski askerinkine çekerlerdi); kalça izi dinlenme yerine göre, kalça yükseklikleri oranında ölçeklenir
+function adaptClips(base, scene, hipRatio) {
+  const hipNew = scene.getObjectByName('Hips').position;
+  const hipOld = base.scene.getObjectByName('Hips').position;
+  const out = [];
+  for (const c of Object.values(base.clips)) {
+    const tracks = [];
+    for (const t of c.tracks) {
+      // İskelette olmayan uç düğümlerin izi (sol başparmak 3…) atılır: bağlayıcı her askerde uyarı basmasın
+      if (!scene.getObjectByName(t.name.slice(0, t.name.lastIndexOf('.')))) continue;
+      if (t.name.endsWith('.quaternion')) tracks.push(t);
+      else if (t.name === 'Hips.position') {
+        const k = t.clone();
+        const v = k.values;
+        for (let i = 0; i < v.length; i += 3) {
+          v[i] = hipNew.x + (v[i] - hipOld.x) * hipRatio;
+          v[i + 1] = hipNew.y + (v[i + 1] - hipOld.y) * hipRatio;
+          v[i + 2] = hipNew.z + (v[i + 2] - hipOld.z) * hipRatio;
+        }
+        tracks.push(k);
+      }
+    }
+    out.push(new THREE.AnimationClip(c.name, c.duration, tracks));
+  }
+  return out;
+}
+
 // --- Şablon ---
-function prepareTemplate({ scene, animations }) {
+function prepareTemplate({ scene, animations }, opts = {}) {
   scene.updateMatrixWorld(true);
   const clips = {};
-  for (const c of animations) clips[c.name] = c;
+  for (const c of opts.base ? adaptClips(opts.base, scene, opts.hipRatio || 1) : animations) clips[c.name] = c;
   for (const n of ['Idle', 'Walk', 'Run']) if (!clips[n]) throw new Error(`Asker modelinde ${n} klibi yok`);
   const bones = {};
   scene.traverse((o) => {
@@ -261,18 +294,22 @@ function prepareTemplate({ scene, animations }) {
     sp.radius *= 1.35;
     spheres.set(o.name, sp);
   });
-  return { scene, clips, hands, headFwd, fingers, strike, spheres, looks: new Map() };
+  return { scene, clips, hands, headFwd, fingers, strike, spheres, looks: new Map(), natural: !!opts.natural };
 }
 
-function lookMaterials(type) {
-  let L = template.looks.get(type);
+// Türün görünümü: düşman askerinde dokuyu renkle çarparak birlik farkı. Kendi kamuflajı olan model (natural:
+// Alfa Timi askerleri) boyanmaz; pürüz/metal dokusu çarpanları 1 kalır
+function lookMaterials(T, type) {
+  let L = T.looks.get(type);
   if (L) return L;
   const spec = SOLDIER_LOOKS[type] || SOLDIER_LOOKS.rifleman;
   L = new Map();
-  template.scene.traverse((o) => {
+  T.scene.traverse((o) => {
     if (!o.isMesh || L.has(o.material)) return;
     const m = o.material.clone();
-    if (/visor/i.test(o.name)) {
+    if (T.natural) {
+      // dokular olduğu gibi
+    } else if (/visor/i.test(o.name)) {
       m.color.set(spec.visor);
       m.roughness = 0.22;
       m.metalness = 0.65;
@@ -287,11 +324,12 @@ function lookMaterials(type) {
     m.envMapIntensity = A.envIntensity;
     L.set(o.material, m);
   });
-  template.looks.set(type, L);
+  T.looks.set(type, L);
   return L;
 }
 
-// Açılışta bir kez: hazır modeli yükle. Hata olursa prosedürel askerler kullanılır.
+// Açılışta bir kez: hazır modelleri yükle. Düşman askeri gelmezse prosedürel askerler kullanılır; Alfa Timi
+// modeli gelmezse dostlar düşman askerinin mavi boyalı hâliyle çıkar
 export async function preloadSoldier() {
   if (template) return true;
   const asset = await loadCharacterAsset('soldier');
@@ -299,6 +337,20 @@ export async function preloadSoldier() {
   // Uzak model gelmezse askerler hep tam ayrıntıda çizilir (oyun çalışır, yalnız daha ağır)
   t.lodGeos = await loadCharacterLod('soldier').catch((e) => (warnOnce('soldier-lod', `Uzak asker modeli yüklenemedi (${e.message})`), null));
   template = t;
+  templates.set('soldier', t);
+  await Promise.all(
+    Object.entries(CHARACTER_ASSETS)
+      .filter(([, e]) => e.clipsFrom === 'soldier')
+      .map(async ([id, e]) => {
+        try {
+          const T = prepareTemplate(await loadCharacterAsset(id), { base: t, hipRatio: e.hipRatio, natural: e.natural });
+          T.lodGeos = e.lod ? await loadCharacterLod(id).catch(() => null) : null;
+          templates.set(id, T);
+        } catch (err) {
+          warnOnce(`char-${id}`, `${id} modeli yüklenemedi, yerine düşman askeri kullanılıyor (${err.message})`);
+        }
+      })
+  );
   return true;
 }
 
@@ -306,21 +358,49 @@ export function soldierModelReady() {
   return !!template;
 }
 
-export function createSoldier(type, colors) {
-  return template ? new SkinnedSoldier(type, colors) : new BlockSoldier(type, colors);
+// model: karakter kimliği (characterAssets.json; ör. Alfa Timi askeri). Verilmezse türün modeli ya da düşman askeri.
+// gun: elde gerçek silah modeli (weaponAssets.json kimliği); inene dek kodla kurulmuş silah tutulur
+export function createSoldier(type, colors, model = null, gun = null) {
+  if (!template) return new BlockSoldier(type, colors);
+  const id = model || SOLDIER_LOOKS[type]?.model;
+  const s = new SkinnedSoldier(type, colors, (id && templates.get(id)) || template);
+  if (gun && WEAPON_ASSETS[gun]) s.useGunAsset(gun);
+  return s;
+}
+
+// Askerin elindeki gerçek silah: görünüm modeliyle aynı GLB (geometri ve dokular paylaşılır), malzemeler dünya
+// sahnesi için bir kez kopyalanır (görünüm modeli ayrı sahnede ve ışıkta çizilir)
+const worldGunMats = new Map();
+function worldGun(id, scene) {
+  const g = scene.clone(true);
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    let m = worldGunMats.get(o.material);
+    if (!m) {
+      m = o.material.clone();
+      m.envMap = envMap;
+      m.envMapIntensity = A.envIntensity * 2;
+      worldGunMats.set(o.material, m);
+    }
+    o.material = m;
+    o.castShadow = true;
+    o.receiveShadow = false;
+    o.frustumCulled = false;
+  });
+  return g;
 }
 
 // --- İskeletli asker ---
 class SkinnedSoldier {
-  constructor(type, colors) {
-    const T = template;
+  constructor(type, colors, T) {
+    this.T = T;
     this.type = type;
     this.root = new THREE.Group();
     this.root.rotation.order = 'YXZ';
     this.body = cloneSkinned(T.scene);
     this.root.add(this.body);
     this.bones = {};
-    const L = lookMaterials(type);
+    const L = lookMaterials(T, type);
     this.body.traverse((o) => {
       if (o.isBone) this.bones[o.name] = o;
       if (o.isSkinnedMesh) {
@@ -407,6 +487,40 @@ class SkinnedSoldier {
     this.lodT = 1;
     this.resetState();
     if (colors?.scale) this.root.scale.setScalar(colors.scale);
+  }
+
+  // Kodla kurulmuş silahın yerine gerçek model (Alfa Timi). Tutma noktaları modelin kendi noktalarından:
+  // köken sağ elin kavradığı yer, sol el kundakta (leftHand), dipçik ucu modelin arka sınırı
+  useGunAsset(id) {
+    const r = WEAPON_ASSETS[id];
+    const H = A.heldGun;
+    loadWeaponAsset(id)
+      .then((scene) => {
+        if (this.disposed) return;
+        const gun = worldGun(id, scene);
+        const p = r.points;
+        const v = (a, o = [0, 0, 0]) => new THREE.Vector3(a[0] + o[0], a[1] + o[1], a[2] + o[2]);
+        this.gp = {
+          muzzle: v(p.muzzle),
+          grip: v(H.grip),
+          fore: v(p.leftHand, H.fore),
+          magWell: v([0, H.magY, p.leftHand[2] * 0.45]),
+          stock: r.bounds.max[2] + H.stockPad,
+        };
+        gun.visible = this.gun.visible;
+        gun.position.copy(this.gun.position);
+        gun.quaternion.copy(this.gun.quaternion);
+        const i = this.casters.indexOf(this.gun);
+        this.gun.removeFromParent();
+        this.root.add(gun);
+        this.gun = gun;
+        this.gunAsset = id;
+        // Gölge düşürenler: silahın bütün parçaları (ayak gölgesine geçişte hepsi kapanır)
+        if (i >= 0) this.casters.splice(i, 1);
+        gun.traverse((o) => o.isMesh && this.casters.push(o));
+        if (this.blob.visible) for (const m of this.casters) m.castShadow = false;
+      })
+      .catch((e) => warnOnce(`held-${id}`, `${id}: elde tutulan silah modeli yüklenemedi (${e.message})`));
   }
 
   // Görünmez kutular kemiklere bağlı: iskeleti takip eder, ışın testi ucuzdur (her biri 12 üçgen)
@@ -539,7 +653,7 @@ class SkinnedSoldier {
     this.runT = damp(this.runT, clamp01((sp - A.runBlend[0]) / (A.runBlend[1] - A.runBlend[0])), 6, step);
     const stride = lerp(A.walkStride, A.runStride, this.runT);
     this.phase = (this.phase + ((this.back ? -1 : 1) * spAnim * step) / stride + 1) % 1;
-    const T = template;
+    const T = this.T;
     this.walk.time = ((this.phase + T.strike.Walk) % 1) * T.clips.Walk.duration;
     this.run.time = ((this.phase + T.strike.Run) % 1) * T.clips.Run.duration;
     this.idle.setEffectiveWeight(1 - this.moveT);
@@ -728,7 +842,7 @@ class SkinnedSoldier {
     this.useBlob(false); // devrilen gövdeyle birlikte eğilmesin
     if (!this.gun.visible) return;
     this.gun.updateMatrixWorld();
-    const drop = new THREE.Mesh(this.gun.geometry, this.gun.material);
+    const drop = this.gun.isMesh ? new THREE.Mesh(this.gun.geometry, this.gun.material) : this.gun.clone(true);
     this.gun.matrixWorld.decompose(drop.position, drop.quaternion, drop.scale);
     drop.castShadow = true;
     game.scene.add(drop);
@@ -765,12 +879,18 @@ class SkinnedSoldier {
     return this.gun.localToWorld(out.copy(this.gp.muzzle));
   }
 
+  // Gövdenin ortası (dünya): devrilmiş askerin kan gölü buraya yayılır
+  bodyCenter(out) {
+    return bonePos(this.bones.Spine1, out);
+  }
+
   hide() {
     this.root.visible = false;
     if (this.dropped) this.dropped.visible = false;
   }
 
   dispose() {
+    this.disposed = true;
     this.root.removeFromParent();
     if (this.dropped) this.dropped.removeFromParent();
     this.mixer.stopAllAction();

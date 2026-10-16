@@ -210,7 +210,8 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
   const P = game.player;
   const result = { kills: 0 };
   // Oyuncu
-  if (P.alive) {
+  // Araçtaki oyuncuyu patlama değil aracın zırhı karşılar (tank.onExplosion)
+  if (P.alive && !P.vehicle) {
     const c = P.chestPos(_v);
     const d = c.distanceTo(pos);
     if (d < radius) {

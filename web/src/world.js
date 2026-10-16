@@ -2,8 +2,11 @@
 // karakter çarpışması ve çizim çağrısını azaltmak için malzemeye göre birleştirilmiş geometri.
 import * as THREE from 'three';
 import { CollisionWorld } from '../shared/sim/collision.js';
-import { getTreeProp, getContainerProp } from './models.js';
-import { TREES, RENDER } from './config.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { getTreeProp, getContainerProp, addWind } from './models.js';
+import { TREES, RENDER, GRASS, WIND } from './config.js';
+
+let grassGeo = null; // çimen öbeği geometrisi (haritalar arasında paylaşılır)
 
 // Zemin kaplamaları gölge düşürmez (gölge haritasında boşa çizilmesin)
 const FLAT_MATERIALS = new Set(['sand', 'dirt', 'helipad', 'snow', 'asphalt', 'water']);
@@ -132,6 +135,12 @@ export class World extends CollisionWorld {
     // Işımalı lamba başlığı: gece haritasında ışık kaynağı eklemeden parlak görünür (ışık sayısı sabit)
     M.lampGlow = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffd49a, emissiveIntensity: 3, vertexColors: true });
     M.lampGlow.userData.tile = 1;
+    // Orman zemini ve fabrika/çekirdek lambaları (kırmızı uyarı, camgöbeği makine ışığı)
+    M.grass = std(T.grass, 0xffffff, 1, 0, 7);
+    M.lampRed = new THREE.MeshStandardMaterial({ color: 0x220808, emissive: 0xff3a24, emissiveIntensity: 3.2, vertexColors: true });
+    M.lampRed.userData.tile = 1;
+    M.lampCyan = new THREE.MeshStandardMaterial({ color: 0x08181c, emissive: 0x3ad8ff, emissiveIntensity: 2.6, vertexColors: true });
+    M.lampCyan.userData.tile = 1;
     return M;
   }
 
@@ -296,6 +305,72 @@ export class World extends CollisionWorld {
       }
     }
     this.treeMeshes = n;
+  }
+
+  // Çimen öbekleri: haritanın ortam satırındaki sıklıkla (100 m² başına) rastgele ama her açılışta aynı yerlere,
+  // yerdeki çarpıştırıcılardan ve kaçınma alanlarından (yol, dere) uzak. Hücre başına bir InstancedMesh (görüş
+  // dışı hücre çizilmez); iki çapraz düzlem, yukarı bakan normal (yumuşak ışık), rüzgârda salınır, gölge düşürmez
+  scatterGrass(spec, quality, avoid = []) {
+    if (!spec) return;
+    const q = GRASS.density[quality] ?? 0.55;
+    const B = this.bounds;
+    if (!q || !B) return;
+    if (!grassGeo) {
+      const a = new THREE.PlaneGeometry(1, 1);
+      a.translate(0, 0.5, 0);
+      const b = a.clone().rotateY(Math.PI / 2);
+      const c = a.clone().rotateY(Math.PI / 4);
+      grassGeo = mergeGeometries([a, b, c]);
+      const n = grassGeo.attributes.normal;
+      for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+      grassGeo.userData.shared = true;
+    }
+    if (!this.grassMat) {
+      this.grassMat = new THREE.MeshStandardMaterial({ map: this.T.grassBlades, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
+      addWind(this.grassMat, WIND.grass, 0, 1);
+    }
+    const area = (B.maxx - B.minx) * (B.maxz - B.minz);
+    const count = Math.round((area / 100) * spec.density * q);
+    let st = 7919;
+    const rnd = () => ((st = (st * 16807) % 2147483647) / 2147483647);
+    const items = [];
+    const base = new THREE.Color(spec.color);
+    for (let i = 0; i < count * 2 && items.length < count; i++) {
+      const x = B.minx + rnd() * (B.maxx - B.minx);
+      const z = B.minz + rnd() * (B.maxz - B.minz);
+      if (avoid.some((r) => x > r[0] && x < r[2] && z > r[1] && z < r[3])) continue;
+      if (this.query(x - 0.4, z - 0.4, x + 0.4, z + 0.4).some((c) => c.min.y < 0.6 && x > c.min.x - 0.3 && x < c.max.x + 0.3 && z > c.min.z - 0.3 && z < c.max.z + 0.3)) continue;
+      items.push({ x, z, r: rnd(), s: rnd(), c: 0.8 + rnd() * 0.35 });
+    }
+    const m4 = new THREE.Matrix4();
+    const qq = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const col = new THREE.Color();
+    const cells = new Map();
+    for (const it of items) {
+      const k = `${Math.floor(it.x / GRASS.cell)},${Math.floor(it.z / GRASS.cell)}`;
+      if (!cells.has(k)) cells.set(k, []);
+      cells.get(k).push(it);
+    }
+    for (const list of cells.values()) {
+      const mesh = new THREE.InstancedMesh(grassGeo, this.grassMat, list.length);
+      list.forEach((it, i) => {
+        const h = GRASS.height[0] + it.s * (GRASS.height[1] - GRASS.height[0]);
+        const w = GRASS.width[0] + it.r * (GRASS.width[1] - GRASS.width[0]);
+        qq.setFromAxisAngle(up, it.r * Math.PI * 2);
+        m4.compose(p.set(it.x, 0, it.z), qq, sc.set(w, h * (spec.height || 1), w));
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, col.copy(base).multiplyScalar(it.c));
+      });
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
+      mesh.computeBoundingSphere();
+      this.scene.add(mesh);
+      this.meshes.push(mesh);
+    }
+    this.grassCount = items.length;
   }
 
   // Konteynerler: renk çeşidi ve harita hücresi başına bir InstancedMesh. Model 40 fit; çeşidin kutusu tabanı ortada orijine taşınır ve

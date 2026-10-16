@@ -26,6 +26,15 @@ Bu dört model başka bir kaynaktan indirildiyse yazar, bağlantı ve lisans bil
 
 Mixamo koşulları özetle: karakter ve animasyonlar kişisel ve ticari projelerde (oyunlar dahil) telifsiz kullanılabilir, ancak tek başına ham dosya olarak satılamaz veya dağıtılamaz. Depo herkese açıksa ham GLB'nin depoda durması bu kısıtla çelişebilir; ticari sürümden önce karakter kendi Adobe hesabıyla Mixamo'dan indirilmeli ya da CC0 bir modelle değiştirilmeli. Ayrıntı: `SourceAssets/Characters/soldier_vanguard/asset_info.json`.
 
+### Alfa Timi askerleri ve savaş robotu (SourceAssets/Characters)
+
+| Oyunda | Kaynak | Yazar | Lisans | Değişiklik |
+|---|---|---|---|---|
+| Alfa Timi askerleri (Demir, Kaya, Yıldız) ve lobideki operatör | [3 soldier low poly (outdated) — Sketchfab](https://sketchfab.com/3d-models/3-soldier-low-poly-outdated-9b5bd75966764a87ae09c8b77e21f4c2) | [buh](https://sketchfab.com/buh-late) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Üç asker ayrıldı, A pozundan oyunun asker iskeletinin T pozuna bükülüp kemikleri yeniden adlandırıldı (animasyonlar oyunun klipleriyle), ~16 bin üçgene sadeleştirildi, dokular JPEG (`web/tools/prepare-squad.mjs`) |
+| Savaş robotu (7–10. bölümler) | [Combat Robot — Sketchfab](https://sketchfab.com/3d-models/combat-robot-55fe65bbb4074979ac0cb44850df4ddc) | [ILUSHANDRO](https://sketchfab.com/ILUSHANDRO) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Kaide atıldı, parçalar eklemlere ayrılıp kodla hareketlendirildi, 122 bin → 35 bin üçgen, 2,9 m'ye ölçeklendi, dokular 1024 px JPEG (`web/tools/prepare-robot.mjs`) |
+
+Aynı oturumda yüklenen "Haze Light Skirmisher Mech", "Pelter – Artillery Mech" ve "Centurion Heavy Assault Mech" (Lagst) Sketchfab Standard lisanslı: ham model oyunla birlikte dağıtılamayacağı için alınmadı.
+
 ### Araçlar ve eşyalar (SourceAssets/Sketchfab)
 
 | Oyunda | Kaynak | Yazar | Lisans | Değişiklik |

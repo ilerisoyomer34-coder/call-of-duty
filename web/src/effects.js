@@ -2,7 +2,7 @@
 // çıkartmalar (decal), ışık patlamaları ve patlamalar. Hepsi havuzlanır; çalışma sırasında bellek ayrılmaz.
 import * as THREE from 'three';
 import { rand, randSign } from './util.js';
-import { SURFACES } from './config.js';
+import { SURFACES, BLOOD } from './config.js';
 
 const VERT = /* glsl */ `
 attribute float size;
@@ -189,18 +189,21 @@ class Particles {
 
 // Halka tampon çıkartma havuzu (InstancedMesh)
 class DecalPool {
-  constructor(scene, max, map, { opacity = 1, sizeJitter = 0.3 } = {}) {
+  constructor(scene, max, map, { opacity = 1, sizeJitter = 0.3, roughness = 1, color = 0xffffff } = {}) {
     this.max = max;
     this.i = 0;
     const mat = new THREE.MeshStandardMaterial({
       map,
+      color,
       transparent: true,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -4,
       opacity,
-      roughness: 1,
+      roughness,
+      metalness: 0,
     });
+    this.mat = mat;
     this.mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, max);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
@@ -216,10 +219,11 @@ class DecalPool {
     this._s = new THREE.Vector3();
     this._p = new THREE.Vector3();
   }
-  add(point, normal, size) {
+  // spin verilirse leke o açıyla döner (sıçrama dokusunun +X'i merminin yönüne), yoksa rastgele
+  add(point, normal, size, spin = Math.random() * Math.PI * 2) {
     const s = size * (1 + (Math.random() - 0.5) * this.sizeJitter);
     this._q.setFromUnitVectors(Z, normal);
-    this._q2.setFromAxisAngle(Z, Math.random() * Math.PI * 2);
+    this._q2.setFromAxisAngle(Z, spin);
     this._q.multiply(this._q2);
     this._p.copy(point).addScaledVector(normal, 0.012 + Math.random() * 0.004);
     this._m.compose(this._p, this._q, this._s.set(s, s, s));
@@ -235,6 +239,73 @@ class DecalPool {
 }
 const Z = new THREE.Vector3(0, 0, 1);
 const UP = new THREE.Vector3(0, 1, 0);
+const DOWN = new THREE.Vector3(0, -1, 0);
+
+// Kan gölleri: ölen ya da yere düşen askerin altında birkaç saniyede yayılan ıslak (parlak) leke. Halka tampon;
+// büyüyen göller her karede ölçeklenir, büyümesi bitenler bir daha yazılmaz
+class BloodPools {
+  constructor(scene, max, map) {
+    this.max = max;
+    this.i = 0;
+    this.mat = new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, roughness: BLOOD.poolRoughness, metalness: 0 });
+    const geo = new THREE.PlaneGeometry(1, 1);
+    geo.rotateX(-Math.PI / 2);
+    this.mesh = new THREE.InstancedMesh(geo, this.mat, max);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.receiveShadow = true;
+    this.mesh.renderOrder = 1;
+    this.slots = [];
+    for (let k = 0; k < max; k++) this.slots.push({ p: new THREE.Vector3(), rot: 0, size: 0, t: 0, dur: 1, growing: false, delay: 0 });
+    this.clear();
+    scene.add(this.mesh);
+    this._m = new THREE.Matrix4();
+    this._q = new THREE.Quaternion();
+    this._s = new THREE.Vector3();
+  }
+  add(point, size, dur, delay = 0) {
+    const S = this.slots[this.i];
+    this.i = (this.i + 1) % this.max;
+    S.p.copy(point);
+    S.p.y += 0.008 + Math.random() * 0.004;
+    S.rot = Math.random() * Math.PI * 2;
+    S.size = size * (0.85 + Math.random() * 0.3);
+    S.t = 0;
+    S.dur = dur;
+    S.delay = delay;
+    S.growing = true;
+  }
+  update(dt) {
+    let any = false;
+    for (let k = 0; k < this.max; k++) {
+      const S = this.slots[k];
+      if (!S.growing) continue;
+      if (S.delay > 0) {
+        S.delay -= dt;
+        continue;
+      }
+      S.t += dt;
+      const x = Math.min(1, S.t / S.dur);
+      // Önce hızlı, sonra yavaşlayarak yayılır (kan akışı azalır)
+      const g = 1 - Math.pow(1 - x, 3);
+      const sz = Math.max(0.001, S.size * (0.12 + 0.88 * g));
+      this._q.setFromAxisAngle(UP, S.rot);
+      this._m.compose(S.p, this._q, this._s.set(sz, 1, sz));
+      this.mesh.setMatrixAt(k, this._m);
+      if (x >= 1) S.growing = false;
+      any = true;
+    }
+    if (any) this.mesh.instanceMatrix.needsUpdate = true;
+  }
+  clear() {
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (let k = 0; k < this.max; k++) {
+      this.mesh.setMatrixAt(k, zero);
+      this.slots[k].growing = false;
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+}
 
 export class Effects {
   constructor(scene, textures, audio, quality = 'high') {
@@ -244,7 +315,12 @@ export class Effects {
     this.add = new Particles(scene, pmax, textures.soft, true);
     this.smoke = new Particles(scene, pmax, textures.smoke, false);
     this.holes = new DecalPool(scene, quality === 'low' ? 80 : 220, textures.bulletHole, { sizeJitter: 0.4 });
-    this.bloodDecals = new DecalPool(scene, 60, textures.blood, { sizeJitter: 0.6 });
+    // Kan: üç leke biçimi (sıçrama, damlalar, yuvarlak leke), hafif ıslak parlaklık; göller ayrı (büyür)
+    const bd = quality === 'low' ? BLOOD.decalsLow : BLOOD.decals;
+    this.bloodSpray = new DecalPool(scene, bd, textures.bloodSpray, { sizeJitter: 0.4, roughness: BLOOD.splatRoughness });
+    this.bloodDrops = new DecalPool(scene, bd, textures.bloodDrops, { sizeJitter: 0.5, roughness: BLOOD.splatRoughness });
+    this.bloodDecals = new DecalPool(scene, bd, textures.blood, { sizeJitter: 0.6, roughness: BLOOD.splatRoughness });
+    this.bloodPools = new BloodPools(scene, quality === 'low' ? BLOOD.poolsLow : BLOOD.pools, textures.bloodPool);
     this.scorch = new DecalPool(scene, 24, textures.scorch, { sizeJitter: 0.2 });
     this.bloodOn = true;
     this._c = new THREE.Color();
@@ -371,10 +447,14 @@ export class Effects {
         this.smoke.spawn(x, y, z, 0, 0.3, 0, 0.4, 0.1, 0.4, this.color(0x999999), 0.4, 0, 2);
         return;
       }
-      const c = this.color(0x6d0b0b);
-      for (let i = 0; i < 10 * strength; i++)
-        this.smoke.spawn(x, y, z, n.x * rand(1, 3) + rand(-1.2, 1.2), rand(-0.2, 1.8), n.z * rand(1, 3) + rand(-1.2, 1.2), rand(0.25, 0.5), 0.07, 0.03, c, 0.95, 9, 1.2);
-      this.smoke.spawn(x, y, z, n.x * 0.6, 0.1, n.z * 0.6, 0.35, 0.12, 0.55, this.color(0x7a1010), 0.55, 0, 3);
+      // Damlalar yerçekimiyle düşer; ince kan sisi mermi çıkış yönünde (−n) yayılır ve çabuk söner
+      const c = this.color(0x5e0707);
+      for (let i = 0; i < 14 * strength; i++)
+        this.smoke.spawn(x, y, z, -n.x * rand(0.5, 3.5) + rand(-1.2, 1.2), rand(-0.2, 2.2), -n.z * rand(0.5, 3.5) + rand(-1.2, 1.2), rand(0.35, 0.7), rand(0.04, 0.08), 0.03, c, 0.95, 9.8, 0.8);
+      for (let i = 0; i < 6 * strength; i++)
+        this.smoke.spawn(x, y, z, n.x * rand(0.6, 2) + rand(-0.8, 0.8), rand(0, 1.4), n.z * rand(0.6, 2) + rand(-0.8, 0.8), rand(0.25, 0.45), 0.05, 0.02, c, 0.95, 9.8, 1);
+      this.smoke.spawn(x, y, z, -n.x * 0.8, 0.1, -n.z * 0.8, 0.3, 0.1, 0.6, this.color(0x7a1010), 0.5, 0, 3);
+      this.smoke.spawn(x, y, z, n.x * 0.5, 0.05, n.z * 0.5, 0.22, 0.08, 0.35, this.color(0x8a1414), 0.45, 0, 3);
       return;
     } else {
       // toz/kıymık
@@ -397,6 +477,52 @@ export class Effects {
 
   bloodSplat(point, normal, size = 0.5) {
     if (this.bloodOn) this.bloodDecals.add(point, normal, size);
+  }
+
+  // Ortam yansıması: ıslak kan gökyüzünü yansıtsın (harita değişince)
+  setEnvironment(tex) {
+    for (const m of [this.bloodSpray.mat, this.bloodDrops.mat, this.bloodDecals.mat, this.bloodPools.mat]) {
+      if (!m.envMap !== !tex) m.needsUpdate = true;
+      m.envMap = tex;
+      m.envMapIntensity = BLOOD.envIntensity;
+    }
+  }
+
+  // Ete isabet eden merminin bıraktığı kan: arkadaki duvara/zemine mermi yönünde sıçrama, altındaki zemine
+  // damlalar. world: çarpışma dünyası (ışın testi); dir: mermi yönü (birim)
+  bloodSpatter(point, dir, world, strength = 1) {
+    if (!this.bloodOn || !world) return;
+    const B = BLOOD;
+    if (Math.random() < B.wallChance) {
+      const h = world.raycast(point, dir, B.wallReach, _bh);
+      if (h) {
+        // Dokunun +X'i merminin yüzeydeki izdüşümüne: damlalar o yöne savrulur
+        _bq.setFromUnitVectors(Z, h.normal).invert();
+        _bv.copy(dir).applyQuaternion(_bq);
+        const spin = Math.atan2(_bv.y, _bv.x);
+        this.bloodSpray.add(h.point, h.normal, (B.wallSize[0] + Math.random() * (B.wallSize[1] - B.wallSize[0])) * strength, spin);
+      }
+    }
+    if (Math.random() < B.groundChance) {
+      _bv.copy(point).addScaledVector(dir, 0.3 + Math.random() * 0.6);
+      _bv.x += (Math.random() - 0.5) * 0.4;
+      _bv.z += (Math.random() - 0.5) * 0.4;
+      const f = world.raycast(_bv, DOWN, 3, _bh);
+      if (f && f.normal.y > 0.5) this.bloodDrops.add(f.point, f.normal, (B.groundSize[0] + Math.random() * (B.groundSize[1] - B.groundSize[0])) * strength);
+    }
+  }
+
+  // Ölen / yere düşen askerin altında yayılan kan gölü (zemine oturtulur)
+  bloodPool(point, size = BLOOD.poolSize, dur = BLOOD.poolTime, delay = 0, world = null) {
+    if (!this.bloodOn) return;
+    _bv.copy(point);
+    if (world) {
+      _bv.y += 0.5;
+      const f = world.raycast(_bv, DOWN, 2.5, _bh);
+      if (f) _bv.y = f.point.y;
+      else _bv.y = point.y;
+    }
+    this.bloodPools.add(_bv, size, dur, delay);
   }
 
   muzzleSmoke(pos, dir) {
@@ -455,6 +581,7 @@ export class Effects {
   update(dt, camPos) {
     this.add.update(dt);
     this.smoke.update(dt);
+    this.bloodPools.update(dt);
     // Işıklar
     for (const L of this.lights) {
       if (L.light.intensity <= 0) continue;
@@ -544,6 +671,9 @@ export class Effects {
     this.smoke.clear();
     this.holes.clear();
     this.bloodDecals.clear();
+    this.bloodSpray.clear();
+    this.bloodDrops.clear();
+    this.bloodPools.clear();
     this.scorch.clear();
     for (const t of this.tracers) t.active = false;
     for (const s of this.shells) s.active = false;
@@ -554,5 +684,8 @@ export class Effects {
   }
 }
 const NEGZ = new THREE.Vector3(0, 0, -1);
+const _bh = { point: new THREE.Vector3(), normal: new THREE.Vector3(), dist: 0 };
+const _bv = new THREE.Vector3();
+const _bq = new THREE.Quaternion();
 
 export { randSign };

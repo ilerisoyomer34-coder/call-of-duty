@@ -20,6 +20,11 @@ export const EV = Object.freeze({
   COMMAND_FAILED: 'COMMAND_FAILED', // { commandId, addressees, reason }
   ITEM_USED: 'ITEM_USED', // { itemId }
   OBJECTIVE_COMPLETED: 'OBJECTIVE_COMPLETED', // { objectiveId }
+  // Araçlar (vehicle.js): tank; ileride helikopter
+  TANK_ABANDONED: 'TANK_ABANDONED', // { tank }  (mürettebat kaçtı, binilebilir)
+  VEHICLE_ENTERED: 'VEHICLE_ENTERED', // { vehicle }
+  VEHICLE_EXITED: 'VEHICLE_EXITED', // { vehicle, destroyed }
+  VEHICLE_FIRED: 'VEHICLE_FIRED', // { vehicle, weapon }
   CREDITS_CHANGED: 'CREDITS_CHANGED', // { credits, delta, reason }
   // Çevrim içi ve kimlik (çok oyunculu S1–S3)
   PROFILE_CHANGED: 'PROFILE_CHANGED', // { name, tag }

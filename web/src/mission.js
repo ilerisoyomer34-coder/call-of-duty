@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
 import { ARENA_BUILDERS } from './maps/index.js';
-import { buildAAGun, buildFuelPump, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat, bakeStatic } from './models.js';
+import { buildAAGun, buildFuelPump, buildPowerUnit, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat, bakeStatic } from './models.js';
 import { C4, SCORE, WEAPONS, WEAPON_ORDER, DEFAULT_LOADOUT, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
@@ -20,7 +20,7 @@ const _cam = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _e = new THREE.Vector3();
 // Operasyonun kronolojik hedef sırası: bir seviyenin ilk hedefinden öncekiler yapılmış sayılır
-const OBJECTIVE_ORDER = ['outpost', 'aa', 'intel', 'lz', 'defend', 'board', 'extract'];
+const OBJECTIVE_ORDER = ['outpost', 'capture', 'robots', 'aa', 'intel', 'lz', 'defend', 'board', 'extract'];
 const HELI_PARK_Y = -400; // hazır helikopter gelene dek haritanın altında bekler (görünmez, gölge düşürmez)
 const LEVEL_END_DELAY = 4; // son hedef ile zafer ekranı arası (s): telsiz duyulsun, çatışma yatışsın
 
@@ -177,7 +177,7 @@ class AAGun {
     this.id = def.id;
     this.kind = def.kind || 'aa';
     this.pos = def.pos.clone();
-    const m = this.kind === 'pump' ? buildFuelPump() : buildAAGun();
+    const m = this.kind === 'pump' ? buildFuelPump() : this.kind === 'aa' ? buildAAGun() : buildPowerUnit(this.kind);
     this.model = m;
     m.root.position.copy(def.pos);
     m.root.rotation.y = def.yaw;
@@ -414,8 +414,12 @@ export class Mission {
     for (const n of nestDefs) nestRing(W, n.pos.x, n.pos.z, n.yaw);
     // Tanklar: çarpıştırıcıları gezinme ağından önce eklenmeli (askerler etrafından dolansın)
     const tankDefs = this.mode !== 'mission' ? [] : (D.tanks || []).slice(0, this.level.enemies?.tanks || 0);
-    this.tanks = tankDefs.map((t, i) => new Tank(g, t, i));
+    // Haritada boş bırakılmış (dost) tanklar: oyuncu binip kullanır (vehicle.js)
+    const freeDefs = this.mode !== 'mission' ? [] : (D.vehicles || []).filter((v) => (v.kind || 'tank') === 'tank').map((v) => ({ ...v, side: 'neutral', group: 'none' }));
+    this.tanks = [...tankDefs, ...freeDefs].map((t, i) => new Tank(g, t, i));
     W.finalize();
+    // Çimen öbekleri: haritanın ortamında tanımlıysa (yol, dere gibi alanlardan kaçınarak)
+    if (this.mode !== 'online') W.scatterGrass(g.env?.grass, g.quality, D.grassAvoid);
     g.buildNav();
     g.barrels = (D.barrels || []).map((p) => new Barrel(g, p));
     // İkmal sandıkları
@@ -460,13 +464,15 @@ export class Mission {
         action: () => gun.plant(),
       });
     }
-    // Tanka C4: gövdenin oyuncuya en yakın noktasından, hedeften bağımsız
+    // Tanka C4: gövdenin oyuncuya en yakın noktasından, hedeften bağımsız (düşman mürettebatlıyken; boş tanka
+    // binilir, patlatmak istenirse roketle). Boş tanklar (mürettebatı kaçan ya da haritada terk edilmiş) araçtır
     for (const t of this.tanks) {
       this.interactables.push({
         id: t.id, pos: t.c4Spot, radius: TANK.c4Radius, prompt: 'Tanka C4 yerleştir', time: C4.plantTime,
-        enabled: () => !t.destroyed && !t.planted,
+        enabled: () => !t.destroyed && !t.planted && t.side === 'enemy',
         action: () => t.plant(),
       });
+      g.vehicles.register(t);
     }
     // İstihbarat dizüstü (haritada istihbarat hedefi varsa)
     if (D.laptop) {
@@ -571,6 +577,25 @@ export class Mission {
         },
       },
       lz: { id: 'lz', text: O.lz?.text || 'İniş bölgesine ulaş', cp: 4, marker: () => D.lz.clone().setY(1), start: (first) => say('lz', first) },
+      // Savaş robotlarını yok et: haritanın robot grubu (outpost gibi grup temizleme, ayrı metin ve sayaç)
+      robots: {
+        id: 'robots', text: O.robots?.text || 'Savaş robotlarını yok et', group: O.robots?.group || 'robots', cp: O.robots?.cp ?? 2,
+        marker: () => this.game.enemies.list.filter((e) => e.alive && e.group === (O.robots?.group || 'robots')).map((e) => e.pos.clone().setY(3.2)),
+        start: (first) => say('robots', first),
+        skip: () => {
+          this.killGroup(O.robots?.group || 'robots');
+          for (const t of this.tanks || []) if (t.group === (O.robots?.group || 'robots') && t.side === 'enemy') t.destroy();
+        },
+      },
+      // Tanka bin: haritadaki boş tank (ya da mürettebatı kaçan düşman tankı) ele geçirilir
+      capture: {
+        id: 'capture', text: O.capture?.text || 'Boş tanka bin', cp: O.capture?.cp ?? 1,
+        marker: () => {
+          const t = (this.tanks || []).find((v) => v.canEnter());
+          return t ? t.pos.clone().setY(3.5) : null;
+        },
+        start: (first) => say('capture', first),
+      },
       defend: {
         id: 'defend', text: 'Helikopter gelene kadar iniş bölgesini savun', cp: 5,
         marker: () => D.lz.clone().setY(1),
@@ -612,6 +637,15 @@ export class Mission {
   }
   extractPoint() {
     return this.extractInfo().pos;
+  }
+
+  // Gruptaki sağ düşmanlar: robot, asker ve mürettebatlı tank sayısı
+  groupLeft(group) {
+    let robots = 0;
+    let soldiers = 0;
+    for (const e of this.game.enemies.list) if (e.alive && e.group === group) e.robot ? robots++ : soldiers++;
+    const tanks = (this.tanks || []).filter((t) => t.group === group && !t.destroyed && t.side === 'enemy').length;
+    return { robots, soldiers, tanks, total: robots + soldiers + tanks };
   }
 
   killGroup(group) {
@@ -664,6 +698,11 @@ export class Mission {
     const g = this.game;
     let detail = '';
     if (o.id === 'outpost') detail = `Kalan düşman: ${g.enemies.aliveInGroup(o.group)}`;
+    else if (o.id === 'robots') {
+      const r = this.groupLeft(o.group);
+      detail = [r.robots && `${r.robots} robot`, r.soldiers && `${r.soldiers} asker`, r.tanks && `${r.tanks} tank`].filter(Boolean).join(' · ') || 'Temiz';
+    }
+    else if (o.id === 'capture') detail = 'Tankın yanına git, E basılı tut';
     else if (o.id === 'aa') detail = `${this.destroyed.size}/${this.aa.length} imha edildi`;
     else if (o.id === 'defend') detail = `Helikopter: ${Math.max(0, Math.ceil(this.defendTime - this.defendT))} sn`;
     else if (o.id === 'extract') detail = this.heli?.landed ? 'Helikopter bekliyor' : 'Helikopter yolda';
@@ -978,8 +1017,16 @@ export class Mission {
     const o = this.current;
     if (!o) return;
     switch (o.id) {
+      case 'capture':
+        if (g.vehicles?.driving) {
+          this.radio('YUVA', this.data.obj?.capture?.got || 'Tank senin! Kule fareyle döner, sol tık top, sağ tık makineli.', 0);
+          this.advance();
+        }
+        break;
+      case 'robots':
       case 'outpost': {
-        const left = g.enemies.aliveInGroup(o.group);
+        // Robot hedefinde grubun mürettebatlı tankları da sayılır (imha ya da terk edilince düşer)
+        const left = o.id === 'robots' ? this.groupLeft(o.group).total : g.enemies.aliveInGroup(o.group);
         if (left !== this.lastLeft) {
           this.lastLeft = left;
           g.events.emit('objective', this.currentText());

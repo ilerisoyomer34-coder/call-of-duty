@@ -92,6 +92,71 @@ function toTexture(c, { repeat = true, srgb = true } = {}) {
 
 const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
 
+// Kan lekesi tuvali. kind: 'pool' (düzensiz göl), 'spray' (sıçrama), 'drops' (dağınık damlalar)
+function bloodCanvas(size, kind, seed) {
+  const c = canvas(size);
+  const ctx = c.getContext('2d');
+  let st = seed * 9301 + 49297;
+  const rnd = () => ((st = (st * 9301 + 49297) % 233280) / 233280);
+  const S = size;
+  const blob = (x, y, r, col) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(x * S, y * S, r * S, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const drop = (x, y, rx, ry, ang, col) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.ellipse(x * S, y * S, rx * S, ry * S, ang, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  if (kind === 'pool') {
+    // Kenar: üst üste binen dairelerden düzensiz göl; önce ince açık film, sonra koyu gövde
+    for (let i = 0; i < 26; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = 0.08 + rnd() * 0.2;
+      blob(0.5 + Math.cos(a) * d, 0.5 + Math.sin(a) * d, 0.1 + rnd() * 0.14, 'rgba(82,5,4,0.6)');
+    }
+    for (let i = 0; i < 22; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = rnd() * 0.16;
+      blob(0.5 + Math.cos(a) * d, 0.5 + Math.sin(a) * d, 0.08 + rnd() * 0.12, 'rgba(52,2,2,0.92)');
+    }
+    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 0.3);
+    g.addColorStop(0, 'rgba(26,1,1,0.9)');
+    g.addColorStop(1, 'rgba(26,1,1,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    // Kenardan sızan küçük damlalar
+    for (let i = 0; i < 14; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = 0.33 + rnd() * 0.12;
+      blob(0.5 + Math.cos(a) * d, 0.5 + Math.sin(a) * d, 0.006 + rnd() * 0.014, 'rgba(70,4,4,0.9)');
+    }
+  } else if (kind === 'spray') {
+    for (let i = 0; i < 10; i++) blob(0.3 + rnd() * 0.08, 0.5 + (rnd() - 0.5) * 0.1, 0.03 + rnd() * 0.05, 'rgba(105,7,7,0.92)');
+    // Savrulan damlalar: uzaklaştıkça küçülür ve uzar
+    for (let i = 0; i < 70; i++) {
+      const ang = (rnd() - 0.5) * 0.9;
+      const d = 0.05 + Math.pow(rnd(), 0.7) * 0.6;
+      const x = 0.3 + Math.cos(ang) * d;
+      const y = 0.5 + Math.sin(ang) * d;
+      if (x > 0.97 || y < 0.03 || y > 0.97) continue;
+      const r = (0.004 + rnd() * 0.016) * (1 - d * 0.8);
+      drop(x, y, r * (1.5 + d * 4), r, ang, `rgba(${90 + rnd() * 30 | 0},6,6,0.95)`);
+    }
+  } else {
+    for (let i = 0; i < 40; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = Math.pow(rnd(), 1.4) * 0.42;
+      const r = 0.006 + rnd() * 0.03 * (1 - d);
+      blob(0.5 + Math.cos(a) * d, 0.5 + Math.sin(a) * d, r, `rgba(${85 + rnd() * 35 | 0},6,6,0.95)`);
+    }
+  }
+  return c;
+}
+
 export function createTextures(quality = 'high', anisotropy = 4) {
   maxAniso = anisotropy;
   const big = quality === 'low' ? 256 : 512;
@@ -126,6 +191,46 @@ export function createTextures(quality = 'high', anisotropy = 4) {
         o[2] = clamp255(90 * k);
       })
     );
+  }
+  // Çimen (orman zemini): yeşil tonlarda lekeli, kuru ot ve toprak benekleri
+  {
+    const n = fbmFactory(4, 5, 61);
+    const b = fbmFactory(16, 3, 67);
+    T.grass = toTexture(
+      fillPixels(big, (u, v, o) => {
+        const a = n(u, v);
+        const blade = b(u, v);
+        const dry = a > 0.62 ? (a - 0.62) * 1.6 : 0;
+        const soil = blade < 0.28 ? 0.35 : 0;
+        const k = 0.62 + a * 0.38 + (blade - 0.5) * 0.25;
+        o[0] = clamp255((70 + dry * 90 + soil * 60) * k);
+        o[1] = clamp255((104 + dry * 40 - soil * 20) * k);
+        o[2] = clamp255((48 + dry * 10 + soil * 10) * k);
+      })
+    );
+  }
+  // Çimen öbeği: alfa kesmeli ince yapraklar (dipte koyu, uçta açık); renk örnek başına çarpılır
+  {
+    const c = canvas(64);
+    const ctx = c.getContext('2d');
+    let st = 4242;
+    const rnd = () => ((st = (st * 9301 + 49297) % 233280) / 233280);
+    for (let i = 0; i < 26; i++) {
+      const x = 4 + rnd() * 56;
+      const lean = (rnd() - 0.5) * 22;
+      const top = 4 + rnd() * 26;
+      const w = 1.4 + rnd() * 2.2;
+      const g = ctx.createLinearGradient(0, 64, 0, top);
+      g.addColorStop(0, 'rgb(118,126,92)');
+      g.addColorStop(1, 'rgb(246,248,220)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x - w, 64);
+      ctx.quadraticCurveTo(x + lean * 0.3, (64 + top) / 2, x + lean, top);
+      ctx.quadraticCurveTo(x + lean * 0.3 + w * 0.5, (64 + top) / 2, x + w, 64);
+      ctx.fill();
+    }
+    T.grassBlades = toTexture(c, { repeat: false });
   }
   // Beton: gri, lekeli, ince çatlaklar.
   {
@@ -332,6 +437,11 @@ export function createTextures(quality = 'high', anisotropy = 4) {
     o[0] = 95; o[1] = 8; o[2] = 8;
     o[3] = clamp255(a * 220);
   });
+  // Kan: gölde koyu (pıhtılaşan) merkez, ince kenarda daha açık ve saydam film, kenarda damlalar; sıçrama
+  // dokularında bir yöne (+X) savrulmuş uzun damlalar. 2B tuvale tohumlu rastgeleyle çizilir (her açılışta aynı)
+  T.bloodPool = toTexture(bloodCanvas(quality === 'low' ? 128 : 256, 'pool', 7), { repeat: false });
+  T.bloodSpray = toTexture(bloodCanvas(quality === 'low' ? 128 : 256, 'spray', 19), { repeat: false });
+  T.bloodDrops = toTexture(bloodCanvas(quality === 'low' ? 128 : 256, 'drops', 29), { repeat: false });
   T.scorch = radial(128, (u, v, o) => {
     const dx = u - 0.5, dy = v - 0.5;
     const d = Math.sqrt(dx * dx + dy * dy) * 2;

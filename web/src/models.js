@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { WIND } from './config.js';
 
 const matCache = new Map();
 export function mat(color, rough = 0.7, metal = 0.1, extra = null) {
@@ -1123,6 +1124,7 @@ let treeProp = null;
 export function setTreeProp(scene, info, alphaTest) {
   const parts = [];
   scene.updateMatrixWorld(true);
+  // Rüzgâr: ağacın boyuna göre yükseldikçe artan salınım (gövde az, yapraklar çok); örnek konumu evreyi değiştirir
   scene.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material;
@@ -1132,6 +1134,10 @@ export function setTreeProp(scene, info, alphaTest) {
       m.transparent = false;
       m.side = THREE.DoubleSide;
     }
+    // Geometri yerel birimi model birimiyle aynı değil (düğüm ölçeği): boy, geometrinin kendi sınırından
+    o.geometry.computeBoundingBox();
+    const gb = o.geometry.boundingBox;
+    addWind(m, foliage ? WIND.treeFoliage : WIND.treeTrunk, gb.min.y, Math.max(1e-3, gb.max.y - gb.min.y));
     if (propEnv) applyPropEnv(m);
     o.geometry.userData.shared = true;
     parts.push({ geometry: o.geometry, material: m, matrix: o.matrixWorld.clone(), foliage });
@@ -1141,6 +1147,41 @@ export function setTreeProp(scene, info, alphaTest) {
 
 export function getTreeProp() {
   return treeProp;
+}
+
+// Rüzgâr salınımı (ağaç ve çimen): bütün malzemeler tek zaman uniform'unu paylaşır (main.js her karede günceller).
+// Yerel yükseklik oranının karesiyle artan yatay kayma; evre örneğin dünya konumundan (her ağaç ayrı salınır)
+const windTime = { value: 0 };
+export function updateWind(t) {
+  windTime.value = t;
+}
+export function addWind(material, amp, y0, h) {
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, r) => {
+    prev?.(shader, r);
+    shader.uniforms.windTime = windTime;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float windTime;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          float wk = clamp((transformed.y - (${y0.toFixed(4)})) / ${h.toFixed(4)}, 0.0, 1.0);
+          wk *= wk;
+          vec3 ip = vec3(0.0);
+          #ifdef USE_INSTANCING
+            ip = instanceMatrix[3].xyz;
+          #endif
+          float ph = ip.x * 0.37 + ip.z * 0.23;
+          float sw = sin(windTime * ${WIND.speed.toFixed(3)} + ph) + 0.35 * sin(windTime * ${(WIND.speed * 2.7).toFixed(3)} + ph * 1.7);
+          transformed.x += sw * wk * ${(amp * h).toFixed(5)};
+          transformed.z += cos(windTime * ${(WIND.speed * 0.8).toFixed(3)} + ph) * wk * ${(amp * h * 0.6).toFixed(5)};
+        }`
+      );
+  };
+  // Aynı malzeme farklı genlikle iki kez derlenmesin: önbellek anahtarı genliği içerir
+  material.customProgramCacheKey = () => `wind${amp}|${y0.toFixed(3)}|${h.toFixed(3)}`;
+  material.needsUpdate = true;
 }
 
 // Konteyner şablonu (Sketchfab, beş renk çeşidi): her çeşit tek kutu mesh'i; ad oyunun malzeme adıdır (contRed…).
@@ -1377,6 +1418,58 @@ export function buildFuelPump() {
     }
   });
   mergeStaticParts(root);
+  return { root, turret, guns };
+}
+
+// Görev hedefi güç ünitesi (uçaksavar/pompa ile aynı arayüz: root, turret, guns; C4 ile imha edilir):
+// 'generator' fabrika jeneratörü (sarı-siyah gövde, radyatör, egzoz, kırmızı uyarı lambası),
+// 'reactor' robot üssünün çekirdeği (kafes içinde ışıyan camgöbeği halkalı silindir)
+export function buildPowerUnit(kind) {
+  const root = new THREE.Group();
+  const dark = mat(0x26292b, 0.6, 0.5);
+  const steel = mat(0x7a8084, 0.45, 0.7);
+  const turret = new THREE.Group();
+  root.add(turret);
+  const guns = new THREE.Group();
+  turret.add(guns);
+  if (kind === 'reactor') {
+    const glow = new THREE.MeshStandardMaterial({ color: 0x0a2a30, emissive: 0x3ad8ff, emissiveIntensity: 2.4, roughness: 0.3 });
+    B(root, 3.0, 0.35, 3.0, dark, 0, 0.175, 0);
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 2.6, 18), mat(0x1c2a30, 0.25, 0.8));
+    core.position.y = 1.65;
+    turret.add(core);
+    for (let i = 0; i < 4; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.07, 6, 24), glow);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.75 + i * 0.6;
+      turret.add(ring);
+    }
+    for (const [x, z] of [[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]]) B(root, 0.16, 3.2, 0.16, steel, x, 1.95, z);
+    B(root, 2.6, 0.14, 2.6, steel, 0, 3.55, 0);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x2a3438, 0.35, 0.7));
+    dome.position.y = 2.95;
+    guns.add(dome);
+  } else {
+    const yellow = mat(0xc8962a, 0.6, 0.4);
+    const red = new THREE.MeshStandardMaterial({ color: 0x300808, emissive: 0xff3a24, emissiveIntensity: 2.8 });
+    B(root, 3.2, 0.3, 2.0, dark, 0, 0.15, 0); // kızak
+    B(turret, 2.6, 1.5, 1.6, yellow, 0, 1.05, 0); // gövde
+    for (let i = 0; i < 6; i++) B(turret, 0.06, 1.1, 1.62, dark, -1.0 + i * 0.12, 1.05, 0); // radyatör
+    for (let i = 0; i < 5; i++) B(turret, 0.3, 0.02, 1.62, i % 2 ? dark : yellow, 0.3 + i * 0.3, 1.81, 0); // uyarı şeridi
+    B(turret, 0.7, 0.5, 1.2, steel, 0.7, 2.05, 0); // kontrol kutusu
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 1.4, 10), steel);
+    stack.position.set(-0.7, 2.4, 0.3);
+    guns.add(stack);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 6), red);
+    lamp.position.set(0.9, 2.42, 0.4);
+    turret.add(lamp);
+  }
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
   return { root, turret, guns };
 }
 

@@ -18,7 +18,7 @@
 //   çatışmada siper, kademe taktikleri). Saldır ve baskı ateşi hareketi değil ateşi yönlendirir;
 //   ateşi kes/serbest ateş tetik disiplinidir.
 import * as THREE from 'three';
-import { ALLY, ALLY_TIERS, SOLDIER_ANIM, HMG } from './config.js';
+import { ALLY, ALLY_TIERS, SOLDIER_ANIM, HMG, BLOOD } from './config.js';
 import { createSoldier } from './soldier.js';
 import { Health } from './health.js';
 import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick } from './util.js';
@@ -90,7 +90,7 @@ export class Ally {
     this.S = game.allies.tier;
     this.rankName = `${this.S.short} ${this.person}`;
     this.radioLabel = `${this.callsign} ${this.rankName}`;
-    this.model = createSoldier(this.C.gun === 'lmg' ? 'allyGunner' : this.S.elite ? 'allyElite' : 'ally', ALLY.colors);
+    this.model = createSoldier(this.C.gun === 'lmg' ? 'allyGunner' : this.S.elite ? 'allyElite' : 'ally', ALLY.colors, this.member.model, this.member.gunModel);
     game.scene.add(this.model.root);
     this.pos = new THREE.Vector3().copy(pos);
     this.vel = new THREE.Vector3();
@@ -132,6 +132,7 @@ export class Ally {
     this.lastPos.copy(pos);
     this.run = false;
     this.crouch = false;
+    this.settled = false;
     this.aimPitch = 0;
     this.sayT = rand(2, 5);
     this.weapon.mag = this.C.magSize;
@@ -242,6 +243,8 @@ export class Ally {
       this.focus = null;
       this.suppress = null;
       this.say('down', true);
+      // Yaralı askerin altında yavaş yayılan kan
+      g.effects.bloodPool(this.pos, BLOOD.downedPoolSize, BLOOD.downedPoolTime, 0.6, g.world);
       g.events.emit('allyDown', this);
     }
   }
@@ -673,7 +676,11 @@ export class Ally {
     } else this.detour = null;
     this.crouch = false;
     let hiding = false;
-    if (dist > 0.9) {
+    // Varınca biraz pay: oyuncu yavaşça kıpırdadıkça yerine varan asker her adımda kalkıp yürüyüp yeniden
+    // çömeliyordu. Tedavi ve kaldırmada pay yok (menzil dar)
+    const leave = this.settled && !tending && !this.reviving ? ALLY.settle[1] : ALLY.settle[0];
+    this.settled = dist <= leave;
+    if (!this.settled) {
       // Oyuncunun hızına uy: geride kalınca açığı kapatacak kadar hızlan; taktik hareket koşarak
       const speed = tac ? ALLY.run : clamp(P.horizSpeed * 1.1 + (dist - 1) * 0.35, ALLY.walk, ALLY.run);
       this.run = speed > ALLY.walk + 1;
@@ -1234,6 +1241,7 @@ export class Ally {
       const dmg = this.S.damage * this.C.damageMult * (ALLY.zones[eh.zone] || 1);
       const out = eh.enemy.takeDamage(dmg, { zone: eh.zone, dir, point: eh.point, source: 'ally', attacker: this, weapon: 'allyRifle' });
       g.effects.impact(eh.point, _v3.copy(dir).negate(), 'flesh', 0.5);
+      if (muzzle.distanceTo(g.camera.position) < 90) g.effects.bloodSpatter(eh.point, dir, g.world, 0.8);
       if (out.killed) {
         g.events.emit('allyKill', this, eh.enemy);
         this.say('kill');

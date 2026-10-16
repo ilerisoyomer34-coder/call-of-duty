@@ -520,11 +520,8 @@ export class PlayerWeapons {
         // Zırha isabet: kıvılcım ve tok metal ses (belge §4.7); zırhsız yer: kan
         g.effects.impact(res.point, _tmp.copy(_d).negate(), out.armorHit ? 'metal' : 'flesh', pellets > 1 ? 0.5 : 1);
         if (p === 0) g.audio.impact(out.armorHit ? 'metal' : 'flesh', res.point);
-        // Arkadaki duvara kan izi
-        if (g.settings.blood && Math.random() < 0.6) {
-          const b = g.world.raycast(res.point, _d, 2.5, _hit2);
-          if (b) g.effects.bloodSplat(b.point, b.normal, rand(0.35, 0.7));
-        }
+        // Kan: arkadaki yüzeye mermi yönünde sıçrama, altındaki zemine damlalar (zırhta yok)
+        if (!out.armorHit) g.effects.bloodSpatter(res.point, _d, g.world, pellets > 1 ? 0.6 : 1);
         if (g.settings.damageNumbers || g.mode === 'range') g.hud.damageNumber(res.point, dmg, res.zone === 'head');
       } else if (res.ally) {
         // Zırha çarpan kıvılcım, hasar yok; dost uyarır

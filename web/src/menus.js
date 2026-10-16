@@ -4,7 +4,7 @@ import { applyBindingOverrides } from './input.js';
 import { BindingsEditor } from './bindingsUi.js';
 import { DEFAULT_SETTINGS, saveSettings } from './settings.js';
 import { formatTime } from './util.js';
-import { PROP_ASSETS, WEAPON_ASSETS } from './assets.js';
+import { PROP_ASSETS, WEAPON_ASSETS, CHARACTER_ASSETS } from './assets.js';
 import { formatKR } from './economy.js';
 import { EV } from './events.js';
 import { StoreScreen } from './storeScreen.js';
@@ -32,6 +32,8 @@ const CREDIT_CHANGES = {
   ak74: 'Oyun için ölçeklendi, sergi şarjörü ve fişekler atıldı, parçalara ayrıldı.',
   bren2: 'Oyun için ölçeklendi, sergi şarjörü ve fişek atıldı, parçalara ayrıldı.',
   awm: 'Oyun için ölçeklendi, sürgüsü ayrıldı, dokuları küçültüldü.',
+  squad: 'Üç asker ayrıldı, oyunun asker iskeletine taşındı (A pozundan T pozuna bükülüp kemikler yeniden adlandırıldı), sadeleştirildi.',
+  robot: 'Kaide atıldı, parçalar eklemlere ayrılıp hareketlendirildi, sadeleştirildi, dokular küçültüldü.',
 };
 
 export class Menus {
@@ -130,10 +132,14 @@ export class Menus {
     const box = $('propCredits');
     if (!box) return;
     box.innerHTML = '';
-    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar', containers: 'Konteynerler' };
+    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar', containers: 'Konteynerler', squad: 'Alfa Timi askerleri', robot: 'Savaş robotu' };
     // Sketchfab silahları: oyundaki kurgusal adıyla
     for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = weaponName(d.id);
-    const entries = [...Object.entries(PROP_ASSETS), ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];
+    // Karakterler: Alfa Timi'nin üç askeri tek modelden (bir satır), savaş robotu
+    const chars = Object.entries(CHARACTER_ASSETS).filter(([, a]) => a.credit?.title);
+    const squad = chars.find(([id]) => id.startsWith('squad_'));
+    const charEntries = [...(squad ? [['squad', squad[1]]] : []), ...chars.filter(([id]) => !id.startsWith('squad_'))];
+    const entries = [...Object.entries(PROP_ASSETS), ...charEntries, ...Object.entries(WEAPON_ASSETS).filter(([, a]) => a.credit)];
     for (const [id, a] of entries) {
       const c = a.credit || {};
       const p = document.createElement('p');

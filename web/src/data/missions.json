@@ -7,7 +7,7 @@
     "consolationPerKill": 20,
     "starsForBonuses": [0, 2, 3]
   },
-  "objectiveLabels": { "outpost": "Bölgeyi temizle", "aa": "Hedefleri C4 ile imha et", "intel": "İstihbaratı al", "lz": "İniş bölgesine ulaş", "defend": "Helikopter gelene kadar savun", "board": "Helikoptere bin", "extract": "Helikopterle tahliye ol" },
+  "objectiveLabels": { "outpost": "Bölgeyi temizle", "aa": "Hedefleri C4 ile imha et", "intel": "İstihbaratı al", "lz": "İniş bölgesine ulaş", "defend": "Helikopter gelene kadar savun", "board": "Helikoptere bin", "extract": "Helikopterle tahliye ol", "robots": "Savaş robotlarını yok et", "capture": "Tankı ele geçir" },
   "bonusPool": {
     "headhunter": { "name": "Keskin Göz", "desc": "{count} kafa vuruşuyla etkisiz hâle getir", "type": "count", "event": "ENEMY_KILLED", "filter": { "headshot": true, "killer": "player" }, "count": 10, "reward": 300 },
     "untouchable": { "name": "Dokunulmaz", "desc": "Bölümü hiç yere düşmeden (ve ölmeden) bitir", "type": "never", "events": ["PLAYER_DOWNED", "PLAYER_DIED"], "reward": 500 },
@@ -19,7 +19,9 @@
     "sidearm": { "name": "Tabanca Ustası", "desc": "Yalnızca yan silahla {count} düşman", "type": "count", "event": "ENEMY_KILLED", "filter": { "killer": "player", "slot": "secondary" }, "count": 5, "reward": 300 },
     "longshot": { "name": "Uzak Atış", "desc": "60 m'nin üzerinden {count} düşman", "type": "count", "event": "ENEMY_KILLED", "filter": { "killer": "player", "distance": { "gte": 60 } }, "count": 3, "reward": 350 },
     "frugal": { "name": "Tutumlu", "desc": "Hiç sarf malzemesi kullanmadan bitir", "type": "never", "event": "ITEM_USED", "reward": 200 },
-    "armor_breaker": { "name": "Zırh Kırıcı", "desc": "{count} düşmanın zırhını kır", "type": "count", "event": "ARMOR_BROKEN", "filter": { "targetType": "enemy", "by": "player" }, "count": 3, "reward": 250 }
+    "armor_breaker": { "name": "Zırh Kırıcı", "desc": "{count} düşmanın zırhını kır", "type": "count", "event": "ARMOR_BROKEN", "filter": { "targetType": "enemy", "by": "player" }, "count": 3, "reward": 250 },
+    "robot_hunter": { "name": "Robot Avcısı", "desc": "{count} savaş robotunu kendin imha et", "type": "count", "event": "ENEMY_KILLED", "filter": { "killer": "player", "enemyType": "robot" }, "count": 2, "reward": 450 },
+    "tank_ace": { "name": "Tank Ası", "desc": "Tanktayken {count} düşmanı etkisiz hâle getir", "type": "count", "event": "ENEMY_KILLED", "filter": { "killer": "player", "inVehicle": true }, "count": 6, "reward": 400 }
   },
   "levels": {
     "1": { "primary": { "reward": 1000 }, "parTimeSec": 360, "bonus": [{ "id": "headhunter", "count": 3, "reward": 200 }, { "id": "untouchable" }, { "id": "frugal" }] },
@@ -27,6 +29,10 @@
     "3": { "primary": { "reward": 1300 }, "parTimeSec": 720, "bonus": [{ "id": "headhunter", "count": 8 }, { "id": "brotherhood", "count": 1 }, { "id": "sidearm", "count": 3 }] },
     "4": { "primary": { "reward": 1500 }, "parTimeSec": 840, "bonus": [{ "id": "armor_breaker" }, { "id": "commander" }, { "id": "untouchable" }] },
     "5": { "primary": { "reward": 1700 }, "parTimeSec": 960, "bonus": [{ "id": "suppressor" }, { "id": "longshot" }, { "id": "no_one_left" }] },
-    "6": { "primary": { "reward": 2000 }, "parTimeSec": 1080, "bonus": [{ "id": "headhunter", "count": 12 }, { "id": "blitz" }, { "id": "brotherhood" }] }
+    "6": { "primary": { "reward": 2000 }, "parTimeSec": 1080, "bonus": [{ "id": "headhunter", "count": 12 }, { "id": "blitz" }, { "id": "brotherhood" }] },
+    "7": { "primary": { "reward": 2200 }, "parTimeSec": 900, "bonus": [{ "id": "robot_hunter", "count": 1 }, { "id": "headhunter", "count": 8 }, { "id": "no_one_left" }] },
+    "8": { "primary": { "reward": 2500 }, "parTimeSec": 1000, "bonus": [{ "id": "tank_ace", "count": 6 }, { "id": "robot_hunter", "count": 2 }, { "id": "untouchable" }] },
+    "9": { "primary": { "reward": 2800 }, "parTimeSec": 1080, "bonus": [{ "id": "tank_ace", "count": 4 }, { "id": "longshot", "count": 4 }, { "id": "brotherhood" }] },
+    "10": { "primary": { "reward": 3500 }, "parTimeSec": 1260, "bonus": [{ "id": "robot_hunter", "count": 4 }, { "id": "armor_breaker", "count": 4 }, { "id": "blitz" }] }
   }
 }

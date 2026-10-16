@@ -1,5 +1,5 @@
 {
-  "_doc": "Alfa Timi (Operasyon Güncellemesi §8.1, §8.6). Rütbe seviyenin manga kademesinden (config.js → ALLY_TIERS) gelir; ad, rol, renk ve ses buradan. role: rifleman | medic | gunner. roleCombat: role göre silah ayarı (rpm, hasar çarpanı, şarjör, şarjör değiştirme süresi, seri uzunluğu, menzil). squadArmorAbsorb: Tim Zırhı yükseltmesinin hasar emme oranı. orders: komut davranışlarının ayarları (süreler saniye, mesafeler metre).",
+  "_doc": "Alfa Timi (Operasyon Güncellemesi §8.1, §8.6). Rütbe seviyenin manga kademesinden (config.js → ALLY_TIERS) gelir; ad, rol, renk, ses, model (characterAssets.json kimliği; tools/prepare-squad.mjs) ve elindeki silah modeli (gunModel: weaponAssets.json kimliği) buradan. role: rifleman | medic | gunner. roleCombat: role göre silah ayarı (rpm, hasar çarpanı, şarjör, şarjör değiştirme süresi, seri uzunluğu, menzil). squadArmorAbsorb: Tim Zırhı yükseltmesinin hasar emme oranı. orders: komut davranışlarının ayarları (süreler saniye, mesafeler metre).",
   "team": "Alfa Timi",
   "playerCallsign": "Komutan",
   "members": [
@@ -8,7 +8,9 @@
       "name": "Demir",
       "role": "rifleman",
       "roleLabel": "Tüfekçi · lider yardımcısı",
-      "weaponLabel": "AKMS",
+      "weaponLabel": "AK-74M",
+      "model": "squad_forest",
+      "gunModel": "ak74",
       "color": "#7fd38a",
       "voice": {
         "pitch": 0.85,
@@ -21,7 +23,9 @@
       "name": "Kaya",
       "role": "medic",
       "roleLabel": "Sıhhiyeci (Medik)",
-      "weaponLabel": "HK MP5A3",
+      "weaponLabel": "CZ Bren 2",
+      "model": "squad_desert",
+      "gunModel": "bren2",
       "color": "#9be3b0",
       "voice": {
         "pitch": 1.1,
@@ -38,6 +42,8 @@
       "role": "gunner",
       "roleLabel": "Makineli tüfekçi",
       "weaponLabel": "HK MG4",
+      "model": "squad_woodland",
+      "gunModel": "mg43",
       "color": "#b8e68f",
       "voice": {
         "pitch": 0.75,

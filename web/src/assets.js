@@ -215,13 +215,23 @@ export function loadCharacterAsset(id) {
         const m = o.material;
         const spec = entry.materials[m.name];
         if (!spec) return;
+        const tangents = !!o.geometry.attributes.tangent;
         jobs.push(
-          Promise.all([tex(spec.map, true), tex(spec.normalMap, false)]).then(([map, normalMap]) => {
+          Promise.all([tex(spec.map, true), tex(spec.normalMap, false), tex(spec.ormMap, false)]).then(([map, normalMap, orm]) => {
             if (map) {
               m.map = map;
               m.color.setRGB(1, 1, 1);
             }
-            if (normalMap) m.normalMap = normalMap;
+            if (normalMap) {
+              m.normalMap = normalMap;
+              // glTF normal haritası: teğet yoksa türev teğetlerle Y ters okunur (GLTFLoader da böyle düzeltir)
+              if (!tangents) m.normalScale.y = -Math.abs(m.normalScale.y);
+            }
+            // glTF pürüz/metal dokusu: yeşil kanal pürüz, mavi metal
+            if (orm) {
+              m.roughnessMap = orm;
+              m.metalnessMap = orm;
+            }
             m.needsUpdate = true;
           })
         );
@@ -250,6 +260,24 @@ export function loadCharacterLod(id) {
           if (o.isSkinnedMesh) geos.set(o.name, o.geometry);
         });
         return geos;
+      })()
+    );
+  }
+  return cache.get(key);
+}
+
+// Savaş robotu (tools/prepare-robot.mjs): sert parçalı sahne şablonu, dokular malzeme adına göre ayrı JPEG'lerden
+export function loadRobotAsset() {
+  const key = 'character:robot';
+  if (!cache.has(key)) {
+    const entry = CHARACTER_ASSETS.robot;
+    cache.set(
+      key,
+      (async () => {
+        if (!entry) throw new Error('robot kaydı yok');
+        const gltf = await parseGltf(await readBinary(entry.file));
+        await applyTextureSpec(gltf.scene, entry.materials);
+        return gltf.scene;
       })()
     );
   }

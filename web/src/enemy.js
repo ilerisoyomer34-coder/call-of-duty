@@ -3,9 +3,10 @@
 // Algı: görme (açı, mesafe, görüş hattı, duruş), duyma (silah/adım), hasar.
 // Adil isabet: mesafe, oyuncu hızı, ilk atış ıskası, zorluk; saldırı jetonu sistemiyle aynı anda sınırlı sayıda düşman ateş eder.
 import * as THREE from 'three';
-import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG } from './config.js';
+import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG, BLOOD, ROBOT, TANK } from './config.js';
 import { applyRadialDamage } from './grenades.js';
 import { createSoldier } from './soldier.js';
+import { createRobot } from './robot.js';
 import { Health } from './health.js';
 import { rollEnemyArmor, computeArmorDamage, penFor, enemyPen, playerZoneAt } from './armor.js';
 import { EV } from './events.js';
@@ -39,12 +40,15 @@ export class Enemy {
     this.Tbase = T;
     this.T = T;
     this.group = spec.group || null;
-    this.model = createSoldier(this.type, T.colors);
+    // Savaş robotu kendi görünümüyle (robot.js); modeli inmediyse ağır asker görünümüyle aynı kurallarla savaşır
+    this.robot = !!T.robot;
+    this.model = (this.robot && createRobot()) || createSoldier(this.robot ? 'heavy' : this.type, T.colors);
+    if (this.robot) this.model.onStep = () => this.robotStep();
     game.scene.add(this.model.root);
     this.pos = new THREE.Vector3().copy(spec.pos);
     this.vel = new THREE.Vector3();
     this.yaw = spec.yaw || 0;
-    this.state = { pos: this.pos, vel: this.vel, radius: 0.38, height: 1.8, grounded: true, gravity: 15, hitWall: false };
+    this.state = { pos: this.pos, vel: this.vel, radius: T.radius || 0.38, height: T.height || 1.8, grounded: true, gravity: 15, hitWall: false };
     const W = ENEMY_WEAPONS[T.weapon];
     this.W = W;
     this.wKey = T.weapon; // zırh delmesi için silah kimliği (data/armor.json → enemyWeaponPen)
@@ -88,6 +92,12 @@ export class Enemy {
     this.coverT = 0;
     this.strafeDir = Math.random() < 0.5 ? -1 : 1;
     this.strafeT = 0;
+    this.kneel = false;
+    this.kneelT = rand(AI.standTime[0], AI.standTime[1]);
+    this.exposedT = 0;
+    this.lookBase = null;
+    this.lookT0 = 0;
+    this.steered = false;
     this.thinkT = Math.random() * AI.thinkInterval;
     this.grenadeT = rand(4, AI.grenadeCooldown);
     this.hasToken = false;
@@ -159,11 +169,24 @@ export class Enemy {
 
   eyePos(out = new THREE.Vector3()) {
     const s = this.model.root.scale.y;
-    return out.set(this.pos.x, this.pos.y + (this.crouch ? 1.15 : 1.62) * s, this.pos.z);
+    return out.set(this.pos.x, this.pos.y + (this.crouch ? 1.15 : this.T.eyeH || 1.62) * s, this.pos.z);
   }
 
   chestPos(out = new THREE.Vector3()) {
-    return out.set(this.pos.x, this.pos.y + (this.crouch ? 0.95 : 1.3), this.pos.z);
+    return out.set(this.pos.x, this.pos.y + (this.crouch ? 0.95 : this.T.chestH || 1.3), this.pos.z);
+  }
+
+  // Robotun ayağı yere bastı: gümbürtü, toz; yakındaysa kamera sarsılır
+  robotStep() {
+    const g = this.game;
+    if (!this.alive) return;
+    g.audio.robotStep(this.pos);
+    const d = this.pos.distanceTo(g.player.pos);
+    if (d < ROBOT.stepShake) g.player.shake(0.12 * (1 - d / ROBOT.stepShake));
+    if (d < 60) {
+      const c = g.effects.color(0xa08c6a);
+      for (let i = 0; i < 4; i++) g.effects.smoke.spawn(this.pos.x + rand(-0.9, 0.9), this.pos.y + 0.1, this.pos.z + rand(-0.9, 0.9), rand(-0.6, 0.6), rand(0.1, 0.5), rand(-0.6, 0.6), rand(0.8, 1.4), 0.4, 1.4, c, 0.35, 0, 1.5);
+    }
   }
 
   muzzlePos(out = new THREE.Vector3()) {
@@ -187,6 +210,15 @@ export class Enemy {
         this.armorBrokenBy = info.source;
         g.events.emit(EV.ARMOR_BROKEN, { target: this, targetType: 'enemy', piece: piece.id, by: info.source });
       }
+    }
+    // Robot: zırhı mermiyi delme gücüne göre emer (kıvılcım, kan yok); patlayıcı çok etkili, sensör zayıf nokta
+    if (this.robot && info.source !== 'cheat') {
+      const R = ROBOT;
+      if (info.weapon === 'explosion' || info.weapon === 'rpg' || info.weapon === 'c4') amount *= R.explosiveMult;
+      else if (info.weapon === 'melee' || info.weapon === 'knife') amount *= R.meleeMult;
+      else amount *= R.bulletBase + (1 - R.bulletBase) * penFor(info.weapon);
+      if (info.zone === 'head') amount *= R.sensorMult;
+      armorHit = true;
     }
     const dealt = this.health.damage(amount);
     void dealt;
@@ -464,7 +496,7 @@ export class Enemy {
     // El bombası: oyuncu siperde saklanıyorsa
     this.grenadeT -= dt;
     if (
-      g.difficulty.grenades && !this.visible && since > 1.2 && since < 8 && this.grenadeT <= 0 &&
+      g.difficulty.grenades && !this.T.noGrenades && !this.visible && since > 1.2 && since < 8 && this.grenadeT <= 0 &&
       g.enemies.grenadeReady() && !this.stationary
     ) {
       const dl = this.pos.distanceTo(this.lastKnown);
@@ -482,12 +514,16 @@ export class Enemy {
       if (c) this.takeCover(c);
     }
     const T = this.T;
+    // Görüşün kısa kesintisinde (araya direk, ağaç ya da başka asker girdi) önceki karar sürer: her kesintide
+    // koşup her görüşte durmak askeri yerinde ileri-geri oynatıyordu
+    const lost = !this.visible && since > AI.chaseDelay;
+    const glimpse = !this.visible && !lost;
     if (T.rushes) {
       // Hücumcu: oyuncuya koş, yakında yan adım at
-      if (dist > T.prefDist[1] || !this.visible) {
+      if (dist > T.prefDist[1] || lost) {
         this.moveTarget = this.visible ? P.pos.clone() : this.lastKnown.clone();
         this.run = true;
-      } else {
+      } else if (!glimpse) {
         this.moveTarget = null;
       }
       return;
@@ -495,9 +531,15 @@ export class Enemy {
     if (T.usesCover) {
       // Siper: yoksa ya da açığa çıktıysa yeni siper bul
       if (this.cover) {
-        const compromised = this.coverPhase === 'hide' && this.visible && g.world.lineOfSight(this.eyePos(_v), P.headPos(_v2)) && this.crouch;
+        // Açığa çıkma, siper seçimindeki yükseklikle (1 m) denetlenir; çömelmiş gözün (1,15 m) görmesi siperi
+        // bozmaz. Yoksa yüksekliği sınırda olan siperde asker varır varmaz siperi bırakıp başka siper arardı
+        _v.set(this.pos.x, this.pos.y + 1.0, this.pos.z);
+        const exposed = this.coverPhase === 'hide' && this.visible && this.crouch && g.world.lineOfSight(_v, P.headPos(_v2));
+        this.exposedT = exposed ? this.exposedT + dt : 0;
+        const compromised = this.exposedT > AI.coverExposedTime;
         const tooClose = this.cover.pos.distanceTo(P.pos) < 5;
         if (compromised || tooClose) {
+          this.exposedT = 0;
           this.cover.taken = null;
           this.cover = null;
         }
@@ -512,9 +554,11 @@ export class Enemy {
       }
       if (!this.cover) {
         // Açıkta: tercih edilen mesafeyi koru
-        if (dist > T.prefDist[1] || !this.visible) {
+        if (dist > T.prefDist[1] || lost) {
           this.moveTarget = this.lastKnown.clone();
           this.run = true;
+        } else if (glimpse) {
+          // kısa kesinti: yerinde kal
         } else if (dist < T.prefDist[0]) {
           _v.subVectors(this.pos, P.pos).setY(0).normalize().multiplyScalar(6).add(this.pos);
           this.moveTarget = g.nav.isWalkable(_v.x, _v.z) ? _v.clone() : null;
@@ -523,11 +567,11 @@ export class Enemy {
       }
       return;
     }
-    // Ağır makineli: yavaşça ilerle, orta mesafede dur
-    if (dist > T.prefDist[1] || !this.visible) {
+    // Ağır makineli (ve robot): yavaşça ilerle, orta mesafede dur
+    if (dist > T.prefDist[1] || lost) {
       this.moveTarget = this.lastKnown.clone();
       this.run = false;
-    } else this.moveTarget = null;
+    } else if (!glimpse) this.moveTarget = null;
   }
 
   findCover(retreat) {
@@ -600,6 +644,8 @@ export class Enemy {
     let faceYaw = null;
     let wantShoot = false;
     this.crouch = false;
+    this.steered = false;
+    if (this.aiState !== 'search') this.lookBase = null;
     switch (this.aiState) {
       case 'guard': {
         if (this.spec.patrolReturn && this.pos.distanceTo(this.spec.pos) > 1.5) {
@@ -626,9 +672,14 @@ export class Enemy {
         } else faceYaw = dirToYaw(this.lastKnown.x - this.pos.x, this.lastKnown.z - this.pos.z);
         break;
       case 'search':
-        if (this.moveTarget && this.pos.distanceTo(this.moveTarget) < 1.2) {
-          faceYaw = this.yaw + Math.sin(g.time * 1.3) * 0.9;
-        }
+        // Varınca ya da beklerken çevreye bakar: varış yönünün iki yanına
+        if (!this.moveTarget || this.pos.distanceTo(this.moveTarget) < 1.2) {
+          if (this.lookBase === null) {
+            this.lookBase = this.yaw;
+            this.lookT0 = g.time;
+          }
+          faceYaw = this.lookBase + Math.sin((g.time - this.lookT0) * AI.lookAroundRate) * AI.lookAroundArc;
+        } else this.lookBase = null;
         break;
       case 'combat': {
         const toYaw = dirToYaw(this.lastKnown.x - this.pos.x, this.lastKnown.z - this.pos.z);
@@ -639,6 +690,16 @@ export class Enemy {
           this.moveTarget = null;
           this.coverPhase = this.coverPhase === 'move' ? 'hide' : this.coverPhase;
           this.coverT = rand(0.8, 1.6);
+        } else if (this.cover && !this.moveTarget && this.coverPhase === 'move') {
+          // Yol siperin biraz önünde bitti (arama sınırı, kapalı hücre): yakınsa varılmış say, son adımı
+          // saklanma yürüyüşü atar; uzaksa siperi bırak. Yoksa asker siperin yanında ateş etmeden dikiliyordu
+          if (this.pos.distanceTo(this.cover.pos) < AI.coverArriveDist) {
+            this.coverPhase = 'hide';
+            this.coverT = rand(0.8, 1.6);
+          } else {
+            this.cover.taken = null;
+            this.cover = null;
+          }
         }
         if (this.cover && !this.moveTarget && this.coverPhase !== 'move') {
           this.coverT -= dt;
@@ -666,17 +727,29 @@ export class Enemy {
           this.steerDirect(this.cover.pos, dt, 1.6);
         }
         // Açıkta ve yakın: yan adım at
-        if (!this.cover && !this.moveTarget && this.visible && !this.stationary) {
+        // Açıkta ve yakın: kararlı yan adım parçaları; arada durup nişan alır, tüfekçi zaman zaman diz çöker
+        if (!this.cover && !this.moveTarget && this.visible && !this.stationary && !this.T.noStrafe) {
+          if (this.type === 'rifleman') {
+            this.kneelT -= dt;
+            if (this.kneelT <= 0) {
+              this.kneel = !this.kneel && Math.random() < AI.kneelChance;
+              this.kneelT = this.kneel ? rand(AI.kneelTime[0], AI.kneelTime[1]) : rand(AI.standTime[0], AI.standTime[1]);
+            }
+          }
           this.strafeT -= dt;
           if (this.strafeT <= 0) {
-            this.strafeT = rand(0.8, 2);
-            this.strafeDir *= Math.random() < 0.6 ? -1 : 1;
+            this.strafeT = rand(AI.strafeTime[0], AI.strafeTime[1]);
+            if (this.strafeDir === 0) this.strafeDir = Math.random() < 0.5 ? -1 : 1;
+            else this.strafeDir = Math.random() < AI.strafePause ? 0 : -this.strafeDir;
           }
-          const fy = faceYaw;
-          _v.set(Math.cos(fy) * this.strafeDir, 0, -Math.sin(fy) * this.strafeDir).multiplyScalar(1.5).add(this.pos);
-          if (g.nav.isWalkable(_v.x, _v.z)) this.steerDirect(_v, dt, this.T.walk * 1.2);
-          if (this.type === 'rifleman' && Math.random() < 0.002) this.crouch = !this.crouch;
-        }
+          if (this.kneel) this.crouch = true;
+          else if (this.strafeDir !== 0) {
+            const fy = faceYaw;
+            _v.set(Math.cos(fy) * this.strafeDir, 0, -Math.sin(fy) * this.strafeDir).multiplyScalar(1.5).add(this.pos);
+            if (g.nav.isWalkable(_v.x, _v.z)) this.steerDirect(_v, dt, this.T.walk * AI.strafeSpeed);
+            else this.strafeDir = -this.strafeDir; // duvar: geri dön (yerinde ite ite durmasın)
+          }
+        } else this.kneel = false;
         wantShoot = this.visible && this.reactionT <= 0 && (!this.cover || this.coverPhase === 'peek' || this.coverPhase === 'move' && !this.run);
         if (this.type === 'shotgunner') wantShoot = this.visible && this.reactionT <= 0 && this.pos.distanceTo(P.pos) < this.W.range;
         break;
@@ -685,7 +758,10 @@ export class Enemy {
         break;
     }
     if (this.moveTarget) this.followPath(dt);
-    else if (this.aiState !== 'combat' || (!this.cover && !this.visible)) {
+    // Bu kare hiçbir hareket kararı yoksa dur. Eskiden çatışmada siperden yukarı göz atarken, yan adım yeri
+    // kapalıyken ya da robot/hücumcu hedefe varınca hız sönmüyordu: asker son hızıyla kayıyor, ayrışma itişi
+    // birikip yerinde sürükleniyordu
+    if (!this.steered) {
       this.vel.x = damp(this.vel.x, 0, 8, dt);
       this.vel.z = damp(this.vel.z, 0, 8, dt);
     }
@@ -758,6 +834,12 @@ export class Enemy {
             return;
           }
         }
+      } else {
+        // Tarama bitti, hedef görünmüyor: silah ateşsiz son bilinen yere dönmeye devam eder. Eskiden olduğu
+        // yerde donuyordu; taret dönerken hedef görüş açısının dışında kaldıysa nişancı onu bir daha göremiyor,
+        // görmediği için de dönmüyordu (uçaksavar arkasındaki oyuncuya hiç ateş etmiyordu)
+        // Dönünce son bilinen yerin çevresini yavaşça tarar (sabit bakışta bir siperin köşesi görüşü kesebiliyor)
+        targetYaw = dirToYaw(this.lastKnown.x - pivot.x, this.lastKnown.z - pivot.z) + Math.sin(g.time * C.searchRate + this.pos.x) * C.searchDeg * DEG;
       }
     } else if (this.aiState === 'guard' || this.aiState === 'patrol') {
       targetYaw = N.yaw + Math.sin(g.time * 0.25 + this.pos.x) * N.arc * 0.5; // nöbette yavaşça tara
@@ -839,8 +921,9 @@ export class Enemy {
     } else {
       this.moveTarget = tgt;
       this.run = run;
+      // Poligon hedefi düz yürür; gerçek düşmanın yolunu act() izler (burada da çağrılınca bir karede iki
+      // adım atılıyor, takılma sayacı iki kat hızlı doluyordu)
       if (this.dummy) this.steerDirect(tgt, dt, this.T.walk);
-      else this.followPath(dt);
     }
   }
 
@@ -900,6 +983,7 @@ export class Enemy {
     const tz = d > 1e-4 ? (dz / d) * s : 0;
     this.vel.x = damp(this.vel.x, tx, 8, dt);
     this.vel.z = damp(this.vel.z, tz, 8, dt);
+    this.steered = true;
   }
 
   moveBody(dt) {
@@ -914,10 +998,12 @@ export class Enemy {
       const dx = this.pos.x - o.pos.x;
       const dz = this.pos.z - o.pos.z;
       const d2 = dx * dx + dz * dz;
-      if (d2 < 0.64 && d2 > 1e-6) {
+      // İki gövdenin yarıçapları toplamı (asker–asker 0,8 m; robot daha geniş)
+      const rr = (this.state.radius + o.state.radius) * 1.05;
+      if (d2 < rr * rr && d2 > 1e-6) {
         const d = Math.sqrt(d2);
-        this.vel.x += (dx / d) * (0.8 - d) * 6;
-        this.vel.z += (dz / d) * (0.8 - d) * 6;
+        this.vel.x += (dx / d) * (rr - d) * 6;
+        this.vel.z += (dz / d) * (rr - d) * 6;
       }
     }
     if (this.spec.elevated) {
@@ -1075,8 +1161,13 @@ export class Enemy {
         const zone = playerZoneAt(muzzle.y + d.y * h - F.pos.y, height);
         F.takeDamage(W.damage * D.damageMult * fall * (F === P ? 1 : ALLY.damageTaken), this.pos, { zone, pen: enemyPen(this.wKey), source: this.type });
         g.effects.impact(_v.copy(muzzle).addScaledVector(d, h), _v2.copy(d).negate(), 'flesh', 0.3);
+        // Dostu vuran mermi yere kan damlatır (oyuncunun kendi kanı ekranda)
+        if (F !== P) g.effects.bloodSpatter(_v, d, g.world, 0.6);
       } else {
         const endT = maxT;
+        // Oyuncunun sürdüğü tanka çarpan mermi zırhı biraz aşındırır
+        const veh = wh?.collider?.owner;
+        if (veh?.side === 'player' && veh.damage) veh.damage(W.damage * TANK.bulletMult, 'enemy');
         if (wh && muzzle.distanceTo(g.camera.position) < 90) {
           g.effects.impact(wh.point, wh.normal, wh.surface, 0.7);
           if (wh.point.distanceTo(P.pos) < 20) g.audio.impact(wh.surface, wh.point);
@@ -1218,11 +1309,14 @@ export class Enemy {
       this.vel.multiplyScalar(Math.max(0, 1 - 4 * dt));
     }
     this.model.updateDeath(dt, A, this.pos, this.yaw);
+    // Devrilen gövdenin göğsünün altında kan gölü yayılır (önce hızlı, sonra yavaşlayarak); robotta kan yok
     if (A.deathT >= 0.75 && !this.bloodPool) {
       this.bloodPool = true;
-      if (g.settings.blood && !this.dummy) {
-        _v.set(this.pos.x - Math.sin(this.yaw) * A.fallDir * 0.9, this.pos.y + 0.02, this.pos.z - Math.cos(this.yaw) * A.fallDir * 0.9);
-        g.effects.bloodSplat(_v, UP, 1.3);
+      if (g.settings.blood && !this.dummy && !this.robot) {
+        if (this.model.bodyCenter) this.model.bodyCenter(_v).setY(this.pos.y + 0.02);
+        else _v.set(this.pos.x - Math.sin(this.yaw) * A.fallDir * 0.9, this.pos.y + 0.02, this.pos.z - Math.cos(this.yaw) * A.fallDir * 0.9);
+        g.effects.bloodSplat(_v, UP, 0.7);
+        g.effects.bloodPool(_v, BLOOD.poolSize, BLOOD.poolTime, 0.3, g.world);
       }
     }
   }
@@ -1324,11 +1418,13 @@ export class EnemyManager {
     let bestD = maxD;
     for (const e of this.list) {
       if (!e.alive) continue;
-      _v.set(e.pos.x, e.pos.y + 1.0, e.pos.z).sub(o);
+      // Kaba eleme: gövde ekseninin ortasına uzaklık (asker 1,8 m; robot daha uzun ve geniş)
+      const hh = e.state.height * 0.55;
+      _v.set(e.pos.x, e.pos.y + hh, e.pos.z).sub(o);
       const t = _v.dot(d);
-      if (t < -1 || t > bestD + 1.5) continue;
+      if (t < -1 - hh || t > bestD + 1.5 + hh) continue;
       const perp2 = _v.lengthSq() - t * t;
-      if (perp2 > 1.8) continue;
+      if (perp2 > hh * hh + 0.85) continue;
       _ray.set(o, d);
       _ray.far = bestD;
       const hits = _ray.intersectObjects(e.model.meshes, false);

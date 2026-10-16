@@ -89,6 +89,11 @@ export const ONLINE = {
 };
 
 // Hazır ağaç modeli (Sketchfab çamı; kit.js pine/palm → World.addTree, tüm ağaçlar InstancedMesh)
+// Rüzgâr (models.js → addWind): salınım hızı ve genliği (yüksekliğin oranı); çimen öbekleri (world.js →
+// scatterGrass): harita ortamındaki "grass" satırı sıklığı (100 m² başına) ve rengi verir; kaliteye göre sıklık çarpanı
+export const WIND = { speed: 1.25, treeFoliage: 0.022, treeTrunk: 0.006, grass: 0.16 };
+export const GRASS = { cell: 32, density: { low: 0, medium: 0.55, high: 1 }, height: [0.35, 0.75], width: [0.45, 0.85] };
+
 export const TREES = {
   alphaTest: 0.2, // yaprak kartlarının saydamlık kesme eşiği (modelin kendi MASK eşiği ≈ 0,21; yüksek değer tacı seyreltir)
   scaleJitter: 0.12, // aynı boydaki ağaçlar birbirinin kopyası görünmesin: ± oran
@@ -1036,6 +1041,8 @@ export const ENEMY_WEAPONS = {
   flak: { rpm: 200, damage: 10, magSize: 40, reload: 4.5, burst: [3, 6], burstGap: [1.1, 1.9], pellets: 1, range: 160, sound: 'bmg50', noise: 130, tracerEvery: 1, flak: { proximity: 3.0, radius: 4.0, damage: 26, fx: 0.3 } },
   // Mevzi makinelisi: uzun seriler, ağır mermi. Oyuncuya verdiği hasarı zorluktaki dpsCap sınırlar
   hmg: { rpm: 450, damage: 15, magSize: 100, reload: 5.5, burst: [9, 18], burstGap: [0.7, 1.3], pellets: 1, range: 150, sound: 'enemyHmg', noise: 110, tracerEvery: 3 },
+  // Savaş robotunun iki gatling'i: çok hızlı, uzun seriler, mermi başına hafif; seriler arası soğuma
+  robotGun: { rpm: 950, damage: 6, magSize: 140, reload: 3.6, burst: [14, 26], burstGap: [1.0, 1.7], pellets: 1, range: 95, sound: 'enemyLmg', noise: 120, tracerEvery: 2 },
 };
 
 export const ENEMY_TYPES = {
@@ -1067,6 +1074,14 @@ export const ENEMY_TYPES = {
     prefDist: [10, 26], usesCover: false, rushes: false, aimBase: 2.2, headMult: 2.4, mounted: true, fallbackWeapon: 'rifle',
     colors: { uniform: 0x4a4436, vest: 0x2a2820, helmet: 0x33302a, skin: 0x9c7456, band: 0x8e2b23 },
   },
+  // Savaş robotu (robot.js): ağır, yavaş, siper kullanmaz, bomba atmaz, yana adım atmaz; tercih ettiği mesafede
+  // durup uzun seriler sıkar. Hasar kuralları ROBOT tablosunda (zırh delme, patlayıcı, sensör)
+  robot: {
+    name: 'Savaş Robotu', hp: 900, weapon: 'robotGun', walk: 1.25, run: 1.9, viewRange: 85, fov: 170,
+    prefDist: [14, 38], usesCover: false, rushes: false, aimBase: 3.6, headMult: 1,
+    robot: true, noGrenades: true, noStrafe: true, eyeH: 2.55, chestH: 2.15, radius: 0.7, height: 2.9,
+    colors: {},
+  },
   gunner: {
     name: 'Mevzi Makinelisi', hp: 150, weapon: 'hmg', walk: 1.6, run: 4.0, viewRange: 75, fov: 150,
     prefDist: [10, 26], usesCover: false, rushes: false, aimBase: 2.4, headMult: 2.4, mounted: true, fallbackWeapon: 'rifle',
@@ -1092,6 +1107,9 @@ export const HMG = {
   upTime: 2.4, //   bastırma makineliyi susturmaz, yalnızca ateş penceresini daraltır
   sweepDeg: 14, // hedefi göremezken son bilinen noktayı tarama genliği
   sweepTime: 3.5, // hedef kaybolduktan sonra bu süre taramaya devam eder
+  // Tarama bitince ateşsiz arama: silah son bilinen yerin çevresinde yavaşça gezinir (genlik °, hız rad/s)
+  searchDeg: 18,
+  searchRate: 0.6,
   dismountDelay: 7, // görünen hedef bu süre yay dışında ve yakında kalırsa (kuşatılma) nişancı iner
   dismountRange: 35, // uzaktaki hedef yay dışında kalsa bile nişancı yerini bırakmaz
   silenceRadius: 3.4, // patlayıcı bu yarıçapta patlarsa silah susar
@@ -1115,6 +1133,8 @@ export const AA_GUN = {
   upTime: 3.0,
   sweepDeg: 8,
   sweepTime: 2.5,
+  searchDeg: 14,
+  searchRate: 0.6,
   dismountDelay: Infinity, // taret tam döndüğü için yay dışı yok: nişancı yerini bırakmaz
   dismountRange: 0,
   warnRange: 110,
@@ -1192,6 +1212,79 @@ export const TANK = {
   shotHintAfter: 6, // bu kadar mermi zırha çarpınca ipucu
   wreckBlast: { radius: 7, damage: 160 },
   score: 750,
+  // Ele geçirme: bu can oranının altında mürettebat (crew asker) tankı terk eder; oyuncu binebilir (vehicle.js)
+  bailRatio: 0.35,
+  crew: 2,
+  vsPlayerMult: 2.0, // düşman top mermisinin oyuncunun sürdüğü tanka çarpanı (ağır/hafif ayrımı yerine)
+  bulletMult: 0.12, // düşman mermisinin oyuncunun tankına etkisi (mermi başına hasar × bu)
+  // Oyuncunun sürüşü: hızlar (m/s), ivme, palet dönüşü (rad/s), taret dönüşü, top eğimi, dolum, ezme hızı,
+  // üzerinden geçilen engel yüksekliği (m); kamera: uzaklık, yükseklik, bakış noktasının yerden yüksekliği
+  drive: { maxFwd: 7.5, maxBack: 3.2, accel: 3.2, brake: 8, turn: 0.8, turretTurn: 1.6, pitchMin: -0.14, pitchMax: 0.38, reload: 3.0, crush: 2.0, climb: 0.85, camDist: 10, camHeight: 2.2, camPivot: 3.2, exitDist: 2.6 },
+  playerShell: { rocketSpeed: 150, damage: 160, splashRadius: 6, splashDamage: 240 },
+  playerCoax: { rpm: 600, damage: 24, range: 130, errDeg: 0.9 },
+};
+
+// Araçlar (vehicle.js): binme alanı ve süresi (E basılı), araç patlayınca içindekinin aldığı hasar, üçüncü
+// şahıs kameranın eğim sınırı, nişan ışınının menzili
+export const VEHICLE = { enterRadius: 2.6, enterTime: 0.5, ejectDamage: 55, pitchMin: -0.5, pitchMax: 0.32, aimRange: 400 };
+
+// Savaş robotu (robot.js, tools/prepare-robot.mjs). Hasar: mermi zırh delmesiyle ölçeklenir (bulletBase + (1 − bulletBase)
+// × delme), patlayıcı explosiveMult katı, bıçak meleeMult; ön paneldeki kırmızı sensör ("head") zayıf nokta
+export const ROBOT = {
+  walkSpeed: 1.25, // tam adım animasyonunun hızı (m/s)
+  stride: 2.4, // bir tam adım döngüsü (m)
+  hipTurn: 60 * Math.PI / 180, // bacaklar bakıştan en çok bu kadar sapar
+  legTurn: 3, // bacakların dönüş hızı
+  hipSwing: 0.32, // kalça salınımı (rad)
+  kneeLift: 0.55, // salınımdaki diz bükümü (rad)
+  bob: 0.09, // adımda gövdenin inişi (m)
+  recoil: 0.05,
+  glow: 2.2, // ışıyan göz ve lambaların parlaklığı
+  envIntensity: 1.0,
+  brighten: 1.5, // kaynak dokular çok koyu (gece mavisi metal): gündüz haritalarında seçilsin
+  bulletBase: 0.35,
+  explosiveMult: 2.2,
+  meleeMult: 0.15,
+  sensorMult: 1.6, // sensöre isabette silahın kafa çarpanının üstüne
+  deathBlast: { radius: 5, damage: 70, fx: 1.3 },
+  deathDrop: 0.75, // çökerken gövdenin inişi (m)
+  wreckSmoke: 40, // enkaz bu kadar tüter (s)
+  score: 400,
+  stepShake: 14, // bu mesafenin içinde adım kamerayı sarsar (m)
+  // Vuruş kutuları: eklem uzayında merkez ve boy (m)
+  hitboxes: [
+    { joint: 'torso', zone: 'torso', at: [0, 0.55, 0.0], size: [1.15, 1.0, 1.05] },
+    { joint: 'torso', zone: 'head', at: [0, 0.42, -0.52], size: [0.36, 0.3, 0.2] },
+    { joint: 'pelvis', zone: 'torso', at: [0, -0.05, 0], size: [0.95, 0.5, 0.85] },
+    { joint: 'shoulderL', zone: 'limb', at: [-0.15, -0.3, -0.35], size: [0.55, 0.8, 1.1] },
+    { joint: 'shoulderR', zone: 'limb', at: [0.15, -0.3, -0.35], size: [0.55, 0.8, 1.1] },
+    { joint: 'hipL', zone: 'limb', at: [0, -0.43, -0.16], size: [0.45, 1.0, 0.5] },
+    { joint: 'hipR', zone: 'limb', at: [0, -0.43, -0.16], size: [0.45, 1.0, 0.5] },
+    { joint: 'kneeL', zone: 'limb', at: [0, -0.32, 0.19], size: [0.4, 0.8, 0.45] },
+    { joint: 'kneeR', zone: 'limb', at: [0, -0.32, 0.19], size: [0.4, 0.8, 0.45] },
+    { joint: 'ankleL', zone: 'limb', at: [0, -0.12, -0.05], size: [0.6, 0.26, 0.9] },
+    { joint: 'ankleR', zone: 'limb', at: [0, -0.12, -0.05], size: [0.6, 0.26, 0.9] },
+  ],
+};
+
+// Kan (Ayarlar → Kan açıkken): sıçrama ve damla lekeleri, ölen/yere düşen askerin altında yayılan göl
+export const BLOOD = {
+  decals: 90, // her leke biçiminden en çok bu kadar (halka tampon: eskisi silinir)
+  decalsLow: 40,
+  pools: 28,
+  poolsLow: 12,
+  poolSize: 1.5, // ölen askerin kan gölünün çapı (m)
+  poolTime: 9, // göl bu sürede yayılır (s): önce hızlı, sonra yavaş
+  downedPoolSize: 1.1, // yerde yaralı asker / oyuncu
+  downedPoolTime: 14,
+  wallChance: 0.75, // isabette arkadaki yüzeye sıçrama olasılığı
+  wallReach: 3, // m
+  wallSize: [0.45, 0.95],
+  groundChance: 0.7, // isabette altındaki zemine damla olasılığı
+  groundSize: [0.25, 0.5],
+  splatRoughness: 0.45, // lekeler yarı ıslak
+  poolRoughness: 0.16, // göl ıslak: güneşi ve gökyüzünü yansıtır
+  envIntensity: 0.8,
 };
 
 // İskeletli asker (hazır model + prosedürel katmanlar). Değerler Soldier.glb klipleri ölçülerek bulundu:
@@ -1234,6 +1327,9 @@ export const SOLDIER_ANIM = {
   blobFrom: 38, // gölge haritasının menzili dışında askerin altına yumuşak ayak gölgesi (m)
   blobOpacity: 0.42,
   envIntensity: 0.45, // ortam yansıması: gölgede ve uzakta asker simsiyah bir siluete dönmesin
+  // Elde gerçek silah modeli (Alfa Timi): bileğin kabzaya göre yeri, sol bileğin kundak noktasına göre kayması,
+  // şarjör yuvası yüksekliği ve dipçik ucunun omuza gömülme payı (m, silah uzayında)
+  heldGun: { grip: [0.025, -0.035, 0.1], fore: [-0.03, -0.045, 0.02], magY: -0.07, stockPad: 0.01 },
   // Silah duruşları (omuz eklemine göre, gövde uzayında): stok konumu ve silah açıları
   stances: {
     aim: { stock: [-0.09, -0.03, 0.0], pitch: 0, yaw: 0.02, roll: 0 },
@@ -1272,6 +1368,7 @@ export const ALLY = {
   // Hedef bu kadar yakın ve arada engel yoksa yol ağı yerine doğrudan yürü: yol ağı duvar dibindeki hücreleri
   // kapalı sayar, duvara yaslanmış oyuncuya (tedavi, canlandırma) ancak son birkaç metre düz gidilerek ulaşılır
   directDist: 4,
+  settle: [0.9, 1.6], // hedefe varış / yeniden yürümeye başlama mesafesi (m)
   viewRange: 60,
   thinkInterval: 0.15,
   loseTargetTime: 2.5,
@@ -1292,7 +1389,8 @@ export const ALLY = {
   stealth: 0.6, // düşmanın dostu fark etme hızı çarpanı: manga oyuncunun arkasında, dikkat çekmemeye çalışır
   colors: { uniform: 0x3d5a8a, vest: 0x243650, helmet: 0x2f4b78, skin: 0xa77b5b, band: 0x4aa3ff },
   // Kademe taktiklerinin ayarları (hangi taktiğin açık olduğu ALLY_TIERS'ta)
-  peek: { hide: [0.9, 1.6], show: [1.4, 2.4] }, // siperde saklanma / ateş için çıkma süreleri
+  // Siperde saklanma / ateş için çıkma süreleri (daha kısası askeri durmadan eğilip kalkıyor gösteriyordu)
+  peek: { hide: [1.3, 2.2], show: [2.0, 3.4] },
   callout: { cooldown: 9, markTime: 4 }, // düşman bildirme: telsiz + HUD işareti süresi
   suppress: { range: 90, burst: [6, 10], gap: [0.35, 0.6], aimDeg: 3.5 }, // mevziye bastırma ateşi
   revive: { range: 28, time: 2.4 }, // yerdeki dosta koşup ayıltma
@@ -1329,6 +1427,7 @@ export const MAPS = {
       fog: [70, 460], sunDir: [0.82, 0.3, -0.22], sun: [0xffcf9c, 2.9], hemi: [0xb4c8e0, 0x8a6f4d, 1.15], exposure: 1.05,
       reflect: [0x4a78a8, 0xe0b595, 0x9a7a58], view: [0xd6e0ec, 0x7a6650, 1.5, 0xffd9b0, 2.2],
       dust: 0xcbb08a, ambient: { wind: 420, gain: 0.16, distant: 1 }, perception: 1, weather: null,
+      grass: { density: 5, color: 0xb6a46a, height: 0.8 }, // kuru çöl otu
     },
   },
   harbor: {
@@ -1365,6 +1464,45 @@ export const MAPS = {
       fog: [28, 250], sunDir: [-0.42, 0.55, -0.62], sun: [0xa8bcff, 0.85], hemi: [0x4a5e9a, 0x2a2018, 0.95], exposure: 1.5,
       reflect: [0x0a1224, 0x2a3450, 0x0a0a0c], view: [0x6a7aa8, 0x2a2018, 0.9, 0xb0c0ff, 0.6],
       dust: 0x6a6a70, ambient: { wind: 260, gain: 0.12, distant: 0.8, hum: true }, perception: 0.85, weather: null,
+    },
+  },
+  forest: {
+    name: 'Kara Orman', desc: 'Sık çam ormanı, sisli sabah',
+    env: {
+      sky: { zenith: 0x58789a, horizon: 0xb9c6bf, ground: 0x4a5640, glow: [0.85, 0.7, 0.45], disc: [1.0, 0.92, 0.72], band: [0.12, 0.1, 0.05], stars: 0 },
+      fog: [24, 240], sunDir: [-0.55, 0.38, 0.62], sun: [0xffe2b4, 2.5], hemi: [0xc4d6dc, 0x56663f, 1.55], exposure: 1.12,
+      reflect: [0x56708a, 0xb9c6bf, 0x4a5640], view: [0xc6d4d8, 0x4a5a3a, 1.45, 0xffe2b4, 1.8],
+      dust: 0x7a7a5a, ambient: { wind: 380, gain: 0.15, distant: 0.6 }, perception: 0.82, weather: null,
+      grass: { density: 26, color: 0x7e9a56, height: 1.1 },
+    },
+  },
+  factory: {
+    name: 'Çelik Fabrika', desc: 'Robot fabrikası, gece',
+    env: {
+      sky: { zenith: 0x05070f, horizon: 0x2a1e30, ground: 0x08080a, glow: [0.3, 0.12, 0.18], disc: [0.9, 0.85, 1.0], band: [0.16, 0.05, 0.05], stars: 1 },
+      fog: [26, 240], sunDir: [0.4, 0.55, -0.7], sun: [0xb8c4ff, 0.9], hemi: [0x5a5e9a, 0x2a1a18, 1.0], exposure: 1.55,
+      reflect: [0x0c1020, 0x3a2a40, 0x0a0a0c], view: [0x7a7aa8, 0x2a1a18, 0.95, 0xc0c8ff, 0.65],
+      dust: 0x5a5a62, ambient: { wind: 220, gain: 0.1, distant: 0.9, hum: true }, perception: 0.85, weather: null,
+    },
+  },
+  coast: {
+    name: 'Kıyı', desc: 'Kumsal ve burun, şafak',
+    env: {
+      sky: { zenith: 0x3e6a9c, horizon: 0xf2c19a, ground: 0xc8b090, glow: [1.0, 0.6, 0.35], disc: [1.0, 0.86, 0.62], band: [0.36, 0.16, 0.08], stars: 0 },
+      fog: [70, 460], sunDir: [0.2, 0.22, 0.95], sun: [0xffcfa0, 2.8], hemi: [0xb8cce4, 0x8a7458, 1.2], exposure: 1.05,
+      reflect: [0x4a78a8, 0xf2c19a, 0x9a8466], view: [0xd2deec, 0x8a7458, 1.5, 0xffd2a8, 2.1],
+      dust: 0xd2bc94, ambient: { wind: 360, gain: 0.18, distant: 1.1, sea: true }, perception: 1, weather: null,
+      grass: { density: 4, color: 0xc0b07a, height: 1.0 }, // kumul otu
+    },
+  },
+  core: {
+    name: 'Son Kale', desc: 'Kızıl kanyon, alacakaranlık, kül yağışı',
+    env: {
+      sky: { zenith: 0x2a1218, horizon: 0xc0583a, ground: 0x4a2418, glow: [1.0, 0.32, 0.14], disc: [1.0, 0.55, 0.3], band: [0.5, 0.12, 0.04], stars: 0 },
+      fog: [30, 270], sunDir: [-0.5, 0.34, 0.8], sun: [0xff7a48, 2.5], hemi: [0xb47a8a, 0x6a3220, 1.45], exposure: 1.12,
+      reflect: [0x4a2028, 0xc0583a, 0x4a2418], view: [0xc89090, 0x5a2a1a, 1.35, 0xff9a6a, 1.9],
+      dust: 0x9a5a40, ambient: { wind: 480, gain: 0.2, distant: 1.3 }, perception: 0.92, weather: 'ash',
+      grass: { density: 2.5, color: 0x9a6a48, height: 0.7 },
     },
   },
 };
@@ -1434,6 +1572,44 @@ export const LEVELS = [
     defendTime: 115,
     tuning: { reaction: 0.82, aim: 0.85, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
   },
+  {
+    id: 7, map: 'forest', name: 'Kara Orman', tag: 'Zor · robot',
+    brief: 'Sisli çam ormanında kereste kampını temizle, tepedeki radar istasyonundan verileri indir ve istasyonu koruyan savaş robotunu yok et. Bazuka ve C4 robota karşı en iyi silah.',
+    start: 0, objectives: ['outpost', 'intel', 'robots', 'extract'], allies: 3, allyTier: 5,
+    radioIntro: 'Kuzey ormanından garip sinyaller geliyor. Önce kampı al, sonra istasyona çık.',
+    outro: 'Tahliye tamam. Robotun verileri karargâha gidiyor. Bu daha başlangıç.',
+    enemies: { groups: ['outpost', 'hq', 'robots'], exclude: [], hmg: 3 },
+    tuning: { reaction: 0.84, aim: 0.88, damage: 1.1, perception: 0.95, awareness: 1.15, attackers: 1, grenades: true },
+  },
+  {
+    id: 8, map: 'factory', name: 'Çelik Fabrika', tag: 'Zor · tank',
+    brief: 'Gece robot fabrikasına baskın: boş dost tanka bin, kapıyı topla düşür, avludaki robotları ve düşman tankını yok et, montaj salonundaki üç jeneratörü C4 ile patlat.',
+    start: 0, objectives: ['capture', 'robots', 'aa', 'extract'], allies: 3, allyTier: 5,
+    radioIntro: 'Robotların üretildiği fabrikayı bulduk. Tank hazır, Komutan: bu gece onu sen süreceksin.',
+    outro: 'Tahliye tamam. Fabrika karanlıkta, üretim durdu.',
+    enemies: { groups: ['outpost', 'robots', 'village'], exclude: [], hmg: 3, tanks: 1 },
+    tuning: { reaction: 0.82, aim: 0.86, damage: 1.12, perception: 0.95, awareness: 1.15, attackers: 1, grenades: true },
+  },
+  {
+    id: 9, map: 'coast', name: 'Kıyı Çıkarması', tag: 'Çok zor',
+    brief: 'Şafakta sahile çıkarma: kum tepesindeki sığınakları al, sahil yolundaki tankları ele geçir ya da patlat, köydeki iki kıyı topunu sustur ve burundaki pisti helikopter gelene dek tut.',
+    start: 0, objectives: ['outpost', 'aa', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Rampa inmek üzere! Kumsal açık; sığınaklardaki makineliler sizi bekliyor. Arkanda dost bir tank çıkıyor.',
+    outro: 'Tahliye tamam. Sahil başı bizim, filo karaya çıkıyor.',
+    enemies: { groups: ['outpost', 'village'], exclude: [], reinforcements: true, hmg: 4, tanks: 2 },
+    defendTime: 95,
+    tuning: { reaction: 0.8, aim: 0.84, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
+  },
+  {
+    id: 10, map: 'core', name: 'Son Kale', tag: 'Final',
+    brief: 'Kızıl kanyondaki robot komuta üssü: kapıyı düşür, robot sürüsünü yok et, üç enerji çekirdeğini patlat, kapatma kodlarını al ve robot dalgalarına karşı pisti tut.',
+    start: 0, objectives: ['outpost', 'robots', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Son Kale. Ne olursa olsun bu gece bitiyor. Alfa Timi, yanındayız.',
+    outro: 'Kapatma kodları çalıştı. Robot ordusu sustu. Demir Şafak tamamlandı, Komutan.',
+    enemies: { groups: ['outpost', 'robots', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 5 },
+    defendTime: 110,
+    tuning: { reaction: 0.78, aim: 0.82, damage: 1.18, perception: 1.0, awareness: 1.22, attackers: 1, grenades: true },
+  },
 ];
 
 // Vuruş kutuları (kemiğe bağlı, görünmez; bağlanma pozunda ölçüldü). Gövde/kafa kutuları kemik boyunca
@@ -1486,6 +1662,8 @@ export const LOBBY = {
   op: [0, 86], // operatörün haritadaki yeri (x, z): Kızılkum yolu, arkasında köy
   opYaw: Math.PI, // kameraya (güneye) dönük
   type: 'allyElite',
+  model: 'squad_forest', // Alfa Timi askeri (characterAssets.json)
+  gun: 'ak74', // elindeki silah modeli (weaponAssets.json)
   camDist: 3.4,
   camHeight: 1.5,
   lookHeight: 1.15,
@@ -1569,6 +1747,23 @@ export const AI = {
   coverSearchRadius: 16,
   firstShotsMissBonus: 3.0, // derece; ilk atışlar oyuncuyu uyarmak için daha çok ıskalar
   acquireWindup: 1.6, // bu süre boyunca isabet kademeli artar
+  // Açıkta yan adım: kararlı yürüyüş parçaları, arada durup nişan; kısa aralıklı sağ-sol gidip gelme
+  // "dans" gibi görünüyordu
+  strafeTime: [1.4, 3.2], // bir yöne yürüme süresi (sn)
+  strafePause: 0.35, // yön değişiminde durup ateş etme olasılığı
+  strafeSpeed: 1.0, // yürüme hızına çarpan
+  // Açıkta diz çökme (yalnız tüfekçi): süreli duruş; eskiden kare başına zar atılıyor, bir kare çöküyordu
+  kneelChance: 0.35,
+  kneelTime: [1.6, 3.2],
+  standTime: [2.5, 5.5],
+  // Görüş kısa süre kesilince (direk, ağaç, dost asker araya girdi) hemen yerinden fırlamaz
+  chaseDelay: 0.8,
+  // Siperdeki asker ancak bu kadar süre açıkta kalırsa siperi bırakır (yükseklik sınırında gidip gelmesin)
+  coverExposedTime: 0.6,
+  coverArriveDist: 2.5, // yol siperin yakınında bittiyse varılmış sayılır
+  // Aramada çevreye bakış: varış anındaki yöne göre (kendi yönüne eklenince yerinde fırıl fırıl dönüyordu)
+  lookAroundArc: 0.9,
+  lookAroundRate: 1.3,
 };
 
 export const SCORE = { kill: 100, headshot: 50, melee: 75, objective: 250 };
