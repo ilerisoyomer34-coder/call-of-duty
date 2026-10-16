@@ -73,8 +73,9 @@ export class RadioChat {
     this.input.autocomplete = 'off';
     this.input.spellcheck = false;
     this.input.enterKeyHint = 'send';
-    this.input.maxLength = 120;
-    this.input.placeholder = 'Komut yaz: "Kaya beni iyileştir", "Herkes siper alsın!"';
+    this.input.maxLength = 360;
+    this.input.placeholder = 'Demir sola 20 metre git, sonra bekle · yardım';
+    this.input.title = 'Türkçe/ASCII komut · Adla hitap · Yön ve mesafe · En fazla 8 sıralı emir · “yardım” / “durum raporu”';
     this.input.setAttribute('aria-label', 'Telsiz komutu');
     // Dokunmatikte Esc yok: kapatma düğmesi
     const x = document.createElement('button');
@@ -245,25 +246,17 @@ export class RadioChat {
       this.closeChat();
       return null;
     }
-    const r = parseCommand(t);
+    const r = parseCommand(t, { ...g.commands.radioContext, defaultAddressees: g.commands.addressee });
     if (r.commandId === 'UNKNOWN') {
       const a = g.allies.list.find((x) => !x.down) || g.allies.list[0];
       g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${SQUAD.team}`, inputMethod === 'voice' ? `🎤 ${t}` : t, 0, 'player');
-      if (a) g.mission?.radio(a.radioLabel, CMD.unknown.say, 0, 'squad', 'reply');
+      g.mission?.radio(a?.radioLabel || 'TELSİZ', r.message || CMD.unknown.say, 0, a ? 'squad' : 'system', 'reply');
       this.input.value = '';
       this.showSuggestions(r.suggest);
       return r;
     }
     this.closeChat();
-    let pos = null;
-    if (r.dir && g.player) {
-      // "saat 2", "sol", "sağ": oyuncunun baktığı yöne göre 15 m ileride
-      const yaw = g.player.yaw - (r.dir.clock / 12) * Math.PI * 2;
-      pos = g.player.pos.clone();
-      pos.x -= Math.sin(yaw) * 15;
-      pos.z -= Math.cos(yaw) * 15;
-    }
-    g.commands.issue(r.commandId, r.addressees, { inputMethod, sourceText: inputMethod === 'voice' ? `🎤 ${t}` : t, pos });
+    g.commands.issuePlan(r, { inputMethod });
     return r;
   }
 
