@@ -23,7 +23,7 @@ export const SHORTCUTS = {
   cmdFreeFire: 'FREE_FIRE',
 };
 // Hedef noktası isteyen komutlar (nişangâhın baktığı yer)
-const NEEDS_POINT = new Set(['MOVE_TO', 'SUPPRESS', 'CLEAR_AREA']);
+const NEEDS_POINT = new Set(['MOVE_TO', 'SUPPRESS', 'CLEAR_AREA', 'THROW_GRENADE']);
 const QUERIES = new Set(['HELP', 'STATUS']);
 
 const _o = new THREE.Vector3();
@@ -151,11 +151,11 @@ export class CommandSystem {
       pos.x -= Math.sin(yaw) * (step.distance || 15);
       pos.z -= Math.cos(yaw) * (step.distance || 15);
     } else if (NEEDS_POINT.has(step.commandId) || step.commandId === 'ATTACK') {
-      const aim = context.aim || this.aim();
+      const aim = step.commandId === 'THROW_GRENADE' ? context.grenadeAim || this.aim(24) : context.aim || this.aim();
       pos = aim.point?.clone(); target = aim.enemy;
     }
     if (kind && !pos) return { reason: kind === 'nearest-enemy' ? 'Görüşte uygun düşman yok.' : 'Bu görevde istenen hedef noktası bulunamadı. Noktayı nişangâhla gösterip tekrar emir verin.' };
-    return { pos: pos && NEEDS_POINT.has(step.commandId) ? this.approachPoint(pos) : pos, target };
+    return { pos: pos && NEEDS_POINT.has(step.commandId) && step.commandId !== 'THROW_GRENADE' ? this.approachPoint(pos) : pos, target };
   }
 
   report(addressees) {
@@ -175,10 +175,12 @@ export class CommandSystem {
     if (!parsed || parsed.commandId === 'UNKNOWN' || this.game.mode !== 'mission') return null;
     const steps = parsed.steps || [parsed];
     for (const step of steps) if (!QUERIES.has(step.commandId)) this.cancelPlans(step.addressees);
-    const needsAim = steps.some((step) => !step.dir && !step.reference && (NEEDS_POINT.has(step.commandId) || step.commandId === 'ATTACK'));
+    const needsAim = steps.some((step) => step.commandId !== 'THROW_GRENADE' && !step.dir && !step.reference && (NEEDS_POINT.has(step.commandId) || step.commandId === 'ATTACK'));
+    const needsGrenadeAim = steps.some((step) => step.commandId === 'THROW_GRENADE' && !step.dir && !step.reference);
     const plan = {
       id: ++this.planSeq, steps, index: 0, waiting: false, ...opts,
       context: { anchor: this.game.player ? { pos: this.game.player.pos.clone(), yaw: this.game.player.yaw } : null, aim: needsAim ? this.aim() : null,
+        grenadeAim: needsGrenadeAim ? this.aim(24) : null,
         previousPoint: this.radioContext.point?.clone(), previousTarget: this.radioContext.target },
     };
     this.plans.set(plan.id, plan);
@@ -247,7 +249,7 @@ export class CommandSystem {
     }
     let { target = null, pos = null } = opts;
     if ((NEEDS_POINT.has(commandId) && !pos) || (commandId === 'ATTACK' && !target)) {
-      const a = this.aim();
+      const a = this.aim(commandId === 'THROW_GRENADE' ? 24 : 140);
       pos = pos || a.point;
       target = target || a.enemy;
     }
@@ -255,6 +257,16 @@ export class CommandSystem {
       g.mission?.radio(list[0].radioLabel, 'Hedef göremiyorum komutanım!', 0, 'squad', 'reply');
       g.events.emit(EV.COMMAND_FAILED, { commandId, addressees: list.map((a) => a.callsign), reason: 'no-target', inputMethod: opts.inputMethod || 'shortcut' });
       return null;
+    }
+    // Grup emrini başlamadan doğrula; bir asker yapamıyorsa diğerleri yarım bir plan başlatmasın.
+    if (commandId === 'THROW_GRENADE') {
+      for (const ally of list) {
+        const problem = ally.grenadeProblem(pos);
+        if (!problem) continue;
+        ally.sayLine(problem.line, true, 'reply');
+        g.events.emit(EV.COMMAND_FAILED, { commandId, addressees: list.map((a) => a.callsign), reason: problem.reason, inputMethod: opts.inputMethod || 'shortcut' });
+        return null;
+      }
     }
     const cmd = {
       id: ++this.seq,

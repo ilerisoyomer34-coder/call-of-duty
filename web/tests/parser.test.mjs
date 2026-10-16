@@ -97,13 +97,27 @@ test('yardım, durum ve iptal; desteklenmeyen emirde dürüst yanıt', () => {
   assert.equal(parseCommand('Alfa-2 buraya gel').commandId, 'MOVE_TO');
   assert.equal(parseCommand('Demir benimle kal').commandId, 'FOLLOW');
   assert.equal(parseCommand('emirleri iptal et').commandId, 'CANCEL_PLAN');
-  for (const text of ['Helikoptere binin', 'Tanka bin', 'bomba atın', 'üçgen düzenine geç']) {
+  for (const text of ['Helikoptere binin', 'Tanka bin', 'C4 yerleştirin', 'sis bombası at', 'üçgen düzenine geç']) {
     const r = parseCommand(text);
     assert.equal(r.commandId, 'UNKNOWN', text);
     assert.equal(r.reason, 'unsupported', text);
     assert.ok(r.message.length > 20);
   }
   for (const text of ['araba çok güzel', 'merhaba nasılsın', 'pizza ısmarla']) assert.equal(parseCommand(text).commandId, 'UNKNOWN', text);
+});
+
+test('el bombası emri; muhatap, yön, mesafe ve olumsuz atış ayrılır', () => {
+  for (const text of ['bomba at', 'bomba atsınlar', 'el bombası atın', 'bombayı fırlat', 'el bombasını at', 'Yildiz bomba firlat']) {
+    assert.equal(parseCommand(text).commandId, 'THROW_GRENADE', text);
+  }
+  const r = parseCommand('Demir sağa 20 metre bomba at sonra bekle');
+  assert.deepEqual(r.steps.map(s => s.commandId), ['THROW_GRENADE', 'HOLD']);
+  assert.deepEqual(r.steps[0].addressees, ['Alfa-1']);
+  assert.deepEqual(r.steps[0].dir, { clock: 3 });
+  assert.equal(r.steps[0].distance, 20);
+  for (const text of ['bomba atma', 'el bombası atmayın', 'bombayı fırlatma', 'bomba kullanmayın', 'atma bomba']) {
+    assert.equal(parseCommand(text).reason, 'negated-order', text);
+  }
 });
 
 test('bağlaçlar ayrı emirleri ayırır; asker adlarını ve özgün metni korur', () => {

@@ -87,6 +87,7 @@ function parseSingle(text) {
   }
   if (/(?:^| )(?:ates etm|ates acm|ateslem|vurm|saldirm|oldurm|hucum etm|tetige basm)/.test(body)) return { ...common, commandId: 'HOLD_FIRE' };
   if (/(?:^| )(?:gitme|ilerleme|hareket etme|gelme|takip etme|izleme|yurume|kosma|gecme|girme|yaklasma)/.test(body)) return { ...common, commandId: 'HOLD' };
+  if (/(?:bomba[a-z]*|patlayici[a-z]*) (?:atma|atmay|firlatma|kullanma|yollama|gonderme)|(?:atma|atmay|firlatma)[a-z]* (?:el )?bomba/.test(body)) return unknown(text, base, 'negated-order', 'Bu olumsuz emri bomba atışına çevirmiyorum. Hazırlanan atışı durdurmak için “emirleri iptal et” deyin.');
   if (/(?:^| )(?:siper alma|saklanma|gizlenme|comelme|egilme|iyilestirme|tedavi etme|temizleme|tarama|bastirma|bekleme|durma|serbest birakma)/.test(body)) return unknown(text, base, 'negated-order', 'Bu olumsuz emri tersine çevirmiyorum. Yapmamı istediğiniz eylemi söyleyin; hareketi durdurmak için “bekle”, ateşi durdurmak için “ateş etme” diyebilirsiniz.');
 
   let best = null; let bestScore = 0;
@@ -134,7 +135,7 @@ function parseSingle(text) {
   else if (/(?:tahliye nokta|inis bolge|tahliyeye)/.test(body)) result.reference = { kind: 'extraction' };
   else if (/(?:istihbarat|dizustu|laptop)/.test(body)) result.reference = { kind: 'intel' };
   else if (/helikopter[a-z]*(?= |$)/.test(body) && ['MOVE_TO', 'SUPPRESS', 'CLEAR_AREA'].includes(best)) result.reference = { kind: 'helicopter' };
-  else if (/tank[a-z]*(?= |$)/.test(body) && ['MOVE_TO', 'SUPPRESS', 'CLEAR_AREA'].includes(best)) result.reference = { kind: 'tank' };
+  else if (/tank[a-z]*(?= |$)/.test(body) && ['MOVE_TO', 'SUPPRESS', 'CLEAR_AREA', 'THROW_GRENADE'].includes(best)) result.reference = { kind: 'tank' };
   else if (/en yakin[a-z]* dusman/.test(body)) result.reference = { kind: 'nearest-enemy' };
   else if (/(?:^| )(?:buraya|burada|bulundugum|oldugum yer)(?:[a-z]*)(?= |$)/.test(body)) result.reference = { kind: 'player' };
   else if (/(?:^| )(?:bina|ev|agac|kaya|kapi|depo|duvar|konteyner)[a-z]*(?= |$)/.test(body)) result.target = 'aim';
@@ -189,4 +190,4 @@ export function parseCommand(text, context = {}) {
   return { ...steps[0], sourceText: raw, ...(steps.length > 1 ? { steps } : {}) };
 }
 
-const NEEDS_PREVIOUS_POINT = new Set(['MOVE_TO', 'ATTACK', 'SUPPRESS', 'CLEAR_AREA']);
+const NEEDS_PREVIOUS_POINT = new Set(['MOVE_TO', 'ATTACK', 'SUPPRESS', 'CLEAR_AREA', 'THROW_GRENADE']);
