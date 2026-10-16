@@ -63,7 +63,9 @@ test('kimliği bilinmeyen eski hesap ilk bağlanılan sunucuya ait sayılır', (
 
 test('sunucu durumu: açık, kapalı, bozuk yanıt', async () => {
   const ok = await probeServer(T, { fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true, online: 3, name: "Ömer'in sunucusu", serverId: 's_ev' }) }) });
-  assert.deepEqual(ok, { name: "Ömer'in sunucusu", online: 3, serverId: 's_ev' });
+  assert.deepEqual(ok, { name: "Ömer'in sunucusu", online: 3, serverId: 's_ev', ai: false });
+  const ai = await probeServer(T, { fetchImpl: async () => ({ ok: true, json: async () => ({ ok: true, online: 0, name: 'x', serverId: 's', ai: true }) }) });
+  assert.equal(ai.ai, true, 'yapay zekâlı telsiz açık sunucu');
   assert.equal(await probeServer(T, { fetchImpl: async () => { throw new Error('ağ'); } }), null);
   assert.equal(await probeServer(T, { fetchImpl: async () => ({ ok: false, json: async () => ({}) }) }), null);
   assert.equal(await probeServer(T, { fetchImpl: async () => ({ ok: true, json: async () => ({ hello: 1 }) }) }), null);

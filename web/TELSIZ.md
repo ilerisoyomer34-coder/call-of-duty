@@ -24,7 +24,27 @@ Türkçe karakter olmadan yazım, yaygın eş anlamlılar ve bazı tek harf hata
 
 Bir mesajda en fazla sekiz adım çalışır. Sonraki adım, ilgili askerlerin mevcut adımı tamamlamasını bekler. Yol kapalıysa, hedef yoksa veya süre dolarsa kalan adımlar durur. Yeni bir emir aynı askerin eski planını değiştirir; yardım ve durum sorgusu planı kesmez. “Ateş etme” ateşi keser, “gitme” hareketi durdurur.
 
-Sistem oyundaki mevcut tim eylemlerini daha geniş ifadelerle anlar. İnternet üzerinden çalışan sınırsız bir yapay zekâ değildir. El bombası ilk seviyeden itibaren telsizle atılabilir. Nişangâhın baktığı yönde en fazla 24 metredeki nokta veya söylenen yön/mesafe kullanılır. Askerin atış menzili 9–28 metre, atışlar arası bekleme 16 saniyedir. Dostlar hedefe 8 metreden yakınsa veya bomba yolu kapalıysa gerekçe bildirilir. Sonraki adım bombanın elden çıkmasını bekler. Araç sürme, C4 yerleştirme veya oyunda bulunmayan başka bir eylem istenirse uygulanmadığını açıkça bildirir.
+Yerel telsiz oyundaki tim eylemlerini geniş ifadelerle anlar; yapay zekâ açıksa (aşağıda) her cümleyi anlar ve her soruyu cevaplar. El bombası ilk seviyeden itibaren telsizle atılabilir. Nişangâhın baktığı yönde en fazla 24 metredeki nokta veya söylenen yön/mesafe kullanılır. Askerin atış menzili 9–28 metre, atışlar arası bekleme 16 saniyedir. Dostlar hedefe 8 metreden yakınsa veya bomba yolu kapalıysa gerekçe bildirilir. Sonraki adım bombanın elden çıkmasını bekler. Araç sürme, C4 yerleştirme veya oyunda bulunmayan başka bir eylem istenirse uygulanmadığını açıkça bildirir.
+
+## Yapay zekâlı telsiz
+
+Telsize (Enter) yazılan ya da mikrofona (N) söylenen her soru cevaplanır, her istek tim emrine çevrilir; "anlamadım" denmez. Örnekler:
+
+- `Kaç düşman kaldı?` · `Tahliye nerede?` · `Görev ne?` · `Kaç mermim var?`
+- `Yıldız şu tepedekileri bastırsın, Demir de sağdan dolaşıp arkalarına geçsin`
+- `Beni koruyun` → takip + serbest ateş
+- `Hava desteği istiyorum` → olmadığını söyler, en yakın işe yarar emri verir (baskı ateşi)
+- `El bombası nasıl atılır?` → oyuncunun kendi tuşuyla cevap
+
+- **Karma akış:** kısa ve tanınan emir ("siper alın") eskisi gibi anında yerelde çalışır. Soru, uzun ya da tanınmayan cümle yapay zekâya gider. Cevap gelene dek telsizde "📡 Telsiz dinliyor…" yazar.
+- **Konuşan:** cevabı emri alan asker verir (tüm timde Alfa-1, iyileştirmede Kaya), oyun bilgisini YUVA (karargâh).
+- **Emirler:** yapay zekânın verdiği emirler aynı komut sisteminden, sırayla ve doğrulanarak geçer. Yalnız oyundaki komutlar kabul edilir, bilinmeyen emir atılır.
+- **Gördüğünü bilir:** yapay zekâ oyunun o anki durumunu görür: hedef, tahliye, can/zırh/mermi, tim, tuşlar. Düşman yerini ise yalnız sen ya da tim görüyorsan bilir.
+- **Panel kapalıyken:** cevap düğmenin altında 8 saniye görünür. Mikrofonla sorulan soruya cevap, seslendirme ayarı kapalı olsa da sesli okunur (oyun sesi açıksa).
+- **Nerede çalışır:**
+  - claude.ai'deki Artifact'ta oyuncunun kendi Claude hesabıyla (ilk soruda izin ister, hızlı model).
+  - Pages'te ya da uygulamada, yapay zekâsı açık bir sunucuya bağlıyken (ev sunucusu: `Docs/HOME_SERVER.md` → "Yapay zekâlı telsiz").
+- **Yapay zekâ yoksa ya da cevap gelmezse:** emir yerel ayrıştırıcıyla uygulanır. Sık sorular (kalan düşman, düşman nerede, hedef, tahliye, can, mermi, silah, bölüm, süre, zorluk, tuşlar) oyun durumundan cevaplanır.
 
 ## Doğrulama
 

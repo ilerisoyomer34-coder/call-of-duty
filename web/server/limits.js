@@ -22,4 +22,11 @@ export const LIMITS = {
   room: { max: 12, windowMs: 60_000 }, // deneme odası açma ve maç arama
   block: { max: 30, windowMs: 3_600_000 },
   report: { max: 10, windowMs: 3_600_000 },
+  // Yapay zekâlı telsiz: her istek sunucu sahibinin API hesabından harcar
+  aiRadio: { max: 12, windowMs: 60_000 }, // oyuncu başına dakikada
+  aiDaily: { max: 300, windowMs: 86_400_000 }, // oyuncu başına günde
+  aiGlobal: { max: 60, windowMs: 60_000 }, // bütün sunucuda dakikada
+  aiBodyBytes: 16_384, // oyun durumu + sohbet belleği REST gövdesinden büyük
+  aiTextMax: 400,
+  aiContextChars: 9000,
 };

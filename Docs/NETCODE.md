@@ -113,7 +113,8 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
     - `POST /api/friends/request|respond|remove`.
   - Bildirim: `GET /api/notifications`, `POST /api/notifications/seen`.
   - Parti: `GET /api/party`, `POST /api/party/invite|respond|leave|kick|mode`.
-  - Sağlık: `GET /api/health` → `{ ok, online, rooms, serverId, name }`. `serverId` veritabanıyla kalıcı (`meta` tablosu); `name` `SERVER_NAME`'den.
+  - Yapay zekâlı telsiz: `POST /api/ai/radio { text, context, history }` → `{ speaker, reply, actions[] }` (`server/ai.js`, kurallar `shared/ai/radio.js`). Anahtar `ANTHROPIC_API_KEY` sunucu ortamında; yoksa `503 ai_off`. Sınırlar `LIMITS.aiRadio/aiDaily/aiGlobal`, gövde 16 KB.
+  - Sağlık: `GET /api/health` → `{ ok, online, rooms, serverId, name, ai }`. `serverId` veritabanıyla kalıcı (`meta` tablosu); `name` `SERVER_NAME`'den.
   - Hatalar `{ error: kod }`; Türkçe metinler `src/net/social.js → ERRORS`.
 - **WebSocket `/ws`:**
   - İstemci → sunucu:

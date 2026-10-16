@@ -1,14 +1,21 @@
 // Telsiz / konuşma kutusu (Operasyon Güncellemesi §8.4, §8.7). Telsiz kuyruğundan (mission.radio) çıkan her satır
 // burada da bir satır olur: Komutan camgöbeği, askerler kendi renginde, sistem ve karargâh sarı, düşman kırmızı.
 // Kapalıyken yalnız TELSİZ AÇ ve yeni mesaj sayacı görünür. Düğme/Enter paneli açar; kapatma/Esc gizler.
-// Yazılan Türkçe cümle ayrıştırıcıdan (commandParser.js) komuta dönüşür; anlaşılmazsa asker sorar, üç öneri çıkar
-// ve satır açık kalır. Spam kuralları kuyruktadır (mission.radio, ally.say); bu kutu yalnız gösterir.
+// Yazılan ya da söylenen cümle iki yoldan birine gider (radioIntel.js → routeRadio):
+//  - kısa, tanınmış komut: yerel ayrıştırıcı (commandParser.js) anında uygular (savaşta beklemek yok);
+//  - soru, uzun ya da tanınmayan cümle: yapay zekâlı telsiz (aiRadio.js) cevap verir, istenenleri tim komutlarına
+//    çevirir; yapay zekâ yoksa ya da cevap gelmezse yerel cevap (radioIntel.js) ve yerel ayrıştırıcı.
+// Hiçbiri olmazsa asker üç öneri sunar ve satır açık kalır. Spam kuralları kuyruktadır (mission.radio, ally.say).
 // İsteğe bağlı seslendirme speechSynthesis (tr-TR, askere göre perde/hız); isteğe bağlı sesli komut
 // SpeechRecognition (N basılı) — tarayıcı desteklemiyorsa arayüzde görünmez.
 import SQUAD from './data/squad.json' with { type: 'json' };
 import CMD from './data/commands.tr.json' with { type: 'json' };
 import { parseCommand } from './commandParser.js';
 import { playerLabel } from './nameScreen.js';
+import { AI_RADIO } from './config.js';
+import { AI_TEXT, HQ } from '../shared/ai/radio.js';
+import { routeRadio, answerLocally, isQuestion } from './radioIntel.js';
+import { buildRadioContext } from './radioContext.js';
 
 const FADE_SEC = 8;
 const HISTORY = 60;
@@ -37,6 +44,8 @@ export class RadioChat {
     this.time = 0;
     this.suggT = 0;
     this.fadeT = 0;
+    this.peekT = 0;
+    this.aiLine = null; // yapay zekâ cevabı: telsizde görününce önizlenir, sesli soruya sesli cevap
     this.build();
     game.events.on('radio', (text, kind) => this.onRadio(text, kind));
   }
@@ -83,8 +92,8 @@ export class RadioChat {
     this.input.spellcheck = false;
     this.input.enterKeyHint = 'send';
     this.input.maxLength = 360;
-    this.input.placeholder = 'Demir sola 20 metre git, sonra bekle · yardım';
-    this.input.title = 'Türkçe/ASCII komut · Adla hitap · Yön ve mesafe · En fazla 8 sıralı emir · “yardım” / “durum raporu”';
+    this.input.placeholder = 'Soru sor ya da emir ver · Demir sola 20 metre git';
+    this.input.title = 'Soru ya da emir · Türkçe/ASCII · Adla hitap · Yön ve mesafe · En fazla 8 sıralı emir · Yapay zekâ telsizi açıksa her cümle anlaşılır';
     this.input.setAttribute('aria-label', 'Telsiz komutu');
     // Dokunmatikte Esc yok: kapatma düğmesi
     const x = document.createElement('button');
@@ -97,7 +106,11 @@ export class RadioChat {
     this.sugg = document.createElement('div');
     this.sugg.className = 'rlSugg';
     this.sugg.hidden = true;
-    this.box.append(bar, this.list, this.form, this.sugg);
+    // Panel kapalıyken gelen yapay zekâ cevabı kısa süre burada görünür (sorulan sorunun cevabı kaybolmasın)
+    this.peekEl = document.createElement('div');
+    this.peekEl.className = 'rlPeek';
+    this.peekEl.hidden = true;
+    this.box.append(bar, this.peekEl, this.list, this.form, this.sugg);
     // Menü ekranlarının altında kalsın (onlar #app'te daha sonra gelir)
     const overlay = $('clickToPlay') || $('touch');
     if (overlay) overlay.after(this.box);
@@ -126,14 +139,28 @@ export class RadioChat {
     const k = lineKind(kind);
     const ally = k === 'ally' ? this.game.allies.list.find((a) => a.radioLabel === who) : null;
     this.add(who, body, k, ally?.member.color);
-    if (ally) {
-      ally.talkUntil = performance.now() + TALK_MS;
-      this.tts(body, ally.member.voice);
+    const ai = this.aiLine && this.aiLine.text === body ? this.aiLine : null;
+    if (ai) {
+      this.aiLine = null;
+      if (!this.open) this.peek(who, body, ally?.member.color);
     }
+    if (ally) ally.talkUntil = performance.now() + TALK_MS;
+    // Sesli soruya cevap seslendirme ayarı kapalı olsa da sesli (oyun sesi açıksa)
+    if (ally || ai) this.tts(body, ally?.member.voice, ai?.voice);
   }
 
-  // Satır ekle. kind: 'player' | 'ally' | 'system' | 'warn'
-  add(who, text, kind = 'system', color = null) {
+  // Kapalı panelin altında son yapay zekâ cevabı (AI_RADIO.peekSec sn)
+  peek(who, text, color) {
+    const b = document.createElement('b');
+    b.textContent = `[${who}]`;
+    b.style.color = color || COLORS.system;
+    this.peekEl.replaceChildren(b, document.createTextNode(` ${text}`));
+    this.peekEl.hidden = false;
+    this.peekT = AI_RADIO.peekSec;
+  }
+
+  // Satır ekle. kind: 'player' | 'ally' | 'system' | 'warn'. quiet: okunmamış sayacına girmez (geçici satır)
+  add(who, text, kind = 'system', color = null, quiet = false) {
     const atBottom = this.list.scrollHeight - this.list.scrollTop - this.list.clientHeight < 24;
     const el = document.createElement('div');
     el.className = `rl ${kind}`;
@@ -144,8 +171,17 @@ export class RadioChat {
     this.list.appendChild(el);
     this.lines.push({ el, t: this.time });
     while (this.lines.length > HISTORY) this.lines.shift().el.remove();
-    if (!this.open) { this.unread = Math.min(100, this.unread + 1); this.updateToggle(); }
+    if (!this.open && !quiet) { this.unread = Math.min(100, this.unread + 1); this.updateToggle(); }
     this.layout(atBottom);
+    return el;
+  }
+
+  // Geçici satırı (yapay zekâ bekleniyor) kaldır
+  removeLine(el) {
+    if (!el) return;
+    const i = this.lines.findIndex((l) => l.el === el);
+    if (i >= 0) this.lines.splice(i, 1);
+    el.remove();
   }
 
   updateToggle() {
@@ -162,9 +198,9 @@ export class RadioChat {
   }
 
   // Seslendirme (ayar açıksa): askere göre perde ve hız
-  tts(text, voice) {
+  tts(text, voice, force = false) {
     // Oyun sesi kapalıyken seslendirme de susar
-    if (!this.game.settings.tts || this.game.settings.muted || !speechSupported()) return;
+    if (!(this.game.settings.tts || force) || this.game.settings.muted || !speechSupported()) return;
     try {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'tr-TR';
@@ -205,8 +241,18 @@ export class RadioChat {
     const st = this.box.style;
     if (g.input.touch.active || (this.open && matchMedia('(max-width: 900px), (max-height: 520px)').matches)) {
       if (st.bottom) st.bottom = '';
+      // Telefonda kapalı düğme sol altta; sol sütunun bonus takipçisi uzayıp aşağı inerse üstüne binmesin: sağına kayar
+      let left = '';
+      const tr = $('tracker');
+      if (!this.open && g.input.touch.active && tr && !tr.hidden && tr.offsetParent) {
+        const a = this.toggle.getBoundingClientRect();
+        const b = tr.getBoundingClientRect();
+        if (b.height && a.top < b.bottom && b.top < a.bottom) left = `${Math.round(b.right + 8)}px`;
+      }
+      if (st.left !== left) st.left = left;
       return;
     }
+    if (st.left) st.left = '';
     const sq = $('squad');
     const ref = sq && !sq.hidden && sq.offsetHeight ? sq : $('health');
     if (!ref?.offsetParent) return;
@@ -223,6 +269,10 @@ export class RadioChat {
     this.list.hidden = true;
     this.form.hidden = true;
     this.sugg.hidden = true;
+    // Odak kutuda kalmasın: gizlenen öneri düğmesi odakta kalınca sonraki Enter onu yeniden tıklıyor (aynı öneri
+    // tekrar gidiyor), telsiz satırı açılmıyor ve yazılan harfler oyun tuşu oluyordu
+    const f = document.activeElement;
+    if (f && f !== document.body && this.box.contains(f)) f.blur();
     this.input.blur();
     this.layout();
     this.place();
@@ -230,7 +280,7 @@ export class RadioChat {
     if (wasOpen && g.state === 'playing' && !g.input.touch.active) g.input.requestLock?.();
   }
 
-  // Yazılan ya da söylenen cümle → komut (inputMethod: 'text' | 'voice'). Anlaşılmazsa satır açık kalır
+  // Yazılan ya da söylenen cümle (inputMethod: 'text' | 'voice'): yerel komut, yapay zekâ ya da yerel cevap
   submit(text, inputMethod = 'text') {
     const g = this.game;
     const t = (text || '').trim();
@@ -239,17 +289,81 @@ export class RadioChat {
       return null;
     }
     const r = parseCommand(t, { ...g.commands.radioContext, defaultAddressees: g.commands.addressee });
-    if (r.commandId === 'UNKNOWN') {
-      const a = g.allies.list.find((x) => !x.down) || g.allies.list[0];
-      g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${SQUAD.team}`, inputMethod === 'voice' ? `🎤 ${t}` : t, 0, 'player');
-      g.mission?.radio(a?.radioLabel || 'TELSİZ', r.message || CMD.unknown.say, 0, a ? 'squad' : 'system', 'reply');
-      this.input.value = '';
-      this.showSuggestions(r.suggest);
+    const route = routeRadio(t, r, { aiAvailable: !!g.ai?.available });
+    if (route === 'local') {
+      this.closeChat();
+      g.commands.issuePlan(r, { inputMethod });
       return r;
     }
-    this.closeChat();
-    g.commands.issuePlan(r, { inputMethod });
+    this.sugg.hidden = true;
+    this.input.value = '';
+    this.echo(t, inputMethod);
+    if (route === 'ai') this.askAi(t, r, inputMethod);
+    else this.fallback(t, r, inputMethod, isQuestion(t) ? AI_TEXT.ui.noAi : null);
     return r;
+  }
+
+  // Komutanın sözü telsize (komut sistemi kendi emirlerini ayrıca yazmaz: echo false)
+  echo(t, inputMethod) {
+    const g = this.game;
+    g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${SQUAD.team}`, inputMethod === 'voice' ? `🎤 ${t}` : t, 0, 'player');
+  }
+
+  // Yapay zekâya sor; cevap gelene dek "dinliyor" satırı. Görev değişirse cevap atılır
+  async askAi(t, parsed, inputMethod) {
+    const g = this.game;
+    const mission = g.mission;
+    const wait = this.add('TELSİZ', AI_TEXT.ui.thinking, 'system', null, true);
+    let res = null;
+    let err = null;
+    try {
+      res = await g.ai.ask(t, buildRadioContext(g));
+    } catch (e) {
+      err = e;
+    }
+    this.removeLine(wait);
+    if (g.mission !== mission || g.mode !== 'mission' || err?.code === 'cancelled') return;
+    if (!res) {
+      const note = err?.code === 'ai_limit' ? AI_TEXT.ui.limit : err?.code === 'ai_busy' ? AI_TEXT.ui.busy : AI_TEXT.ui.failed;
+      this.fallback(t, parsed, inputMethod, note);
+      return;
+    }
+    this.say(res, inputMethod);
+    if (res.actions.length) {
+      // Cevap onay yerine geçer (silent); emirler yine sırayla ve doğrulanarak (commands.js) yürür
+      const steps = res.actions.map((a) => ({ ...a, sourceText: t }));
+      g.commands.issuePlan({ ...steps[0], steps }, { inputMethod, echo: false, silent: true });
+      if (this.open) this.closeChat();
+    }
+  }
+
+  // Yapay zekâ cevabını konuşanın ağzından telsize ver
+  say(res, inputMethod) {
+    const g = this.game;
+    const ally = res.speaker !== HQ ? g.allies.list.find((a) => a.callsign === res.speaker && !a.dead && !a.down) : null;
+    this.aiLine = { text: res.reply, voice: inputMethod === 'voice' };
+    if (!res.reply) this.aiLine = null;
+    else if (ally) ally.sayLine(res.reply, true, 'reply');
+    else g.mission?.radio(HQ, res.reply, 0, 'system', 'reply');
+  }
+
+  // Yapay zekâsız: yerel cevap, olmazsa tanınan komut, o da yoksa öneriler. note: önce söylenecek sistem satırı
+  fallback(t, parsed, inputMethod, note = null) {
+    const g = this.game;
+    const local = answerLocally(t, buildRadioContext(g));
+    if (local) {
+      this.say(local, inputMethod);
+      return;
+    }
+    if (note) g.mission?.radio('TELSİZ', note, 0, 'system', 'reply');
+    if (parsed.commandId !== 'UNKNOWN') {
+      this.closeChat();
+      g.commands.issuePlan(parsed, { inputMethod, echo: false });
+      return;
+    }
+    const a = g.allies.list.find((x) => !x.down && !x.dead) || g.allies.list[0];
+    g.mission?.radio(a?.radioLabel || 'TELSİZ', parsed.message || CMD.unknown.say, 0, a ? 'squad' : 'system', 'reply');
+    this.showSuggestions(parsed.suggest);
   }
 
   // Anlaşılmayan komutta üç öneri; dokununca o cümle gönderilir
@@ -268,6 +382,13 @@ export class RadioChat {
 
   update(dt) {
     this.time += dt;
+    if (this.peekT > 0) {
+      this.peekT -= dt;
+      if (this.peekT <= 0 || this.open) {
+        this.peekT = 0;
+        this.peekEl.hidden = true;
+      }
+    }
     if (this.suggT > 0 && !this.open) {
       this.suggT -= dt;
       if (this.suggT <= 0) this.sugg.hidden = true;
@@ -283,6 +404,11 @@ export class RadioChat {
     for (const l of this.lines) l.el.remove();
     this.lines = [];
     this.unread = 0;
+    // Yeni görev: yapay zekânın sohbet belleği ve bekleyen sorusu da sıfırlanır
+    this.game.ai?.reset();
+    this.aiLine = null;
+    this.peekT = 0;
+    this.peekEl.hidden = true;
     this.closeChat();
     this.sugg.hidden = true;
   }

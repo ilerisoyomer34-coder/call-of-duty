@@ -37,6 +37,7 @@ import { CommandSystem, SHORTCUTS } from './commands.js';
 import { CommandWheel } from './commandWheel.js';
 import { PingSystem } from './ping.js';
 import { RadioChat, VoiceCommand } from './radioChat.js';
+import { AiRadio } from './aiRadio.js';
 import { EV } from './events.js';
 import { applyBindingOverrides } from './input.js';
 import { setupPwa } from './pwa.js';
@@ -224,7 +225,9 @@ export class Game {
     this.commands = new CommandSystem(this);
     this.wheel = new CommandWheel(this);
     this.ping = new PingSystem(this);
-    // Telsiz kutusu (sol alt; Enter ile yazılı komut) ve isteğe bağlı sesli komut (N)
+    // Telsiz kutusu (sol alt; Enter ile yazılı komut) ve isteğe bağlı sesli komut (N). Yapay zekâ (game.ai):
+    // Artifact'ta izleyicinin Claude hesabı, başka yerde yapay zekâsı açık sunucu; yoksa yerel telsiz
+    this.ai = new AiRadio(this);
     this.chat = new RadioChat(this);
     this.voice = new VoiceCommand(this.chat);
     this.voice.refresh(this.settings);

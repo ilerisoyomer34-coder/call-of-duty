@@ -56,6 +56,22 @@ export const NET = {
   toastMax: 3,
 };
 
+// Yapay zekâlı telsiz (radioChat.js → aiRadio.js; metinler data/aiRadio.tr.json, sunucu server/ai.js). İki yol:
+// claude.ai Artifact'ında 'sample' (izleyicinin kendi Claude hesabı), başka yerde yapay zekâsı açık sunucu.
+export const AI_RADIO = {
+  // Tanınan kısa komut yerelde anında çalışır; bundan uzun cümle ya da soru yapay zekâya gider
+  localMaxWords: 9,
+  historyTurns: 6, // sohbet belleği: son N soru-cevap (görev başında sıfırlanır)
+  maxReply: 280, // cevap metni üst sınırı (karakter)
+  maxActions: 8, // sıralı emir üst sınırı (commands.js planı)
+  maxDistance: 200, // yapay zekânın verdiği mesafe (m) bu aralığa kırpılır
+  contextEnemies: 6, // bağlama giren en yakın düşman sayısı
+  contextRange: 140, // bu mesafeden uzak düşman yalnız sayılır
+  timeoutMs: 25000, // sunucu yolu: bu sürede cevap gelmezse yerel telsize düşülür
+  modelTier: 'quick', // Artifact yolu: en hızlı model ailesi (telsiz kısa ve anlık olmalı)
+  peekSec: 8, // telsiz paneli kapalıyken yapay zekâ cevabı bu kadar sn önizlenir
+};
+
 // Çevrim içi maç (S4–S6). Sunucu (server/game/) ve istemci (src/net/) aynı değerleri okur.
 export const ONLINE = {
   hp: 100,

@@ -942,6 +942,11 @@ body.radioCollapsed #radio, body.squad #radio { display: none; }
 .rl { font: 500 14px/1.25 var(--f-ui); color: var(--sand); text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); transition: opacity .3s; }
 .rl[hidden] { display: none; }
 .rl b { font-weight: 700; letter-spacing: .02em; }
+/* Panel kapalıyken yapay zekâ cevabının kısa önizlemesi (radioChat.js → peek) */
+.rlPeek { box-sizing: border-box; max-width: min(400px, 42vw); pointer-events: none; padding: 6px 8px; border-radius: 6px; background: rgba(13,16,19,.82); font: 500 14px/1.25 var(--f-ui); color: var(--sand); overflow-wrap: anywhere; }
+.rlPeek[hidden], #radioLog.open .rlPeek { display: none; }
+.rlPeek b { font-weight: 700; letter-spacing: .02em; }
+body.touch .rlPeek { font-size: 12px; max-width: 34vw; }
 #radioLog.open { box-sizing: border-box; max-height: min(340px, 42dvh); background: rgba(13,16,19,.92); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; pointer-events: auto; }
 #radioLog.open .rlList { flex: 1 1 auto; overflow-y: auto; }
 .rlForm { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 6px; }

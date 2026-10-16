@@ -1451,9 +1451,10 @@ console.log('Telsiz kutusu ve yazılı komut');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).catch(() => {});
   await page.keyboard.type('Demir ve Yıldız oraya gidin');
+  const typed = await page.evaluate(() => ({ v: document.getElementById('chatInput').value, open: window.__game.chat.open, focus: document.activeElement?.id || document.activeElement?.tagName, n: window.__ev.length }));
   await page.keyboard.press('Enter');
   const mv = await page.evaluate(() => window.__ev.filter((e) => e.n === 'COMMAND_ISSUED').at(-1));
-  check(mv?.id === 'MOVE_TO' && [...mv.who].sort().join() === 'Alfa-1,Alfa-3', `"Demir ve Yıldız oraya gidin" → MOVE_TO, ${mv?.who?.join(' + ')}`);
+  check(mv?.id === 'MOVE_TO' && [...mv.who].sort().join() === 'Alfa-1,Alfa-3', `"Demir ve Yıldız oraya gidin" → MOVE_TO, ${mv?.who?.join(' + ')}${mv?.id === 'MOVE_TO' && mv.who.length === 2 ? '' : ` (yazılan ${JSON.stringify(typed)}, son olaylar ${JSON.stringify(await page.evaluate(() => window.__ev.slice(-3)))})`}`);
   // Esc yalnız satırı kapatır, oyunu duraklatmaz
   await page.keyboard.press('Enter');
   const opened = await page.waitForFunction(() => window.__game.chat.open, null, { timeout: 30000 }).then(() => true).catch(() => false);
@@ -1483,18 +1484,17 @@ console.log('Telsiz kutusu ve yazılı komut');
   });
   check(sp.reloads === 1, 'Aynı tür replik 10 sn içinde tekrarlanmadı');
   check(sp.urgent && /bomba/i.test(sp.first || '') && /Alfa-3/.test(sp.who || ''), `Acil replik kuyruğun önünde ("${sp.first}")`);
-  // Solma: 8 sn'den eski satırlar kapalıyken gizli; açınca tüm geçmiş görünür
+  // Kapalı panel geçmişi göstermez (yalnız TELSİZ AÇ ve okunmamış sayısı); açınca tüm geçmiş görünür
   const fd = await page.evaluate(() => {
     const c = window.__game.chat;
-    c.time += 9;
-    c.layout();
-    const closed = c.lines.filter((l) => !l.el.hidden).length;
+    c.closeChat();
+    const closed = c.list.hidden ? 0 : c.lines.filter((l) => !l.el.hidden).length;
     c.openChat();
-    const opened = c.lines.filter((l) => !l.el.hidden).length;
+    const opened = c.list.hidden ? 0 : c.lines.filter((l) => !l.el.hidden).length;
     c.closeChat();
     return { closed, opened, n: c.lines.length };
   });
-  check(fd.closed === 0 && fd.opened === fd.n && fd.n >= 6, `Eski satırlar soldu (${fd.closed} görünür); açınca ${fd.opened}/${fd.n} satır`);
+  check(fd.closed === 0 && fd.opened === fd.n && fd.n >= 6, `Kapalı panelde geçmiş gizli (${fd.closed} görünür); açınca ${fd.opened}/${fd.n} satır`);
   // Seslendirme (ayar): askere göre perde; konuşan asker vurgulanır. Ortadaki altyazı yalnız karargâh satırında
   const tts = await page.evaluate(() => {
     const g = window.__game;
@@ -1535,6 +1535,52 @@ console.log('Telsiz kutusu ve yazılı komut');
     return window.__ev.filter((e) => e.n === 'COMMAND_ISSUED').at(-1);
   });
   check(vtext?.id === 'TAKE_COVER' && vtext.m === 'voice' && /🎤/.test(vtext.src), `Sesli komut: "${vtext?.src}" → ${vtext?.id}`);
+  // Yapay zekâ yok (Artifact dışı, sunucusuz): soru yerel olarak oyun durumundan cevaplanır, kapalı panelde önizlenir
+  const qa0 = await page.evaluate(() => {
+    const g = window.__game;
+    g.chat.closeChat();
+    g.chat.submit('kaç düşman kaldı?');
+    return { ai: g.ai.available, alive: g.enemies.alive.length };
+  });
+  // Cevap telsiz kuyruğunda önceki satırların arkasından gelir (satırlar arası bekleme)
+  const want = `Bölgede ${qa0.alive} düşman kaldı`;
+  await page.waitForFunction((w) => window.__game.chat.lines.some((l) => l.el.textContent.includes(w)), want, { timeout: 90000, polling: 100 }).catch(() => {});
+  const qa = await page.evaluate(() => ({ lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-4), peek: document.querySelector('#radioLog .rlPeek')?.hidden === false ? document.querySelector('#radioLog .rlPeek').textContent : '' }));
+  check(!qa0.ai && qa.lines.some((l) => l.startsWith('[YUVA]') && l.includes(want)) && qa.peek.includes(want), `Yapay zekâsız soru yerel cevaplandı, kapalı panelde önizlendi ("${qa.peek}")`);
+  // Artifact yolu: 'sample' (izleyicinin Claude hesabı) taklit edilir. Uzun cümle yapay zekâya gider; cevap konuşanın
+  // ağzından telsize, eylem tek plan olarak tim komutuna; talimat ve oyun durumu sorunun içinde
+  const ai1 = await page.evaluate(async () => {
+    const g = window.__game;
+    const calls = [];
+    const stub = Object.assign(async () => ({ text: '' }), {
+      json: async (input, opts) => {
+        calls.push({ first: input[0].content, last: input.at(-1).content, n: input.length, opts: { tier: opts.modelTier, cache: opts.cache } });
+        return { speaker: 'Alfa-3', reply: 'Tepeye baskı ateşi açıyorum!', actions: [{ command: 'SUPPRESS', to: ['Alfa-3'], reference: 'aim', clock: 0, distance: 0 }] };
+      },
+    });
+    g.ai.sample = stub;
+    g.ai.sampleOff = false;
+    const said = [];
+    if (window.speechSynthesis) window.speechSynthesis.speak = (u) => said.push(u.text);
+    g.settings.muted = false;
+    g.settings.tts = false;
+    const n0 = window.__ev.length;
+    g.chat.submit('Yıldız şu tepedeki adamları bir güzel bastırsın ki kafalarını hiç kaldıramasınlar', 'voice');
+    for (let i = 0; i < 50 && window.__ev.length === n0; i++) await new Promise((r) => setTimeout(r, 50));
+    window.__said = said;
+    return { backend: g.ai.backend, calls, ev: window.__ev.slice(n0) };
+  });
+  await page.waitForFunction(() => window.__game.chat.lines.some((l) => l.el.textContent.endsWith('Tepeye baskı ateşi açıyorum!')), null, { timeout: 90000, polling: 100 }).catch(() => {});
+  const ai2 = await page.evaluate(() => ({ lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-5), said: window.__said, has: !!window.speechSynthesis }));
+  const c0 = ai1.calls[0];
+  check(ai1.backend === 'artifact' && c0 && /Demir Şafak/.test(c0.first) && /DURUM/.test(c0.last) && /"squad":\[/.test(c0.last) && c0.last.endsWith('kaldıramasınlar') && c0.opts.tier === 'quick' && c0.opts.cache === false, `Artifact yolu: talimat + oyun durumu + soru 'sample'a gitti (${c0 ? `${c0.n} tur, ${c0.opts.tier}` : 'çağrı yok'})`);
+  check(ai1.ev.length === 1 && ai1.ev[0].id === 'SUPPRESS' && ai1.ev[0].who.join() === 'Alfa-3' && ai1.ev[0].m === 'voice', `Yapay zekâ eylemi tim komutu oldu (${JSON.stringify(ai1.ev)})`);
+  check(ai2.lines.some((l) => /^\[Alfa-3 .*\] Tepeye baskı ateşi açıyorum!$/.test(l)) && ai2.lines.filter((l) => l.includes('kaldıramasınlar')).length === 1, `Cevap Alfa-3'ün ağzından, Komutanın sözü bir kez (${ai2.lines.slice(-3).join(' | ')})`);
+  check(!ai2.has || ai2.said.includes('Tepeye baskı ateşi açıyorum!'), 'Sesli soruya cevap seslendirme ayarı kapalıyken de sesli');
+  await page.evaluate(() => {
+    window.__game.ai.sample = null;
+    window.__game.settings.muted = true;
+  });
   const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
   check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
   await page.close();

@@ -15,6 +15,7 @@ import { createApi } from './api.js';
 import { RoomManager, Matchmaker, MM } from './game/rooms.js';
 import { createGameGateway } from './game/gateway.js';
 import { computeBuildHash } from './game/buildhash.js';
+import { createAiRadio } from './ai.js';
 
 export async function startServer(overrides = {}) {
   const config = { ...loadConfig(), ...overrides };
@@ -31,7 +32,9 @@ export async function startServer(overrides = {}) {
   const rooms = new RoomManager({ log, secret: config.serverSecret || randomBytes(16).toString('hex'), overrides: ruleOverrides });
   const matchmaker = new Matchmaker({ rooms, hub, parties, log, searchSec: config.searchSec ?? MM.searchSec });
   const buildHash = config.buildCheck ? computeBuildHash() : '';
-  const api = createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker });
+  // Yapay zekâlı telsiz: anahtar ortamdan (testler sahte istemci verir: config.aiClient)
+  const ai = await createAiRadio({ config, log, client: config.aiClient || null });
+  const api = createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker, ai });
   const http = createHttp((req, res) => api.handle(req, res));
   const wss = new WebSocketServer({ noServer: true, maxPayload: LIMITS.wsPayloadBytes });
   const ipOf = makeIpOf(config);
@@ -94,7 +97,7 @@ export async function startServer(overrides = {}) {
   }
 
   const sweep = setInterval(() => {
-    limiter.sweep(3_600_000);
+    limiter.sweep(LIMITS.aiDaily.windowMs); // en uzun pencere (günlük yapay zekâ hakkı) silinmesin
     store.expireRequests();
   }, 60_000);
   sweep.unref();
@@ -102,6 +105,7 @@ export async function startServer(overrides = {}) {
   await new Promise((resolve) => http.listen(config.port, config.host, resolve));
   const port = http.address().port;
   log(`Demir Şafak sunucusu dinliyor: http://${config.host}:${port} (derleme ${buildHash || 'denetimsiz'})`);
+  log(ai.available ? `Yapay zekâlı telsiz açık (${ai.model}).` : 'Yapay zekâlı telsiz kapalı (ANTHROPIC_API_KEY yok; Docs/HOME_SERVER.md).');
   return {
     port,
     store,

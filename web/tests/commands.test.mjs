@@ -158,20 +158,73 @@ test('yönle saldırı, duvar arkasındaki ve ters yöndeki düşmanı hedef se�
   assert.equal(g.allies.list[0].cmd.target, visible);
 });
 
+// Telsiz kutusunun DOM'suz kopyası: akış yöntemleri sınıftan, görünüm parçaları sahte
+function fakeChat(g) {
+  return Object.assign(Object.create(RadioChat.prototype), {
+    game: g, input: { value: '' }, sugg: { hidden: true }, open: false, closed: 0, suggestions: null,
+    closeChat() { this.closed++; }, showSuggestions(list) { this.suggestions = list; }, add: () => null, removeLine() {},
+  });
+}
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
 test('telsiz yazılı ve sesli giriş aynı emir planını kullanır; bilinmeyen emri uygulamaz', () => {
   const { g } = fakeGame();
-  let received = null, closed = 0, suggestions = null;
+  let received = null;
   g.commands.issuePlan = (r, opts) => { received = { r, opts }; };
-  const chat = { game: g, input: { value: '' }, closeChat: () => closed++, showSuggestions: (list) => { suggestions = list; } };
-  RadioChat.prototype.submit.call(chat, 'Kaya beni iyileştir', 'voice');
+  const chat = fakeChat(g);
+  chat.submit('Kaya beni iyileştir', 'voice');
   assert.equal(received.r.commandId, 'HEAL_PLAYER');
   assert.equal(received.opts.inputMethod, 'voice');
   received = null;
-  const invalid = RadioChat.prototype.submit.call(chat, 'Demir sola git sonra pizza yap');
+  const invalid = chat.submit('Demir sola git sonra pizza yap');
   assert.equal(invalid.commandId, 'UNKNOWN');
   assert.equal(received, null);
-  assert.equal(closed, 1);
-  assert.ok(suggestions.length);
+  assert.equal(chat.closed, 1);
+  assert.ok(chat.suggestions.length);
+});
+
+test('yapay zekâlı telsiz: soru ve uzun cümle yapay zekâya; cevap konuşanın ağzından, eylemler tek planda; olmazsa yerel', async () => {
+  const { g, log } = fakeGame();
+  let received = null;
+  g.commands.issuePlan = (r, opts) => { received = { r, opts }; };
+  let asked = null;
+  g.ai = {
+    available: true,
+    ask: async (t, ctx) => {
+      asked = { t, ctx };
+      return { speaker: 'Alfa-3', reply: 'Bastırıyorum!', actions: [{ commandId: 'SUPPRESS', addressees: ['Alfa-3'], reference: null, dir: null, distance: null }] };
+    },
+  };
+  const chat = fakeChat(g);
+  const long = 'Yıldız şu tepedeki adamları bir güzel bastırsın ki kafalarını hiç kaldıramasınlar';
+  chat.submit(long);
+  await tick();
+  assert.equal(asked.t, long);
+  assert.deepEqual(asked.ctx.squad.map((s) => s.callsign), ['Alfa-1', 'Alfa-2', 'Alfa-3'], 'oyun durumu gider');
+  assert.ok(log.radio.includes(`Komutan → Alfa Timi: ${long}`), 'Komutanın sözü bir kez');
+  assert.ok(log.radio.includes('Alfa-3 Yıldız: Bastırıyorum!'));
+  assert.deepEqual(received.r.steps.map((s) => [s.commandId, s.sourceText]), [['SUPPRESS', long]]);
+  assert.equal(received.opts.echo, false);
+  assert.equal(received.opts.silent, true);
+  // Kısa, tanınan komut beklemeden yerelde
+  received = null;
+  asked = null;
+  chat.submit('siper alın');
+  assert.equal(received.r.commandId, 'TAKE_COVER');
+  assert.equal(asked, null);
+  // Yapay zekâya ulaşılamazsa tanınan komut yerelde uygulanır
+  g.ai.ask = async () => { throw { code: 'network' }; };
+  received = null;
+  chat.submit('bütün tim hemen siper alsın çünkü tepeden yoğun ateş geliyor acele edin');
+  await tick();
+  assert.equal(received.r.commandId, 'TAKE_COVER');
+  assert.equal(received.opts.echo, false);
+  assert.ok(log.radio.some((l) => l.startsWith('TELSİZ: Karargâha ulaşılamadı')));
+  // Yapay zekâ yok: soru yerel olarak cevaplanır
+  g.ai = null;
+  g.enemies = { list: [{ alive: true, type: 'rifleman', pos: new THREE.Vector3(0, 0, -20) }] };
+  chat.submit('kaç düşman kaldı?');
+  assert.ok(log.radio.some((l) => l.startsWith('YUVA: Bölgede 1 düşman kaldı')));
 });
 
 test('aynı yere git ve devam et nişangâh değişse de önceki gerçek hedefi kullanır', () => {

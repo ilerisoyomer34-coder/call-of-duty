@@ -206,9 +206,10 @@ export class CommandSystem {
     const binding = this.intentTarget(step, plan.context);
     if (binding.reason) { this.stopPlan(plan.id, binding.reason); return; }
     plan.waiting = true;
+    // echo/silent: yapay zekâlı telsizde Komutanın sözü ve cevap zaten telsizde (radioChat.js); tekrar yazılmaz
     const cmd = this.issue(id, step.addressees, {
       inputMethod: plan.inputMethod || 'text', sourceText: plan.inputMethod === 'voice' ? `🎤 ${step.sourceText}` : step.sourceText,
-      ...binding, planId: plan.id,
+      echo: plan.echo, silent: plan.silent, ...binding, planId: plan.id,
     });
     if (!cmd) this.stopPlan(plan.id, 'Emir uygulanamadı; kalan adımlar durduruldu.');
     else if (!cmd.failed) {
@@ -230,7 +231,7 @@ export class CommandSystem {
     this.game.mission?.radio('TELSİZ', reason, 0, 'system');
   }
 
-  // Komut ver. opts: { target (düşman), pos (Vector3), inputMethod, sourceText, silent }
+  // Komut ver. opts: { target (düşman), pos (Vector3), inputMethod, sourceText, silent (onay yok), echo (false: Komutanın sözü yazılmaz) }
   issue(commandId, addressees = this.addressee, opts = {}) {
     const g = this.game;
     const def = COMMANDS[commandId];
@@ -240,7 +241,7 @@ export class CommandSystem {
     // "Beni iyileştir"i yalnız medik uygular
     if (commandId === 'HEAL_PLAYER') list = list.filter((a) => a.role === 'medic');
     const who = this.label(addressees, list);
-    g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${who}`, opts.sourceText || def.say, 0, 'player');
+    if (opts.echo !== false) g.mission?.radio(`${playerLabel(g, SQUAD.playerCallsign)} → ${who}`, opts.sourceText || def.say, 0, 'player');
     if (!list.length) {
       const reason = commandId === 'HEAL_PLAYER' ? 'Medik yerde ya da timde değil' : 'Komutu alacak asker yok';
       g.mission?.radio('TELSİZ', reason, 0, 'system');

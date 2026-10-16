@@ -91,7 +91,7 @@ export async function probeServer(url, { timeoutMs = 4000, fetchImpl = globalThi
     if (!res.ok) return null;
     const h = await res.json();
     if (!h || h.ok !== true) return null;
-    return { name: typeof h.name === 'string' ? h.name.slice(0, 40) : '', online: Number(h.online) || 0, serverId: typeof h.serverId === 'string' ? h.serverId : '' };
+    return { name: typeof h.name === 'string' ? h.name.slice(0, 40) : '', online: Number(h.online) || 0, serverId: typeof h.serverId === 'string' ? h.serverId : '', ai: h.ai === true };
   } catch {
     return null;
   }

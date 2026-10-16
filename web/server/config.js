@@ -53,5 +53,17 @@ export function loadConfig(env = process.env) {
     // Testler: maç başı geri sayımı (sn) ve maç süresi kısaltılabilir
     warmupSec: env.MATCH_WARMUP ? Number(env.MATCH_WARMUP) : null,
     timeLimitSec: env.MATCH_TIME ? Number(env.MATCH_TIME) : null,
+    // Yapay zekâlı telsiz (server/ai.js): ANTHROPIC_API_KEY ortamda varsa açık (anahtar yalnız SDK'ya gider,
+    // burada saklanmaz). AI_RADIO=0 kapatır; AI_RADIO=1 anahtarsız da açar (ör. `ant auth login` profili)
+    ai: {
+      enabled: env.AI_RADIO === '1' || (env.AI_RADIO !== '0' && !!(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN)),
+      model: (env.AI_MODEL || '').trim() || AI_DEFAULT_MODEL,
+      effort: AI_EFFORTS.includes(env.AI_EFFORT) ? env.AI_EFFORT : 'low',
+      timeoutMs: 20_000,
+      maxTokens: 2048, // düşünme payı da buna dahil; telsiz cevabı kısa
+    },
   };
 }
+
+const AI_DEFAULT_MODEL = 'claude-opus-5-5';
+const AI_EFFORTS = ['low', 'medium', 'high'];

@@ -10,7 +10,7 @@ export function normalize(text) {
 }
 
 // Türkçe klavyesi olmayan oyuncular ve konuşma tanımanın ASCII çıktısı.
-const fold = (text) => normalize(text).replace(/[çğıöşü]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[c]);
+export const fold = (text) => normalize(text).replace(/[çğıöşü]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[c]);
 const NUMBER_WORDS = new Set(['bir', 'iki', 'uc', '1', '2', '3']);
 const COUNTS = { bir: 1, iki: 2, uc: 3, dort: 4, bes: 5, alti: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10, onbir: 11, oniki: 12, onbes: 15, yirmi: 20, otuz: 30, kirk: 40, elli: 50, altmis: 60, yetmis: 70, seksen: 80, doksan: 90, yuz: 100 };
 const NUMBER_PATTERN = '(?:\\d+|(?:yuz(?: |$))?(?:(?:on|yirmi|otuz|kirk|elli|altmis|yetmis|seksen|doksan)(?: |$))?(?:bir|iki|uc|dort|bes|alti|yedi|sekiz|dokuz)?|onbir|oniki|onbes)';

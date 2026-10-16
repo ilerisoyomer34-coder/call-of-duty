@@ -42,6 +42,10 @@ export const ERRORS = {
   party_too_big: 'Takım bu mod için fazla kalabalık',
   no_party: 'Takım yok',
   bad_reason: 'Geçersiz şikâyet gerekçesi',
+  ai_off: 'Bu sunucuda yapay zekâ telsizi kapalı',
+  ai_busy: 'Yapay zekâ telsizi yoğun',
+  ai_limit: 'Yapay zekâ telsizinin günlük hakkı doldu',
+  ai_timeout: 'Yapay zekâ telsizi zamanında cevap vermedi',
   network: 'Sunucuya ulaşılamadı',
   server: 'Sunucu hatası',
 };
@@ -240,13 +244,14 @@ export class SocialClient {
     this.game.events.emit(EV.PROFILE_CHANGED, { name: r.name, tag: r.tag, fromServer: true });
   }
 
-  async fetch(method, path, body, auth = true) {
+  async fetch(method, path, body, auth = true, signal = undefined) {
     let res;
     try {
       res = await fetch(this.serverUrl + path, {
         method,
         headers: { 'content-type': 'application/json', ...(auth && this.profile.token ? { authorization: `Bearer ${this.profile.token}` } : {}) },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal,
       });
     } catch {
       throw Object.assign(new Error('network'), { code: 'network' });
@@ -410,6 +415,15 @@ export class SocialClient {
   }
 
   // --- Eylemler (hata kodlu istisna fırlatır; ekran errorText ile gösterir) ---
+  // Yapay zekâlı telsiz (server/ai.js): bağlı sunucu açtıysa ({ ai: true } /api/health) ve hesap hazırsa
+  get aiReady() {
+    return this.status === 'online' && !!this.info?.ai && !!this.profile.token;
+  }
+
+  aiRadio(body, signal) {
+    return this.fetch('POST', '/api/ai/radio', body, true, signal);
+  }
+
   search(q) {
     return this.fetch('GET', `/api/players?q=${encodeURIComponent(q)}`).then((r) => r.players);
   }

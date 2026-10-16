@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, chmodSync, writeFileSync, renameSync, rmSync } f
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { nodeVersionOk, MIN_NODE, ensureHostEnv, parseTunnelUrl, inviteLink, shouldUpdate, cloudflaredAsset, cloudflaredUrl, keepAwakeCommand, openCommand, clipboardCommand, DEFAULT_PORT } from './hostLib.js';
+import { aiEnv, nodeVersionOk, MIN_NODE, ensureHostEnv, parseTunnelUrl, inviteLink, shouldUpdate, cloudflaredAsset, cloudflaredUrl, keepAwakeCommand, openCommand, clipboardCommand, DEFAULT_PORT } from './hostLib.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, '..');
@@ -244,6 +244,8 @@ async function main() {
     HOST: NO_TUNNEL ? '0.0.0.0' : '127.0.0.1',
     TRUST_PROXY: NO_TUNNEL ? '' : '1',
     CLIENT_IP_HEADER: NO_TUNNEL ? '' : 'cf-connecting-ip',
+    // Yapay zekâlı telsiz: anahtar host.env'de (ya da bilgisayarın ortamında)
+    ...aiEnv(hostEnv, process.env),
   };
   const localBase = `http://127.0.0.1:${port}`;
   if (await health(localBase, 1500)) {
@@ -257,7 +259,10 @@ async function main() {
     h = await health(localBase, 1000);
   }
   if (!h) say('Oyun sunucusu yanıt vermiyor; yukarıdaki hata satırlarına bak.');
-  else say(`Oyun sunucusu çalışıyor: ${h.name} (port ${port}).`);
+  else {
+    say(`Oyun sunucusu çalışıyor: ${h.name} (port ${port}).`);
+    say(h.ai ? 'Yapay zekâlı telsiz açık: oyuncular telsize her şeyi sorabilir.' : 'Yapay zekâlı telsiz kapalı. Açmak için server/host.env dosyasına ANTHROPIC_API_KEY ekle (Docs/HOME_SERVER.md).');
+  }
   keepAwake();
   if (NO_TUNNEL) {
     say(`Tünel kapalı (--no-tunnel). Aynı bilgisayardan: ${localBase} · yerel ağdan: http://<bu bilgisayarın IP'si>:${port}`);

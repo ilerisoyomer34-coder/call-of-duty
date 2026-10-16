@@ -56,9 +56,24 @@ export function ensureHostEnv(path, { random = () => randomBytes(32).toString('h
     `PORT=${env.PORT}`,
     `SERVER_SECRET=${env.SERVER_SECRET}`,
     '',
+    '# Yapay zekâlı telsiz (isteğe bağlı): console.anthropic.com\'dan aldığın API anahtarını aşağıdaki satırın başındaki',
+    '# # işaretini silip = işaretinden sonra yaz. Anahtar yalnız bu bilgisayarda kalır; oyuncular göremez, kimseyle paylaşma.',
+    '# ANTHROPIC_API_KEY=',
+    '',
   ].join('\n');
   writeFileSync(path, text, { mode: 0o600 });
   return { created: true, env };
+}
+
+// host.env'den oyun sunucusuna geçen yapay zekâ ayarları (anahtar ekrana ya da günlüğe yazılmaz)
+export const AI_ENV_KEYS = ['ANTHROPIC_API_KEY', 'AI_MODEL', 'AI_EFFORT', 'AI_RADIO'];
+export function aiEnv(hostEnv, procEnv = {}) {
+  const out = {};
+  for (const k of AI_ENV_KEYS) {
+    const v = (hostEnv[k] ?? '').trim() || (procEnv[k] ?? '').trim();
+    if (v) out[k] = v;
+  }
+  return out;
 }
 
 // Kendiliğinden güncelleme yalnız dal gerideyse, maç yoksa ve elle değişiklik yapılmamışsa

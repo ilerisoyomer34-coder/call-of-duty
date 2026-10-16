@@ -3,6 +3,7 @@
 import { validateName } from '../shared/names.js';
 import { LIMITS } from './limits.js';
 import { makeIpOf } from './config.js';
+import { AiError } from './ai.js';
 
 const DEFAULT_SERVER_NAME = 'Demir Şafak sunucusu';
 import { SIDE } from '../shared/net/protocol.js';
@@ -15,13 +16,13 @@ class HttpError extends Error {
   }
 }
 
-function readBody(req) {
+function readBody(req, max = LIMITS.bodyBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > LIMITS.bodyBytes) {
+      if (size > max) {
         // Kalanı okuyup at (bağlantı koparılırsa istemci yanıtı göremez), 413 dön
         req.removeAllListeners('data');
         req.resume();
@@ -47,7 +48,10 @@ const str = (v) => (typeof v === 'string' ? v : '');
 // Şikâyet gerekçeleri: uygunsuz ad, taciz/hile (istemcide aynı kodlar → Türkçe metin)
 export const REPORT_REASONS = ['name', 'abuse'];
 
-export function createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker }) {
+// Gövdesi büyük olabilen uçlar (yapay zekâ telsizi oyun durumunu ve sohbet belleğini taşır)
+const BODY_LIMITS = { '/api/ai/radio': LIMITS.aiBodyBytes };
+
+export function createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker, ai = null }) {
   const ipOf = makeIpOf(config);
   const limit = (key, rule) => {
     if (!limiter.allow(key, rule.max, rule.windowMs)) throw new HttpError(429, 'rate_limited');
@@ -248,8 +252,28 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       return r;
     },
     'POST /api/match/cancel': async (req) => matchmaker.cancel(auth(req).id),
+    // Yapay zekâlı telsiz (server/ai.js): oyuncunun cümlesi + oyun durumu → { speaker, reply, actions }. Her istek
+    // sunucu sahibinin API hesabından harcadığı için oyuncu başına dakikalık/günlük ve sunucu geneli sınır var
+    'POST /api/ai/radio': async (req, body) => {
+      const p = auth(req);
+      if (!ai?.available) throw new HttpError(503, 'ai_off');
+      limit(`ai:${p.id}`, LIMITS.aiRadio);
+      if (!limiter.allow(`aid:${p.id}`, LIMITS.aiDaily.max, LIMITS.aiDaily.windowMs)) throw new HttpError(429, 'ai_limit');
+      if (!limiter.allow('ai:*', LIMITS.aiGlobal.max, LIMITS.aiGlobal.windowMs)) throw new HttpError(429, 'ai_busy');
+      const text = str(body.text).trim();
+      if (!text || text.length > LIMITS.aiTextMax) throw new HttpError(400, 'bad_text');
+      const context = body.context && typeof body.context === 'object' && !Array.isArray(body.context) ? body.context : {};
+      if (JSON.stringify(context).length > LIMITS.aiContextChars) throw new HttpError(413, 'too_large');
+      try {
+        return await ai.ask({ text, context, history: body.history });
+      } catch (e) {
+        if (e instanceof AiError) throw new HttpError(e.status, e.code);
+        throw e;
+      }
+    },
     // serverId: veritabanıyla birlikte kalıcı; tünel adresi her açılışta değişse de oyun hesabı bu kimliğe bağlanır
-    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size, rooms: rooms.rooms.size, serverId: store.serverId, name: config.serverName || DEFAULT_SERVER_NAME }),
+    // ai: yapay zekâlı telsiz bu sunucuda açık mı (oyun telsizde ona göre sorar)
+    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size, rooms: rooms.rooms.size, serverId: store.serverId, name: config.serverName || DEFAULT_SERVER_NAME, ai: !!ai?.available }),
   };
 
   const originOk = (origin) => {
@@ -287,7 +311,7 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
     const fn = routes[`${req.method} ${url.pathname}`];
     if (!fn) return send(404, { error: 'no_route' });
     try {
-      const body = req.method === 'POST' || req.method === 'PATCH' ? await readBody(req) : {};
+      const body = req.method === 'POST' || req.method === 'PATCH' ? await readBody(req, BODY_LIMITS[url.pathname]) : {};
       send(200, await fn(req, body, url));
     } catch (e) {
       if (e instanceof HttpError) send(e.status, { error: e.code });

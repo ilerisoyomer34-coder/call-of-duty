@@ -9,7 +9,10 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-if not exist "node_modules\ws" (
+set NEED_INSTALL=
+if not exist "node_modules\ws" set NEED_INSTALL=1
+if not exist "node_modules\@anthropic-ai\sdk" set NEED_INSTALL=1
+if defined NEED_INSTALL (
   echo Gerekli paket kuruluyor, bir kez yapilir...
   call npm install --omit=dev --no-audit --no-fund
   if errorlevel 1 (

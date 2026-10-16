@@ -8,7 +8,7 @@ if ! command -v node >/dev/null 2>&1; then
   read -r -p "Kapatmak için Enter'a bas…"
   exit 1
 fi
-if [ ! -d node_modules/ws ]; then
+if [ ! -d node_modules/ws ] || [ ! -d node_modules/@anthropic-ai/sdk ]; then
   echo "Gerekli paket kuruluyor, bir kez yapılır…"
   npm install --omit=dev --no-audit --no-fund || { read -r -p "Paket kurulamadı. Enter…"; exit 1; }
 fi
