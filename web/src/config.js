@@ -1019,10 +1019,46 @@ export const WEAPONS = {
   },
 };
 
+// Kullanıcının yüklediği sekiz CC BY 4.0 silah. Ortak mekanikler mevcut silahlardan gelir;
+// katalog kimlikleri ve ağdaki eski silah sırası korunur, yeni kimlikler sona eklenir.
+Object.assign(WEAPONS, {
+  ak47: { ...WEAPONS.ak74, id: 'ak47', name: 'TK-47 Köz', asset: 'ak47', rpm: 600, damage: 35,
+    fireModes: ['auto', 'semi'], falloff: { start: 35, end: 100, min: 0.72 },
+    recoil: { ...WEAPONS.ak74.recoil, kick: 1.15, random: 0.23 }, sound: 'ak74' },
+  adar215: { ...WEAPONS.k8, id: 'adar215', name: 'SK-15 Sedir', asset: 'adar215',
+    fireModes: ['semi'], rpm: 350, damage: 38, magSize: 10, reserveMax: 100, reserveStart: 60,
+    recoil: { ...WEAPONS.k8.recoil, kick: 1.1 }, mobility: 0.97 },
+  g95: { ...WEAPONS.k8, id: 'g95', name: 'GT-95 Kalkan', asset: 'g95', rpm: 750, damage: 29,
+    reloadTactical: 1.65, reloadEmpty: 2.05, mobility: 0.94 },
+  mp7: { ...WEAPONS.bren2, id: 'mp7', name: 'HM-7 Kıvılcım', asset: 'mp7', kind: 'Hafif Makineli',
+    fireModes: ['auto', 'semi'], rpm: 950, damage: 21, range: 160,
+    falloff: { start: 18, end: 50, min: 0.52 }, reserveStart: 120,
+    reloadTactical: 1.4, reloadEmpty: 1.8, mobility: 1.06, sound: 'smg',
+    spread: { ...WEAPONS.bren2.spread, hip: 2.1, adsMult: 0.14 },
+    recoil: { ...WEAPONS.bren2.recoil, kick: 0.62 },
+    hip: { pos: [0.15, -0.16, -0.34] } },
+  stm556: { ...WEAPONS.bren2, id: 'stm556', name: 'ST-56 Yel', asset: 'stm556',
+    fireModes: ['auto', 'semi'], rpm: 780, damage: 30, mobility: 0.98,
+    ads: { ...WEAPONS.bren2.ads, fovMult: 0.76, time: 0.22 } },
+  m4super90: { ...WEAPONS.shotgun, id: 'm4super90', name: 'YO-90 Fırtına', asset: 'm4super90',
+    model: 'glb', source: 'sketchfab', kind: 'Yarı Otomatik Av Tüfeği', pump: false,
+    rpm: 220, pellets: 8, damage: 15, magSize: 7, reserveMax: 56, reserveStart: 28,
+    loadPort: [0, 0.02, -0.16], loadRoll: -0.55 },
+  ar10t: { ...WEAPONS.k8, id: 'ar10t', name: 'NT-10 Kartal', asset: 'ar10t', kind: 'Muharebe Tüfeği',
+    fireModes: ['semi'], rpm: 300, damage: 47, range: 400, magSize: 20, reserveMax: 100, reserveStart: 60,
+    falloff: { start: 60, end: 140, min: 0.75 }, mobility: 0.9,
+    spread: { ...WEAPONS.k8.spread, hip: 3.2, adsMult: 0.035 },
+    recoil: { ...WEAPONS.k8.recoil, kick: 1.65, kickRot: 1.5 },
+    ads: { ...WEAPONS.k8.ads, fovMult: 0.7, time: 0.28, moveMult: 0.62 } },
+  ithaca37: { ...WEAPONS.shotgun, id: 'ithaca37', name: 'PT-37 Koru', asset: 'ithaca37',
+    model: 'glb', source: 'sketchfab', rpm: 75, pellets: 8, damage: 18,
+    magSize: 5, reserveMax: 40, reserveStart: 25, loadPort: [0, 0.008, -0.13] },
+});
+
 // Tuş sırası: 1-9 (poligonda hepsi, görevde ana + yan silah + 3'te bıçak)
 // Sketchfab silahları sonda: poligonda 1-9 tuşları eski dizilişte kalır, yenilere tekerlekle geçilir
 // Yeni silahlar hep sona eklenir: çevrim içi protokol silahı bu dizideki sırasıyla taşır
-export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10', 'knife'];
+export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10', 'knife', 'ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37'];
 // Varsayılan teçhizat hazır (ayrıntılı) modeller: oyuncunun ilk gördüğü silah kutulardan kurulu kod modeli olmasın
 export const DEFAULT_LOADOUT = { primary: 'ak74', secondary: 'd50', melee: 'knife' };
 

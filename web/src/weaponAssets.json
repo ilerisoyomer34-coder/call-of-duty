@@ -729,5 +729,495 @@
       "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
       "source": "https://sketchfab.com/3d-models/bazooka-m20-a53d6716c9c24302a6fdd71ff70a7d63"
     }
+  },
+  "ak47": {
+    "file": "assets/weapons/ak47.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.0525,
+        -0.588
+      ],
+      "sight": [
+        0,
+        0.0965,
+        -0.2054
+      ],
+      "front": [
+        0,
+        0.1025,
+        -0.5688
+      ],
+      "leftHand": [
+        0,
+        0.031,
+        -0.303
+      ],
+      "eject": [
+        0.0267,
+        0.061,
+        -0.148
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.02,
+        -0.157,
+        -0.588
+      ],
+      "max": [
+        0.038,
+        0.107,
+        0.292
+      ]
+    },
+    "length": 0.88,
+    "tris": 9152,
+    "bytes": 237068,
+    "materials": {
+      "AK_47_MAT": {
+        "map": "assets/weapons/ak47_t0.jpg",
+        "normalMap": "assets/weapons/ak47_t2.jpg",
+        "ormMap": "assets/weapons/ak47_t1.jpg",
+        "aoMap": "assets/weapons/ak47_t1.jpg"
+      }
+    },
+    "credit": {
+      "title": "AK-47  - Game Ready Assault Rifle Weapon",
+      "author": "Billy Jackman (https://sketchfab.com/billyjackman3d)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/ak-47-game-ready-assault-rifle-weapon-dc58144409534abbb60970638d171f9f"
+    }
+  },
+  "adar215": {
+    "file": "assets/weapons/adar215.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.0523,
+        -0.605
+      ],
+      "sight": [
+        0,
+        0.113,
+        -0.042
+      ],
+      "front": [
+        0,
+        0.111,
+        -0.396
+      ],
+      "leftHand": [
+        0,
+        0.02,
+        -0.33
+      ],
+      "eject": [
+        0.028,
+        0.07,
+        -0.135
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.029,
+        -0.101,
+        -0.605
+      ],
+      "max": [
+        0.038,
+        0.125,
+        0.265
+      ]
+    },
+    "length": 0.87,
+    "tris": 16549,
+    "bytes": 666816,
+    "credit": {
+      "title": "low-poly ADAR 2-15",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-adar-2-15-fb58636c7cf74912b86f0dab6fe63099"
+    }
+  },
+  "g95": {
+    "file": "assets/weapons/g95.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.0518,
+        -0.6323
+      ],
+      "sight": [
+        0,
+        0.116,
+        -0.025
+      ],
+      "front": [
+        0,
+        0.116,
+        -0.493
+      ],
+      "leftHand": [
+        0,
+        0.018,
+        -0.35
+      ],
+      "eject": [
+        0.03,
+        0.067,
+        -0.145
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.035,
+        -0.146,
+        -0.632
+      ],
+      "max": [
+        0.037,
+        0.129,
+        0.258
+      ]
+    },
+    "length": 0.89,
+    "tris": 26650,
+    "bytes": 1055628,
+    "credit": {
+      "title": "low-poly G95 A1",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-g95-a1-6e66f2cb28234868b06940669c7d388a"
+    }
+  },
+  "mp7": {
+    "file": "assets/weapons/mp7.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.072,
+        -0.419
+      ],
+      "sight": [
+        0,
+        0.156,
+        0.115
+      ],
+      "front": [
+        0,
+        0.156,
+        -0.245
+      ],
+      "leftHand": [
+        0,
+        0.015,
+        -0.222
+      ],
+      "eject": [
+        0.027,
+        0.095,
+        -0.075
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.039,
+        -0.177,
+        -0.419
+      ],
+      "max": [
+        0.037,
+        0.174,
+        0.22
+      ]
+    },
+    "length": 0.638,
+    "tris": 14332,
+    "bytes": 563132,
+    "credit": {
+      "title": "low-poly HK MP7 A1",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-hk-mp7-a1-4715a09c0d054bdba7c0fbf0929a9878"
+    }
+  },
+  "stm556": {
+    "file": "assets/weapons/stm556.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.051,
+        -0.6433
+      ],
+      "sight": [
+        0,
+        0.119,
+        -0.09
+      ],
+      "leftHand": [
+        0,
+        0.02,
+        -0.35
+      ],
+      "eject": [
+        0.03,
+        0.067,
+        -0.135
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag",
+      "optic"
+    ],
+    "bounds": {
+      "min": [
+        -0.03,
+        -0.128,
+        -0.643
+      ],
+      "max": [
+        0.035,
+        0.149,
+        0.247
+      ]
+    },
+    "length": 0.89,
+    "tris": 24625,
+    "bytes": 987492,
+    "credit": {
+      "title": "low-poly STM-556",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-stm-556-bd1b7c5385724474b6efff71b0b0bb1a"
+    }
+  },
+  "m4super90": {
+    "file": "assets/weapons/m4super90.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.071,
+        -0.691
+      ],
+      "sight": [
+        0,
+        0.1,
+        -0.069
+      ],
+      "front": [
+        0,
+        0.1,
+        -0.647
+      ],
+      "leftHand": [
+        0,
+        0.03,
+        -0.362
+      ],
+      "eject": [
+        0.026,
+        0.07,
+        -0.167
+      ]
+    },
+    "parts": [
+      "charging"
+    ],
+    "bounds": {
+      "min": [
+        -0.022,
+        -0.097,
+        -0.691
+      ],
+      "max": [
+        0.039,
+        0.112,
+        0.324
+      ]
+    },
+    "length": 1.015,
+    "tris": 24354,
+    "bytes": 701428,
+    "materials": {
+      "TTI_Benelli_M4": {
+        "map": "assets/weapons/m4super90_t0.jpg",
+        "normalMap": "assets/weapons/m4super90_t3.jpg",
+        "ormMap": "assets/weapons/m4super90_t1.jpg",
+        "aoMap": "assets/weapons/m4super90_t1.jpg",
+        "emissiveMap": "assets/weapons/m4super90_t2.jpg"
+      },
+      "matchsaverz": {
+        "map": "assets/weapons/m4super90_t4.jpg",
+        "normalMap": "assets/weapons/m4super90_t6.jpg",
+        "ormMap": "assets/weapons/m4super90_t5.jpg",
+        "aoMap": "assets/weapons/m4super90_t5.jpg"
+      }
+    },
+    "credit": {
+      "title": "M4 Super 90 (JW2) Brand-Friendly version",
+      "author": "8sianDude (https://sketchfab.com/haoliu95)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/m4-super-90-jw2-brand-friendly-version-7e472e24152246708cac8b6f1613c7a8"
+    }
+  },
+  "ar10t": {
+    "file": "assets/weapons/ar10t.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.039,
+        -0.752
+      ],
+      "sight": [
+        0,
+        0.131,
+        -0.026
+      ],
+      "front": [
+        0,
+        0.131,
+        -0.538
+      ],
+      "leftHand": [
+        0,
+        0.015,
+        -0.3685
+      ],
+      "eject": [
+        0.027,
+        0.066,
+        -0.11
+      ]
+    },
+    "parts": [
+      "mag"
+    ],
+    "bounds": {
+      "min": [
+        -0.03,
+        -0.08,
+        -0.752
+      ],
+      "max": [
+        0.03,
+        0.149,
+        0.268
+      ]
+    },
+    "length": 1.02,
+    "tris": 29655,
+    "bytes": 923740,
+    "materials": {
+      "ar-10b_magazine": {
+        "map": "assets/weapons/ar10t_t0.jpg",
+        "normalMap": "assets/weapons/ar10t_t2.jpg",
+        "ormMap": "assets/weapons/ar10t_t1.jpg",
+        "aoMap": "assets/weapons/ar10t_t1.jpg"
+      },
+      "kac_flip_sights": {
+        "map": "assets/weapons/ar10t_t3.jpg",
+        "normalMap": "assets/weapons/ar10t_t5.jpg",
+        "ormMap": "assets/weapons/ar10t_t4.jpg",
+        "aoMap": "assets/weapons/ar10t_t4.jpg"
+      },
+      "ar-10t_receivers": {
+        "map": "assets/weapons/ar10t_t6.jpg",
+        "normalMap": "assets/weapons/ar10t_t8.jpg",
+        "ormMap": "assets/weapons/ar10t_t7.jpg",
+        "aoMap": "assets/weapons/ar10t_t7.jpg"
+      },
+      "ar-10t_furniture": {
+        "map": "assets/weapons/ar10t_t9.jpg",
+        "normalMap": "assets/weapons/ar10t_t11.jpg",
+        "ormMap": "assets/weapons/ar10t_t10.jpg",
+        "aoMap": "assets/weapons/ar10t_t10.jpg"
+      }
+    },
+    "credit": {
+      "title": "Armalite AR-10(T) Battle Rifle",
+      "author": "8sianDude (https://sketchfab.com/haoliu95)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/armalite-ar-10t-battle-rifle-415a20e0f50c4e1a9c2da542857c4737"
+    }
+  },
+  "ithaca37": {
+    "file": "assets/weapons/ithaca37.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.06,
+        -0.655
+      ],
+      "sight": [
+        0,
+        0.077,
+        -0.095
+      ],
+      "front": [
+        0,
+        0.077,
+        -0.635
+      ],
+      "leftHand": [
+        0,
+        -0.008,
+        -0.385
+      ],
+      "eject": [
+        0,
+        0.005,
+        -0.132
+      ]
+    },
+    "parts": [
+      "pump"
+    ],
+    "bounds": {
+      "min": [
+        -0.025,
+        -0.11,
+        -0.655
+      ],
+      "max": [
+        0.025,
+        0.078,
+        0.345
+      ]
+    },
+    "length": 1,
+    "tris": 18066,
+    "bytes": 535688,
+    "materials": {
+      "ithaca_m37_riot": {
+        "map": "assets/weapons/ithaca37_t0.jpg",
+        "normalMap": "assets/weapons/ithaca37_t2.jpg",
+        "ormMap": "assets/weapons/ithaca37_t1.jpg",
+        "aoMap": "assets/weapons/ithaca37_t1.jpg"
+      }
+    },
+    "credit": {
+      "title": "Ithaca Model 37 \"Riot\" Shotgun",
+      "author": "8sianDude (https://sketchfab.com/haoliu95)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/ithaca-model-37-riot-shotgun-8caca0af16a74184bb63758f7b58c22a"
+    }
   }
 }

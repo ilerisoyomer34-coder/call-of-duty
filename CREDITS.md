@@ -76,4 +76,15 @@ Google Play tanıtım görselindeki "Demir Şafak" posteri proje sahibine aittir
 - three.js — MIT lisansı
 - Big Shoulders Stencil Display, Barlow Condensed, Share Tech Mono — SIL Open Font License (Google Fonts). Mağaza uygulaması (`web/dist/app`) bunları kendi içinde taşır: `web/src/fonts/` (lisans metinleri `OFL-*.txt`, `tools/fetch-fonts.mjs`)
 
-Pompalı nişancı tüfeği PR-10 Tayfun kodla üretilir (`web/src/models.js → buildPumpRifle`). Yüklenen "Lightning pump action rifle" modeli Sketchfab Standard lisanslı olduğu için (ham dosya oyunla dağıtılamaz), AK-47 modeli CC BY-NC olduğu için (ticari kullanım yok) alınmadı.
+Pompalı nişancı tüfeği PR-10 Tayfun kodla üretilir (`web/src/models.js → buildPumpRifle`). Yüklenen "Lightning pump action rifle" modeli Sketchfab Standard lisanslı olduğu için (ham dosya oyunla dağıtılamaz), lokeig'in önceki AK-47 modeli CC BY-NC olduğu için (ticari kullanım yok) alınmadı. Aşağıda eklenen Billy Jackman AK-47 modeli farklıdır ve CC BY 4.0 lisanslıdır.
+
+### Eklenen silahlar (17 Ekim 2026)
+Oyun için yön ve ölçek düzenlendi; tutuş/nişan noktaları tanımlandı, şarjör ve hareketli parçalar ayrıldı, dokular paketlendi.
+- **AK-47  - Game Ready Assault Rifle Weapon** — Billy Jackman (https://sketchfab.com/billyjackman3d); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/ak-47-game-ready-assault-rifle-weapon-dc58144409534abbb60970638d171f9f).
+- **low-poly ADAR 2-15** — D_U (https://sketchfab.com/DU1701); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/low-poly-adar-2-15-fb58636c7cf74912b86f0dab6fe63099).
+- **low-poly G95 A1** — D_U (https://sketchfab.com/DU1701); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/low-poly-g95-a1-6e66f2cb28234868b06940669c7d388a).
+- **low-poly HK MP7 A1** — D_U (https://sketchfab.com/DU1701); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/low-poly-hk-mp7-a1-4715a09c0d054bdba7c0fbf0929a9878).
+- **low-poly STM-556** — D_U (https://sketchfab.com/DU1701); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/low-poly-stm-556-bd1b7c5385724474b6efff71b0b0bb1a).
+- **M4 Super 90 (JW2) Brand-Friendly version** — 8sianDude (https://sketchfab.com/haoliu95); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/m4-super-90-jw2-brand-friendly-version-7e472e24152246708cac8b6f1613c7a8).
+- **Armalite AR-10(T) Battle Rifle** — 8sianDude (https://sketchfab.com/haoliu95); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/armalite-ar-10t-battle-rifle-415a20e0f50c4e1a9c2da542857c4737).
+- **Ithaca Model 37 "Riot" Shotgun** — 8sianDude (https://sketchfab.com/haoliu95); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/ithaca-model-37-riot-shotgun-8caca0af16a74184bb63758f7b58c22a).

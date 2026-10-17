@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync } from 'no
 import { createHash } from 'node:crypto';
 import { dirname, join as pjoin } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const root = pjoin(dirname(fileURLToPath(import.meta.url)), '..');
 const repo = pjoin(root, '..');
@@ -232,7 +233,13 @@ for (const m of R.listMaterials()) {
   if (Object.keys(spec).length) materials[m.getName()] = spec;
   m.setBaseColorTexture(null).setNormalTexture(null).setMetallicRoughnessTexture(null).setOcclusionTexture(null).setEmissiveTexture(null);
 }
-if (texJobs.length) {
+if (texJobs.length && process.env.TEXTURE_PYTHON) {
+  // Toplu asset dönüşümünde tarayıcı açmadan aynı küçültme/boyama işini Pillow ile yapabilmek için.
+  const result = spawnSync(process.env.TEXTURE_PYTHON, [pjoin(root, 'tools/prepare-textures.py')], {
+    input: JSON.stringify({ root, jobs: texJobs }), encoding: 'utf8', maxBuffer: 1024 * 1024,
+  });
+  if (result.status !== 0) throw new Error(result.stderr || 'Doku dönüşümü başarısız');
+} else if (texJobs.length) {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader'] });
   const page = await browser.newPage();
   for (const job of texJobs) {
@@ -269,7 +276,8 @@ if (texJobs.length) {
 // Dokusuz malzemelerin UV'leri gereksiz: dosya küçülsün
 for (const mesh of R.listMeshes())
   for (const p of mesh.listPrimitives()) if (!materials[p.getMaterial()?.getName()]) for (const sem of p.listSemantics()) if (/^TEXCOORD_/.test(sem)) p.setAttribute(sem, null);
-await doc.transform(prune());
+// Dokular ayrı dosyalardan çalışma anında bağlanır; bu aşamada "kullanılmıyor" görünen UV'ler korunmalı.
+await doc.transform(prune({ keepAttributes: true }));
 for (const t of R.listTextures()) t.dispose();
 await doc.transform(quantize({ quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 14 }));
 

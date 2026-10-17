@@ -1,0 +1,9 @@
+{
+  "author": "8sianDude (https://sketchfab.com/haoliu95)",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "source": "https://sketchfab.com/3d-models/armalite-ar-10t-battle-rifle-415a20e0f50c4e1a9c2da542857c4737",
+  "title": "Armalite AR-10(T) Battle Rifle",
+  "original_file": "armalite_ar-10t_battle_rifle.glb",
+  "sha256": "f5960f9e5e5fac936ac9b5cd867774c66c912a3c438835bc15e247b374b319ef",
+  "changes": "Oyun için yön/ölçek, tutuş ve nişan noktaları; hareketli parçalar ayrılır; dokular JPEG olarak paketlenir."
+}

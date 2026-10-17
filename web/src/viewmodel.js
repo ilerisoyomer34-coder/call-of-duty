@@ -253,7 +253,7 @@ export class Viewmodel {
     const root = new THREE.Group();
     root.add(scene);
     const parts = {};
-    for (const name of ['mag', 'charging', 'slide', 'optic', 'bolt', 'spin']) {
+    for (const name of ['mag', 'charging', 'slide', 'optic', 'bolt', 'spin', 'pump']) {
       const n = scene.getObjectByName(name);
       if (n) parts[name] = n;
     }
