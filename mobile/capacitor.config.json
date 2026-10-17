@@ -1,0 +1,17 @@
+{
+  "appId": "io.github.ilerisoyomer34coder.demirsafak",
+  "appName": "Demir Şafak",
+  "webDir": "../web/dist/app",
+  "backgroundColor": "#0d1013",
+  "android": {
+    "backgroundColor": "#0d1013",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "backgroundColor": "#0d1013",
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}

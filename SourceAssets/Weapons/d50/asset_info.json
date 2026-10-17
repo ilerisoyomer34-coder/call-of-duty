@@ -1,0 +1,14 @@
+{
+  "title": "Golden Desert Eagle tabanca",
+  "author": "Oyuncu (kendi Blender dosyası — doğrulanmalı)",
+  "author_url": "",
+  "source_url": "",
+  "license": "Kullanıcıya ait — doğrulanmalı",
+  "download_date": "2026-09-25",
+  "format": "Blender (.blend, zstd sıkıştırmalı, Blender 5.1)",
+  "category": "Weapons",
+  "intended_use": "Oyuncu ağır tabancası (D-50 Kartal)",
+  "original_file": "golden_dessert_eagle_1.blend",
+  "modifications": "113.096 → ~10.600 üçgen (kabza panelleri yoğun); gerçek boyuta (0,28 m) ölçeklendi; sürgü ve şarjör ayrı parça.",
+  "notes": "Doku yok, yalnızca renk tabanlı PBR malzemeler. Oyun içi ad kurgusaldır. Dönüştürme: Tools/blender/export_weapon.py, rapor: Docs/import_reports/d50.md"
+}

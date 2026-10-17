@@ -1,0 +1,14 @@
+{
+  "title": "MG-43 hafif makineli tüfek",
+  "author": "Oyuncu (kendi Blender dosyası — doğrulanmalı)",
+  "author_url": "",
+  "source_url": "",
+  "license": "Kullanıcıya ait — doğrulanmalı",
+  "download_date": "2026-09-25",
+  "format": "Blender (.blend, zstd sıkıştırmalı, Blender 5.1)",
+  "category": "Weapons",
+  "intended_use": "Oyuncu hafif makineli tüfeği (MG-43)",
+  "original_file": "mg_43_1.blend1",
+  "modifications": "Kamera, ışık ve fon düzlemleri atıldı; arka gez çıkarıldı; parçalar gövde/şarjör/kurma kolu/nişangah olarak birleştirildi.",
+  "notes": "Doku yok, yalnızca renk tabanlı PBR malzemeler. Oyun içi ad kurgusaldır. Dönüştürme: Tools/blender/export_weapon.py, rapor: Docs/import_reports/mg43.md"
+}
