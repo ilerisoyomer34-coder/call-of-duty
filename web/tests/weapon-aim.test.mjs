@@ -1,0 +1,86 @@
+// Gerçek GLB'ler + oyunun el geometrisi: merkezde parmak/gövde kalmasını ve hizanın kaymasını yakalar.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { WEAPONS, WEAPON_ORDER, WEAPON_AIM, HAND_VIEW } from '../src/config.js';
+import ASSETS from '../src/weaponAssets.json' with { type: 'json' };
+import { buildArms, buildWeapon, poseArm } from '../src/models.js';
+import { calibrateWeapon, placeWeapon, gripQuaternion } from '../src/weaponAim.js';
+import { canAim, isScoped, sightFor } from '../src/sights.js';
+
+const loader = new GLTFLoader();
+const arms = buildArms();
+const rays = new THREE.Raycaster();
+const models = new Map();
+const v = p => new THREE.Vector3().fromArray(p);
+for (const id of WEAPON_ORDER) {
+  const d = WEAPONS[id]; let m;
+  if (d.model === 'glb') {
+    const a = ASSETS[d.asset || id], bytes = readFileSync(new URL(`../${a.file}`, import.meta.url));
+    const root = (await loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '')).scene;
+    m = { root, sight: v(a.points.sight || [0,0,0]), front: a.points.front ? v(a.points.front) : null,
+      leftHand: v(a.points.leftHand || [0,0,0]), rightHand: v([0,-.035,.025]) };
+  } else m = buildWeapon(id);
+  calibrateWeapon(id, m, d.model === 'glb'); models.set(id,m);
+}
+
+test('her silahın ayrı nişan mesafesi ve sonlu kavrama çerçevesi var', () => {
+  assert.deepEqual(Object.keys(WEAPON_AIM).sort(), [...WEAPON_ORDER].sort());
+  for (const id of WEAPON_ORDER) {
+    const d = WEAPONS[id];
+    assert.ok(d.adsDist >= .14 && d.adsDist <= .6, id);
+    assert.ok(d.ads.vmFov >= 30 && d.ads.vmFov <= 60, id);
+    if (!d.melee) for (const side of ['left','right']) {
+      const frame = d.grip[side], q = gripQuaternion(frame);
+      assert.ok(frame.position.every(Number.isFinite), `${id}/${side}`);
+      assert.ok(Math.abs(q.length()-1)<1e-10, `${id}/${side}: geçerli dönüş`);
+    }
+  }
+});
+
+for (const id of WEAPON_ORDER.filter(canAim)) test(`${id}: gez, arpacık ve eller masaüstü/telefon nişan hattını açık tutar`, () => {
+  const d=WEAPONS[id],m=models.get(id);
+  for (const aspect of [16/9, 19.5/9, 9/16]) for (const tilt of [0, -.018, .018]) {
+    const position = new THREE.Vector3(-m.sight.x,-m.sight.y,-d.adsDist-m.sight.z);
+    placeWeapon(m.root,position,new THREE.Euler(tilt,0,tilt/2),m.sight,m.adsAlign,1);
+    m.root.updateMatrixWorld(true);
+    const camera = new THREE.PerspectiveCamera(d.ads.vmFov,aspect,.01,10);camera.updateMatrixWorld(true);
+    const sight=m.sight.clone().applyMatrix4(m.root.matrixWorld).project(camera);
+    assert.ok(Math.hypot(sight.x,sight.y)<1e-12, `${id}: dönünce gez merkezden kaydı`);
+    if (m.front && tilt===0) {
+      const p=m.front.clone().applyMatrix4(m.root.matrixWorld).project(camera);
+      assert.ok(Math.hypot(p.x,p.y)<1e-6, `${id}: gez/arpacık hizalı değil`);
+    }
+    const right=m.rightHand.clone().applyMatrix4(m.root.matrix), left=m.leftHand.clone().applyMatrix4(m.root.matrix);
+    poseArm(arms.right,new THREE.Vector3(position.x+.09,position.y-.24,position.z+.34),right,new THREE.Vector3(.45,1,.1),m.root.quaternion.clone().multiply(m.rightGrip));
+    poseArm(arms.left,new THREE.Vector3(position.x-.22,position.y-.32,left.z+.36),left,new THREE.Vector3(-.35,-1,0),m.root.quaternion.clone().multiply(m.leftGrip));
+    arms.left.g.updateMatrixWorld(true);arms.right.g.updateMatrixWorld(true);
+    for(const x of [-.06,-.03,0,.03,.06]) for(const y of [0,.03,.06,.09]) {
+      rays.setFromCamera(new THREE.Vector2(x,y),camera);
+      assert.equal(rays.intersectObjects([arms.left.g,arms.right.g],true).length,0,`${id}: parmak/kol hedefi kapatıyor (${aspect}, ${x}, ${y})`);
+    }
+    if (sightFor(id).kind==='iron' && tilt===0) {
+      rays.setFromCamera(new THREE.Vector2(0,.004),camera);
+      const opaque=[];m.root.traverseVisible(o=>{if(o.isMesh&&!o.material.transparent)opaque.push(o);});
+      const hit=rays.intersectObjects(opaque,false)[0];
+      assert.ok(!hit,`${id}: nişan çizgisi gövdeye kapalı (${hit?.point.toArray()})`);
+    }
+    if (isScoped(id)) assert.ok(m.leftGrip && m.rightGrip, `${id}: dürbüne girerken tutuş hazır`);
+  }
+});
+
+test('sabit tutuşta kol bileğe bağlıdır; dirsek değişince el silahın etrafında dönmez', () => {
+  const arm=buildArms().left, hand=new THREE.Vector3(-.03,-.08,-.4), q=gripQuaternion(WEAPONS.ak47.grip.left);
+  for(const elbow of [new THREE.Vector3(-.3,-.5,0),new THREE.Vector3(-.4,-.3,-.1)]) {
+    poseArm(arm,elbow,hand,new THREE.Vector3(0,-1,0),q);
+    arm.g.updateMatrixWorld(true);
+    const palm=new THREE.Vector3(0,0,HAND_VIEW.palmCenter).applyMatrix4(arm.hand.matrixWorld);
+    assert.ok(palm.distanceTo(hand)<1e-12);
+    assert.ok(arm.hand.quaternion.angleTo(q)<1e-7);
+    const end=new THREE.Vector3(0,0,1).applyMatrix4(arm.fore.matrixWorld);
+    const cuff=new THREE.Vector3(0,0,-HAND_VIEW.cuffBack).applyMatrix4(arm.hand.matrixWorld);
+    assert.ok(end.distanceTo(cuff)<1e-12, 'kol ile eldiven arasında boşluk');
+  }
+});

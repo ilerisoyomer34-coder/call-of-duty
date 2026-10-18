@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { WIND } from './config.js';
+import { WIND, HAND_VIEW } from './config.js';
 
 const matCache = new Map();
 export function mat(color, rough = 0.7, metal = 0.1, extra = null) {
@@ -256,7 +256,8 @@ export function buildPistol() {
     root,
     parts: { slide, mag },
     muzzle: new THREE.Vector3(0, 0.032, -0.19),
-    sight: new THREE.Vector3(0, 0.0555, -0.08),
+    sight: new THREE.Vector3(0, 0.0565, 0.004),
+    front: new THREE.Vector3(0, 0.0585, -0.165),
     leftHand: new THREE.Vector3(-0.022, -0.055, 0.012),
     rightHand: new THREE.Vector3(0, -0.04, 0.015),
     eject: new THREE.Vector3(0.018, 0.04, -0.05),
@@ -295,6 +296,7 @@ export function buildShotgun() {
     parts: { pump },
     muzzle: new THREE.Vector3(0, 0.06, -0.72),
     sight: new THREE.Vector3(0, 0.101, 0.0),
+    front: new THREE.Vector3(0, 0.1042, -0.685),
     leftHand: new THREE.Vector3(0, -0.012, -0.34),
     rightHand: new THREE.Vector3(0, -0.035, 0.03),
     eject: new THREE.Vector3(0.03, 0.04, -0.06),
@@ -680,16 +682,36 @@ const _bx = new THREE.Vector3();
 const _by = new THREE.Vector3();
 const _bm = new THREE.Matrix4();
 const UP_DEFAULT = new THREE.Vector3(0, 1, 0);
-export function poseArm(arm, elbow, hand, up = UP_DEFAULT) {
+export function poseArm(arm, elbow, hand, up = UP_DEFAULT, grip = null, gripBlend = 1) {
   _dir.subVectors(hand, elbow);
   const len = _dir.length();
   _dir.divideScalar(len || 1);
   _by.copy(up).addScaledVector(_dir, -up.dot(_dir));
   if (_by.lengthSq() < 1e-6) _by.set(0, 1, 0).addScaledVector(_dir, -_dir.y);
+  if (_by.lengthSq() < 1e-6) _by.set(1, 0, 0);
   _by.normalize();
   _bx.crossVectors(_by, _dir);
   _bm.makeBasis(_bx, _by, _dir);
   _q.setFromRotationMatrix(_bm);
+  if (grip) {
+    // Avuç silahın tutamağına göre döner; dirsek hareketi parmakları nişangâha kaldıramaz.
+    _q.slerp(grip, gripBlend);
+    arm.hand.quaternion.copy(_q);
+    arm.hand.position.copy(hand).addScaledVector(_by.set(0, 0, 1).applyQuaternion(_q), -HAND_VIEW.palmCenter);
+    // Ön kolu yeni bileğe bağla: tutuş yönü değişirken eldiven ile kol arasında boşluk kalmasın.
+    _dir.copy(arm.hand.position).addScaledVector(_by, -HAND_VIEW.cuffBack).sub(elbow);
+    const foreLen = _dir.length();
+    _dir.divideScalar(foreLen || 1);
+    _by.copy(up).addScaledVector(_dir, -up.dot(_dir));
+    if (_by.lengthSq() < 1e-6) _by.set(0, 1, 0).addScaledVector(_dir, -_dir.y);
+    if (_by.lengthSq() < 1e-6) _by.set(1, 0, 0);
+    _by.normalize();
+    _bx.crossVectors(_by, _dir);
+    arm.fore.position.copy(elbow);
+    arm.fore.quaternion.setFromRotationMatrix(_bm.makeBasis(_bx, _by, _dir));
+    arm.fore.scale.set(1, 1, Math.max(0.01, foreLen));
+    return;
+  }
   arm.fore.position.copy(elbow);
   arm.fore.quaternion.copy(_q);
   arm.fore.scale.set(1, 1, Math.max(0.01, len - 0.05));

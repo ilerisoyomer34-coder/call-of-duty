@@ -4,9 +4,10 @@
 // Ayrı sahnede çizilir: silah duvarların içine girmez.
 import * as THREE from 'three';
 import { buildWeapon, buildArms, poseArm, buildGrenade, buildSmokeGrenade, buildRocket, mat } from './models.js';
-import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW } from './config.js';
+import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW, HAND_VIEW } from './config.js';
 import { preloadWeapons, rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
-import { sightFor, hasReticle, isScoped } from './sights.js';
+import { sightFor, hasReticle, isScoped, canAim } from './sights.js';
+import { calibrateWeapon, placeWeapon } from './weaponAim.js';
 import { reticleMesh, housingMesh, glowDots } from './reticles.js';
 import { clamp, damp, lerp, smoothstep, Spring, rand, warnOnce } from './util.js';
 
@@ -18,7 +19,6 @@ const _upR = new THREE.Vector3(); // el sırtı yön ipuçları (poseArm)
 const _upL = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _qa = new THREE.Quaternion();
-const _pv = new THREE.Vector3();
 const _NEG_Z = new THREE.Vector3(0, 0, -1);
 const _m4 = new THREE.Matrix4();
 const _box = new THREE.Box3();
@@ -141,14 +141,6 @@ function pivotAround(part, at) {
   return pivot;
 }
 
-// Gez (sight) → arpacık (front) yönünü -Z'ye çeviren dönüş: arpacık gezin tam arkasında, ekran merkezinde görünür.
-// Arpacığı olmayan (optikli) silahta dönüş yok
-function sightAlign(sight, front) {
-  if (!sight || !front) return null;
-  const dir = front.clone().sub(sight).normalize();
-  return new THREE.Quaternion().setFromUnitVectors(dir, _NEG_Z);
-}
-
 export class Viewmodel {
   constructor(game, textures) {
     this.game = game;
@@ -231,6 +223,7 @@ export class Viewmodel {
     const old = this.models[id];
     if (old) old.root.removeFromParent();
     m.root.visible = this.currentId === id;
+    calibrateWeapon(id, m, fromGlb);
     this.holder.add(m.root);
     m.flash = this.makeFlash(this.textures, WEAPONS[id].flashSize || 0.14);
     m.root.add(m.flash);
@@ -277,11 +270,11 @@ export class Viewmodel {
       parts,
       muzzle: rig.muzzle,
       sight: rig.sight,
+      front: rig.front,
       leftHand: rig.leftHand,
       // Bıçakta köken sapın ortası: el sapı kavrar
       rightHand: d.melee ? new THREE.Vector3(0, -0.004, 0.012) : new THREE.Vector3(0, -0.035, 0.025),
       eject: rig.eject,
-      adsAlign: sightAlign(rig.sight, rig.front),
       spinPivot,
       boltPivot,
       boltAxis: rig.boltAxis,
@@ -467,7 +460,8 @@ export class Viewmodel {
     const handgun = (d.category === 'secondary' && !d.projectile) || !!d.melee;
 
     // --- Temel poz: kalça ↔ nişan ---
-    const ads = smoothstep(P.adsT);
+    // Minigun ve bıçakta hayalî gez noktasına hizalama yapma; gövde kameranın içine girmesin.
+    const ads = canAim(w.id) ? smoothstep(P.adsT) : 0;
     const hip = d.hip.pos;
     const ax = -m.sight.x;
     const ay = -m.sight.y;
@@ -731,12 +725,7 @@ export class Viewmodel {
     // Nişanda dönüşler gez noktası etrafında: geri tepme ve sallantı silahı oynatır ama gez ekran merkezinden
     // (merminin gittiği yer) kaçmaz. Gez → arpacık çizgisi kamera eksenine oturur (sightAlign)
     _r.set(rx, ry, rz);
-    _q.setFromEuler(_r);
-    if (m.adsAlign) _q.multiply(_qa.identity().slerp(m.adsAlign, ads));
-    _pv.copy(m.sight).multiplyScalar(ads);
-    m.root.quaternion.copy(_q);
-    m.root.position.copy(_p).add(_pv).sub(_v.copy(_pv).applyQuaternion(_q));
-    m.root.updateMatrix();
+    placeWeapon(m.root, _p, _r, m.sight, m.adsAlign, ads);
     if (m.flash.visible) {
       this.flashT -= dt;
       if (this.flashT <= 0) {
@@ -772,10 +761,17 @@ export class Viewmodel {
     else if (handgun) _upL.set(-0.7, 0.6, 0);
     else if (d.hip.leftGrip === 'vertical') _upL.set(-1, 0.15, 0.2); // dikey tutamak: el sırtı sola, parmaklar sarar
     else _upL.set(-0.35, -1, 0);
-    poseArm(this.arms.right, elbowR, rightHand, _upR);
+    // Şarjör, sürgü ve bomba animasyonunda serbest bileğe yumuşak geç; normal tutuşta silaha kilitle.
+    const freeLeft = !!info || quick || cooking || throwing || knifeOn;
+    const freeRight = !!rightOverride || cooking || throwing;
+    m.leftGripBlend = damp(m.leftGripBlend ?? 1, freeLeft ? 0 : 1, HAND_VIEW.blendRate, dt);
+    m.rightGripBlend = damp(m.rightGripBlend ?? 1, freeRight ? 0 : 1, HAND_VIEW.blendRate, dt);
+    const rightGrip = m.rightGrip ? _qa.copy(m.root.quaternion).multiply(m.rightGrip) : null;
+    poseArm(this.arms.right, elbowR, rightHand, _upR, rightGrip, m.rightGripBlend);
     // Elde bıçakta sol el boştur (ekran dışında); el bombası atarken görünür
     this.arms.left.g.visible = !d.melee || cooking || throwing;
-    poseArm(this.arms.left, elbowL, leftHand, _upL);
+    const leftGrip = m.leftGrip ? _qa.copy(m.root.quaternion).multiply(m.leftGrip) : null;
+    poseArm(this.arms.left, elbowL, leftHand, _upL, leftGrip, m.leftGripBlend);
 
     // Kamera ve ışık
     const cam = g.camera;

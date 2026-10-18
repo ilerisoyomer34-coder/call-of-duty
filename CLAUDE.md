@@ -32,6 +32,7 @@
 - PWA simgeleri: `node tools/make-icons.mjs`. `src/pwa/icon.svg` dosyasından `src/pwa/icons/*.png` üretir; çıktılar commit'lenir, derleme bu dosyaları yalnız kopyalar.
 - `npm test` → önce birim testleri (`npm run test:unit` = `node --test tests/*.test.mjs`), sonra derler, başsız Chromium'da menü/görev/poligon/telefon akışlarını dener; ekran görüntüleri `web/tools/shots/`
 - Kaynak değiştiyse `dist/` yeniden derlenip commit'lenmeli.
+- Silaha özel nişan/tutuş kalibrasyonu `config.js → WEAPON_AIM`, ortak matematik `weaponAim.js`; GLB'nin nokta kayıtları yerinde kalır, birinci şahıs düzeltmeleri bu tablodan uygulanır. Kontrol: `node tools/aim-inspector.mjs` (tarayıcıyı elle aç; tüm silahlar ve animasyon taraması). Gerçek geometriyle nişan testleri `tests/weapon-aim.test.mjs`, ölçüm tablosu `Docs/WEAPON_AIM.md`.
 - Çevrim içi sunucu: `cd web && npm run server` (port 8790; ayarlar `server/.env.example`, `DB_PATH=:memory:` deneme). Oyunu ona bağlamak: adrese `?server=http://localhost:8790` ya da Ayarlar → "Çevrim içi sunucu". Yedek: `node server/backup.mjs <klasör>`.
 - Ev sunucusu (kullanıcının bilgisayarı): depo kökü `Sunucuyu-Baslat.bat` / `.command` → `web/server/host.mjs` (bekçi):
   - `server/host.env` (git dışı, ilk açılışta rastgele `SERVER_SECRET`, `SERVER_NAME`);

@@ -1059,6 +1059,54 @@ Object.assign(WEAPONS, {
 // Sketchfab silahları sonda: poligonda 1-9 tuşları eski dizilişte kalır, yenilere tekerlekle geçilir
 // Yeni silahlar hep sona eklenir: çevrim içi protokol silahı bu dizideki sırasıyla taşır
 export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10', 'knife', 'ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37'];
+
+// El yönü dirsekten bağımsızdır: yatay kundakta avuç altta, dikey kabzada bilek avucun altında kalır.
+// Konum avuç merkezidir, yönler silahın yerel uzayındadır. Her modelin tutamak noktası ayrı ölçülür.
+const GRIP_FRAMES = {
+  under: { forward: [1, 0.04, 0], up: [0, -1, 0] },
+  vertical: { forward: [0, 0.98, -0.2], up: [-1, 0, 0] },
+  firing: { forward: [0, 0.97, -0.24], up: [1, 0, 0] },
+  stock: { forward: [0, 0.65, -0.76], up: [1, 0, 0] },
+};
+export const HAND_VIEW = { palmCenter: 0.05, cuffBack: 0.035, blendRate: 18 };
+export const WEAPON_AIM = {
+  rifle:     { distance: 0.27,  fov: 38, left: [-0.024, -0.028, -0.452], hold: 'vertical', right: [0.024, -0.043, 0.028] },
+  mar556:    { distance: 0.225, fov: 38, left: [-0.024, -0.034, -0.4005],hold: 'vertical', right: [0.023, -0.043, 0.024] },
+  smg:       { distance: 0.24,  fov: 44, left: [-0.023, -0.026, -0.25], hold: 'vertical', right: [0.023, -0.044, 0.024] },
+  shotgun:   { distance: 0.32,  fov: 44, left: [-0.025, -0.018, -0.34], hold: 'under',    right: [0.024, -0.044, 0.028] },
+  lmg:       { distance: 0.24,  fov: 42, left: [-0.03,   0.005, -0.336],hold: 'under',   right: [0.027, -0.045, 0.026] },
+  sniper:    { distance: 0.20,  fov: 40, left: [-0.027, -0.012, -0.23], hold: 'under',   right: [0.025, -0.047, 0.028] },
+  pistol:    { distance: 0.38,  fov: 46, left: [-0.026, -0.055, 0.017], hold: 'vertical',right: [0.022, -0.043, 0.018] },
+  d50:       { distance: 0.43,  fov: 46, left: [-0.027, -0.055, 0.027], hold: 'vertical',right: [0.024, -0.044, 0.026], sight: [0, 0.0802, 0.023], front: [0, 0.0784, -0.17] },
+  rpg:       { distance: 0.33,  fov: 46, left: [-0.028, -0.018, -0.28], hold: 'vertical',right: [0.027, -0.05, 0.025] },
+  k8:        { distance: 0.245, fov: 38, left: [-0.026, 0.006, -0.325], hold: 'under',   right: [0.024, -0.043, 0.025] },
+  kr4:       { distance: 0.235, fov: 38, left: [-0.025, 0.006, -0.275], hold: 'under',   right: [0.023, -0.043, 0.025] },
+  mk4:       { distance: 0.22,  fov: 38, left: [-0.024, -0.039, -0.27], hold: 'vertical',right: [0.023, -0.044, 0.024] },
+  kt9:       { distance: 0.23,  fov: 40, left: [-0.026, -0.025, -0.31], hold: 'under',   right: [0.024, -0.045, 0.025] },
+  ak74:      { distance: 0.235, fov: 38, left: [-0.026, 0.001, -0.28],  hold: 'under',   right: [0.024, -0.044, 0.027] },
+  bren2:     { distance: 0.23,  fov: 42, left: [-0.025, -0.002, -0.275],hold: 'under',   right: [0.023, -0.042, 0.024] },
+  awm:       { distance: 0.18,  fov: 40, left: [-0.026, -0.009, -0.365],hold: 'under',   right: [0.024, -0.046, 0.027] },
+  minigun:   { distance: 0.3,   fov: 60, left: [-0.035, -0.05, -0.455], hold: 'vertical',right: [0.03, -0.08, 0.025] },
+  pr10:      { distance: 0.19,  fov: 40, left: [-0.025, -0.022, -0.3], hold: 'under',    right: [0.024, -0.043, 0.028], trigger: 'stock' },
+  knife:     { distance: 0.3,   fov: 60 },
+  ak47:      { distance: 0.40,  fov: 44, left: [-0.024, 0.006, -0.303], hold: 'under',    right: [0.023, -0.044, 0.027], sight: [0, 0.1016, -0.1946], front: [0, 0.10385, -0.5684] },
+  adar215:   { distance: 0.26,  fov: 40, left: [-0.026, 0.027, -0.33],  hold: 'under',    right: [0.024, -0.044, 0.026], sight: [0, 0.1202, -0.042], front: [0, 0.114, -0.454] },
+  g95:       { distance: 0.255, fov: 40, left: [-0.027, 0.005, -0.35],  hold: 'under',    right: [0.024, -0.045, 0.026], sight: [0, 0.1242, -0.025], front: [0, 0.1229, -0.4881] },
+  mp7:       { distance: 0.235, fov: 46, left: [-0.025, 0.005, -0.222], hold: 'vertical', right: [0.024, -0.05, 0.025], sight: [0, 0.1712, 0.1246], front: [0, 0.1687, -0.245] },
+  stm556:    { distance: 0.235, fov: 40, left: [-0.026, 0.008, -0.35],  hold: 'under',    right: [0.024, -0.044, 0.025] },
+  m4super90: { distance: 0.32,  fov: 44, left: [-0.025, -0.006, -0.362],hold: 'under',    right: [0.024, -0.044, 0.026], sight: [0, 0.103, -0.069], front: [0, 0.1018, -0.6408] },
+  ar10t:     { distance: 0.29,  fov: 40, left: [-0.028, -0.003, -0.3685],hold: 'under',   right: [0.025, -0.044, 0.027], sight: [0, 0.1443, -0.027], front: [0, 0.1208, -0.538] },
+  ithaca37:  { distance: 0.44,  fov: 46, left: [-0.025, -0.016, -0.385],hold: 'under',    right: [0.025, -0.036, 0.03], trigger: 'stock', sight: [0, 0.0805, -0.095], front: [0, 0.078, -0.6384] },
+};
+for (const [id, a] of Object.entries(WEAPON_AIM)) {
+  const w = WEAPONS[id];
+  w.adsDist = a.distance;
+  w.ads = { ...w.ads, vmFov: a.fov };
+  if (a.left) w.grip = {
+    left: { position: a.left, ...GRIP_FRAMES[a.hold] },
+    right: { position: a.right, ...GRIP_FRAMES[a.trigger || 'firing'] },
+  };
+}
 // Varsayılan teçhizat hazır (ayrıntılı) modeller: oyuncunun ilk gördüğü silah kutulardan kurulu kod modeli olmasın
 export const DEFAULT_LOADOUT = { primary: 'ak74', secondary: 'd50', melee: 'knife' };
 
