@@ -1,3 +1,4 @@
+import {recommendedLevel, levelLabel} from './campaign.js';
 // Lobi (ana sayfa, CODM düzeni): oyuncu kartı (rütbe amblemi, seviye, XP çubuğu), günün görevleri, 7 günlük giriş
 // ödülü, sıradaki görev ve BAŞLA. Veriler progression.js'ten; 3B operatör main.js → lobby sahnesinde.
 // Kullanıcı metni hep textContent (oyuncu adı dahil).
@@ -82,7 +83,7 @@ export class Lobby {
   // Sıradaki görev: açılmış en yüksek seviye, son seçilen zorluk
   next() {
     const g = this.game;
-    const level = LEVELS.find((L) => L.id === Math.min(g.progress.unlocked, LEVELS.length)) || LEVELS[0];
+    const level = recommendedLevel(g.progress);
     const diff = DIFFICULTY[g.save.data.progress.lastDiff] ? g.save.data.progress.lastDiff : 'normal';
     return { level, diff };
   }
@@ -147,7 +148,7 @@ export class Lobby {
     btn.textContent = D.canClaim ? `Ödülü al · +${formatKR(PROG.daily.credits[D.day - 1])}` : 'Alındı · yarın yine gel';
     // Sıradaki görev
     const { level, diff } = this.next();
-    $('lbNextName').textContent = `Seviye ${level.id} · ${MAPS[level.map]?.name || level.name}`;
+    $('lbNextName').textContent = `${levelLabel(level)} · ${MAPS[level.map]?.name || level.name}`;
     const lo = g.loadout;
     const arms = [lo?.primary, lo?.secondary].filter(Boolean).map((id) => weaponName(id)).join(' + ');
     $('lbNextSub').textContent = `${DIFFICULTY[diff].label}${arms ? ` · ${arms}` : ''}`;

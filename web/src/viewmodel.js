@@ -746,11 +746,8 @@ export class Viewmodel {
     const rightHand = _v.copy(rightOverride || m.rightHand).applyMatrix4(m.root.matrix).clone();
     const leftLocal = leftOverride || m.leftHand;
     const leftHand = _v2.copy(leftLocal).applyMatrix4(m.root.matrix).clone();
-    const elbowR = new THREE.Vector3(_p.x + 0.09, _p.y - 0.24, _p.z + 0.34);
-    const elbowL =
-      handgun
-        ? new THREE.Vector3(_p.x - 0.2, _p.y - 0.28, _p.z + 0.22)
-        : new THREE.Vector3(_p.x - 0.22, _p.y - 0.32, leftHand.z + 0.36);
+    const elbowR = rightHand.clone().add(_v.set(...HAND_VIEW.elbowRight));
+    const elbowL = leftHand.clone().add(_v.set(...(handgun ? HAND_VIEW.elbowPistol : HAND_VIEW.elbowLeft)));
     if (cooking || throwing) {
       leftHand.copy((W.throwKind === 'smoke' ? this.smokeNade : this.grenade).position).add(_v.set(0.01, -0.04, 0.05));
       elbowL.set(-0.3, -0.35, leftHand.z + 0.3);

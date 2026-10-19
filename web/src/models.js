@@ -722,7 +722,10 @@ export function poseArm(arm, elbow, hand, up = UP_DEFAULT, grip = null, gripBlen
     _dir.copy(arm.hand.position).addScaledVector(_by, -(arm.natural ? HAND_VIEW.naturalCuffBack : HAND_VIEW.cuffBack)).sub(elbow);
     const foreLen = _dir.length();
     _dir.divideScalar(foreLen || 1);
-    _by.copy(up).addScaledVector(_dir, -up.dot(_dir));
+    // Kumaşın dönüşü bileğin anatomik sırtını izler; bağımsız up ekseni bileği burup sivri uç çıkarıyordu.
+    if (arm.natural) _by.set(0, 1, 0).applyQuaternion(arm.hand.quaternion);
+    else _by.copy(up);
+    _by.addScaledVector(_dir, -_by.dot(_dir));
     if (_by.lengthSq() < 1e-6) _by.set(0, 1, 0).addScaledVector(_dir, -_dir.y);
     if (_by.lengthSq() < 1e-6) _by.set(1, 0, 0);
     _by.normalize();

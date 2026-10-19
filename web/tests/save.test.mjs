@@ -10,7 +10,7 @@ test('yeni kayıt: başlangıç kredisi, boş envanter, sürüm yazılır', () =
   assert.equal(s.data.version, SAVE_VERSION);
   assert.equal(s.data.credits, 1000);
   assert.deepEqual(s.data.inventory.armor, []);
-  assert.deepEqual(s.data.progress, { unlocked: 1, best: {} });
+  assert.deepEqual(s.data.progress, { unlocked: 1, best: {}, campaignOrder: 1 });
   assert.equal(store.raw(SAVE_KEY).credits, 1000, 'ilk açılışta kayıt hemen yazılır');
 });
 

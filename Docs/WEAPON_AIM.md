@@ -41,3 +41,9 @@ AK-47, MP7, ADAR, G95, AR-10, M4 Super 90 ve Desert Eagle'ın gez/arpacık nokta
 - Gerçek oyunda Aç/kapa nişan seçeneğiyle AK-47 görevi, poligonda dürbün, pompalı ve tabanca kontrolü.
 
 Matematik testleri sabit pozdaki hizayı ölçer; oyundaki nefes, geri tepme ve yürüme salınımı korunur.
+
+## Taktik eldiven ve bilek düzeltmesi
+
+`Soldier Full Tactical Gear` (DanlyVostok, CC BY 4.0) eldivenleri ve üniforma ön kolları kullanılır. `tools/prepare-fps-arms.mjs` avuç yönünü orta parmak, işaret ve serçe boğumlarından ortonormal olarak çıkarır. Dirsek/bilek tabanında eksenler birbirine diktir; yan ölçekleme ve bükülme kumaşı sivriltmez. Ön kolun dönüşü el sırtından türetilir. Dirsekler elin dünya konumundan anatomik uzunlukta ofsetlerle kurulur (`HAND_VIEW`).
+
+Hazırlama: `TEXTURE_PYTHON=/path/to/python-with-pillow node tools/prepare-fps-arms.mjs`. Kaynak ve lisans `SourceAssets/Sketchfab/fps_arms_danlyvostok/` içindedir. Yakın denetim: `node tools/arms-inspector.mjs`; gerçek silahlar: `node tools/aim-inspector.mjs`.

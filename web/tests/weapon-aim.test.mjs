@@ -56,8 +56,8 @@ for (const id of WEAPON_ORDER.filter(canAim)) test(`${id}: gez, arpacık ve elle
       assert.ok(Math.hypot(p.x,p.y)<1e-6, `${id}: gez/arpacık hizalı değil`);
     }
     const right=m.rightHand.clone().applyMatrix4(m.root.matrix), left=m.leftHand.clone().applyMatrix4(m.root.matrix);
-    poseArm(arms.right,new THREE.Vector3(position.x+.09,position.y-.24,position.z+.34),right,new THREE.Vector3(.45,1,.1),m.root.quaternion.clone().multiply(m.rightGrip));
-    poseArm(arms.left,new THREE.Vector3(position.x-.22,position.y-.32,left.z+.36),left,new THREE.Vector3(-.35,-1,0),m.root.quaternion.clone().multiply(m.leftGrip));
+    poseArm(arms.right,right.clone().add(v(HAND_VIEW.elbowRight)),right,new THREE.Vector3(.45,1,.1),m.root.quaternion.clone().multiply(m.rightGrip));
+    poseArm(arms.left,left.clone().add(v(d.category === 'secondary' && !d.projectile ? HAND_VIEW.elbowPistol : HAND_VIEW.elbowLeft)),left,new THREE.Vector3(-.35,-1,0),m.root.quaternion.clone().multiply(m.leftGrip));
     arms.left.g.updateMatrixWorld(true);arms.right.g.updateMatrixWorld(true);
     for(const x of [-.06,-.03,0,.03,.06]) for(const y of [0,.03,.06,.09]) {
       rays.setFromCamera(new THREE.Vector2(x,y),camera);
@@ -85,4 +85,17 @@ test('sabit tutuşta kol bileğe bağlıdır; dirsek değişince el silahın etr
     const cuff=new THREE.Vector3(0,0,-(arm.natural ? HAND_VIEW.naturalCuffBack : HAND_VIEW.cuffBack)).applyMatrix4(arm.hand.matrixWorld);
     assert.ok(end.distanceTo(cuff)<1e-12, 'kol ile eldiven arasında boşluk');
   }
+});
+
+test('anatomik bilek: ön kolun dönüşü el sırtını izler ve dirsek uzaklığı insan ölçüsünde kalır',()=>{
+ for(const [side,offset]of [['left',HAND_VIEW.elbowLeft],['right',HAND_VIEW.elbowRight]]){
+  const arm=arms[side],hand=new THREE.Vector3(.03,-.12,-.3),elbow=hand.clone().add(v(offset));
+  assert.ok(hand.distanceTo(elbow)>.25&&hand.distanceTo(elbow)<.4,'ön kol fazla uzamamalı');
+  for(const turn of [-.7,0,.8]){
+   const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(.3,turn,.5));poseArm(arm,elbow,hand,new THREE.Vector3(0,1,0),q);
+   const forward=new THREE.Vector3(0,0,1).applyQuaternion(arm.fore.quaternion),back=new THREE.Vector3(0,1,0).applyQuaternion(q);
+   back.addScaledVector(forward,-back.dot(forward)).normalize();
+   assert.ok(new THREE.Vector3(0,1,0).applyQuaternion(arm.fore.quaternion).dot(back)>.999999,'kumaş bilekten bağımsız dönmemeli');
+  }
+ }
 });

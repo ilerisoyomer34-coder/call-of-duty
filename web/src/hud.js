@@ -1,3 +1,4 @@
+import {levelLabel} from './campaign.js';
 // HUD: olaylarla güncellenen paneller (can, cephane, hedef, telsiz) ve kare başına
 // konuma bağlı öğeler (nişangah, pusula, işaretçiler, mini harita, hasar yönü, düşman farkındalık ikonları).
 import * as THREE from 'three';
@@ -387,7 +388,7 @@ export class HUD {
     if (L) {
       const map = MAPS[L.map]?.name || '';
       const rank = ALLY_TIERS[L.allyTier || 1]?.rank || '';
-      c.children[0].textContent = `SEVİYE ${L.id} · ${L.tag} · ${map}`.toLocaleUpperCase('tr-TR');
+      c.children[0].textContent = `${levelLabel(L)} · ${L.tag} · ${map}`.toLocaleUpperCase('tr-TR');
       c.children[1].textContent = L.name.toLocaleUpperCase('tr-TR');
       c.children[2].textContent = L.allies ? `Alfa Timi · ${L.allies} ${rank.toLocaleLowerCase('tr-TR')} seninle` : 'Komutan · tek başına';
     }

@@ -1,3 +1,4 @@
+import {levelLabel} from './campaign.js';
 // Görev arayüzü (Operasyon Güncellemesi §6.5): görevde sağ üstte bonus takipçisi (J ile aç/kapa) ve
 // tamamlanma/başarısızlık bildirimleri; menüde brifing ekranı; bölüm sonunda kredi dökümü ve yıldızlar.
 // Kurallar ve hesap missionSystem.js'te; burası yalnız görünüm.
@@ -168,7 +169,7 @@ export function renderBriefing(root, { level, mapName, mission, record, difficul
   root.innerHTML = '';
   const head = el('div', 'brHead');
   const t = el('div');
-  t.append(el('div', 'eyebrow', `Brifing · Seviye ${level.id} · ${diffLabel}`), el('h2', null, level.name));
+  t.append(el('div', 'eyebrow', `Brifing · ${levelLabel(level)} · ${diffLabel}`), el('h2', null, level.name));
   const st = el('div', 'brStars', starsText(record?.stars || 0));
   st.title = record?.completed ? `En iyi: ${record.stars} yıldız${record.bestTimeSec != null ? ` · ${formatPar(record.bestTimeSec)}` : ''}` : 'Henüz tamamlanmadı';
   head.append(t, st);

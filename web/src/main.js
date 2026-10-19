@@ -1,3 +1,4 @@
+import {normalizeCampaignProgress, completeCampaignLevel} from './campaign.js';
 // Oyun çekirdeği (GameMode + PlayerController + ana döngü): sahne, ışık, gökyüzü, sistemlerin
 // oluşturulması, durum makinesi (menü/oynanış/duraklatma/ölüm/zafer), puan ve istatistikler.
 import * as THREE from 'three';
@@ -128,7 +129,7 @@ function loadProgress(save) {
   const P = save.data.progress;
   P.unlocked = clamp(Math.floor(P.unlocked || 1), 1, LEVELS.length);
   if (!P.best || typeof P.best !== 'object') P.best = {};
-  return P;
+  return normalizeCampaignProgress(P);
 }
 
 // Seviyenin zorluk çarpanları seçilen temel zorluğun (Acemi/Asker/Gazi) üstüne uygulanır.
@@ -992,12 +993,10 @@ export class Game {
     // Sonraki seviyenin kilidi açılır; en iyi puan saklanır
     const lv = this.level;
     const P = this.progress;
-    const firstClear = P.unlocked <= lv.id && lv.id < LEVELS.length;
-    P.unlocked = Math.max(P.unlocked, Math.min(LEVELS.length, lv.id + 1));
+    const {next, firstClear} = completeCampaignLevel(P, lv.id);
     const prev = P.best[lv.id];
     if (!prev || this.stats.score > prev.score) P.best[lv.id] = { score: this.stats.score, time: Math.round(this.stats.time), diff: this.difficultyKey };
     this.save.update(null, { now: true }); // P, kaydın progress nesnesinin kendisi
-    const next = LEVELS.find((l) => l.id === lv.id + 1) || null;
     const rewards = this.settleRun(true);
     this.menus.showVictory(this.stats, DIFFICULTY[this.difficultyKey]?.label || '', lv, next, firstClear, rewards);
   }

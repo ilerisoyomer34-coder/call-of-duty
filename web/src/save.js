@@ -32,7 +32,7 @@ export function freshSave(startCredits = STORE.startCredits) {
     loadout: { primary: null, secondary: null, melee: null, armor: null, helmet: null, slots: [null, null] },
     // Yapılmış bir kerelik geçişler (yeni kayıtta hepsi yapılmış sayılır: seçimine dokunulmaz)
     migrated: { detailedGuns: true },
-    progress: { unlocked: 1, best: {} },
+    progress: { unlocked: 1, best: {}, campaignOrder: 1 },
     missions: {},
     stats: { revivesGiven: 0, timesDowned: 0, commandsIssued: 0, kills: 0, missionsCompleted: 0 },
     settings: null,
@@ -72,7 +72,7 @@ function normalize(raw, startCredits) {
   if (!isObj(s.inventory.consumables)) s.inventory.consumables = {};
   s.loadout = { ...d.loadout, ...(isObj(raw.loadout) ? raw.loadout : {}) };
   if (!Array.isArray(s.loadout.slots)) s.loadout.slots = [null, null];
-  s.progress = isObj(raw.progress) ? { unlocked: isNum(raw.progress.unlocked) ? raw.progress.unlocked : 1, best: isObj(raw.progress.best) ? raw.progress.best : {} } : d.progress;
+  s.progress = isObj(raw.progress) ? { campaignOrder: raw.progress.campaignOrder === 1 ? 1 : 0, unlocked: isNum(raw.progress.unlocked) ? raw.progress.unlocked : 1, best: isObj(raw.progress.best) ? raw.progress.best : {} } : d.progress;
   // Son seçilen zorluk (lobideki BAŞLA bununla açar)
   if (isObj(raw.progress) && typeof raw.progress.lastDiff === 'string') s.progress.lastDiff = raw.progress.lastDiff;
   s.missions = isObj(raw.missions) ? raw.missions : {};

@@ -1068,7 +1068,7 @@ const GRIP_FRAMES = {
   firing: { forward: [0, 0.97, -0.24], up: [1, 0, 0] },
   stock: { forward: [0, 0.65, -0.76], up: [1, 0, 0] },
 };
-export const HAND_VIEW = { palmCenter: 0.05, cuffBack: 0.035, naturalCuffBack: 0.012, naturalScale: [.85, .8, .85], blendRate: 18 };
+export const HAND_VIEW = { palmCenter: 0.05, cuffBack: 0.035, naturalCuffBack: 0.027, naturalScale: [1, 1, 1], elbowRight: [.1, -.18, .24], elbowLeft: [-.13, -.19, .25], elbowPistol: [-.16, -.16, .22], blendRate: 18 };
 export const WEAPON_AIM = {
   rifle:     { distance: 0.27,  fov: 38, left: [-0.024, -0.028, -0.452], hold: 'vertical', right: [0.024, -0.043, 0.028] },
   mar556:    { distance: 0.225, fov: 38, left: [-0.024, -0.034, -0.4005],hold: 'vertical', right: [0.023, -0.043, 0.024] },
@@ -1723,15 +1723,18 @@ export const LEVELS = [
     tuning: { reaction: 0.78, aim: 0.82, damage: 1.18, perception: 1.0, awareness: 1.22, attackers: 1, grenades: true },
   },
   {
-    id: 11, map: 'municipality', name: 'Son Emir: Belediye', tag: 'Özel final',
+    id: 11, map: 'municipality', name: 'Belediye Baskını', tag: '5. görev sonrası', special: true, afterMission: 5,
     brief: 'Alfa Timi ile belediye meydanını temizle. Askerler ve robotların koruduğu binaya iki girişten sız; güvenlik rölelerini çöz, karşı saldırı altında korunan bilgisayarı ele geçir. Ağın kontrolü bu terminalde.',
     start: 0, objectives: ['outpost', 'robots', 'intel'], allies: 3, allyTier: 5,
-    radioIntro: 'Kapatma kodları bizi asıl kontrol ağına götürdü: belediye binası. Bu kez bilgisayarı yok etmiyoruz; kontrolünü alıyoruz.',
+    radioIntro: 'Geçitte ele geçirdiğimiz bilgiler belediye binasındaki korunan bilgisayarı gösteriyor. Alfa Timi, içeri girip ağın kontrolünü alın.',
     outro: 'Belediye ağı kontrolümüzde. Alfa Timi hedefi ele geçirdi. Operasyon başarıyla tamamlandı.',
     enemies: { groups: ['outpost', 'robots'], exclude: [], hmg: 0, reinforcements: true },
     tuning: { reaction: .9, aim: 1, damage: 1.05, perception: .92, awareness: 1.15, attackers: 0, grenades: true },
   },
 ];
+
+// Özel operasyonlar normal görev numaralarını değiştirmez: ilk beş görevin ardından belediye baskını.
+LEVELS.splice(5, 0, LEVELS.pop());
 
 // Vuruş kutuları (kemiğe bağlı, görünmez; bağlanma pozunda ölçüldü). Gövde/kafa kutuları kemik boyunca
 // "along" metre ileride ve "size" boyutunda; uzuv kutuları iki eklem arasını "width" kalınlıkta kaplar.

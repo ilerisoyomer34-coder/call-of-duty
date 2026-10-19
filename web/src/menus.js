@@ -1,3 +1,4 @@
+import {campaignIndex, campaignUnlocked, nextCampaignLevel, levelLabel} from './campaign.js';
 // Menü ekranları: ana menü, seviye ve zorluk, teçhizat, ayarlar, kontroller, emeği geçenler, lisanslar, duraklatma, ölüm, zafer.
 import { DIFFICULTY, WEAPONS, WEAPON_ORDER, LEVELS, MAPS, ALLY_TIERS, TACTIC_LABELS, EXTRACT, APP } from './config.js';
 import { applyBindingOverrides } from './input.js';
@@ -286,7 +287,7 @@ export class Menus {
     box.innerHTML = '';
     for (const L of LEVELS) {
       const b = document.createElement('b');
-      b.textContent = String(L.id).padStart(2, '0');
+      b.textContent = L.special ? '★' : String(L.id).padStart(2, '0');
       const sp = document.createElement('span');
       sp.textContent = `${L.name} · ${L.tag}`;
       box.append(b, sp);
@@ -300,24 +301,24 @@ export class Menus {
     box.innerHTML = '';
     const P = g.progress;
     for (const L of LEVELS) {
-      const locked = L.id > P.unlocked;
+      const locked = !campaignUnlocked(L.id,P);
       const b = document.createElement('button');
       b.className = 'lvl';
       b.disabled = locked;
       b.dataset.level = String(L.id);
       const n = document.createElement('span');
       n.className = 'n';
-      n.textContent = String(L.id).padStart(2, '0');
+      n.textContent = L.special ? '★' : String(L.id).padStart(2, '0');
       const top = document.createElement('div');
       top.className = 'top';
       const name = document.createElement('b');
       name.textContent = L.name;
       const meter = document.createElement('span');
       meter.className = 'meter';
-      meter.setAttribute('aria-label', `Zorluk ${L.id}/${LEVELS.length}`);
+      meter.setAttribute('aria-label', `Görev sırası ${campaignIndex(L.id)+1}/${LEVELS.length}`);
       for (let i = 1; i <= LEVELS.length; i++) {
         const seg = document.createElement('i');
-        if (i <= L.id) seg.className = 'on';
+        if (i <= campaignIndex(L.id)+1) seg.className = 'on';
         meter.appendChild(seg);
       }
       const tag = document.createElement('span');
@@ -332,7 +333,7 @@ export class Menus {
       const tier = ALLY_TIERS[L.allyTier || 1];
       const map = document.createElement('em');
       map.textContent = MAPS[L.map]?.name || '';
-      if (locked) m.append('Harita: ', map, ` · Kilitli · önce Seviye ${L.id - 1}'i bitir`);
+      if (locked) m.append('Harita: ', map, ` · Kilitli · önce ${levelLabel(LEVELS[campaignIndex(L.id)-1])} tamamlanmalı`);
       else {
         const squad = document.createElement('em');
         squad.textContent = `${L.allies} × ${tier.rank}`;
@@ -345,7 +346,7 @@ export class Menus {
           m.append(' · ', h);
         }
         // Bu kademede açılan yeni taktikler (bir önceki seviyeye göre)
-        const prev = ALLY_TIERS[LEVELS.find((l) => l.id === L.id - 1)?.allyTier || 0];
+        const prev = ALLY_TIERS[LEVELS[campaignIndex(L.id)-1]?.allyTier || 0];
         const fresh = tier.tactics.filter((t) => !prev?.tactics.includes(t)).map((t) => TACTIC_LABELS[t]);
         if (fresh.length) {
           const t = document.createElement('div');
@@ -402,7 +403,7 @@ export class Menus {
 
   showLoadout() {
     const L = LEVELS.find((l) => l.id === this.pendingLevel) || LEVELS[0];
-    this.loadoutScreen.open(`Teçhizat · Seviye ${L.id} · ${MAPS[L.map]?.name || L.name} · ${DIFFICULTY[this.pendingDiff || 'normal'].label}`);
+    this.loadoutScreen.open(`Teçhizat · ${levelLabel(L)} · ${MAPS[L.map]?.name || L.name} · ${DIFFICULTY[this.pendingDiff || 'normal'].label}`);
   }
 
   // Kontroller: her eylemin iki tuş yuvası; tıkla → yeni tuşa bas (bindingsUi.js). Kayıt yalnız farkları tutar
@@ -547,7 +548,7 @@ export class Menus {
   goNext() {
     const g = this.game;
     this.stopCountdown();
-    const next = LEVELS.find((l) => l.id === g.level.id + 1);
+    const next = nextCampaignLevel(g.level.id);
     if (next) g.startMode('mission', g.difficultyKey, next.id);
   }
 
@@ -582,7 +583,7 @@ export class Menus {
     const rb = $('victoryRewards');
     if (rewards) renderRewards(rb, rewards);
     else rb.hidden = true;
-    $('victoryEyebrow').textContent = level ? `Seviye ${level.id} · ${level.name} · ${MAPS[level.map]?.name || ''}` : 'Tahliye başarılı';
+    $('victoryEyebrow').textContent = level ? `${levelLabel(level)} · ${level.name} · ${MAPS[level.map]?.name || ''}` : 'Tahliye başarılı';
     // Rapor oyuncunun adıyla: "Bölüm tamamlandı · Ömer"
     const who = this.game.save.data.profile.name;
     $('victoryTitle').textContent = `${next ? 'Bölüm tamamlandı' : 'Operasyon tamamlandı'}${who ? ` · ${who}` : ''}`;
@@ -591,7 +592,7 @@ export class Menus {
     if (next) {
       // Sonraki seviyede manga terfi ediyorsa söyle: oyuncu ilerlemenin karşılığını görsün
       const up = (next.allyTier || 1) > (level?.allyTier || 1) ? ` · Manga terfi etti: ${ALLY_TIERS[next.allyTier].rank}` : '';
-      un.textContent = `Yeni seviye açıldı: Seviye ${next.id} · ${next.name}, ${MAPS[next.map]?.name} (${next.tag})${up}`;
+      un.textContent = `Yeni görev açıldı: ${levelLabel(next)} · ${next.name}, ${MAPS[next.map]?.name} (${next.tag})${up}`;
     }
     $('btnNext').hidden = !next;
     const acc = stats.shots ? Math.round((stats.hits / stats.shots) * 100) : 0;

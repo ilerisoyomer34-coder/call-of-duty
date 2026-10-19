@@ -9,7 +9,7 @@ test('belediye: terminal, röleler, askerler ve iki giriş manga yoluyla erişil
  for(const q of [d.laptop,...d.terminal.relays,...d.enemies,...d.reinforcements,...d.checkpoints]){
   const p=q.pos,path=nav.findPath(d.playerStart.pos,p);assert.ok(path.length,`${q.id||q.type||'hedef'} yolu yok`);const last=path.at(-1);assert.ok(Math.hypot(last.x-p.x,last.z-p.z)<2,`${q.id||q.type||'hedef'} son yol noktası hedefe ulaşmıyor`);
  }
- assert.ok(d.enemies.filter(e=>e.group==='robots'&&Math.abs(e.pos.x)<8&&e.stationary).length>=8,'iç korumalar binada mevzi tutmalı');assert.ok(d.enemies.some(e=>e.type==='robot'));assert.deepEqual(LEVELS.at(-1).objectives,['outpost','robots','intel']);
+ assert.ok(d.enemies.filter(e=>e.group==='robots'&&Math.abs(e.pos.x)<8&&e.stationary).length>=8,'iç korumalar binada mevzi tutmalı');assert.ok(d.enemies.some(e=>e.type==='robot'));assert.deepEqual(LEVELS.find(l=>l.map==='municipality').objectives,['outpost','robots','intel']);
 });
 
 test('gerçek oyuncu etkileşimi: 8 saniyeden önce erişim yok, bırakınca sıfırlanır, alarm tek kez çalar', async()=>{

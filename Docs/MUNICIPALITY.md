@@ -1,6 +1,6 @@
 # Son Emir: Belediye
 
-11. seviye, yeni `municipality` haritası. Önceki bölümler ve kayıtlar korunur; 10. bölümden sonra açılır.
+5. normal görevin ardından gelen özel Belediye Baskını operasyonu (`municipality`). Sıra: 1–5 → Belediye Baskını → 6–10. Kayıt kimliği 11 korunur; eski görev puanları ve ödüller taşınmaz/silinmez. 10. görev sonrası için henüz başka özel operasyon eklenmez.
 
 Meydanın altı muhafızı temizlenir; ardından belediye binasındaki askerler ve üç robot etkisiz hâle getirilir. Güneydeki kemerli kapı ile batı kapısı alternatif girişlerdir. Üç kişilik Alfa Timi aynı navigasyon ızgarasını kullanarak içeri girebilir.
 

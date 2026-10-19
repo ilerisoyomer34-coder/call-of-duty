@@ -1,3 +1,4 @@
+import {campaignIndex} from './campaign.js';
 // Geliştirici konsolu (UShooterCheatManager + CVar karşılığı). ` veya F10 ile açılır.
 import * as THREE from 'three';
 import { WEAPON_ORDER, LEVELS, ALLY_TIERS, BALANCE } from './config.js';
@@ -170,7 +171,7 @@ export class DevConsole {
           this.print(`Seviye 1–${LEVELS.length} arasında olmalı.`);
           break;
         }
-        g.progress.unlocked = Math.max(g.progress.unlocked, n);
+        g.progress.unlocked = Math.max(g.progress.unlocked, campaignIndex(n)+1);
         this.toggle();
         g.startMode('mission', g.difficultyKey, n);
         break;
