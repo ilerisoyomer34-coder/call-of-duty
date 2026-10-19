@@ -5,14 +5,14 @@
 //  - Konumları ve normalleri nicemler (KHR_mesh_quantization): dosya yarıya iner, three.js doğrudan okur
 //  - Lisans bilgisini (Sketchfab'in asset.extras alanı) ve özet bilgiyi web/src/propAssets.json'a yazar
 //
-//  - Gömülü dokuları küçültür ve yeniden kodlar (Chromium tuvaliyle): saydamlık gereken taban rengi PNG, diğerleri JPEG
+//  - Gömülü dokuları küçültür ve yeniden kodlar (Pillow ile): saydamlık gereken taban rengi PNG, diğerleri JPEG
 //
 // Kullanım (web/ içinden):  node tools/prepare-prop.mjs helicopter | pine | containers
 import { NodeIO, getBounds } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, prune, weld, simplify, quantize } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import { chromium } from 'playwright';
+import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
@@ -51,11 +51,11 @@ const SOURCES = {
   pine: {
     source: 'SourceAssets/Sketchfab/pine_evolveduk/original/pine_tree.glb',
     kind: 'tree',
-    ratio: 0.3,
-    error: 0.004,
+    ratio: 0.65,
+    error: 0.002,
     lockBorder: true,
     rename: {},
-    textures: { max: 512, quality: 0.85 },
+    textures: { max: 1024, quality: 0.9 },
   },
   // Konteynerler: haritalardaki bütün konteynerlerin görünümü (çarpışma kit.js'teki kutu olarak kalır). Model 40 fit,
   // oyun 20 fit boyuna ölçekler (world.js → buildContainers). Sarı çeşit kullanılmıyor
@@ -132,35 +132,28 @@ if (cfg.textures) {
     if (m.getAlphaMode() !== 'OPAQUE' && m.getBaseColorTexture()) alphaTex.add(m.getBaseColorTexture());
     if (m.getBaseColorTexture()) baseTex.add(m.getBaseColorTexture());
   }
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader'] });
-  const page = await browser.newPage();
-  let before = 0;
-  let after = 0;
+  let before = 0, after = 0;
+  const python = process.env.TEXTURE_PYTHON || 'python3';
   for (const t of R.listTextures()) {
-    const img = t.getImage();
-    before += img.byteLength;
+    const img = t.getImage(); before += img.byteLength;
     const png = alphaTex.has(t);
-    const b64 = await page.evaluate(async (j) => {
-      const im = new Image();
-      im.src = `data:${j.mime};base64,${j.data}`;
-      await im.decode();
-      const k = Math.min(1, j.max / Math.max(im.naturalWidth, im.naturalHeight));
-      const c = new OffscreenCanvas(Math.round(im.naturalWidth * k), Math.round(im.naturalHeight * k));
-      const x = c.getContext('2d');
-      x.imageSmoothingQuality = 'high';
-      x.drawImage(im, 0, 0, c.width, c.height);
-      for (const p of j.paint) for (const [dx, dy] of p.to) x.drawImage(im, ...p.from, dx * k, dy * k, p.from[2] * k, p.from[3] * k);
-      const blob = await c.convertToBlob(j.png ? { type: 'image/png' } : { type: 'image/jpeg', quality: j.quality });
-      const buf = new Uint8Array(await blob.arrayBuffer());
-      let s = '';
-      for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-      return btoa(s);
-    }, { mime: t.getMimeType(), data: Buffer.from(img).toString('base64'), max: cfg.textures.max, quality: cfg.textures.quality, png, paint: baseTex.has(t) ? cfg.textures.paint || [] : [] });
-    const out = new Uint8Array(Buffer.from(b64, 'base64'));
-    after += out.byteLength;
-    t.setImage(out).setMimeType(png ? 'image/png' : 'image/jpeg');
+    const py = `import sys,io,json,base64
+from PIL import Image
+j=json.load(sys.stdin)
+im=Image.open(io.BytesIO(base64.b64decode(j['data'])))
+for p in j['paint']:
+ x,y,w,h=p['from'];patch=im.crop((x,y,x+w,y+h))
+ for dx,dy in p['to']:im.paste(patch,(dx,dy))
+im.thumbnail((j['max'],j['max']),Image.Resampling.LANCZOS)
+o=io.BytesIO()
+if j['png']:im.save(o,format='PNG',optimize=True)
+else:im.convert('RGB').save(o,format='JPEG',quality=round(j['quality']*100),subsampling=0)
+sys.stdout.buffer.write(o.getvalue())`;
+    const result = spawnSync(python,['-c',py],{input:JSON.stringify({data:Buffer.from(img).toString('base64'),max:cfg.textures.max,quality:cfg.textures.quality,png,paint:baseTex.has(t)?cfg.textures.paint||[]:[]}),maxBuffer:30e6});
+    if(result.status!==0)throw Error(result.stderr.toString());
+    const out=new Uint8Array(result.stdout); after+=out.byteLength;
+    t.setImage(out).setMimeType(png?'image/png':'image/jpeg');
   }
-  await browser.close();
   console.log(`dokular: ${(before / 1048576).toFixed(2)} MB → ${(after / 1048576).toFixed(2)} MB (en çok ${cfg.textures.max} px)`);
 }
 

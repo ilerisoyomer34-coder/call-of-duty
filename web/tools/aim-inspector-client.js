@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Viewmodel } from '../src/viewmodel.js';
 import { WEAPONS, WEAPON_ORDER } from '../src/config.js';
-import { loadWeaponAsset, assetIdFor } from '../src/assets.js';
+import { loadWeaponAsset, loadPropAsset, assetIdFor } from '../src/assets.js';
 import { sightFor, isScoped, canAim } from '../src/sights.js';
 import { scopeSvg } from '../src/reticles.js';
 import { weaponName } from '../src/weaponInfo.js';
@@ -26,6 +26,8 @@ const game = {
   player: { adsT:1,alive:true,down:false,sprinting:false,grounded:true,horizSpeed:0,stepPhase:0,lookDX:0,lookDY:0,vel:new THREE.Vector3(),yaw:0,landDip:0,crouchT:0 },
   weapons: { state:'idle',stateT:0,time:0,reloadInfo:()=>null,boltInfo:()=>-1 },
 };
+const { setFpsArmProp } = await import('../src/models.js');
+setFpsArmProp(await loadPropAsset('fpsArms'));
 const view = new Viewmodel(game, {}); view.setEnvironment(env);
 await Promise.all(ids.filter(id=>WEAPONS[id].model==='glb').map(id=>loadWeaponAsset(assetIdFor(WEAPONS[id]))));
 await Promise.resolve();

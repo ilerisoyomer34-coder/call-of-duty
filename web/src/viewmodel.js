@@ -142,6 +142,12 @@ function pivotAround(part, at) {
 }
 
 export class Viewmodel {
+  refreshArms() {
+    this.arms.left.g.removeFromParent(); this.arms.right.g.removeFromParent();
+    this.arms = buildArms(this.textures);
+    this.holder.add(this.arms.left.g, this.arms.right.g);
+  }
+
   constructor(game, textures) {
     this.game = game;
     this.scene = new THREE.Scene();

@@ -623,6 +623,7 @@ export class Player {
         }
         return;
       }
+      if (!this.interacting) target.onStart?.();
       this.interacting = true;
       this.stopSprint();
       this.interactT += dt;

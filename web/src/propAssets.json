@@ -54,8 +54,8 @@
       "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
       "source": "https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9"
     },
-    "tris": 2340,
-    "bytes": 536156
+    "tris": 3977,
+    "bytes": 2586076
   },
   "containers": {
     "file": "assets/props/containers.glb",
@@ -92,5 +92,37 @@
     },
     "tris": 60,
     "bytes": 213220
+  },
+  "municipality": {
+    "file": "assets/props/municipality.glb",
+    "kind": "building",
+    "credit": {
+      "title": "House",
+      "author": "Thomas Visonà (https://sketchfab.com/TakeAndPlay)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/house-256adc61a3c04654a056d75a48a69d60"
+    },
+    "tris": 84400,
+    "bytes": 5216700
+  },
+  "fpsArms": {
+    "file": "assets/props/fps-arms.glb",
+    "kind": "arms",
+    "materials": {
+      "": {
+        "map": "assets/characters/squad_forest_diffuse.jpg",
+        "normalMap": "assets/characters/squad_forest_normal.jpg",
+        "ormMap": "assets/characters/squad_forest_orm.jpg"
+      }
+    },
+    "credit": {
+      "title": "3 soldier low poly (outdated)",
+      "author": "buh (https://sketchfab.com/buh-late)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/3-soldier-low-poly-outdated-9b5bd75966764a87ae09c8b77e21f4c2"
+    },
+    "tris": 1451,
+    "changes": "Hands and forearms extracted from licensed squad model; finger grip pose baked; viewmodel coordinate frames adapted.",
+    "bytes": 77656
   }
 }

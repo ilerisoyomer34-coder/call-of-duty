@@ -25,6 +25,8 @@ const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScree
 
 // Atıfta yazılan değişiklik (CC BY değişikliğin belirtilmesini ister)
 const CREDIT_CHANGES = {
+  fpsArms: 'El ve ön kollar ayrıldı, parmaklar kavrama pozuna büküldü ve birinci şahıs görünümüne uyarlandı.',
+  municipality: 'Geometri sadeleştirildi, dokular küçültüldü; belediye tabelası ve çarpışma modeli eklendi.',
   helicopter: 'Oyun için sadeleştirildi ve rengi değiştirildi.',
   pine: 'Oyun için sadeleştirildi, dokuları küçültüldü.',
   containers: 'Oyun için 20 fit boya ölçeklendi, dokulardaki firma yazısı ve logosu silindi.',
@@ -132,7 +134,7 @@ export class Menus {
     const box = $('propCredits');
     if (!box) return;
     box.innerHTML = '';
-    const names = { helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar', containers: 'Konteynerler', squad: 'Alfa Timi askerleri', robot: 'Savaş robotu' };
+    const names = { fpsArms: 'Birinci şahıs elleri', municipality: 'Belediye binası', helicopter: 'Tahliye helikopteri', knife: 'Yakın dövüş bıçağı', pine: 'Ağaçlar', containers: 'Konteynerler', squad: 'Alfa Timi askerleri', robot: 'Savaş robotu' };
     // Sketchfab silahları: oyundaki kurgusal adıyla
     for (const d of Object.values(WEAPONS)) if (d.source === 'sketchfab') names[d.asset || d.id] = weaponName(d.id);
     // Karakterler: Alfa Timi'nin üç askeri tek modelden (bir satır), savaş robotu

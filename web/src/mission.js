@@ -1,3 +1,4 @@
+import { TerminalSecurity } from './terminalSecurity.js';
 // Oyun modu ve görev akışı (AShooterGameMode karşılığı): hedefler, kontrol noktaları,
 // etkileşimli nesneler (C4, istihbarat, ikmal), patlayıcı variller, uçaksavarlar,
 // savunma dalgaları, helikopterle tahliye ve atış poligonu modu.
@@ -474,6 +475,22 @@ export class Mission {
       });
       g.vehicles.register(t);
     }
+    this.terminalSecurity = new TerminalSecurity(D.terminal?.relays);
+    this.relayLights = [];
+    for (const relay of D.terminal?.relays || []) {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(.65,.7,.3), new THREE.MeshStandardMaterial({color:0x242d35,roughness:.6}));
+      body.position.copy(relay.pos); g.scene.add(body);
+      const light = new THREE.Mesh(new THREE.BoxGeometry(.45,.22,.02), new THREE.MeshStandardMaterial({color:0x220909,emissive:0xe5512a,emissiveIntensity:1.8}));
+      light.position.copy(relay.pos).add(new THREE.Vector3(0,.08,.16)); g.scene.add(light); this.relayLights.push({id:relay.id,light});
+      this.interactables.push({id:`relay-${relay.id}`,pos:relay.pos.clone(),radius:1.8,prompt:'Güvenlik rölesini devre dışı bırak',time:D.terminal.relayTime,
+        enabled:()=>this.current?.id==='intel'&&!this.terminalSecurity.disabled.has(relay.id),
+        action:()=>{
+          if (!this.terminalSecurity.disable(relay.id)) return;
+          light.material.emissive.setHex(0x24cc88);
+          g.events.emit('message',`GÜVENLİK RÖLESİ ${this.terminalSecurity.disabled.size}/${this.terminalSecurity.ids.size}`,'info');
+          g.events.emit('objective',this.currentText()); this.saveCheckpoint(3,true);
+        }});
+    }
     // İstihbarat dizüstü (haritada istihbarat hedefi varsa)
     if (D.laptop) {
       const lap = buildLaptop();
@@ -482,8 +499,14 @@ export class Mission {
       g.scene.add(lap.root);
       this.laptop = lap;
       this.interactables.push({
-        id: 'intel', pos: D.laptop.pos.clone(), radius: 2.0, prompt: 'İstihbaratı indir', time: 2.6,
-        enabled: () => !this.intel && this.current?.id === 'intel',
+        id: 'intel', pos: D.laptop.pos.clone(), radius: 2.0, prompt: D.terminal ? 'Bilgisayarı hackle · kontrolü ele geçir' : 'İstihbaratı indir', time: D.terminal?.holdTime || 2.6,
+        enabled: () => !this.intel && this.current?.id === 'intel' && (!D.terminal || this.terminalSecurity.canAccess(g.enemies.aliveInGroup(D.terminal.guardGroup))),
+        onStart: () => {
+          if (D.terminal && this.terminalSecurity.begin()) {
+            g.audio.siren(7); this.spawnReinforcements();
+            this.radio('YUVA', 'Bağlantı tespit edildi! Takviye giriyor; Alfa Timi terminali korusun!', 0, 'system', true);
+          }
+        },
         action: () => this.onIntel(),
       });
     }
@@ -570,7 +593,7 @@ export class Mission {
       },
       intel: {
         id: 'intel', text: O.intel?.text || 'İstihbaratı al', cp: 3,
-        marker: () => D.laptop.pos.clone().setY(1.2),
+        marker: () => D.terminal && this.terminalSecurity.disabled.size < this.terminalSecurity.ids.size ? D.terminal.relays.filter(r => !this.terminalSecurity.disabled.has(r.id)).map(r => r.pos.clone()) : D.laptop.pos.clone().setY(1.2),
         start: (first) => say('intel', first),
         skip: () => {
           this.intel = true;
@@ -706,6 +729,7 @@ export class Mission {
     else if (o.id === 'aa') detail = `${this.destroyed.size}/${this.aa.length} imha edildi`;
     else if (o.id === 'defend') detail = `Helikopter: ${Math.max(0, Math.ceil(this.defendTime - this.defendT))} sn`;
     else if (o.id === 'extract') detail = this.heli?.landed ? 'Helikopter bekliyor' : 'Helikopter yolda';
+    else if (o.id === 'intel' && this.data.terminal) detail = `Güvenlik röleleri: ${this.terminalSecurity.disabled.size}/${this.terminalSecurity.ids.size} · Terminal: ${this.data.terminal.holdTime} sn basılı tut`;
     else if (o.id === 'lz' || o.id === 'board' || o.id === 'intel') detail = '';
     return { title: o.text, detail, index: this.objIdx + 1, total: this.objectives.length };
   }
@@ -737,6 +761,7 @@ export class Mission {
       wrecked: new Set((this.nests || []).filter((n) => n.wrecked).map((n) => n.id)),
       tankHp: new Map((this.tanks || []).map((t) => [t.id, t.hp])),
       intel: this.intel,
+      terminalSecurity: this.terminalSecurity?.snapshot(),
       loadout: g.weapons.owned && Object.keys(g.weapons.owned).length ? g.weapons.snapshot() : null,
       spawnedIds: new Set(g.enemies.list.map((e) => e.id)),
     };
@@ -789,9 +814,11 @@ export class Mission {
     }
     this.objIdx = C.objIdx;
     this.intel = C.intel;
+    this.terminalSecurity?.restore(C.terminalSecurity);
+    for (const r of this.relayLights || []) r.light.material.emissive.setHex(this.terminalSecurity.disabled.has(r.id) ? 0x24cc88 : 0xe5512a);
     this.defendT = 0;
     this.wavesSpawned = 0;
-    this.reinforced = this.intel;
+    this.reinforced = this.terminalSecurity?.alarm || this.intel;
     if (this.heli) {
       this.heli.root.removeFromParent();
       g.audio.stopRotor();
@@ -907,11 +934,11 @@ export class Mission {
   onIntel() {
     const g = this.game;
     this.intel = true;
-    this.laptop.screen.material.emissive.setHex(0xd63d3d);
-    g.audio.siren(9);
-    g.events.emit('message', 'İSTİHBARAT ALINDI', 'info');
+    this.laptop.screen.material.emissive.setHex(this.data.terminal ? 0x24cc88 : 0xd63d3d);
+    if (!this.data.terminal) g.audio.siren(9);
+    g.events.emit('message', this.data.terminal ? 'BELEDİYE AĞI KONTROLÜ ELE GEÇİRİLDİ' : 'İSTİHBARAT ALINDI', 'info');
     this.radio('YUVA', this.data.obj?.intel?.got || 'Dosyalar elimizde! Alarm çaldı, iniş bölgesine ilerle.', 0.8);
-    if (this.level.enemies.reinforcements) this.spawnReinforcements();
+    if (this.level.enemies.reinforcements && !this.reinforced) this.spawnReinforcements();
     this.advance();
   }
 

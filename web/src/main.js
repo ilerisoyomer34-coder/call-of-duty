@@ -24,7 +24,7 @@ import { ProgressionSystem } from './progression.js';
 import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT } from './config.js';
 import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
-import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, updateWind } from './models.js';
+import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, setFpsArmProp, setMunicipalityProp, updateWind } from './models.js';
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
 import { EconomySystem } from './economy.js';
@@ -286,6 +286,11 @@ export class Game {
 
   // Hazır araç modelleri (Sketchfab): gelmezse prosedürel modelle devam edilir; açılışı bekletmesin diye kısa süre sınırı
   async loadProps() {
+    for (const [id, install] of [['fpsArms', setFpsArmProp]]) {
+      try { install(await loadPropAsset(id)); if (id === 'fpsArms') this.viewmodel.refreshArms(); }
+      catch (err) { warnOnce(`${id}-model`, `${id} modeli yüklenemedi (${err.message})`); }
+    }
+
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('zaman aşımı')), CHARACTER_TIMEOUT_MS));
     try {
       const scene = await Promise.race([loadPropAsset('helicopter'), timeout]);
@@ -705,6 +710,10 @@ export class Game {
     L.show(`${(mapName || 'Harita').toLocaleUpperCase('tr-TR')} İNŞA EDİLİYOR`);
     this.state = 'loading';
     try {
+      if (mode === 'mission' && level.map === 'municipality') {
+        L.step('Belediye binası yükleniyor', .15);
+        setMunicipalityProp(await loadPropAsset('municipality'));
+      }
       L.step('Harita ve düşmanlar yerleştiriliyor', 0.25);
       await nextPaint();
       this.mode = mode;

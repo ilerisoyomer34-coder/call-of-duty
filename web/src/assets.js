@@ -295,6 +295,7 @@ export function loadPropAsset(id) {
       (async () => {
         if (!entry) throw new Error(`${id} kaydı yok`);
         const gltf = await parseGltf(await readBinary(entry.file));
+        await applyTextureSpec(gltf.scene, entry.materials);
         return gltf.scene;
       })()
     );

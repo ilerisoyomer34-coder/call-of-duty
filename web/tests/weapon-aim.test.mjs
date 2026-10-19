@@ -6,11 +6,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WEAPONS, WEAPON_ORDER, WEAPON_AIM, HAND_VIEW } from '../src/config.js';
 import ASSETS from '../src/weaponAssets.json' with { type: 'json' };
-import { buildArms, buildWeapon, poseArm } from '../src/models.js';
+import { buildArms, buildWeapon, poseArm, setFpsArmProp } from '../src/models.js';
 import { calibrateWeapon, placeWeapon, gripQuaternion } from '../src/weaponAim.js';
 import { canAim, isScoped, sightFor } from '../src/sights.js';
 
 const loader = new GLTFLoader();
+const armBytes=readFileSync(new URL('../assets/props/fps-arms.glb', import.meta.url));
+setFpsArmProp((await loader.parseAsync(armBytes.buffer.slice(armBytes.byteOffset,armBytes.byteOffset+armBytes.byteLength),'')).scene);
 const arms = buildArms();
 const rays = new THREE.Raycaster();
 const models = new Map();
@@ -80,7 +82,7 @@ test('sabit tutuşta kol bileğe bağlıdır; dirsek değişince el silahın etr
     assert.ok(palm.distanceTo(hand)<1e-12);
     assert.ok(arm.hand.quaternion.angleTo(q)<1e-7);
     const end=new THREE.Vector3(0,0,1).applyMatrix4(arm.fore.matrixWorld);
-    const cuff=new THREE.Vector3(0,0,-HAND_VIEW.cuffBack).applyMatrix4(arm.hand.matrixWorld);
+    const cuff=new THREE.Vector3(0,0,-(arm.natural ? HAND_VIEW.naturalCuffBack : HAND_VIEW.cuffBack)).applyMatrix4(arm.hand.matrixWorld);
     assert.ok(end.distanceTo(cuff)<1e-12, 'kol ile eldiven arasında boşluk');
   }
 });

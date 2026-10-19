@@ -1068,7 +1068,7 @@ const GRIP_FRAMES = {
   firing: { forward: [0, 0.97, -0.24], up: [1, 0, 0] },
   stock: { forward: [0, 0.65, -0.76], up: [1, 0, 0] },
 };
-export const HAND_VIEW = { palmCenter: 0.05, cuffBack: 0.035, blendRate: 18 };
+export const HAND_VIEW = { palmCenter: 0.05, cuffBack: 0.035, naturalCuffBack: 0.012, naturalScale: [.85, .8, .85], blendRate: 18 };
 export const WEAPON_AIM = {
   rifle:     { distance: 0.27,  fov: 38, left: [-0.024, -0.028, -0.452], hold: 'vertical', right: [0.024, -0.043, 0.028] },
   mar556:    { distance: 0.225, fov: 38, left: [-0.024, -0.034, -0.4005],hold: 'vertical', right: [0.023, -0.043, 0.024] },
@@ -1617,6 +1617,8 @@ export const MAPS = {
   },
 };
 
+MAPS.municipality = { name: 'Belediye Merkezi', desc: 'İç mekân baskını ve korunan komuta bilgisayarı', env: { ...MAPS.ruins.env, weather: null, fog: [45, 270], exposure: 1.13 } };
+
 // Seviyeler (kolaydan zora). İlk iki seviye Kızılkum'un bölümleri; sonrakiler başka haritalarda, her biri
 // tek bir operasyon. tuning: seçilen zorluğun (Acemi/Asker/Gazi) üstüne uygulanan çarpanlar.
 //   reaction ↑ = düşman geç tepki verir, aim ↑ = daha çok ıskalar, damage = mermi hasarı,
@@ -1711,7 +1713,7 @@ export const LEVELS = [
     tuning: { reaction: 0.8, aim: 0.84, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
   },
   {
-    id: 10, map: 'core', name: 'Son Kale', tag: 'Final',
+    id: 10, map: 'core', name: 'Son Kale', tag: 'Komuta üssü',
     brief: 'Kızıl kanyondaki robot komuta üssü: kapıyı düşür, robot sürüsünü yok et, üç enerji çekirdeğini patlat, kapatma kodlarını al ve robot dalgalarına karşı pisti tut.',
     start: 0, objectives: ['outpost', 'robots', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
     radioIntro: 'Son Kale. Ne olursa olsun bu gece bitiyor. Alfa Timi, yanındayız.',
@@ -1719,6 +1721,15 @@ export const LEVELS = [
     enemies: { groups: ['outpost', 'robots', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 5 },
     defendTime: 110,
     tuning: { reaction: 0.78, aim: 0.82, damage: 1.18, perception: 1.0, awareness: 1.22, attackers: 1, grenades: true },
+  },
+  {
+    id: 11, map: 'municipality', name: 'Son Emir: Belediye', tag: 'Özel final',
+    brief: 'Alfa Timi ile belediye meydanını temizle. Askerler ve robotların koruduğu binaya iki girişten sız; güvenlik rölelerini çöz, karşı saldırı altında korunan bilgisayarı ele geçir. Ağın kontrolü bu terminalde.',
+    start: 0, objectives: ['outpost', 'robots', 'intel'], allies: 3, allyTier: 5,
+    radioIntro: 'Kapatma kodları bizi asıl kontrol ağına götürdü: belediye binası. Bu kez bilgisayarı yok etmiyoruz; kontrolünü alıyoruz.',
+    outro: 'Belediye ağı kontrolümüzde. Alfa Timi hedefi ele geçirdi. Operasyon başarıyla tamamlandı.',
+    enemies: { groups: ['outpost', 'robots'], exclude: [], hmg: 0, reinforcements: true },
+    tuning: { reaction: .9, aim: 1, damage: 1.05, perception: .92, awareness: 1.15, attackers: 0, grenades: true },
   },
 ];
 

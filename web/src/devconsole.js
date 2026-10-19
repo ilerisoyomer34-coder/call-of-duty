@@ -18,6 +18,7 @@ const HELP = `Komutlar:
   timescale <x>       zaman ölçeği (0.1–3)
   ai                  yapay zekâyı dondur/çöz
   debug ai            düşman durumlarını konsola yaz
+  tp <x> <z> [y]     haritada konuma ışınlan (geliştirme testi)
   cp <n>              seviyenin n. hedefine atla
   level <n>           n. seviyeyi başlat (kilidi de açar)
   nest                önüne, sana bakan bir ağır makineli yuvası kur (kum torbasız)
@@ -148,6 +149,16 @@ export class DevConsole {
         C.aiOff = !C.aiOff;
         this.print(`Yapay zekâ: ${C.aiOff ? 'DONDURULDU' : 'AKTİF'}`);
         break;
+      case 'tp': {
+        const [x,z,y=0] = args.map(Number);
+        if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(y) || g.state !== 'playing') {
+          this.print('Kullanım: tp <x> <z> [y] (oyun içinde)'); break;
+        }
+        const b = g.world.bounds;
+        if (x < b.minx || x > b.maxx || z < b.minz || z > b.maxz) { this.print('Harita sınırının dışında.'); break; }
+        g.player.reset(new THREE.Vector3(x,y,z),g.player.yaw);
+        this.print(`Konum: ${x}, ${y}, ${z}`); break;
+      }
       case 'unlock':
         g.unlockAllLevels();
         this.print('Tüm seviyeler açıldı.');

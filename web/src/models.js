@@ -596,7 +596,27 @@ export const ENEMY_GUN_POINTS = {
 // Birinci şahıs kollar: kumaş dokulu konik ön kol, katlanmış kol ağzı, eldivenli el (yuvarlatılmış avuç,
 // iki boğumlu bükülü dört parmak, başparmak). El parçaları tek geometride birleştirilir (tek çizim çağrısı).
 // side: 1 sağ, -1 sol (başparmak iç tarafta)
+let fpsArmProp = null;
+export function setFpsArmProp(scene) {
+  scene.traverse(o => { if (o.isMesh) { o.geometry.userData.shared = true; o.frustumCulled = false; } });
+  fpsArmProp = scene;
+}
+function naturalArms() {
+  const make = (name, side) => {
+    const g = new THREE.Group(), hand = new THREE.Group();
+    const mesh = fpsArmProp.getObjectByName(`${name}Hand`).clone();
+    mesh.scale.fromArray(HAND_VIEW.naturalScale); hand.add(mesh);
+    const fore = fpsArmProp.getObjectByName(`${name}Fore`).clone();
+    // Kumaş bileğe kadar ulaşır; görünüm animasyonu uzunluğu dirsekten hesaplar.
+    fore.geometry = fore.geometry.clone(); fore.geometry.userData.shared = false;
+    fore.geometry.computeBoundingBox(); const b = fore.geometry.boundingBox;
+    fore.geometry.translate(0, 0, -b.min.z); fore.geometry.scale(1, 1, 1 / (b.max.z - b.min.z));
+    g.add(fore, hand); return { g, fore, hand, side, natural: true };
+  };
+  return { left: make('Left', -1), right: make('Right', 1) };
+}
 export function buildArms(textures = null) {
+  if (fpsArmProp) return naturalArms();
   const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x5f6948, roughness: 0.92, metalness: 0, map: textures?.canvas || null });
   if (sleeveMat.map) {
     sleeveMat.map = sleeveMat.map.clone();
@@ -699,7 +719,7 @@ export function poseArm(arm, elbow, hand, up = UP_DEFAULT, grip = null, gripBlen
     arm.hand.quaternion.copy(_q);
     arm.hand.position.copy(hand).addScaledVector(_by.set(0, 0, 1).applyQuaternion(_q), -HAND_VIEW.palmCenter);
     // Ön kolu yeni bileğe bağla: tutuş yönü değişirken eldiven ile kol arasında boşluk kalmasın.
-    _dir.copy(arm.hand.position).addScaledVector(_by, -HAND_VIEW.cuffBack).sub(elbow);
+    _dir.copy(arm.hand.position).addScaledVector(_by, -(arm.natural ? HAND_VIEW.naturalCuffBack : HAND_VIEW.cuffBack)).sub(elbow);
     const foreLen = _dir.length();
     _dir.divideScalar(foreLen || 1);
     _by.copy(up).addScaledVector(_dir, -up.dot(_dir));
@@ -1499,4 +1519,33 @@ export function buildShotgunPickup() {
   const w = buildShotgun();
   w.root.scale.setScalar(1.35);
   return w.root;
+}
+
+let municipalityProp = null;
+export function setMunicipalityProp(scene) {
+  scene.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true; o.geometry.userData.shared = true;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      m.side = THREE.DoubleSide;
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (m[k]) m[k].anisotropy = 8;
+    }
+    // Eski bar eşyası yerine belediyenin danışma bankosu kullanılır.
+    if (/Wine_Bottle/.test(o.name)) o.visible = false;
+  });
+  municipalityProp = scene;
+}
+export function buildMunicipality(x, z) {
+  if (!municipalityProp) return null;
+  const g = municipalityProp.clone(true); g.scale.set(2, 1, 2); g.position.set(x, -.102425, z);
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 128;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#172b38'; ctx.fillRect(0,0,1024,128);
+    ctx.strokeStyle = '#c3b27c'; ctx.lineWidth = 6; ctx.strokeRect(6,6,1012,116);
+    ctx.font = 'bold 62px sans-serif'; ctx.fillStyle = '#f2e6c6'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('BELEDİYE BAŞKANLIĞI',512,67);
+    const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.6,.65), new THREE.MeshStandardMaterial({map:tex,roughness:.72}));
+    sign.position.set(0,3.25,4.41); g.add(sign);
+  }
+  return g;
 }

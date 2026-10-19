@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CollisionWorld } from '../shared/sim/collision.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { getTreeProp, getContainerProp, addWind } from './models.js';
+import { getTreeProp, getContainerProp, buildMunicipality, addWind } from './models.js';
 import { TREES, RENDER, GRASS, WIND } from './config.js';
 
 let grassGeo = null; // çimen öbeği geometrisi (haritalar arasında paylaşılır)
@@ -61,6 +61,13 @@ export class World extends CollisionWorld {
     this.materials = this.createMaterials();
     this.trees = []; // hazır ağaç modelinin örnekleri { x, z, h, snowy } (finalize InstancedMesh kurar)
     this.containers = []; // hazır konteyner modelinin örnekleri { x, y, z, w, h, d, alongX, mat }
+  }
+
+  addMunicipality(x, z) {
+    const g = buildMunicipality(x, z);
+    if (!g) return false;
+    this.scene.add(g);
+    return true;
   }
 
   // Harita ağacı (kit.js pine/palm): hazır model yüklendiyse yalnız konumu kaydedilir, prosedürel ağaç çizilmez.
