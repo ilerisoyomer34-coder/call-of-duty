@@ -592,7 +592,7 @@ export class Game {
   }
 
   buildNav() {
-    this.nav = new NavGrid(this.world, 0.35);
+    this.nav = new NavGrid(this.world, this.world.navigationRegion ? .38 : .35);
     this.nav.generateCovers();
   }
 

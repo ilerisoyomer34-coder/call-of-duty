@@ -949,7 +949,7 @@ export class Enemy {
       return;
     }
     let wp = this.path[this.pathIdx];
-    while (wp && Math.hypot(wp.x - this.pos.x, wp.z - this.pos.z) < 0.6) {
+    while (wp && Math.hypot(wp.x - this.pos.x, wp.z - this.pos.z) < (this.path.precise ? .18 : .6) && (!this.path.precise || Math.abs(wp.y-this.pos.y)<.5)) {
       this.pathIdx++;
       wp = this.path[this.pathIdx];
     }
@@ -978,7 +978,7 @@ export class Enemy {
     const dx = target.x - this.pos.x;
     const dz = target.z - this.pos.z;
     const d = Math.hypot(dx, dz);
-    const s = d < 0.3 ? 0 : Math.min(speed, d * 4);
+    const s = d < (this.path?.precise ? .06 : .3) ? 0 : Math.min(speed, d * 4);
     const tx = d > 1e-4 ? (dx / d) * s : 0;
     const tz = d > 1e-4 ? (dz / d) * s : 0;
     this.vel.x = damp(this.vel.x, tx, 8, dt);
@@ -994,7 +994,7 @@ export class Enemy {
     }
     // Ayrışma: diğer düşmanlarla iç içe girme
     for (const o of g.enemies.list) {
-      if (o === this || !o.alive) continue;
+      if (o === this || !o.alive || Math.abs(o.pos.y-this.pos.y)>1.8) continue;
       const dx = this.pos.x - o.pos.x;
       const dz = this.pos.z - o.pos.z;
       const d2 = dx * dx + dz * dz;

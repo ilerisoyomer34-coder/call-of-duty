@@ -15,7 +15,17 @@ test('belediye görevi: korumalar ve röleler kilitler, hack alarmı tek dalga g
  const {g,m}=fixture(),terminal=m.interactables.find(i=>i.id==='intel'),relays=m.interactables.filter(i=>i.id.startsWith('relay-'));
  assert.equal(terminal.enabled(),false);m.killGroup('outpost');m.advance();m.killGroup('robots');m.advance();assert.equal(m.current.id,'intel');assert.equal(terminal.enabled(),false);
  hold(g,relays[0],3.05);assert.equal(m.terminalSecurity.disabled.size,1);hold(g,relays[1],3.05);assert.equal(terminal.enabled(),true);
- hold(g,terminal,4);assert.equal(m.intel,false);assert.equal(g.enemies.list.filter(e=>e.group==='reinf').length,3);
+ hold(g,terminal,4);assert.equal(m.intel,false);assert.equal(g.enemies.list.filter(e=>e.group==='reinf').length,8);
  m.restoreCheckpoint();assert.equal(m.terminalSecurity.disabled.size,2);assert.equal(m.terminalSecurity.alarm,false);assert.equal(g.enemies.list.filter(e=>e.group==='reinf').length,0);assert.equal(terminal.enabled(),true);
- hold(g,terminal,8.05);assert.equal(m.intel,true);assert.equal(m.current,undefined);assert.equal(g.enemies.list.filter(e=>e.group==='reinf').length,3);assert.ok(m.endT>0);m.finish();assert.equal(g.won,true);
+ hold(g,terminal,8.05);assert.equal(m.intel,true);assert.equal(m.current,undefined);assert.equal(g.enemies.list.filter(e=>e.group==='reinf').length,8);assert.ok(m.endT>0);m.finish();assert.equal(g.won,true);
+});
+
+test('belediye terminaline alt kattan veya duvar arkasından erişilemez; üst kattaki masadan erişilir',()=>{
+ const {g,m}=fixture();m.killGroup('outpost');m.advance();m.killGroup('robots');m.advance();
+ for(const r of m.data.terminal.relays)m.terminalSecurity.disable(r.id);
+ const terminal=m.interactables.find(i=>i.id==='intel'),aim=()=>terminal.pos.clone().sub(g.player.eyePos).normalize();
+ g.player.reset(new T.Vector3(2.5,4.055,-19),0);assert.equal(m.findInteractable(g.player.eyePos,aim()),null);
+ g.player.reset(new T.Vector3(2.5,8.055,-19),0);assert.equal(m.findInteractable(g.player.eyePos,aim())?.id,'intel');
+ g.world.lineOfSight=()=>false;assert.equal(m.findInteractable(g.player.eyePos,aim()),null);
+ const marker=m.current.marker();assert.ok(marker.y>8.9,'terminal işaretçisi son katta kalır');
 });

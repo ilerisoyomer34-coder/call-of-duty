@@ -1724,9 +1724,9 @@ export const LEVELS = [
   },
   {
     id: 11, map: 'municipality', name: 'Belediye Baskını', tag: '5. görev sonrası', special: true, afterMission: 5,
-    brief: 'Alfa Timi ile belediye meydanını temizle. Askerler ve robotların koruduğu binaya iki girişten sız; güvenlik rölelerini çöz, karşı saldırı altında korunan bilgisayarı ele geçir. Ağın kontrolü bu terminalde.',
+    brief: 'Alfa Timi ile belediye meydanını temizle. Askerler ve robotlarla dolu üç katlı binaya sız. Ara kat ve son kattaki güvenlik rölelerini çöz; en üst kattaki komuta bilgisayarını karşı saldırı altında ele geçir. Ağın kontrolü bu terminalde.',
     start: 0, objectives: ['outpost', 'robots', 'intel'], allies: 3, allyTier: 5,
-    radioIntro: 'Geçitte ele geçirdiğimiz bilgiler belediye binasındaki korunan bilgisayarı gösteriyor. Alfa Timi, içeri girip ağın kontrolünü alın.',
+    radioIntro: 'Geçitte ele geçirdiğimiz bilgiler belediye binasındaki korunan bilgisayarı gösteriyor. Hedef en üst kattaki komuta bilgisayarı. Alfa Timi, binayı kat kat temizleyip ağın kontrolünü alın.',
     outro: 'Belediye ağı kontrolümüzde. Alfa Timi hedefi ele geçirdi. Operasyon başarıyla tamamlandı.',
     enemies: { groups: ['outpost', 'robots'], exclude: [], hmg: 0, reinforcements: true },
     tuning: { reaction: .9, aim: 1, damage: 1.05, perception: .92, awareness: 1.15, attackers: 0, grenades: true },

@@ -3,6 +3,7 @@
 // Tek oyunculu düşman/dost yapay zekâsı (src/nav.js) ve sunucu botları aynı kodu kullanır: görsel kitaplık yok,
 // noktalar dünyanın newVec()'inden (istemcide Vector3). Rastgelelik verilen üreteçten.
 import { MinHeap } from './heap.js';
+import { IndoorNav } from './indoorNav.js';
 import { clamp } from './math.js';
 import { mulberry32 } from './rng.js';
 
@@ -28,6 +29,7 @@ export class NavGrid {
     this.build(agentRadius);
     this.covers = [];
     this.coverGrid = new Map();
+    this.indoor = world.navigationRegion ? new IndoorNav(world, world.navigationRegion, agentRadius) : null;
   }
 
   build(ar) {
@@ -82,7 +84,8 @@ export class NavGrid {
     return x >= this.minx && z >= this.minz && x < this.minx + this.w * CS && z < this.minz + this.h * CS;
   }
 
-  isWalkable(x, z) {
+  isWalkable(x, z, y = 0) {
+    if (this.indoor && y > .5) return this.indoor.nearest(this.world.newVec(x,y,z), .65) >= 0;
     const [cx, cz] = this.cellOf(x, z);
     return !this.blocked[cz * this.w + cx];
   }
@@ -112,6 +115,25 @@ export class NavGrid {
 
   // A* — sonuç düzleştirilmiş ara noktalar (Vector3[]), bulunamazsa null.
   findPath(from, to, maxExpand = 7000) {
+    const upper = (p) => this.indoor && p.y > .5 && p.x >= this.indoor.region.minx && p.x <= this.indoor.region.maxx && p.z >= this.indoor.region.minz && p.z <= this.indoor.region.maxz;
+    if (upper(from) || upper(to)) {
+      const direct = this.indoor.findPath(from, to);
+      if (direct) return direct;
+      if (upper(from) && upper(to)) return null;
+      for (const portal of this.world.navigationRegion.portals) {
+        const p = this.world.newVec(portal.x, .025, portal.z);
+        const entering = !upper(from);
+        const inside = this.indoor.findPath(entering ? p : from, entering ? to : p);
+        if (!inside) continue;
+        const end = entering ? p : to;
+        const outside = this.findPath(entering ? from : p, end, maxExpand);
+        if (!outside?.length || Math.hypot(outside.at(-1).x - end.x, outside.at(-1).z - end.z) > 1) continue;
+        const path = entering ? [...outside, ...inside] : [...inside, ...outside];
+        path.precise = true;
+        return path;
+      }
+      return null;
+    }
     let [sx, sz] = this.cellOf(from.x, from.z);
     let [gx, gz] = this.cellOf(to.x, to.z);
     const s = this.nearestFree(sx, sz, 3);
@@ -222,7 +244,10 @@ export class NavGrid {
       const r = Math.sqrt(this.random()) * radius;
       const x = p.x + Math.cos(a) * r;
       const z = p.z + Math.sin(a) * r;
-      if (this.isWalkable(x, z)) return this.world.newVec(x, 0, z);
+      if (this.isWalkable(x, z, p.y)) {
+        const node = this.indoor && p.y > .5 ? this.indoor.nodes[this.indoor.nearest(this.world.newVec(x, p.y, z), .65)] : null;
+        return this.world.newVec(x, node ? node.p.y : 0, z);
+      }
     }
     return null;
   }
@@ -276,7 +301,7 @@ export class NavGrid {
       for (let z = cz - r; z <= cz + r; z++) {
         const arr = this.coverGrid.get(`${x},${z}`);
         if (!arr) continue;
-        for (const c of arr) if ((c.pos.x - p.x) ** 2 + (c.pos.y - p.y) ** 2 + (c.pos.z - p.z) ** 2 < radius * radius) out.push(c);
+        for (const c of arr) if ((!this.indoor || Math.abs(c.pos.y - p.y) < 1) && (c.pos.x - p.x) ** 2 + (c.pos.y - p.y) ** 2 + (c.pos.z - p.z) ** 2 < radius * radius) out.push(c);
       }
     }
     return out;

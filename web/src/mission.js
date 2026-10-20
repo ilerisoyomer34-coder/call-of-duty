@@ -482,7 +482,7 @@ export class Mission {
       body.position.copy(relay.pos); g.scene.add(body);
       const light = new THREE.Mesh(new THREE.BoxGeometry(.45,.22,.02), new THREE.MeshStandardMaterial({color:0x220909,emissive:0xe5512a,emissiveIntensity:1.8}));
       light.position.copy(relay.pos).add(new THREE.Vector3(0,.08,.16)); g.scene.add(light); this.relayLights.push({id:relay.id,light});
-      this.interactables.push({id:`relay-${relay.id}`,pos:relay.pos.clone(),radius:1.8,prompt:'Güvenlik rölesini devre dışı bırak',time:D.terminal.relayTime,
+      this.interactables.push({id:`relay-${relay.id}`,floorY:relay.floor,pos:relay.pos.clone(),radius:1.8,prompt:'Güvenlik rölesini devre dışı bırak',time:D.terminal.relayTime,
         enabled:()=>this.current?.id==='intel'&&!this.terminalSecurity.disabled.has(relay.id),
         action:()=>{
           if (!this.terminalSecurity.disable(relay.id)) return;
@@ -494,12 +494,13 @@ export class Mission {
     // İstihbarat dizüstü (haritada istihbarat hedefi varsa)
     if (D.laptop) {
       const lap = buildLaptop();
+      if (D.terminal) lap.root.scale.setScalar(1.8);
       lap.root.position.copy(D.laptop.pos);
       lap.root.rotation.y = D.laptop.yaw;
       g.scene.add(lap.root);
       this.laptop = lap;
       this.interactables.push({
-        id: 'intel', pos: D.laptop.pos.clone(), radius: 2.0, prompt: D.terminal ? 'Bilgisayarı hackle · kontrolü ele geçir' : 'İstihbaratı indir', time: D.terminal?.holdTime || 2.6,
+        id: 'intel', floorY: D.laptop.floor, pos: D.laptop.pos.clone(), radius: 2.0, prompt: D.terminal ? 'Bilgisayarı hackle · kontrolü ele geçir' : 'İstihbaratı indir', time: D.terminal?.holdTime || 2.6,
         enabled: () => !this.intel && this.current?.id === 'intel' && (!D.terminal || this.terminalSecurity.canAccess(g.enemies.aliveInGroup(D.terminal.guardGroup))),
         onStart: () => {
           if (D.terminal && this.terminalSecurity.begin()) {
@@ -593,7 +594,7 @@ export class Mission {
       },
       intel: {
         id: 'intel', text: O.intel?.text || 'İstihbaratı al', cp: 3,
-        marker: () => D.terminal && this.terminalSecurity.disabled.size < this.terminalSecurity.ids.size ? D.terminal.relays.filter(r => !this.terminalSecurity.disabled.has(r.id)).map(r => r.pos.clone()) : D.laptop.pos.clone().setY(1.2),
+        marker: () => D.terminal && this.terminalSecurity.disabled.size < this.terminalSecurity.ids.size ? D.terminal.relays.filter(r => !this.terminalSecurity.disabled.has(r.id)).map(r => r.pos.clone()) : D.laptop.pos.clone().add(new THREE.Vector3(0,.35,0)),
         start: (first) => say('intel', first),
         skip: () => {
           this.intel = true;
@@ -603,7 +604,7 @@ export class Mission {
       // Savaş robotlarını yok et: haritanın robot grubu (outpost gibi grup temizleme, ayrı metin ve sayaç)
       robots: {
         id: 'robots', text: O.robots?.text || 'Savaş robotlarını yok et', group: O.robots?.group || 'robots', cp: O.robots?.cp ?? 2,
-        marker: () => this.game.enemies.list.filter((e) => e.alive && e.group === (O.robots?.group || 'robots')).map((e) => e.pos.clone().setY(3.2)),
+        marker: () => this.game.enemies.list.filter((e) => e.alive && e.group === (O.robots?.group || 'robots')).map((e) => e.pos.clone().add(new THREE.Vector3(0,3.2,0))),
         start: (first) => say('robots', first),
         skip: () => {
           this.killGroup(O.robots?.group || 'robots');
@@ -966,6 +967,7 @@ export class Mission {
     let bestD = Infinity;
     for (const it of this.interactables) {
       if (!it.enabled()) continue;
+      if(it.floorY != null && (Math.abs(this.game.player.pos.y-it.floorY)>.7 || !this.game.world.lineOfSight(eye,it.pos)))continue;
       const d = it.pos.distanceTo(eye);
       if (d > it.radius + 0.8) continue;
       _v.subVectors(it.pos, eye).normalize();
@@ -982,7 +984,7 @@ export class Mission {
   spawnPouch(pos) {
     const g = this.game;
     const m = buildPouch();
-    m.position.set(pos.x, 0.02, pos.z);
+    m.position.set(pos.x, pos.y + 0.02, pos.z);
     m.rotation.y = rand(0, 6);
     g.scene.add(m);
     this.pickups.push({ mesh: m, pos: m.position, life: 90 });

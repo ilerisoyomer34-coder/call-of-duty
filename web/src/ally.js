@@ -399,7 +399,7 @@ export class Ally {
     } else if (commandId === 'MOVE_TO' || commandId === 'CLEAR_AREA') {
       o.pos = this.spreadPoint(cmd.pos, i, n);
       // Ulaşılamayan nokta: yol bulucu en yakın noktaya kadar götürür; hedeften uzak kalıyorsa yol yok
-      const path = g.nav.inBounds(o.pos.x, o.pos.z) && g.nav.isWalkable(o.pos.x, o.pos.z) ? g.nav.findPath(this.pos, o.pos) : null;
+      const path = g.nav.inBounds(o.pos.x, o.pos.z) && g.nav.isWalkable(o.pos.x, o.pos.z, o.pos.y) ? g.nav.findPath(this.pos, o.pos) : null;
       const end = path?.[path.length - 1];
       if (!end || Math.hypot(end.x - o.pos.x, end.z - o.pos.z) > 3) {
         C.fail(this, cmd, 'no-path', this.voice('noPath'));
@@ -461,8 +461,8 @@ export class Ally {
     const g = this.game;
     const P = g.player;
     const off = (i - (n - 1) / 2) * O.spread;
-    const out = new THREE.Vector3(base.x + Math.cos(P.yaw) * off, 0, base.z - Math.sin(P.yaw) * off);
-    if (!g.nav.isWalkable(out.x, out.z)) out.copy(g.nav.randomPointNear(base, 2.5) || base);
+    const out = new THREE.Vector3(base.x + Math.cos(P.yaw) * off, base.y, base.z - Math.sin(P.yaw) * off);
+    if (!g.nav.isWalkable(out.x, out.z, out.y)) out.copy(g.nav.randomPointNear(base, 2.5) || base);
     return out;
   }
 
@@ -563,7 +563,7 @@ export class Ally {
     const c = Math.cos(P.yaw);
     const s = Math.sin(P.yaw);
     out.set(P.pos.x + c * ox + s * oz, P.pos.y, P.pos.z - s * ox + c * oz);
-    if (!g.nav.isWalkable(out.x, out.z)) {
+    if (!g.nav.isWalkable(out.x, out.z, out.y)) {
       const alt = g.nav.randomPointNear(out, 3);
       out.copy(alt || P.pos);
     }
@@ -685,14 +685,14 @@ export class Ally {
       }
     }
 
-    let dist = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z);
+    let dist = this.pos.distanceTo(goal);
     this.updateStuck(dt, dist);
     // Oyuncunun yanında tedavi ederken ya da kaldırırken önceki "takıldım" sapması iptal: yoksa medik
     // menzilden çıkıp tedaviyi yarıda bırakır
     if (tending && dist < 0.9) this.detour = null;
     if (this.detour && g.time < this.detourUntil) {
       goal = this.detour;
-      dist = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z);
+      dist = this.pos.distanceTo(goal);
     } else this.detour = null;
     this.crouch = false;
     let hiding = false;
@@ -778,7 +778,7 @@ export class Ally {
     this.updateGrenade(dt, weaponsFree);
     // Diğer dostlarla ve oyuncuyla iç içe girme
     for (const o of g.allies.list) {
-      if (o === this) continue;
+      if (o === this || Math.abs(o.pos.y-this.pos.y)>1.8) continue;
       const dx = this.pos.x - o.pos.x;
       const dz = this.pos.z - o.pos.z;
       const d2 = dx * dx + dz * dz;
@@ -1003,7 +1003,7 @@ export class Ally {
     for (const side of [-1, 1]) {
       // yanda ve biraz geride: yay (±65°) dışında kalır
       _v.set(nest.pos.x + fz * -side * d - fx * 2, 0, nest.pos.z + fx * side * d - fz * 2);
-      const p = g.nav.isWalkable(_v.x, _v.z) ? _v : g.nav.randomPointNear(_v, 3);
+      const p = g.nav.isWalkable(_v.x, _v.z, _v.y) ? _v : g.nav.randomPointNear(_v, 3);
       if (!p) continue;
       const toP = Math.hypot(p.x - nest.pos.x, p.z - nest.pos.z);
       if (toP < 5 || nest.inArc(dirToYaw(p.x - nest.pos.x, p.z - nest.pos.z))) continue;
@@ -1173,7 +1173,7 @@ export class Ally {
     for (const side of [mySide, -mySide]) {
       const k = side * need - lat;
       out.set(p.x + rx * k, p.y, p.z + rz * k);
-      if (g.nav.isWalkable(out.x, out.z)) return out;
+      if (g.nav.isWalkable(out.x, out.z, out.y)) return out;
     }
     return null;
   }
@@ -1192,6 +1192,7 @@ export class Ally {
 
   // Hedefe arada çarpıştırıcı olmadan düz gidilebilir mi (yakın mesafe, iki yükseklikte ışın)
   directClear(goal) {
+    if(this.game.nav?.indoor && Math.abs(goal.y-this.pos.y)>.45)return false;
     const W = this.game.world;
     for (const h of DIRECT_HEIGHTS) {
       _la.set(this.pos.x, this.pos.y + h, this.pos.z);
@@ -1211,7 +1212,7 @@ export class Ally {
       this.path = null;
       this.repathT = 0;
       const d = Math.hypot(gx, gz);
-      const s = d < 0.3 ? 0 : Math.min(speed, d * 4);
+      const s = d < .3 ? 0 : Math.min(speed, d * 4);
       this.vel.x = damp(this.vel.x, d > 1e-4 ? (gx / d) * s : 0, 8, dt);
       this.vel.z = damp(this.vel.z, d > 1e-4 ? (gz / d) * s : 0, 8, dt);
       return;
@@ -1227,7 +1228,7 @@ export class Ally {
     let wp = null;
     if (this.path && this.path.length) {
       wp = this.path[this.pathIdx];
-      while (wp && Math.hypot(wp.x - this.pos.x, wp.z - this.pos.z) < 0.6) {
+      while (wp && Math.hypot(wp.x - this.pos.x, wp.z - this.pos.z) < (this.path.precise ? .18 : .6) && (!this.path.precise || Math.abs(wp.y-this.pos.y)<.5)) {
         this.pathIdx++;
         wp = this.path[this.pathIdx];
       }
@@ -1242,7 +1243,7 @@ export class Ally {
     const dx = t.x - this.pos.x;
     const dz = t.z - this.pos.z;
     const d = Math.hypot(dx, dz);
-    const s = d < 0.3 ? 0 : Math.min(speed, d * 4);
+    const s = d < (this.path?.precise ? .06 : .3) ? 0 : Math.min(speed, d * 4);
     this.vel.x = damp(this.vel.x, d > 1e-4 ? (dx / d) * s : 0, 8, dt);
     this.vel.z = damp(this.vel.z, d > 1e-4 ? (dz / d) * s : 0, 8, dt);
   }
@@ -1427,7 +1428,7 @@ export class AllyManager {
       const c = Math.cos(yaw);
       const s = Math.sin(yaw);
       _v.set(pos.x + c * ox + s * oz, pos.y, pos.z - s * ox + c * oz);
-      if (g.nav && !g.nav.isWalkable(_v.x, _v.z)) _v.copy(pos);
+      if (g.nav && !g.nav.isWalkable(_v.x, _v.z, _v.y)) _v.copy(pos);
       this.list.push(new Ally(g, i, _v, yaw));
     }
   }
@@ -1440,7 +1441,7 @@ export class AllyManager {
       if (!a.dead) return;
       const [ox, oz] = ALLY.slots[i % ALLY.slots.length];
       _v.set(pos.x + Math.cos(yaw) * ox + Math.sin(yaw) * oz, pos.y, pos.z - Math.sin(yaw) * ox + Math.cos(yaw) * oz);
-      if (!this.game.nav.isWalkable(_v.x, _v.z)) _v.copy(pos);
+      if (!this.game.nav.isWalkable(_v.x, _v.z, _v.y)) _v.copy(pos);
       a.reset(_v, yaw);
       n++;
     });
@@ -1557,7 +1558,7 @@ export class AllyManager {
       const c = Math.cos(yaw);
       const s = Math.sin(yaw);
       _v.set(pos.x + c * ox + s * oz, pos.y, pos.z - s * ox + c * oz);
-      if (!g.nav.isWalkable(_v.x, _v.z)) _v.copy(pos);
+      if (!g.nav.isWalkable(_v.x, _v.z, _v.y)) _v.copy(pos);
       a.reset(_v, yaw);
     });
   }
