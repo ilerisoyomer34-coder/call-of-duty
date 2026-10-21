@@ -107,5 +107,6 @@
   "assets/weapons/mk4_t1.jpg": "web/assets/weapons/mk4_t1.jpg",
   "assets/weapons/mk4_t2.jpg": "web/assets/weapons/mk4_t2.jpg",
   "assets/weapons/mp7.glb.txt": "web/dist/artifact-assets/assets/weapons/mp7.glb.txt",
-  "assets/weapons/stm556.glb.txt": "web/dist/artifact-assets/assets/weapons/stm556.glb.txt"
+  "assets/weapons/stm556.glb.txt": "web/dist/artifact-assets/assets/weapons/stm556.glb.txt",
+  "assets/weapons/uar10.glb.txt": "web/dist/artifact-assets/assets/weapons/uar10.glb.txt"
 }

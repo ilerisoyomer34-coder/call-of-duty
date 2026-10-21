@@ -313,10 +313,11 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#btnPlay');
   await sleep(200);
   check(await page.isVisible('#diffScreen'), 'Seviye ekranı görünüyor');
-  check((await page.$$('#levelList .lvl')).length === 10, 'On seviye listelendi');
+  // On seviye + 5. seviyeden sonra özel operasyon (Belediye Merkezi; campaign.js sırası)
+  check((await page.$$('#levelList .lvl')).length === 11, 'On bir görev listelendi (on seviye + özel operasyon)');
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .lvl .m')].map((m) => m.textContent));
-  check(/Kızılkum/.test(cards[0]) && /Liman/.test(cards[2]) && /Gece Rafinerisi/.test(cards[5]), 'Kartlarda harita adları (Kızılkum → Gece Rafinerisi)');
-  check(/Komando/.test(cards[5]) && /5 makineli yuvası/.test(cards[5]) && !/makineli/.test(cards[0]), 'Son seviye: komando manga, 5 makineli yuvası; ilk seviyede yuva yok');
+  check(/Kızılkum/.test(cards[0]) && /Liman/.test(cards[2]) && /Belediye Merkezi/.test(cards[5]) && /Gece Rafinerisi/.test(cards[6]), 'Kartlarda harita adları (Kızılkum → Belediye Merkezi → Gece Rafinerisi)');
+  check(/Komando/.test(cards[6]) && /5 makineli yuvası/.test(cards[6]) && !/makineli/.test(cards[0]), 'Gece Rafinerisi: komando manga, 5 makineli yuvası; ilk seviyede yuva yok');
   // Operasyonun tamamı (altı hedef) Karlı Geçit'te
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(5)');
@@ -333,16 +334,17 @@ console.log('Bağımsız sürüm (dist/index.html)');
     groups: [...document.querySelectorAll('#loadoutRoot .loGroup b')].map((b) => b.textContent),
     minigun: document.querySelector('#loadoutRoot .loCard[data-id="minigun"] .loLock')?.textContent,
   }));
-  check(lo.slots.length === 7 && lo.names.length === 15, `Teçhizatta 7 yuva (bıçak dahil), ana silah yuvasında 15 kart (${lo.slots.join(' · ')})`);
+  // 15 eski ana silah + kullanıcının yüklediği dokuz silah
+  check(lo.slots.length === 7 && lo.names.length === 24, `Teçhizatta 7 yuva (bıçak dahil), ana silah yuvasında 24 kart (${lo.names.length}; ${lo.slots.join(' · ')})`);
   check(['Taarruz Tüfekleri', 'Taramalılar', 'Pompalılar', 'Keskin Nişancılar', 'Özel Silahlar'].every((g) => lo.groups.includes(g)), `TÜMÜ sınıflara ayrılmış (${lo.groups.join(' · ')})`);
   check(/15\.000 KR/.test(lo.minigun || ''), `Minigun teçhizatta kilitli, fiyatıyla (${lo.minigun})`);
   check(['AKMS', 'Barrett M82A1', 'HK MG4', 'Colt M4A1'].every((n) => lo.names.includes(n)), `Silahlar gerçek adlarıyla (${lo.names.slice(0, 5).join(', ')}…)`);
   check(lo.bars === 6 && /7,62×39 mm · 30 mermi/.test(lo.info || ''), `Kartta altı istatistik çubuğu ve bilgi satırı (${lo.info})`);
   check(lo.sniper.includes('ÇATAL AYAK') && lo.sniper.includes('ZIRH DELİCİ'), `M82A1 rozetleri: ${lo.sniper.join(', ')}`);
   check(lo.deploy, 'GÖREVE BAŞLA etkin (ana silah seçili)');
-  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 15, null, { timeout: 120000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelectorAll('#loadoutRoot .loImg.ready').length >= 24, null, { timeout: 180000, polling: 250 }).catch(() => {});
   const icons = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loImg')].map((i) => ({ ready: i.classList.contains('ready'), w: i.naturalWidth, src: i.src.slice(0, 5) })));
-  check(icons.filter((i) => i.ready && i.w === 512).length === 15, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready).length}/15, 512×256)`);
+  check(icons.filter((i) => i.ready && i.w === 512).length >= 24, `Silah görselleri oyunun modellerinden çizildi (${icons.filter((i) => i.ready && i.w === 512).length}/24, 512×256)`);
   // Silah sınıfları (CODM düzeni): TÜMÜ + sınıf sekmeleri; keskin nişancı sekmesinde M82 ve AWM, ayrıntıda nişangâh
   const tabs = await page.evaluate(() => [...document.querySelectorAll('#loadoutRoot .loClasses button')].map((b) => b.dataset.cls));
   check(tabs[0] === 'all' && ['ar', 'smg', 'lmg', 'marksman', 'sniper', 'shotgun', 'special'].every((c) => tabs.includes(c)), `Sınıf sekmeleri (${tabs.join(', ')})`);
