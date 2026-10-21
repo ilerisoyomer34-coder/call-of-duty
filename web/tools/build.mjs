@@ -31,7 +31,9 @@ const ASSET_EXT = /\.(glb|jpg|jpeg|png)$/i;
 // Bağımsız sürümde pakete gömülü; PWA ve mağaza uygulamasında sayfanın yanında yerel dosya (çevrimdışı önbellekte);
 // Artifact'ta three.js gibi CDN'den (jsDelivr, olmazsa unpkg)
 const RAPIER_VERSION = JSON.parse(readFileSync(join(root, 'node_modules/@dimforge/rapier3d-compat/package.json'), 'utf8')).version;
-const RAPIER_FILE = 'vendor/rapier.mjs';
+// Uzantı .js: .mjs'yi her sunucu JavaScript türüyle vermiyor (application/octet-stream → modül yüklenmez);
+// GitHub Pages, Capacitor kabuğu ve basit yerel sunucular .js'yi hep doğru tanır
+const RAPIER_FILE = 'vendor/rapier.js';
 const RAPIER_SRC = join(root, 'node_modules/@dimforge/rapier3d-compat/dist/rapier.mjs');
 // Apache-2.0: dağıtılan dosyanın yanında lisans metni (önbelleğe girmez)
 const RAPIER_LICENSE = join(root, 'node_modules/@dimforge/rapier3d-compat/LICENSE');

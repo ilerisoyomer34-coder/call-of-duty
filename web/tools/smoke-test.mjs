@@ -1396,7 +1396,7 @@ console.log('Komut çarkı, işaret ve tuş atama');
     open: !document.getElementById('mobileCommsPanel').hidden,
     buttons: [...document.querySelectorAll('#mobileCommsPanel button')].map(b => b.id),
   }));
-  check(panel.open && panel.buttons.join() === 'tbVoice,btnMobileRadio', 'İLETİŞİM yalnız MİKROFON ve TELSİZ düğmelerini açıyor');
+  check(panel.open && panel.buttons.join() === 'tbVoice,btnMobileRadio,btnTalkMode', 'İLETİŞİM yalnız MİKROFON, TELSİZ ve KONUŞ düğmelerini açıyor');
   await mp.screenshot({ path: join(shots, '22e-mobile-comms.png') });
   await mp.tap('#btnMobileRadio');
   const chat = await mp.evaluate(() => ({ open: window.__game.chat.open, panelClosed: document.getElementById('mobileCommsPanel').hidden, focus: document.activeElement.id }));
@@ -3343,6 +3343,8 @@ console.log('PWA sürümü (dist/pwa)');
   });
   check(man.name === 'Demir Şafak' && man.display === 'fullscreen' && man.orientation === 'landscape' && man.lang === 'tr', `Manifest: ${man.name}, ${man.display}, ${man.orientation}`);
   check(man.start === BASE, `Başlangıç adresi sitenin kökü (${man.start})`);
+  await page.waitForFunction(() => !['idle', 'loading'].includes(window.__game.physics.status), null, { timeout: 60000, polling: 200 }).catch(() => {});
+  check((await page.evaluate(() => window.__game.physics.status)) === 'ready' && swList.includes('vendor/rapier.js'), 'PWA: fizik motoru yüklendi, çevrimdışı önbellek listesinde (vendor/rapier.js)');
   check(man.sizes.length >= 3 && man.sizes.every((s) => s.want === s.got) && man.sizes.some((s) => s.purpose === 'maskable'), `Simgeler doğru boyutta (${man.sizes.map((s) => `${s.got} ${s.purpose}`).join(', ')})`);
 
   // Hizmet çalışanı: açılış bitince kaydolur, tüm oyun dosyalarını önbelleğe alır ve sayfayı devralır
@@ -3429,7 +3431,8 @@ if (run('app')) {
   console.log('Mağaza uygulaması (dist/app)');
   // Capacitor sayfayı https://localhost köküne koyar: burada da kökten sunulur
   const site = join(root, 'dist/app');
-  const AMIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.woff2': 'font/woff2', ...MIME };
+  // Capacitor'ın yerel sunucusu .js'yi JavaScript türüyle verir (fizik motoru vendor/rapier.js modül olarak yüklenir)
+  const AMIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.woff2': 'font/woff2', '.js': 'text/javascript', ...MIME };
   const server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     const file = join(site, path === '/' ? 'index.html' : path.slice(1));
@@ -3476,6 +3479,8 @@ if (run('app')) {
     };
   });
   check(a.pwa === null && !a.manifest && a.app && a.native, 'Uygulama sürümü: manifest ve hizmet çalışanı yok, geri tuşu bağlı (body.app)');
+  await page.waitForFunction(() => !['idle', 'loading'].includes(window.__game.physics.status), null, { timeout: 60000, polling: 200 }).catch(() => {});
+  check((await page.evaluate(() => window.__game.physics.status)) === 'ready', 'Uygulamada fizik motoru yerel dosyadan yüklendi (vendor/rapier.js)');
   check(a.font, 'Yazı tipleri uygulamanın içinden yüklendi (fonts/fonts.css)');
   check(outside.length === 0, `Açılışta dışarıya istek yok (${outside.slice(0, 3).join(', ') || 'yok'})`);
   check(/AK-74 Poyraz/.test(a.next) && /D-50 Kartal/.test(a.next) && !/Zenitco|Desert/.test(a.next), `Mağaza sürümünde kurgusal silah adları (${a.next})`);
