@@ -1219,5 +1219,56 @@
       "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
       "source": "https://sketchfab.com/3d-models/ithaca-model-37-riot-shotgun-8caca0af16a74184bb63758f7b58c22a"
     }
+  },
+  "uar10": {
+    "file": "assets/weapons/uar10.glb",
+    "points": {
+      "muzzle": [
+        0,
+        0.052,
+        -0.678
+      ],
+      "sight": [
+        0,
+        0.118,
+        0
+      ],
+      "leftHand": [
+        0,
+        0.024,
+        -0.37
+      ],
+      "eject": [
+        0.03,
+        0.05,
+        -0.124
+      ]
+    },
+    "parts": [
+      "charging",
+      "mag",
+      "optic"
+    ],
+    "bounds": {
+      "min": [
+        -0.035,
+        -0.112,
+        -0.678
+      ],
+      "max": [
+        0.04,
+        0.161,
+        0.302
+      ]
+    },
+    "length": 0.98,
+    "tris": 21532,
+    "bytes": 842612,
+    "credit": {
+      "title": "low-poly UAR-10",
+      "author": "D_U (https://sketchfab.com/DU1701)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/low-poly-uar-10-759c7788575c468d908a59c7a7405c05"
+    }
   }
 }

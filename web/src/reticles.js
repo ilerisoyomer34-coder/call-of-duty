@@ -321,6 +321,16 @@ const SCOPE = {
     o += `<circle cx="0" cy="0" r="2.6" fill="${s.accent}" opacity="0.28"/>`;
     return o + dotAt(0, 0, 1.1, s.accent || '#ff2a14');
   },
+  // Menzil çizgili (BDC) muharebe dürbünü: kalın dış direkler, ince artı, alt kılda uzaklıkla daralan dört tutma
+  // çizgisi (7,62'nin düşüşü), aydınlatmalı yeşil orta nokta. Diğer dürbünlerden ayrılsın diye çizgiler aşağı yoğun
+  bdc(s) {
+    const c = s.color;
+    let o = lineH(-100, -40, 0, 4.5, c) + lineH(40, 100, 0, 4.5, c) + lineV(0, -100, -40, 4.5, c) + lineV(0, 64, 100, 4.5, c);
+    o += lineH(-40, 40, 0, 0.6, c) + lineV(0, -40, 64, 0.6, c);
+    for (const [y, w] of [[10, 9], [21, 7], [33, 5.5], [46, 4]]) o += lineH(-w, w, y, 0.7, c);
+    o += `<circle cx="0" cy="0" r="2.4" fill="${s.accent}" opacity="0.3"/>`;
+    return o + dotAt(0, 0, 0.95, s.accent || '#4dff5c');
+  },
 };
 
 export const SCOPE_RETICLES = Object.keys(SCOPE);

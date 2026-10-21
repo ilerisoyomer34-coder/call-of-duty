@@ -26,5 +26,6 @@
   "stm556": {"displayName": "STM-556", "short": "STM-556", "altName": "ST-56 Yel", "type": "ar", "class": "Taarruz Tüfeği", "caliber": "5,56×45 mm NATO", "armorPen": 0.3, "badges": [], "silhouette": "rifle", "unlockCost": 0},
   "m4super90": {"displayName": "M4 Super 90 (JW2)", "short": "M4 Super 90", "altName": "YO-90 Fırtına", "type": "shotgun", "class": "Yarı Otomatik Av Tüfeği", "caliber": "12 kalibre", "armorPen": 0.1, "badges": ["TÜP ŞARJÖR"], "silhouette": "shotgun", "unlockCost": 0},
   "ar10t": {"displayName": "Armalite AR-10(T)", "short": "AR-10(T)", "altName": "NT-10 Kartal", "type": "marksman", "class": "Muharebe Tüfeği", "caliber": "7,62×51 mm NATO", "armorPen": 0.55, "badges": [], "silhouette": "sniper", "unlockCost": 0},
-  "ithaca37": {"displayName": "Ithaca Model 37 Riot", "short": "Ithaca 37", "altName": "PT-37 Koru", "type": "shotgun", "class": "Pompalı Av Tüfeği", "caliber": "12 kalibre", "armorPen": 0.1, "badges": ["TÜP ŞARJÖR"], "silhouette": "shotgun", "unlockCost": 0}
+  "ithaca37": {"displayName": "Ithaca Model 37 Riot", "short": "Ithaca 37", "altName": "PT-37 Koru", "type": "shotgun", "class": "Pompalı Av Tüfeği", "caliber": "12 kalibre", "armorPen": 0.1, "badges": ["TÜP ŞARJÖR"], "silhouette": "shotgun", "unlockCost": 0},
+  "uar10": {"displayName": "UAR-10", "short": "UAR-10", "altName": "UN-10 Vaşak", "type": "marksman", "class": "Dürbünlü Nişancı Tüfeği", "caliber": "7,62×51 mm NATO", "armorPen": 0.6, "badges": ["YARI OTOMATİK"], "silhouette": "sniper", "unlockCost": 0}
 }

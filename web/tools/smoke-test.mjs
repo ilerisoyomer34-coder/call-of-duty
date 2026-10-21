@@ -2620,7 +2620,13 @@ console.log('Atış poligonu');
     return { dummies: g.enemies.list.length, owned: Object.keys(g.weapons.owned) };
   });
   check(r.dummies === 10, `Mankenler yerleşti (${r.dummies})`);
-  check(r.owned.length === 19 && r.owned.includes('knife'), `Poligonda on sekiz silah ve bıçak (${r.owned.join(', ')})`);
+  // 18 eski silah + bıçak + kullanıcının yüklediği dokuz silah (ak47 … uar10)
+  check(r.owned.length === 28 && r.owned.includes('knife') && r.owned.includes('uar10'), `Poligonda yirmi yedi silah ve bıçak (${r.owned.join(', ')})`);
+  // Yüklenen silahların modelleri iner; UAR-10'da şarjör, kurma kolu ve dürbün ayrı parça
+  const uploaded = ['ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37', 'uar10'];
+  await page.waitForFunction((ids) => ids.every((id) => window.__game.viewmodel.models[id]?.glb), uploaded, { timeout: 90000, polling: 250 }).catch(() => {});
+  const up = await page.evaluate((ids) => ({ missing: ids.filter((id) => !window.__game.viewmodel.models[id]?.glb), uar: Object.keys(window.__game.viewmodel.models.uar10?.parts || {}).sort().join('+') }), uploaded);
+  check(!up.missing.length && up.uar === 'charging+mag+optic', `Yüklenen dokuz silahın modeli indi (eksik: ${up.missing.join(', ') || 'yok'}; UAR-10 ${up.uar})`);
   await page.waitForFunction(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb), null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => ['mar556', 'lmg', 'sniper', 'd50'].every((id) => window.__game.viewmodel.models[id].glb)), 'Blender modelleri (MAR-556, MG-43, MR-82, D-50) yüklendi');
   // Sketchfab silahları: model, parçalar (şarjör, nişangah gövdesi) ve ayrı JPEG dokular

@@ -1019,7 +1019,7 @@ export const WEAPONS = {
   },
 };
 
-// Kullanıcının yüklediği sekiz CC BY 4.0 silah. Ortak mekanikler mevcut silahlardan gelir;
+// Kullanıcının yüklediği dokuz CC BY 4.0 silah. Ortak mekanikler mevcut silahlardan gelir;
 // katalog kimlikleri ve ağdaki eski silah sırası korunur, yeni kimlikler sona eklenir.
 Object.assign(WEAPONS, {
   ak47: { ...WEAPONS.ak74, id: 'ak47', name: 'TK-47 Köz', asset: 'ak47', rpm: 600, damage: 35,
@@ -1054,11 +1054,18 @@ Object.assign(WEAPONS, {
     model: 'glb', source: 'sketchfab', rpm: 75, pellets: 8, damage: 18,
     magSize: 5, reserveMax: 40, reserveStart: 25, loadPort: [0, 0.008, -0.13] },
 });
+// Dürbünlü nişancı tüfeği (7,62×51): AR-10T mekanizması; 5× dürbünde tam nişanda model gizlenir (sights.json → bdc).
+// Ayrı atama: yukarıdaki Object.assign'ın içinde WEAPONS.ar10t henüz yok
+WEAPONS.uar10 = { ...WEAPONS.ar10t, id: 'uar10', name: 'UN-10 Vaşak', asset: 'uar10', kind: 'Nişancı Tüfeği',
+  rpm: 280, damage: 52, range: 450, falloff: { start: 80, end: 180, min: 0.78 }, mobility: 0.88,
+  spread: { ...WEAPONS.ar10t.spread, hip: 3.6, adsMult: 0.025 },
+  recoil: { ...WEAPONS.ar10t.recoil, kick: 1.75 },
+  ads: { ...WEAPONS.ar10t.ads, fovMult: 0.25, time: 0.3, moveMult: 0.58 } };
 
 // Tuş sırası: 1-9 (poligonda hepsi, görevde ana + yan silah + 3'te bıçak)
 // Sketchfab silahları sonda: poligonda 1-9 tuşları eski dizilişte kalır, yenilere tekerlekle geçilir
 // Yeni silahlar hep sona eklenir: çevrim içi protokol silahı bu dizideki sırasıyla taşır
-export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10', 'knife', 'ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37'];
+export const WEAPON_ORDER = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10', 'knife', 'ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37', 'uar10'];
 
 // El yönü dirsekten bağımsızdır: yatay kundakta avuç altta, dikey kabzada bilek avucun altında kalır.
 // Konum avuç merkezidir, yönler silahın yerel uzayındadır. Her modelin tutamak noktası ayrı ölçülür.
@@ -1097,6 +1104,7 @@ export const WEAPON_AIM = {
   m4super90: { distance: 0.32,  fov: 44, left: [-0.025, -0.006, -0.362],hold: 'under',    right: [0.024, -0.044, 0.026], sight: [0, 0.103, -0.069], front: [0, 0.1018, -0.6408] },
   ar10t:     { distance: 0.29,  fov: 40, left: [-0.028, -0.003, -0.3685],hold: 'under',   right: [0.025, -0.044, 0.027], sight: [0, 0.1443, -0.027], front: [0, 0.1208, -0.538] },
   ithaca37:  { distance: 0.44,  fov: 46, left: [-0.025, -0.016, -0.385],hold: 'under',    right: [0.025, -0.036, 0.03], trigger: 'stock', sight: [0, 0.0805, -0.095], front: [0, 0.078, -0.6384] },
+  uar10:     { distance: 0.25,  fov: 40, left: [-0.027, 0.01, -0.37],  hold: 'under',    right: [0.024, -0.044, 0.026] },
 };
 for (const [id, a] of Object.entries(WEAPON_AIM)) {
   const w = WEAPONS[id];

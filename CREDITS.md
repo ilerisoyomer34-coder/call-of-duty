@@ -88,6 +88,9 @@ Oyun için yön ve ölçek düzenlendi; tutuş/nişan noktaları tanımlandı, �
 - **M4 Super 90 (JW2) Brand-Friendly version** — 8sianDude (https://sketchfab.com/haoliu95); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/m4-super-90-jw2-brand-friendly-version-7e472e24152246708cac8b6f1613c7a8).
 - **Armalite AR-10(T) Battle Rifle** — 8sianDude (https://sketchfab.com/haoliu95); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/armalite-ar-10t-battle-rifle-415a20e0f50c4e1a9c2da542857c4737).
 - **Ithaca Model 37 "Riot" Shotgun** — 8sianDude (https://sketchfab.com/haoliu95); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/ithaca-model-37-riot-shotgun-8caca0af16a74184bb63758f7b58c22a).
+- **low-poly UAR-10** — D_U (https://sketchfab.com/DU1701); [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Kaynak](https://sketchfab.com/3d-models/low-poly-uar-10-759c7788575c468d908a59c7a7405c05). Sergi şarjörü ve fişek atıldı; dürbün ayrı parça (tam nişanda dürbün kaplaması çizilir).
+
+AR-10(T) dokularındaki üretici amblemi, adresi ve seri no; M4 Super 90 dokularındaki marka benzeri yazılar `weapon-glb-map.json → textures.paint` ile boyandı.
 
 ### Belediye binası ve final görevi
 

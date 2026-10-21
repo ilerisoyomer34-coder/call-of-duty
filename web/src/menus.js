@@ -35,6 +35,7 @@ const CREDIT_CHANGES = {
   ak74: 'Oyun için ölçeklendi, sergi şarjörü ve fişekler atıldı, parçalara ayrıldı.',
   bren2: 'Oyun için ölçeklendi, sergi şarjörü ve fişek atıldı, parçalara ayrıldı.',
   awm: 'Oyun için ölçeklendi, sürgüsü ayrıldı, dokuları küçültüldü.',
+  uar10: 'Oyun için ölçeklendi, sergi şarjörü ve fişek atıldı, şarjör, kurma kolu ve dürbün ayrı parçaya ayrıldı.',
   squad: 'Üç asker ayrıldı, oyunun asker iskeletine taşındı (A pozundan T pozuna bükülüp kemikler yeniden adlandırıldı), sadeleştirildi.',
   robot: 'Kaide atıldı, parçalar eklemlere ayrılıp hareketlendirildi, sadeleştirildi, dokular küçültüldü.',
 };

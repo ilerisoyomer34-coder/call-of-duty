@@ -6,7 +6,7 @@ import META from '../src/data/weapons.json' with { type: 'json' };
 import ASSETS from '../src/weaponAssets.json' with { type: 'json' };
 import { weaponInfoLine } from '../src/weaponInfo.js';
 
-const added = ['ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37'];
+const added = ['ak47', 'adar215', 'g95', 'mp7', 'stm556', 'm4super90', 'ar10t', 'ithaca37', 'uar10'];
 const old = ['rifle', 'mar556', 'smg', 'shotgun', 'lmg', 'sniper', 'pistol', 'd50', 'rpg', 'k8', 'kr4', 'mk4', 'kt9', 'ak74', 'bren2', 'awm', 'minigun', 'pr10', 'knife'];
 const webFile = file => new URL(`../${file}`, import.meta.url);
 

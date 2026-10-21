@@ -15,7 +15,8 @@
     "post": {"name": "Keskin nişancı dürbünü (direkli)", "kind": "scope", "reticle": "post", "color": "#040404", "accent": "#ff2a14", "lens": "#30302a", "zoom": "10×"},
     "classic": {"name": "Klasik dürbün (ince artı + halka)", "kind": "scope", "reticle": "classic", "color": "#0a0806", "accent": "#0a0806", "lens": "#4a3a1e", "zoom": "6×"},
     "none": {"name": "Nişan alınmaz", "kind": "none"},
-    "stmDot": {"name": "Nokta kolimatör", "kind": "reflex", "reticle": "dot", "color": "#ff8c26", "size": 0.06, "lens": "#4f86d8"}
+    "stmDot": {"name": "Nokta kolimatör", "kind": "reflex", "reticle": "dot", "color": "#ff8c26", "size": 0.06, "lens": "#4f86d8"},
+    "bdc": {"name": "Muharebe dürbünü (menzil çizgili)", "kind": "scope", "reticle": "bdc", "color": "#080808", "accent": "#4dff5c", "lens": "#2e3a2a", "zoom": "5×"}
   },
   "weapons": {
     "rifle": {"sight": "kobra"},
@@ -44,6 +45,7 @@
     "stm556": {"sight": "stmDot", "housing": {"shape": "tube", "r": 0.014, "len": 0.047}},
     "m4super90": {"sight": "iron"},
     "ar10t": {"sight": "iron"},
-    "ithaca37": {"sight": "iron"}
+    "ithaca37": {"sight": "iron"},
+    "uar10": {"sight": "bdc"}
   }
 }
