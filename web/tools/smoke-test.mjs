@@ -16,6 +16,10 @@ const THREE_VERSION = JSON.parse(readFileSync(join(root, 'node_modules/three/pac
 const THREE_CDN = `https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/build/three.module.min.js`;
 const THREE_CDN2 = `https://unpkg.com/three@${THREE_VERSION}/build/three.module.min.js`;
 const THREE_BODY = readFileSync(join(root, 'node_modules/three/build/three.module.min.js'), 'utf8');
+// Fizik motoru: Artifact sürümü CDN'den ister (tools/build.mjs → RAPIER_CDNS); testte yerel paket sunulur
+const RAPIER_CDN = /^https:\/\/cdn\.jsdelivr\.net\/npm\/@dimforge\/rapier3d-compat@[^/]+\/dist\/rapier\.mjs$/;
+const RAPIER_CDN2 = /^https:\/\/unpkg\.com\/@dimforge\/rapier3d-compat@[^/]+\/dist\/rapier\.mjs$/;
+const RAPIER_BODY = readFileSync(join(root, 'node_modules/@dimforge/rapier3d-compat/dist/rapier.mjs'), 'utf8');
 const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image/png' };
 
 const errors = [];
@@ -78,6 +82,10 @@ async function openPage(kind, quality = 'low', opts = {}) {
       : r.fulfill({ status: 200, contentType: 'text/javascript', headers: { 'access-control-allow-origin': '*' }, body: THREE_BODY });
   await page.route(THREE_CDN, serveThree('jsdelivr'));
   await page.route(THREE_CDN2, serveThree('unpkg'));
+  const serveRapier = (name) => (r) =>
+    fail.includes(name) ? r.abort('connectionrefused') : r.fulfill({ status: 200, contentType: 'text/javascript', headers: { 'access-control-allow-origin': '*' }, body: RAPIER_BODY });
+  await page.route(RAPIER_CDN, serveRapier('jsdelivr'));
+  await page.route(RAPIER_CDN2, serveRapier('unpkg'));
   if (kind === 'artifact') {
     // Artifact gibi: sayfa bir https kökeninde, modeller ve dokular yanındaki assets/ dosyalarından
     const html = readFileSync(join(root, 'dist/artifact.html'), 'utf8');
@@ -1494,22 +1502,24 @@ console.log('Telsiz kutusu ve yazılı komut');
     return { closed, opened, n: c.lines.length };
   });
   check(fd.closed === 0 && fd.opened === fd.n && fd.n >= 6, `Kapalı panelde geçmiş gizli (${fd.closed} görünür); açınca ${fd.opened}/${fd.n} satır`);
-  // Seslendirme (ayar): askere göre perde; konuşan asker vurgulanır. Ortadaki altyazı yalnız karargâh satırında
+  // Sesli telsiz (radioVoice.js): her satır konuşanın sesiyle (askere göre perde), oyun sesi kapalıyken de; ayar
+  // kapalıyken susar, komutanın kendi sözü okunmaz; konuşan asker vurgulanır. Ortadaki altyazı yalnız karargâh satırında
   const tts = await page.evaluate(() => {
     const g = window.__game;
     const a1 = g.allies.list[0];
     const said = [];
     if (window.speechSynthesis) window.speechSynthesis.speak = (u) => said.push({ t: u.text, l: u.lang, p: u.pitch });
-    // Oyun sessiz başlar ve sessizken seslendirme de susar: denemede ses açık
-    g.settings.muted = false;
-    g.settings.tts = false;
+    g.radioVoice.cancel();
+    g.settings.muted = true; // oyun sesi kapalı: telsiz yine konuşur
+    g.settings.radioVoice = false;
     g.events.emit('radio', `${a1.radioLabel}: Sessiz satır`, 'squad');
-    g.settings.tts = true;
+    g.settings.radioVoice = true;
+    g.events.emit('radio', `Komutan → Alfa Timi: kendi sözüm`, 'player');
     g.events.emit('radio', `${a1.radioLabel}: Sesli satır`, 'squad');
-    // Sessizken seslendirme yok
-    g.settings.muted = true;
-    g.events.emit('radio', `${a1.radioLabel}: Sessizde satır`, 'squad');
-    g.settings.tts = false;
+    // Acil satır (el bombası) okunanı keser ve hemen okunur
+    g.events.emit('radio', 'Tüfekçi: El bombası!', 'enemy', true);
+    g.radioVoice.update(1);
+    g.radioVoice.cancel();
     const sub0 = document.getElementById('radio').textContent;
     g.hud.radio('Alfa-1: tim satırı', 'squad');
     const sub1 = document.getElementById('radio').textContent;
@@ -1517,7 +1527,26 @@ console.log('Telsiz kutusu ve yazılı komut');
     const sub2 = document.getElementById('radio').textContent;
     return { said, has: !!window.speechSynthesis, talk: a1.talkUntil > performance.now() - 2000, sub: sub0 === sub1 && /karargâh/.test(sub2) };
   });
-  check(!tts.has || (tts.said.length === 1 && tts.said[0].t === 'Sesli satır' && tts.said[0].l === 'tr-TR' && Math.abs(tts.said[0].p - 0.85) < 1e-3), `Seslendirme ayarla açılıp kapanıyor (${JSON.stringify(tts.said)})`);
+  check(!tts.has || (tts.said.length === 2 && tts.said[0].t === 'Sesli satır' && tts.said[0].l === 'tr-TR' && Math.abs(tts.said[0].p - 0.85) < 1e-3 && tts.said[1].t === 'El bombası!'), `Telsiz sesli: ayar kapalıyken susar, oyun sesi kapalıyken konuşur, komutanın sözü okunmaz, acil satır araya girer (${JSON.stringify(tts.said)})`);
+  // Konuşma kipi (K / KONUŞ): açılır, asker konuşurken ve cevap beklenirken dinlemez, kapanır
+  const talk = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.voice;
+    if (!v.supported) return { sup: false };
+    g.settings.voiceCommands = true;
+    v.setTalk(true);
+    const on = v.talk && document.body.classList.contains('talkMode');
+    g.radioVoice.say('Alfa-1', 'Deneme', { kind: 'ally' });
+    const blocked = !v.canListen();
+    g.radioVoice.cancel();
+    g.chat.pendingAi = true;
+    const waiting = !v.canListen();
+    g.chat.pendingAi = false;
+    const label = document.querySelector('#btnTalkMode small')?.textContent || '';
+    v.setTalk(false);
+    return { sup: true, on, blocked, waiting, label, off: !v.talk && !document.body.classList.contains('talkMode') };
+  });
+  check(!talk.sup || (talk.on && talk.blocked && talk.waiting && talk.off), `Konuşma kipi: açılır, tim konuşurken ve cevap beklenirken dinlemez, kapanır (${JSON.stringify(talk)})`);
   check(tts.talk && tts.sub, 'Konuşan asker vurgulandı; tim satırı ortadaki altyazıya çıkmadı, karargâh satırı çıktı');
   // Sesli komut: destek yoksa ayar satırı ve düğme görünmez
   const vc = await page.evaluate(() => {
@@ -1561,8 +1590,8 @@ console.log('Telsiz kutusu ve yazılı komut');
     g.ai.sampleOff = false;
     const said = [];
     if (window.speechSynthesis) window.speechSynthesis.speak = (u) => said.push(u.text);
-    g.settings.muted = false;
-    g.settings.tts = false;
+    g.radioVoice.cancel();
+    g.settings.radioVoice = false;
     const n0 = window.__ev.length;
     g.chat.submit('Yıldız şu tepedeki adamları bir güzel bastırsın ki kafalarını hiç kaldıramasınlar', 'voice');
     for (let i = 0; i < 50 && window.__ev.length === n0; i++) await new Promise((r) => setTimeout(r, 50));
@@ -1579,6 +1608,7 @@ console.log('Telsiz kutusu ve yazılı komut');
   await page.evaluate(() => {
     window.__game.ai.sample = null;
     window.__game.settings.muted = true;
+    window.__game.settings.radioVoice = true;
   });
   // PC: kapalı telsiz paneli görünmez; duraklatma ve İLETİŞİM sağ üstte (mini haritanın solunda), duraklat üstte
   const pc = await page.evaluate(() => {
@@ -2602,6 +2632,80 @@ console.log('Haritalar, mevziler ve manga kademeleri');
 }
 
 // ---------------- Atış poligonu ----------------
+// ---------------- Fizik motoru (Rapier): ragdoll, patlama parçası, kovan, ayarla kapatma ----------------
+if (run('physics')) {
+console.log('Fizik motoru');
+
+  const page = await openPage('standalone');
+  await page.waitForFunction(() => !['idle', 'loading'].includes(window.__game.physics.status), null, { timeout: 60000, polling: 200 }).catch(() => {});
+  check((await page.evaluate(() => window.__game.physics.status)) === 'ready', 'Fizik motoru (WebAssembly) açılıştan sonra yüklendi');
+  await page.evaluate(() => window.__game.startMode('mission', 'normal', 1));
+  await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 90000 });
+  const ph0 = await page.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.cheats.god = true;
+    g.cheats.aiOff = true;
+    return g.physics.stats();
+  });
+  check(ph0.ready && ph0.statics > 50 && ph0.statics === (await page.evaluate(() => window.__game.world.colliders.filter((c) => c.owner?.kind !== 'tank').length)), `Harita kutuları fizik dünyasında (${ph0.statics} statik)`);
+  // Ölen asker ragdoll'la yığılır: kemikler fizikle iner, zeminin içine girmez, sonra donar
+  const rd0 = await page.evaluate(() => {
+    const g = window.__game;
+    const e = g.enemies.list.find((x) => x.alive && !x.mount && !x.robot && x.model.bones);
+    window.__re = e;
+    const y = (n) => e.model.bones[n].getWorldPosition(new e.pos.constructor()).y - e.pos.y;
+    const hips = y('Hips');
+    const dir = e.pos.clone().sub(g.player.pos).setY(0).normalize();
+    e.takeDamage(999, { source: 'player', weapon: 'ak74', zone: 'torso', dir, attacker: g.player });
+    return { hips, rag: !!e.model.ragdoll && !e.model.ragdoll.frozen, bodies: g.physics.stats().bodies };
+  });
+  check(rd0.rag && rd0.bodies >= 11, `Ölen askerin ragdoll'u kuruldu (${rd0.bodies} gövde)`);
+  await waitGame(page, 1.6);
+  const rd1 = await page.evaluate(() => {
+    const e = window.__re;
+    const y = (n) => e.model.bones[n].getWorldPosition(new e.pos.constructor()).y - e.pos.y;
+    return { hips: y('Hips'), head: y('Head'), foot: Math.min(y('LeftFoot'), y('RightFoot')), hand: Math.min(y('LeftHand'), y('RightHand')) };
+  });
+  check(rd1.hips < rd0.hips - 0.35 && Math.min(rd1.head, rd1.foot, rd1.hand) > -0.08, `Ceset yığıldı, zemine girmedi (kalça ${rd0.hips.toFixed(2)} → ${rd1.hips.toFixed(2)} m, en alçak ${Math.min(rd1.head, rd1.foot, rd1.hand).toFixed(2)})`);
+  await page.screenshot({ path: join(shots, '24a-ragdoll.png') });
+  // Patlama: zeminden parçalar saçılır, yakındaki gövdeler itilir; kovan fizikle zemine düşer
+  const bl = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.player.pos;
+    const at = P.clone().add(new P.constructor(Math.sin(g.player.yaw) * -6, 0.1, Math.cos(g.player.yaw) * -6));
+    g.explode(at, 4, 0, 'player', 1);
+    const R = new P.constructor(1, 0, 0);
+    const U = new P.constructor(0, 1, 0);
+    g.effects.ejectShell(P.clone().setY(P.y + 1.4), R, U, P.y, false);
+    const s = g.effects.shells.find((x) => x.active && x.body);
+    window.__shell = s;
+    return { chunks: g.effects.chunks.filter((c) => c.active && c.body).length, shell: !!s };
+  });
+  check(bl.chunks >= 4 && bl.shell, `Patlamada ${bl.chunks} parça saçıldı, kovan fizikli gövde`);
+  await waitGame(page, 0.9);
+  const sh = await page.evaluate(() => ({ y: window.__shell.p.y - window.__game.player.pos.y, chunksY: Math.min(...window.__game.effects.chunks.filter((c) => c.active).map((c) => c.p.y)) }));
+  check(sh.y > -0.02 && sh.y < 0.4 && sh.chunksY > -0.05, `Kovan ve parçalar zemine düştü, içine girmedi (kovan ${sh.y.toFixed(3)} m, en alçak parça ${sh.chunksY.toFixed(3)})`);
+  await page.screenshot({ path: join(shots, '24b-physics-blast.png') });
+  // Ayar kapalı: fizik dünyası atılır, ölen asker eski canlandırmayla yığılır; açınca harita yeniden kurulur
+  const off = await page.evaluate(() => {
+    const g = window.__game;
+    g.settings.physics = false;
+    g.applySettings();
+    const e = g.enemies.list.find((x) => x.alive && !x.mount && !x.robot && x.model.bones);
+    e.takeDamage(999, { source: 'player', weapon: 'ak74', zone: 'torso', dir: new e.pos.constructor(0, 0, -1), attacker: g.player });
+    const r = { ready: g.physics.ready, rag: !!e.model.ragdoll };
+    g.settings.physics = true;
+    g.applySettings();
+    r.again = g.physics.ready && g.physics.stats().statics > 50;
+    return r;
+  });
+  check(!off.ready && !off.rag && off.again, `Fizik ayarı kapanınca ragdoll yok (eski ölüm), açınca dünya yeniden kuruldu (${JSON.stringify(off)})`);
+  const lastErr = await page.evaluate(() => (window.__game.lastError ? String(window.__game.lastError.stack || window.__game.lastError) : null));
+  check(!lastErr, `Döngüde istisna yok${lastErr ? `: ${lastErr}` : ''}`);
+  await page.close();
+}
+
 if (run('range')) {
 console.log('Atış poligonu');
 
@@ -3113,6 +3217,9 @@ console.log('Artifact sürümü (dist/artifact.html)');
     return n;
   });
   check(wt > 0, `Sketchfab silahı ve dokuları yan dosyalardan yüklendi (KT-9, ${wt} dokulu parça)`);
+  await page.waitForFunction(() => !['idle', 'loading'].includes(window.__game.physics.status), null, { timeout: 60000, polling: 200 }).catch(() => {});
+  const aph = await page.evaluate(() => window.__game.physics.stats());
+  check(aph.status === 'ready' && aph.ready && aph.statics > 0, `Fizik motoru CDN'den yüklendi, harita bağlandı (${JSON.stringify(aph)})`);
   check(await page.evaluate(async () => window.__game.pwa === null && (await navigator.serviceWorker.getRegistrations()).length === 0), 'Artifact sürümü hizmet çalışanı kaydetmiyor (PWA yalnız dist/pwa)');
   await page.close();
 }

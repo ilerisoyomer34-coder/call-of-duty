@@ -2,7 +2,7 @@
 // çıkartmalar (decal), ışık patlamaları ve patlamalar. Hepsi havuzlanır; çalışma sırasında bellek ayrılmaz.
 import * as THREE from 'three';
 import { rand, randSign } from './util.js';
-import { SURFACES, BLOOD } from './config.js';
+import { SURFACES, BLOOD, PHYSICS } from './config.js';
 
 const VERT = /* glsl */ `
 attribute float size;
@@ -349,8 +349,23 @@ export class Effects {
     scene.add(this.shellMesh);
     this.shells = [];
     for (let i = 0; i < 48; i++)
-      this.shells.push({ active: false, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Vector3(), life: 0, floor: 0, bounced: false });
+      this.shells.push({ active: false, p: new THREE.Vector3(), v: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Vector3(), life: 0, floor: 0, bounced: false, body: null, vy: 0 });
     this.hideAllInstances(this.shellMesh, 48);
+    // Fizik motoru (game.physics; main.js bağlar): varsa kovan ve patlama parçası gerçek gövdedir, duvara/zemine çarpar
+    this.physics = null;
+
+    // Patlama parçaları (taş/toprak; robotta metal): yalnız fizik motoru varken. Tek InstancedMesh, örnek başına renk
+    const n = quality === 'low' ? PHYSICS.limits.chunksTouch : PHYSICS.limits.chunks;
+    const cg = new THREE.IcosahedronGeometry(1, 0);
+    this.chunkMesh = new THREE.InstancedMesh(cg, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0.05, flatShading: true }), n);
+    this.chunkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.chunkMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    this.chunkMesh.frustumCulled = false;
+    scene.add(this.chunkMesh);
+    this.chunks = [];
+    for (let i = 0; i < n; i++) this.chunks.push({ active: false, body: null, size: 0, life: 0, max: 0, p: new THREE.Vector3(), q: new THREE.Quaternion() });
+    this.chunkNext = 0;
+    this.hideAllInstances(this.chunkMesh, n);
 
     // Işık havuzu: sayı sabit kalmalı yoksa shader yeniden derlenir
     this.lights = [];
@@ -417,6 +432,8 @@ export class Effects {
 
   ejectShell(pos, right, up, floorY, soundDelay = true) {
     const s = this.shells.find((x) => !x.active) || this.shells[(Math.random() * this.shells.length) | 0];
+    if (s.body) this.physics?.remove(s.body);
+    s.body = null;
     s.active = true;
     s.p.copy(pos);
     s.v.copy(right).multiplyScalar(rand(1.8, 2.8)).addScaledVector(up, rand(1.2, 2.2));
@@ -425,6 +442,45 @@ export class Effects {
     s.life = 2.5;
     s.floor = floorY;
     s.bounced = !soundDelay;
+    // Fizikli kovan: duvara, siperin üstüne, merdivene düşer; ilk sert çarpmada çınlar
+    const SH = PHYSICS.shell;
+    if (this.physics?.ready) {
+      s.body = this.physics.small(s.p, null, s.v, s.w, { kind: 'capsule', r: SH.radius, half: SH.halfLength }, SH);
+      s.vy = s.v.y;
+    }
+  }
+
+  // Patlamada zeminden saçılan parçalar (fizik motoru yoksa yok). surface: zeminin yüzeyi (renk), metal: robot enkazı
+  blastChunks(pos, scale = 1, surface = 'sand', metal = false) {
+    if (!this.physics?.ready) return;
+    const C = PHYSICS.chunks;
+    const S = SURFACES[surface] || SURFACES.concrete;
+    const base = metal ? this._c.setRGB(0.22, 0.23, 0.25) : this.color(S.color);
+    const r0 = base.r;
+    const g0 = base.g;
+    const b0 = base.b;
+    const count = Math.round(C.perBlast * Math.min(2, scale));
+    for (let k = 0; k < count; k++) {
+      const i = this.chunkNext;
+      this.chunkNext = (i + 1) % this.chunks.length;
+      const c = this.chunks[i];
+      if (c.body) this.physics.remove(c.body);
+      c.size = rand(C.size[0], C.size[1]) * (metal ? 1.4 : 1);
+      const a = Math.random() * Math.PI * 2;
+      const sp = rand(C.speed[0], C.speed[1]) * Math.min(1.5, scale);
+      c.p.set(pos.x + Math.cos(a) * 0.3, Math.max(pos.y, 0) + 0.15, pos.z + Math.sin(a) * 0.3);
+      c.q.setFromEuler(this._e.set(rand(0, 6), rand(0, 6), rand(0, 6)));
+      _bv.set(Math.cos(a) * sp, rand(C.up[0], C.up[1]), Math.sin(a) * sp);
+      _bw.set(rand(-15, 15), rand(-15, 15), rand(-15, 15));
+      const h = c.size * 0.8;
+      c.body = this.physics.small(c.p, c.q, _bv, _bw, { kind: 'box', hx: h, hy: h, hz: h }, C);
+      if (!c.body) return;
+      c.active = true;
+      c.max = c.life = rand(C.life[0], C.life[1]);
+      const shade = rand(0.7, 1.15);
+      this.chunkMesh.instanceColor.setXYZ(i, r0 * shade, g0 * shade, b0 * shade);
+    }
+    this.chunkMesh.instanceColor.needsUpdate = true;
   }
 
   // Yüzeye göre çarpma efekti
@@ -623,9 +679,29 @@ export class Effects {
       if (!s.active) continue;
       anyS = true;
       s.life -= dt;
-      if (s.life <= 0) {
+      if (s.life <= 0 || (s.body && !this.physics?.alive(s.body))) {
         s.active = false;
+        if (s.body) this.physics?.remove(s.body);
+        s.body = null;
         sm.setMatrixAt(i, this._m.makeScale(0, 0, 0));
+        continue;
+      }
+      if (s.body) {
+        // Fizikli kovan: konum ve dönüş gövdeden; düşüş hızı birden kesilince (ilk sert çarpma) çınlar
+        if (!s.body.isSleeping()) {
+          const t = s.body.translation();
+          const q = s.body.rotation();
+          const vy = s.body.linvel().y;
+          if (!s.bounced && s.vy < -PHYSICS.shell.bounceSpeed && vy > s.vy * 0.5) {
+            s.bounced = true;
+            this.audio.mech('shellDrop', s.p);
+          }
+          s.vy = vy;
+          s.p.set(t.x, t.y, t.z);
+          s.q.set(q.x, q.y, q.z, q.w);
+        }
+        this._m.compose(s.p, s.q, this._s.set(1, 1, 1));
+        sm.setMatrixAt(i, this._m);
         continue;
       }
       s.v.y -= 11 * dt;
@@ -648,6 +724,33 @@ export class Effects {
     }
     if (anyS || this._hadShells) sm.instanceMatrix.needsUpdate = true;
     this._hadShells = anyS;
+    // Patlama parçaları: gövdeden; ömrünün sonunda küçülüp kaybolur
+    const cm = this.chunkMesh;
+    let anyC = false;
+    for (let i = 0; i < this.chunks.length; i++) {
+      const c = this.chunks[i];
+      if (!c.active) continue;
+      anyC = true;
+      c.life -= dt;
+      if (c.life <= 0 || !this.physics?.alive(c.body)) {
+        c.active = false;
+        if (c.body) this.physics?.remove(c.body);
+        c.body = null;
+        cm.setMatrixAt(i, this._m.makeScale(0, 0, 0));
+        continue;
+      }
+      if (!c.body.isSleeping()) {
+        const t = c.body.translation();
+        const q = c.body.rotation();
+        c.p.set(t.x, t.y, t.z);
+        c.q.set(q.x, q.y, q.z, q.w);
+      }
+      const k = c.size * Math.min(1, c.life / PHYSICS.chunks.fade);
+      this._m.compose(c.p, c.q, this._s.set(k, k, k));
+      cm.setMatrixAt(i, this._m);
+    }
+    if (anyC || this._hadChunks) cm.instanceMatrix.needsUpdate = true;
+    this._hadChunks = anyC;
     // Yayıcılar
     for (let i = this.emitters.length - 1; i >= 0; i--) {
       const e = this.emitters[i];
@@ -676,9 +779,14 @@ export class Effects {
     this.bloodPools.clear();
     this.scorch.clear();
     for (const t of this.tracers) t.active = false;
-    for (const s of this.shells) s.active = false;
+    for (const s of [...this.shells, ...this.chunks]) {
+      s.active = false;
+      if (s.body) this.physics?.remove(s.body);
+      s.body = null;
+    }
     this.hideAllInstances(this.tracerMesh, 64);
     this.hideAllInstances(this.shellMesh, 48);
+    this.hideAllInstances(this.chunkMesh, this.chunks.length);
     for (const L of this.lights) L.light.intensity = 0;
     this.emitters.length = 0;
   }
@@ -686,6 +794,7 @@ export class Effects {
 const NEGZ = new THREE.Vector3(0, 0, -1);
 const _bh = { point: new THREE.Vector3(), normal: new THREE.Vector3(), dist: 0 };
 const _bv = new THREE.Vector3();
+const _bw = new THREE.Vector3();
 const _bq = new THREE.Quaternion();
 
 export { randSign };

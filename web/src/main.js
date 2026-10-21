@@ -20,6 +20,7 @@ import { DevConsole } from './devconsole.js';
 import { preloadSoldier, setSoldierEnvironment, createSoldier } from './soldier.js';
 import { preloadRobot, setRobotEnvironment } from './robot.js';
 import { VehicleSystem } from './vehicle.js';
+import { PhysicsSystem } from './physics.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
 import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT } from './config.js';
@@ -38,6 +39,7 @@ import { CommandSystem, SHORTCUTS } from './commands.js';
 import { CommandWheel } from './commandWheel.js';
 import { PingSystem } from './ping.js';
 import { RadioChat, VoiceCommand } from './radioChat.js';
+import { RadioVoice } from './radioVoice.js';
 import { AiRadio } from './aiRadio.js';
 import { prepareButtonIcons, applyButtonIcons } from './buttonIcons.js';
 import { EV } from './events.js';
@@ -213,6 +215,9 @@ export class Game {
     this.worldPR = 1;
     this.blit = createBlit();
     this.audio = new Audio();
+    // Fizik motoru (Rapier): ragdoll, kovan, düşen eşya, patlama parçaları. Motor açılıştan sonra arka planda yüklenir
+    this.physics = new PhysicsSystem(this);
+    this.physics.enabled = this.settings.physics !== false;
     this.input = new Input(this.canvas, document.getElementById('touch'));
     this.player = new Player(this);
     this.viewmodel = new Viewmodel(this, this.textures);
@@ -232,6 +237,8 @@ export class Game {
     this.ai = new AiRadio(this);
     // Düğme yazıları .lbl'e alınır, simgeler eklenir (Ayarlar → "Düğmelerde simge" yalnız sınıf değiştirir)
     prepareButtonIcons();
+    // Sesli telsiz: her satır konuşanın sesiyle (radioVoice.js); konuşma kipi mikrofonu buna göre açıp kapatır
+    this.radioVoice = new RadioVoice(this);
     this.chat = new RadioChat(this);
     this.voice = new VoiceCommand(this.chat);
     this.voice.refresh(this.settings);
@@ -409,12 +416,15 @@ export class Game {
     setRealNames(S.realNames && !STORE_BUILD);
     if (this.weapons?.current) this.events.emit('weapon', this.weapons.current);
     // Sessiz anahtarı ana sesi sıfırlar; kaydırıcılar korunur (açınca eski düzey geri gelir)
-    this.audio.setVolumes({ master: S.muted ? 0 : S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume });
+    // Telsiz kanalı ana sesi atlar: oyun sesi kapalıyken de telsiz konuşmaları duyulur (kendi anahtarı ve düzeyi)
+    this.audio.setVolumes({ master: S.muted ? 0 : S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume, radio: S.radioVoice === false ? 0 : S.radioVolume ?? 1 });
+    if (S.radioVoice === false) this.radioVoice?.cancel();
     this.updateSoundButtons();
     this.hud.applySettings(S);
     this.voice?.refresh(S);
     applyButtonIcons(S.buttonIcons);
     if (this.effects) this.effects.bloodOn = S.blood;
+    this.physics.setEnabled(S.physics !== false);
     const q = resolveQuality(S.quality, this.isTouch);
     this.renderQuality = q;
     if (this.sun) this.sun.castShadow = q !== 'low' && this.renderer.shadowMap.enabled;
@@ -558,8 +568,11 @@ export class Game {
     scene.add(sun.target);
     this.sun = sun;
 
+    // Eski haritanın fizik dünyası atılır; yeni harita kurulunca (startMode/startOnline) bağlanır
+    this.physics.clear();
     this.world = new World(scene, this.textures);
     this.effects = new Effects(scene, this.textures, this.audio, this.quality);
+    this.effects.physics = this.physics;
     this.effects.bloodOn = this.settings.blood;
     this.effects.setEnvironment(this.envMap);
     this.enemies = new EnemyManager(this);
@@ -599,6 +612,8 @@ export class Game {
   // Menü arka planı: haritanın üzerinde yavaş kamera turu
   async showMenu() {
     this.state = 'menu';
+    this.radioVoice?.cancel();
+    this.voice?.setTalk(false);
     this.mode = 'menu';
     this.input.enabled = false;
     this.input.enableTouch(false);
@@ -726,6 +741,7 @@ export class Game {
       this.cheats.god = false;
       this.buildScene(mode);
       this.mission.build();
+      this.physics.setMap(this.world);
       L.step('Teçhizat hazırlanıyor', 0.6);
       await nextPaint();
       this.startRun(mode);
@@ -767,6 +783,9 @@ export class Game {
     this.wheel.close(false);
     this.audio.minigun(0, false);
     this.chat.closeChat();
+    // Telsiz duraklatma ekranında konuşmasın; konuşma kipi dinlemeyi bırakır (sürdürünce yeniden dinler)
+    this.radioVoice.cancel();
+    this.voice.stop();
     this.input.exitLock();
     this.clickToPlay.hidden = true;
     this.menus.showPause();
@@ -866,6 +885,7 @@ export class Game {
       this.startRun('online');
       this.buildScene('online');
       this.mission.build();
+      this.physics.setMap(this.world);
       this.kit.reset(null);
       this.weapons.reset(this.onlineLoadout());
       this.hud.bakeMinimap();
@@ -936,6 +956,9 @@ export class Game {
     this.effects.explosion(pos, scale);
     this.audio.explosion(pos, scale);
     applyRadialDamage(this, pos, radius, damage, owner);
+    // Fizik: ölenlerin ragdoll'u (yukarıda kuruldu), yerdeki eşya ve kovanlar savrulur; zeminden parçalar saçılır
+    this.physics.blast(pos, radius);
+    this.effects.blastChunks(pos, scale, this.world.groundSurface(pos.x, pos.z));
     this.mission?.onExplosion?.(pos, radius, damage, owner);
     this.makeNoise(pos, 90, 'explosion');
     // Yakındaki patlama görüşü beyazlatır
@@ -1012,6 +1035,8 @@ export class Game {
   }
 
   addDebris(mesh, vel, radius = 0.1) {
+    // Fizik motoru varsa duvara/zemine çarpıp seken gerçek gövde; yoksa basit sekme (aşağıda)
+    if (this.physics.addDebris(mesh, vel)) return;
     this.debris.push({ mesh, vel, radius, spin: new THREE.Vector3(rand(-8, 8), rand(-8, 8), rand(-8, 8)), rest: false });
     if (this.debris.length > 20) {
       const old = this.debris.shift();
@@ -1060,6 +1085,9 @@ export class Game {
     if (!this.net) dt *= this.timeScale * slow;
     const I = this.input;
     try {
+      // Telsiz seslendirmesi her durumda ilerler (duraklatmada yeni satır başlamaz: kuyruk orada boşaltılır)
+      this.radioVoice.update(dt);
+      this.voice.update(dt);
       I.pollGamepad(dt, this.settings.sensitivity);
       if (I.pressed('console') && (this.state === 'playing' || this.state === 'paused')) this.console.toggle();
       switch (this.state) {
@@ -1180,9 +1208,11 @@ export class Game {
       // Bağlamsal işaret (Z): nişangâhın baktığı şeye göre saldır / git / kaldır / temizle; çift basış iptal
       if (I.pressed('ping') && !this.player.down) this.ping.press();
       // Sesli komut: N basılıyken dinler, bırakınca tanınan cümle ayrıştırıcıya gider
-      if (this.settings.voiceCommands && I.pressed('voice')) this.voice.start();
+      if (this.settings.voiceCommands && I.pressed('voice') && !this.voice.talk) this.voice.start();
+      // Eller serbest konuşma kipi (K): aç/kapat
+      if (I.pressed('talk')) this.voice.setTalk(!this.voice.talk);
     }
-    if (I.released('voice')) this.voice.stop();
+    if (I.released('voice') && !this.voice.talk) this.voice.stop();
     this.chat.update(dt);
     this.commands.update();
     this.ping.update(dt);
@@ -1193,6 +1223,7 @@ export class Game {
     this.allies.update(dt);
     this.grenades.update(dt);
     this.mission.update(dt);
+    this.physics.update(dt);
     this.updateDebris(dt);
     if (this.hitboxDebug?.on) this.hitboxDebug.update();
     this.effects.update(dt, this.camera.position);
@@ -1367,6 +1398,8 @@ async function boot() {
   // Gölgelendirici derlemesinden sonra: derleme ana iş parçacığını uzun süre tutar, sunucu yoklaması süresini
   // doldurup "ulaşılamıyor" sayılır ve yeniden deneme aralığı büyür (yavaş telefonda bağlanma gecikirdi)
   game.social.start();
+  // Fizik motoru (~4 MB WebAssembly) açılışı bekletmeden yüklenir; gelene dek ölüm ve sekme eski yoldan
+  game.physics.init();
   if (invited && game.save.data.profile.name) game.online.open();
   pwa?.register();
   // Mağaza uygulaması: Android geri tuşu (duraklat / geri dön / çift basışla çık)

@@ -1107,6 +1107,10 @@ body.touch .pcKey { display: none; }
 #btnCommsToggle, .commsAction { min-height: 44px; padding: 8px 12px; border: 1px solid #7fd38a; border-radius: 6px; background: rgba(13,16,19,.94); color: #b8e8c0; font: 700 12px/1 var(--f-ui); letter-spacing: .06em; cursor: pointer; touch-action: manipulation; }
 #btnCommsToggle { display: flex; align-items: center; gap: 8px; }
 #btnCommsToggle[aria-expanded="true"] { background: #243c2d; }
+/* Konuşma kipi açıkken İLETİŞİM düğmesinde yeşil nokta; dinlerken yanıp söner (yalnız opaklık) */
+body.talkMode #btnCommsToggle::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #7fd38a; }
+body.talkListening #btnCommsToggle::before { animation: talkBlink 1s ease-in-out infinite; }
+@keyframes talkBlink { 50% { opacity: .25; } }
 #btnCommsToggle:focus-visible, .commsAction:focus-visible { outline: 2px solid #5ee7ff; outline-offset: 2px; }
 #mobileCommsPanel { position: absolute; right: 0; top: calc(100% + 8px); display: flex; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(13,16,19,.96); }
 #mobileCommsPanel[hidden] { display: none; }
@@ -1265,6 +1269,7 @@ body.touch #squad { display: none; }
     <div id="mobileCommsPanel" role="group" aria-label="Mikrofon ve telsiz" hidden>
       <button id="tbVoice" class="commsAction" type="button" aria-pressed="false" data-icon="mic">MİKROFON<small>Basılı tut</small></button>
       <button id="btnMobileRadio" class="commsAction" type="button" data-icon="radio">TELSİZ<small>Yazılı komut<span class="pcKey"> · Enter</span></small></button>
+      <button id="btnTalkMode" class="commsAction" type="button" aria-pressed="false" data-icon="talk" title="Eller serbest konuşma: konuş, tim sesli cevap verir · PC: K">KONUŞ<small>Kapalı<span class="pcKey"> · K</span></small></button>
     </div>
     <div id="commsPeek" class="rlPeek" aria-live="polite" hidden></div>
   </div>
@@ -1428,7 +1433,8 @@ body.touch #squad { display: none; }
           <div class="set"><label for="sMaster">Ana ses</label><input type="range" id="sMaster" min="0" max="1" step="0.05"><output id="oMaster"></output></div>
           <div class="set"><label for="sSfx">Efektler</label><input type="range" id="sSfx" min="0" max="1" step="0.05"><output id="oSfx"></output></div>
           <div class="set"><label for="sAmb">Ortam ve müzik</label><input type="range" id="sAmb" min="0" max="1" step="0.05"><output id="oAmb"></output></div>
-          <div class="set"><label for="sTts">Telsizi seslendir<small>Askerlerin replikleri Türkçe sesle okunur; altyazı hep açık</small></label><input type="checkbox" class="toggle" id="sTts"></div>
+          <div class="set"><label for="sRadioVoice">Telsiz konuşmaları sesli<small>Tim, karargâh ve yapay zekâ cevapları Türkçe sesle, telsiz cızırtısıyla; oyun sesi kapalıyken de duyulur</small></label><input type="checkbox" class="toggle" id="sRadioVoice"></div>
+          <div class="set"><label for="sRadioVol">Telsiz ses düzeyi</label><input type="range" id="sRadioVol" min="0" max="1" step="0.05"><output id="oRadioVol"></output></div>
         </div>
         <div>
           <h3>Görüntü</h3>
@@ -1441,6 +1447,7 @@ body.touch #squad { display: none; }
           <div class="set"><label for="sBob">Yürürken kafa sallantısı</label><input type="checkbox" class="toggle" id="sBob"></div>
           <div class="set"><label for="sCh">Nişangah rengi</label><select id="sCh"><option value="#ffffff">Beyaz</option><option value="#7dff6a">Yeşil</option><option value="#ffe14d">Sarı</option><option value="#5ee7ff">Camgöbeği</option><option value="#ff5ee1">Pembe</option></select></div>
           <div class="set"><label for="sBlood">Kan efektleri</label><input type="checkbox" class="toggle" id="sBlood"></div>
+          <div class="set"><label for="sPhysics">Fizik efektleri<small>Ölen asker gerçekçi yığılır (ragdoll), kovan ve düşen silah seker, patlamada parçalar saçılır</small></label><input type="checkbox" class="toggle" id="sPhysics"></div>
           <div class="set"><label for="sDmgNum">Hasar sayıları</label><input type="checkbox" class="toggle" id="sDmgNum"></div>
           <div class="set"><label for="sRealNames">Gerçek silah adları<small>Kapalıyken kurgusal adlar</small></label><input type="checkbox" class="toggle" id="sRealNames"></div>
           <div class="set"><label for="sReroll">Tekrarda farklı bonus görevler<small>Bitirilmiş bölümde havuzdan rastgele üç görev</small></label><input type="checkbox" class="toggle" id="sReroll"></div>

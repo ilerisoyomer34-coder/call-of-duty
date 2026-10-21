@@ -998,7 +998,7 @@ export class Mission {
     const ri = this.radioQueue.length ? this.radioQueue.findIndex((q) => q.at <= this.time && (this.radioT <= 0 || q.urgent)) : -1;
     if (ri >= 0) {
       const r = this.radioQueue.splice(ri, 1)[0];
-      g.events.emit('radio', `${r.who}: ${r.text}`, r.kind || r.who);
+      g.events.emit('radio', `${r.who}: ${r.text}`, r.kind || r.who, r.urgent);
       g.audio.radio();
       // İki satır arası en az 2,5 sn; komutanın sözünden sonra onay hemen gelsin
       this.radioT = r.kind === 'player' ? VOICE.afterCommandSec : VOICE.minGapSec;

@@ -3,7 +3,7 @@
 // Algı: görme (açı, mesafe, görüş hattı, duruş), duyma (silah/adım), hasar.
 // Adil isabet: mesafe, oyuncu hızı, ilk atış ıskası, zorluk; saldırı jetonu sistemiyle aynı anda sınırlı sayıda düşman ateş eder.
 import * as THREE from 'three';
-import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG, BLOOD, ROBOT, TANK } from './config.js';
+import { ENEMY_TYPES, ENEMY_WEAPONS, AI, SCORE, SOLDIER_ANIM, ALLY, HMG, BLOOD, ROBOT, TANK, WEAPONS } from './config.js';
 import { applyRadialDamage } from './grenades.js';
 import { createSoldier } from './soldier.js';
 import { createRobot } from './robot.js';
@@ -66,6 +66,8 @@ export class Enemy {
 
   reset() {
     const s = this.spec;
+    // Poligon mankeni yeniden doğar: ragdoll'u bırakılır (kalça kemiği yerine döner, pozu canlandırma yazar)
+    this.game.physics?.release(this.model);
     this.pos.copy(s.pos);
     this.vel.set(0, 0, 0);
     this.yaw = s.yaw || 0;
@@ -257,9 +259,22 @@ export class Enemy {
     const d = info.dir || back;
     this.anim.fallDir = d.dot(back) >= 0 ? 1 : -1;
     this.anim.fallSide = rand(-0.35, 0.35);
+    const moving = _v2.copy(this.vel);
     this.vel.set((info.dir?.x || 0) * 1.5, 0, (info.dir?.z || 0) * 1.5);
     // Görünüm: iskeletli askerde silah elden düşer, kutu askerde kafa vuruşunda kask fırlar
     this.model.die({ ...info, dir: d }, g);
+    // Fizik motoru hazırsa iskeletli asker ragdoll'la yığılır: koşarken ölen ileri savrulur, mermi vurduğu parçayı iter.
+    // Mevzi nişancısı koltuğunda çöker (silah modelinin çarpıştırıcısı yok), robot kendi ölümüyle patlar
+    if (!this.robot && !this.mount && g.physics?.ready) {
+      const w = WEAPONS[info.weapon];
+      g.physics.ragdoll(this.model, {
+        vel: moving,
+        dir: info.dir,
+        zone: info.zone,
+        damage: w ? w.damage * (w.pellets || 1) : undefined,
+        melee: info.weapon === 'melee' || info.weapon === 'knife',
+      });
+    }
     if (!this.dummy) g.onEnemyKilled(this, info);
     else {
       this.respawnT = 3;
@@ -1224,7 +1239,7 @@ export class Enemy {
   throwGrenade(target) {
     if (this.throwAnim) return;
     this.throwAnim = { t: 0, target: target.clone(), released: false };
-    this.game.events.emit('radio', `${this.T.name}: El bombası!`, 'enemy');
+    this.game.events.emit('radio', `${this.T.name}: El bombası!`, 'enemy', true);
   }
 
   updateThrow(dt) {

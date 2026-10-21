@@ -13,6 +13,7 @@
     "server": "node --disable-warning=ExperimentalWarning server/index.js"
   },
   "devDependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
     "@gltf-transform/core": "4.5.0",
     "@gltf-transform/functions": "4.5.0",
     "esbuild": "0.28.2",

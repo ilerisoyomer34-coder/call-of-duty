@@ -197,6 +197,8 @@ class RobotModel {
   die(info, game) {
     const p = this.j.torso.getWorldPosition(new THREE.Vector3());
     game.explode(p, R.deathBlast.radius, R.deathBlast.damage, 'robot', R.deathBlast.fx);
+    // Fizik motoru varsa gövdeden metal parçalar kopar, sekip yuvarlanır (patlamanın toprak parçalarına ek)
+    game.effects.blastChunks(p, R.deathBlast.fx, 'metal', true);
     for (let i = 0; i < 40; i++) {
       const c = game.effects._c.setRGB(1, rand(0.6, 0.9), 0.4);
       game.effects.add.spawn(p.x, p.y, p.z, rand(-7, 7), rand(2, 10), rand(-7, 7), rand(0.5, 1.4), 0.07, 0.02, c, 1, 12, 0.4);

@@ -1,6 +1,7 @@
 // Web Audio ile sentezlenen tüm sesler: silahlar, adımlar, çarpmalar, patlamalar, arayüz, ortam.
 // Harici ses dosyası yok. Ses sınıfı hiyerarşisi: master > sfx / ambient / ui.
 import { clamp, rand } from './util.js';
+import { RADIO_VOICE } from './config.js';
 
 export class Audio {
   constructor() {
@@ -8,7 +9,8 @@ export class Audio {
     this.voices = 0;
     this.maxVoices = 28;
     this.listener = { x: 0, y: 0, z: 0, yaw: 0 };
-    this.volumes = { master: 0.8, sfx: 1, ambient: 0.6, ui: 0.8 };
+    this.volumes = { master: 0.8, sfx: 1, ambient: 0.6, ui: 0.8, radio: 1 };
+    this.hissSrc = null;
   }
 
   init() {
@@ -40,6 +42,9 @@ export class Audio {
     this.amb.connect(this.muffle);
     this.ui = ctx.createGain();
     this.ui.connect(this.master);
+    // Sesli telsizin cızırtısı ana sesi atlar (oyun sesi kapalıyken de telsiz duyulur; radioVoice.js)
+    this.radioBus = ctx.createGain();
+    this.radioBus.connect(this.comp);
     // Kısa "yankı": dış mekân slapback'i için geri beslemeli gecikme
     this.verbIn = ctx.createGain();
     this.verbIn.gain.value = 0.35;
@@ -74,6 +79,7 @@ export class Audio {
     this.sfx.gain.value = this.volumes.sfx;
     this.amb.gain.value = this.volumes.ambient;
     this.ui.gain.value = this.volumes.ui;
+    this.radioBus.gain.value = this.volumes.radio;
   }
 
   get now() {
@@ -480,6 +486,53 @@ export class Audio {
     this.tone(dest, t, 0.05, { type: 'square', freq: 1200, gain: 0.2 });
     this.tone(dest, t + 0.07, 0.05, { type: 'square', freq: 1600, gain: 0.2 });
     this.noiseBurst(dest, t + 0.12, 0.35, { type: 'bandpass', freq: 2200, q: 0.8, gain: 0.12, attack: 0.02 });
+  }
+
+  // Bas-konuş: açılışta kısa çift bip + cızırtı, bırakışta kuyruk cızırtısı (sesli telsiz satırının başı/sonu)
+  radioKey(open) {
+    if (!this.ctx) return;
+    const t = this.now;
+    const dest = this.out(0, this.radioBus);
+    dest.gain.value = 0.5;
+    if (open) {
+      this.noiseBurst(dest, t, 0.07, { type: 'bandpass', freq: 2400, q: 0.9, gain: 0.16 });
+      this.tone(dest, t + 0.02, 0.045, { type: 'square', freq: 1350, gain: 0.08 });
+    } else {
+      this.tone(dest, t, 0.05, { type: 'square', freq: 1050, gain: 0.07 });
+      this.noiseBurst(dest, t + 0.05, 0.2, { type: 'bandpass', freq: 2000, q: 0.7, gain: 0.14, attack: 0.005 });
+    }
+  }
+
+  // Konuşma boyunca hafif telsiz paraziti (döngülü gürültü, bant geçiren); on false kısa sönüşle durur
+  radioHiss(on) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const H = RADIO_VOICE.hiss;
+    if (on) {
+      if (this.hissSrc) return;
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = H.freq;
+      f.Q.value = H.q;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, this.now);
+      g.gain.linearRampToValueAtTime(H.gain, this.now + 0.08);
+      src.connect(f);
+      f.connect(g);
+      g.connect(this.radioBus);
+      src.start();
+      this.hissSrc = { src, g };
+    } else if (this.hissSrc) {
+      const { src, g } = this.hissSrc;
+      this.hissSrc = null;
+      g.gain.cancelScheduledValues(this.now);
+      g.gain.setValueAtTime(g.gain.value, this.now);
+      g.gain.linearRampToValueAtTime(0, this.now + 0.12);
+      src.stop(this.now + 0.15);
+    }
   }
 
   uiClick() {

@@ -30,6 +30,8 @@ export const BUTTON_ICONS = {
   comms: S(`<path d="M4.5 14v-2a7.5 7.5 0 0 1 15 0v2" ${LINE}/><rect x="3" y="13" width="4" height="7" rx="1.5" fill="currentColor"/><rect x="17" y="13" width="4" height="7" rx="1.5" fill="currentColor"/><path d="M19 20.5c0 1-2 1.6-5 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`),
   // Mikrofon
   mic: S(`<rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v4M8.5 21.5h7" ${LINE}/>`),
+  // Konuşma balonu + ses dalgası: eller serbest konuşma kipi
+  talk: S(`<path d="M4 5.5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9.5L5.5 19v-3.5H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z" ${LINE}/><path d="M19.5 8.5a4.5 4.5 0 0 1 0 6M21.8 6.5a7.5 7.5 0 0 1 0 10" ${LINE}/><path d="M6.5 10.5h6M6.5 13h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`),
   // El telsizi: yazılı komut paneli
   radio: S(`<rect x="6.5" y="7" width="11" height="14.5" rx="2" ${LINE}/><path d="M14.5 7V2.5" ${LINE}/><rect x="9" y="9.8" width="6" height="4" rx="1" fill="currentColor"/><path d="M9.2 17h5.6M9.2 19.2h5.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`),
 };

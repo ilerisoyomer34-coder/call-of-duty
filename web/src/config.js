@@ -1395,6 +1395,72 @@ export const BLOOD = {
   envIntensity: 0.8,
 };
 
+// Sesli telsiz (src/radioVoice.js): tarayıcının Türkçe sesleri (speechSynthesis). Her konuşmacı ayrı ses yuvası
+// (birden çok Türkçe ses varsa farklı ses, yoksa farklı perde/hız). Askerlerin perde/hızı data/squad.json → voice
+export const RADIO_VOICE = {
+  maxQueue: 3, // bekleyen en çok satır: fazlası en eskiden atılır (telsiz dakikalarca geriden gelmesin)
+  gapSec: 0.18, // iki satır arası
+  maxChars: 280,
+  watchdog: { base: 4, perChar: 0.09 }, // bitiş olayı gelmezse (bazı tarayıcılar) satır bu süreden sonra bitmiş sayılır
+  // Ses kalitesi sırası: adında bunlardan biri geçen ses önce seçilir (Edge "Online (Natural)", Chrome "Google")
+  prefer: ['natural', 'neural', 'online', 'premium', 'enhanced', 'google', 'siri'],
+  // Askerler dışındaki konuşmacılar: slot = ses yuvası (askerler 0–2)
+  speakers: {
+    YUVA: { pitch: 0.82, rate: 0.98, slot: 3 },
+    KARARGÂH: { pitch: 0.82, rate: 0.98, slot: 3 },
+    PİLOT: { pitch: 1.0, rate: 1.12, slot: 4 },
+    enemy: { pitch: 0.72, rate: 1.15, slot: 5 },
+    system: { pitch: 1.0, rate: 1.05, slot: 3 },
+  },
+  hiss: { gain: 0.022, freq: 1900, q: 0.7 }, // konuşma boyunca telsiz paraziti
+  // Eller serbest konuşma kipi (K / KONUŞ): cevap bitince mikrofon yeniden dinler
+  talk: { restartSec: 0.35, maxSilent: 6 }, // maxSilent: art arda bu kadar sessiz dinlemeden sonra kip kapanır
+};
+
+// Fizik motoru (Rapier, src/physics.js): yalnız görsel fizik (ragdoll, kovan, düşen silah/kask, patlama parçası).
+// Oyuncu hareketi ve çevrim içi simülasyon shared/'daki belirlenimci kodda kalır.
+export const PHYSICS = {
+  gravity: -13, // m/s² — gerçekten biraz güçlü: ceset ve parçalar "süzülmesin"
+  step: 1 / 60, // sabit adım (s)
+  maxSubsteps: 4, // yavaş karede en çok bu kadar adım (fazlası atılır: oyun ağır çekime girer, donmaz)
+  ground: { halfSize: 600, depth: 1 }, // y = 0 zemini (çarpışma dünyasındaki düzlemin karşılığı)
+  limits: { ragdolls: 6, ragdollsTouch: 3, debris: 20, chunks: 40, chunksTouch: 20 },
+  ragdoll: {
+    density: 985, // kg/m³ (insan bedeni ~ su): toplam ~75 kg
+    friction: 0.9,
+    restitution: 0.02,
+    linearDamping: 0.25,
+    angularDamping: 2.2, // serbest omuzlar savrulmasın
+    maxSec: 7, // bundan sonra (ya da uyuyunca) gövdeler kaldırılır, poz donar (maliyet sıfır)
+    settleSpeed: 0.08, // m/s: bütün parçalar bundan yavaşsa uyumuş sayılır
+    // Mermi itmesi: hız değişimi (m/s) = speed × (hasar / ref), en çok max; vurulan parçaya, biraz yukarı
+    bullet: { speed: 2.6, ref: 35, max: 6.5, lift: 0.25 },
+    // Parçalar: kemik → gövde. seg: kapsülün uzandığı alt kemik (yoksa ext m uzatma), r: yarıçap (m).
+    // joint: ebeveyne bağlantı — 'hinge' (sınırlı menteşe; ölüm pozundan ±rad, ekseni gövdenin sağı ya da iki
+    // kemiğin düzlemi), 'ball' (serbest küresel). Kemikler bu sırayla yazılır (ebeveyn önce)
+    parts: [
+      { id: 'pelvis', bone: 'Hips', seg: 'Spine1', r: 0.13 },
+      { id: 'chest', bone: 'Spine1', seg: 'Neck', r: 0.15, parent: 'pelvis', joint: 'hinge', axis: 'left', limits: [-0.35, 0.85] },
+      { id: 'head', bone: 'Head', ball: 0.11, ahead: 0.09, parent: 'chest', joint: 'hinge', axis: 'left', limits: [-0.55, 0.75] },
+      { id: 'armL', bone: 'LeftArm', seg: 'LeftForeArm', r: 0.052, parent: 'chest', joint: 'ball' },
+      { id: 'foreL', bone: 'LeftForeArm', seg: 'LeftHand', ext: 0.08, r: 0.045, parent: 'armL', joint: 'hinge', axis: 'bend', fallback: 'right', flex: 2.4 },
+      { id: 'armR', bone: 'RightArm', seg: 'RightForeArm', r: 0.052, parent: 'chest', joint: 'ball' },
+      { id: 'foreR', bone: 'RightForeArm', seg: 'RightHand', ext: 0.08, r: 0.045, parent: 'armR', joint: 'hinge', axis: 'bend', fallback: 'right', flex: 2.4 },
+      { id: 'thighL', bone: 'LeftUpLeg', seg: 'LeftLeg', r: 0.08, parent: 'pelvis', joint: 'hinge', axis: 'right', limits: [-0.45, 1.35] },
+      { id: 'shinL', bone: 'LeftLeg', seg: 'LeftFoot', r: 0.06, foot: 'LeftToeBase', parent: 'thighL', joint: 'hinge', axis: 'bend', fallback: 'left', flex: 2.3 },
+      { id: 'thighR', bone: 'RightUpLeg', seg: 'RightLeg', r: 0.08, parent: 'pelvis', joint: 'hinge', axis: 'right', limits: [-0.45, 1.35] },
+      { id: 'shinR', bone: 'RightLeg', seg: 'RightFoot', r: 0.06, foot: 'RightToeBase', parent: 'thighR', joint: 'hinge', axis: 'bend', fallback: 'left', flex: 2.3 },
+    ],
+    zoneParts: { head: 'head', torso: 'chest', limb: ['armL', 'armR', 'thighL', 'thighR'], leg: ['thighL', 'thighR'] },
+  },
+  debris: { density: 600, friction: 0.7, restitution: 0.25, angularDamping: 0.4, minHalf: 0.012, minSec: 1.5, settleSec: 6 }, // minSec: bu yaştan önce uyusa da gövde kalır (patlama itebilsin)
+  shell: { density: 8500, friction: 0.6, restitution: 0.35, radius: 0.0055, halfLength: 0.012, bounceSpeed: 1 },
+  // Patlama parçaları (taş/toprak, robotta metal): sayı patlama ölçeğiyle, ömür sonunda küçülüp kaybolur
+  chunks: { perBlast: 8, size: [0.03, 0.085], speed: [5, 11], up: [3, 7], life: [5, 8], fade: 0.6, density: 2200, friction: 0.8, restitution: 0.2 },
+  // Patlamada gövdelere hız (m/s): merkezde speed, yarıçapın sonunda 0; yukarı payı up
+  blast: { speed: 7, up: 0.4, reach: 1.5 },
+};
+
 // İskeletli asker (hazır model + prosedürel katmanlar). Değerler Soldier.glb klipleri ölçülerek bulundu:
 // yürüyüşte yerdeki ayak 1,65 m/s, koşuda 4,2 m/s geri kayıyor → bir tam adım döngüsü 1,70 / 2,94 m.
 export const SOLDIER_ANIM = {

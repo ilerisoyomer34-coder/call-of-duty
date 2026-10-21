@@ -25,7 +25,9 @@ export const DEFAULT_SETTINGS = {
   realNames: true, // silahların gerçek adı; kapalıyken kurgusal ad (data/weapons.json → altName)
   wheelSlowMo: 0.3, // komut çarkı açıkken oyun saatinin çarpanı (1 = yavaşlatma yok)
   chatSlowMo: 0.3, // telsiz satırına yazarken oyun saatinin çarpanı
-  tts: false, // askerlerin telsiz repliklerini seslendir (speechSynthesis, tr-TR)
+  radioVoice: true, // telsiz satırları sesli (radioVoice.js; speechSynthesis tr-TR); oyun sesi kapalıyken de
+  radioVolume: 1, // telsiz seslendirmesi ve cızırtısının düzeyi
+  physics: true, // fizik motoru (ragdoll, kovan, düşen eşya, patlama parçaları; physics.js)
   voiceCommands: true, // N basılı sesli komut (tarayıcı desteklemiyorsa arayüzde görünmez)
   buttonIcons: false, // dokunmatik ve iletişim düğmelerinde yazı yerine simge (buttonIcons.js)
   rerollBonuses: false, // bitirilmiş bölüm tekrar oynanınca bonus görevler havuzdan rastgele seçilir

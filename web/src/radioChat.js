@@ -6,13 +6,14 @@
 //  - soru, uzun ya da tanınmayan cümle: yapay zekâlı telsiz (aiRadio.js) cevap verir, istenenleri tim komutlarına
 //    çevirir; yapay zekâ yoksa ya da cevap gelmezse yerel cevap (radioIntel.js) ve yerel ayrıştırıcı.
 // Hiçbiri olmazsa asker üç öneri sunar ve satır açık kalır. Spam kuralları kuyruktadır (mission.radio, ally.say).
-// İsteğe bağlı seslendirme speechSynthesis (tr-TR, askere göre perde/hız); isteğe bağlı sesli komut
-// SpeechRecognition (N basılı) — tarayıcı desteklemiyorsa arayüzde görünmez.
+// Her satır konuşanın sesiyle okunur (radioVoice.js: tim, karargâh, pilot, düşman telsizi; komutanın sözü hariç).
+// Sesli komut SpeechRecognition (N basılı) ve eller serbest konuşma kipi (K / KONUŞ: cevap bitince mikrofon yeniden
+// dinler) — tarayıcı desteklemiyorsa arayüzde görünmez.
 import SQUAD from './data/squad.json' with { type: 'json' };
 import CMD from './data/commands.tr.json' with { type: 'json' };
 import { parseCommand } from './commandParser.js';
 import { playerLabel } from './nameScreen.js';
-import { AI_RADIO } from './config.js';
+import { AI_RADIO, RADIO_VOICE } from './config.js';
 import { AI_TEXT, HQ } from '../shared/ai/radio.js';
 import { routeRadio, answerLocally, isQuestion } from './radioIntel.js';
 import { buildRadioContext } from './radioContext.js';
@@ -47,7 +48,7 @@ export class RadioChat {
     this.peekT = 0;
     this.aiLine = null; // yapay zekâ cevabı: telsizde görününce önizlenir, sesli soruya sesli cevap
     this.build();
-    game.events.on('radio', (text, kind) => this.onRadio(text, kind));
+    game.events.on('radio', (text, kind, urgent) => this.onRadio(text, kind, urgent));
   }
 
   build() {
@@ -154,8 +155,8 @@ export class RadioChat {
     });
   }
 
-  // Kuyruktan gösterilen satır: "Kim: metin"
-  onRadio(text, kind) {
+  // Kuyruktan gösterilen satır: "Kim: metin". urgent: acil (el bombası uyarısı) seslendirmede okunanı keser
+  onRadio(text, kind, urgent = false) {
     const i = text.indexOf(': ');
     const who = i > 0 ? text.slice(0, i) : 'TELSİZ';
     const body = i > 0 ? text.slice(i + 2) : text;
@@ -168,8 +169,8 @@ export class RadioChat {
       if (!this.open) this.peek(who, body, ally?.member.color);
     }
     if (ally) ally.talkUntil = performance.now() + TALK_MS;
-    // Sesli soruya cevap seslendirme ayarı kapalı olsa da sesli (oyun sesi açıksa)
-    if (ally || ai) this.tts(body, ally?.member.voice, ai?.voice);
+    // Seslendirme: her satır konuşanın sesiyle (komutanın sözü hariç); sesli soruya cevap ayar kapalıyken de sesli
+    this.game.radioVoice?.say(ally ? ally.radioLabel : who, body, { kind: k === 'warn' ? 'enemy' : k, urgent, force: !!ai?.voice });
   }
 
   // Kapalı panelin altında son yapay zekâ cevabı (AI_RADIO.peekSec sn)
@@ -230,24 +231,6 @@ export class RadioChat {
   // Kapalı panelde mesajlar birikmeye devam eder, ekranı açmaz.
   layout(scrollToEnd = false) {
     if (this.open && scrollToEnd) this.list.scrollTop = this.list.scrollHeight;
-  }
-
-  // Seslendirme (ayar açıksa): askere göre perde ve hız
-  tts(text, voice, force = false) {
-    // Oyun sesi kapalıyken seslendirme de susar
-    if (!(this.game.settings.tts || force) || this.game.settings.muted || !speechSupported()) return;
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'tr-TR';
-      u.pitch = voice?.pitch ?? 1;
-      u.rate = voice?.rate ?? 1;
-      u.volume = Math.min(1, this.game.settings.masterVolume ?? 1);
-      const v = speechSynthesis.getVoices().find((x) => /^tr/i.test(x.lang));
-      if (v) u.voice = v;
-      speechSynthesis.speak(u);
-    } catch {
-      /* seslendirme yok: altyazı yeter */
-    }
   }
 
   openChat() {
@@ -343,10 +326,15 @@ export class RadioChat {
     const wait = this.add('TELSİZ', AI_TEXT.ui.thinking, 'system', null, true);
     let res = null;
     let err = null;
+    // Cevap beklenirken konuşma kipi dinlemez (soru yeniden algılanıp ikinci kez sorulmasın)
+    this.pendingAi = true;
     try {
-      res = await g.ai.ask(t, buildRadioContext(g));
+      // channel: sesli soruya cevap okunacak (talimat: konuşma dilinde, kısa, sembolsüz)
+      res = await g.ai.ask(t, { ...buildRadioContext(g), channel: inputMethod === 'voice' ? 'sesli' : 'yazılı' });
     } catch (e) {
       err = e;
+    } finally {
+      this.pendingAi = false;
     }
     this.removeLine(wait);
     if (g.mission !== mission || g.mode !== 'mission' || err?.code === 'cancelled') return;
@@ -431,8 +419,10 @@ export class RadioChat {
     for (const l of this.lines) l.el.remove();
     this.lines = [];
     this.unread = 0;
-    // Yeni görev: yapay zekânın sohbet belleği ve bekleyen sorusu da sıfırlanır
+    // Yeni görev: yapay zekânın sohbet belleği ve bekleyen sorusu da sıfırlanır; konuşma kipi ve okunan satır biter
     this.game.ai?.reset();
+    this.game.voice?.setTalk(false);
+    this.game.radioVoice?.cancel();
     this.aiLine = null;
     this.peekT = 0;
     this.peekEl.hidden = true;
@@ -441,13 +431,22 @@ export class RadioChat {
   }
 }
 
-// Sesli komut (N basılı): tanınan metin yazılı komutla aynı ayrıştırıcıdan geçer
+// Sesli komut (N basılı / MİKROFON): tanınan metin yazılı komutla aynı ayrıştırıcıdan geçer.
+// Eller serbest konuşma kipi (K / KONUŞ): mikrofon cümle cümle dinler; cümle telsize gider (yerel komut ya da yapay
+// zekâ), cevap sesli okunduktan sonra yeniden dinler. Asker konuşurken ve cevap beklenirken mikrofon kapalıdır
+// (kendi sesini duyup kendine cevap vermesin). Art arda maxSilent sessiz dinlemeden sonra kip kendiliğinden kapanır
 export class VoiceCommand {
   constructor(chat) {
     this.chat = chat;
     this.rec = null;
     this.active = false;
+    this.talk = false; // konuşma kipi açık mı
+    this.heard = false; // bu dinlemede cümle geldi mi
+    this.silent = 0; // art arda sessiz dinleme sayısı
+    this.restartT = -1; // yeniden dinlemeye kalan süre (s)
+    this.aborted = false; // asker konuşmaya başladığı için kesildi: sessiz sayılmaz
     this.button = $('tbVoice');
+    this.talkButton = $('btnTalkMode');
     const Ctor = recognitionCtor();
     this.supported = !!Ctor;
     if (!Ctor) return;
@@ -459,25 +458,57 @@ export class VoiceCommand {
       this.rec.onresult = (e) => {
         const text = e.results?.[0]?.[0]?.transcript;
         const g = chat.game;
-        if (text && g.state === 'playing' && g.mode === 'mission' && g.player.alive) chat.submit(text, 'voice');
+        if (text && g.state === 'playing' && g.mode === 'mission' && g.player.alive) {
+          this.heard = true;
+          this.silent = 0;
+          chat.submit(text, 'voice');
+        }
       };
-      this.rec.onend = () => this.setActive(false);
+      this.rec.onend = () => {
+        this.setActive(false);
+        if (!this.talk) return;
+        if (!this.heard && !this.aborted) this.silent++;
+        this.heard = false;
+        this.aborted = false;
+        if (this.silent >= RADIO_VOICE.talk.maxSilent) {
+          this.setTalk(false);
+          chat.add('TELSİZ', 'Konuşma kipi kapandı (uzun süre ses gelmedi). K ya da KONUŞ ile yeniden aç.', 'system');
+          return;
+        }
+        this.restartT = RADIO_VOICE.talk.restartSec;
+      };
       // MİKROFON düğmesi: izin istemi dokunuşun içinde başlasın
       this.button?.addEventListener('pointerdown', (e) => {
         const g = chat.game;
-        if (g.mode !== 'mission' || g.state !== 'playing' || !g.player.alive || e.button !== 0) return;
+        if (g.mode !== 'mission' || g.state !== 'playing' || !g.player.alive || e.button !== 0 || this.talk) return;
         e.preventDefault();
         e.stopPropagation();
         this.button.setPointerCapture(e.pointerId);
         this.start();
       });
-      for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) this.button?.addEventListener(event, () => this.stop());
-      window.addEventListener('blur', () => this.stop());
+      for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) this.button?.addEventListener(event, () => !this.talk && this.stop());
+      this.talkButton?.addEventListener('click', () => this.setTalk(!this.talk));
+      window.addEventListener('blur', () => !this.talk && this.stop());
       this.rec.onerror = (e) => {
         this.setActive(false);
-        // Mikrofon izni verilmediyse ya da hizmet yoksa bir kez söylenir
-        if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') chat.add('TELSİZ', 'Mikrofon izni yok: sesli komut kapalı.', 'warn');
+        // Mikrofon izni verilmediyse ya da hizmet yoksa bir kez söylenir; konuşma kipi de kapanır
+        if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+          chat.add('TELSİZ', 'Mikrofon izni yok: sesli komut kapalı.', 'warn');
+          this.setTalk(false);
+        }
       };
+      // Asker konuşmaya başlayınca dinleme kesilir (kendi sesini duymasın); bitince update yeniden açar
+      chat.game.radioVoice?.onChange((rv) => {
+        if (this.talk && rv.speaking && this.active) {
+          this.aborted = true;
+          try {
+            this.rec.abort();
+          } catch {
+            /* zaten durdu */
+          }
+        }
+        this.refreshTalk();
+      });
     } catch {
       this.supported = false;
     }
@@ -491,24 +522,81 @@ export class VoiceCommand {
     if (this.button) {
       this.button.disabled = !enabled;
       this.button.title = `Mikrofon · ${this.hint}`;
-      this.button.querySelector('small').textContent = this.active ? 'Dinleniyor…' : this.hint;
+      this.button.querySelector('small').textContent = this.active && !this.talk ? 'Dinleniyor…' : this.hint;
     }
-    if (!enabled) this.stop();
+    if (this.talkButton) this.talkButton.disabled = !enabled;
+    if (!enabled) {
+      this.setTalk(false);
+      this.stop();
+    }
+    this.refreshTalk();
   }
 
   setActive(active) {
     this.active = active;
-    this.button?.classList.toggle('on', active);
-    this.button?.setAttribute('aria-pressed', String(active));
-    if (this.button) this.button.querySelector('small').textContent = active ? 'Dinleniyor…' : this.hint || 'Basılı tut';
+    this.button?.classList.toggle('on', active && !this.talk);
+    this.button?.setAttribute('aria-pressed', String(active && !this.talk));
+    if (this.button) this.button.querySelector('small').textContent = active && !this.talk ? 'Dinleniyor…' : this.hint || 'Basılı tut';
+    this.refreshTalk();
   }
 
-  start() {
+  // Konuşma kipini aç/kapat (K, KONUŞ). Açılışta hemen dinler (izin istemi tıklamanın içinde)
+  setTalk(on) {
+    const g = this.chat.game;
+    on = !!on && this.supported && !!g.settings.voiceCommands;
+    if (on === this.talk) return;
+    this.talk = on;
+    this.silent = 0;
+    this.heard = false;
+    this.restartT = -1;
+    if (on) {
+      this.chat.add('TELSİZ', '🎙 Konuşma kipi açık: konuş, tim cevap verir. Kapatmak için K ya da KONUŞ.', 'system', null, true);
+      if (this.canListen()) this.start();
+      else this.restartT = RADIO_VOICE.talk.restartSec;
+    } else this.stop();
+    this.refreshTalk();
+  }
+
+  // Konuşma kipinde dinlenebilir mi: görevde, sağ, asker konuşmuyor, yapay zekâ cevabı beklenmiyor
+  canListen() {
+    const g = this.chat.game;
+    return g.mode === 'mission' && g.state === 'playing' && g.player.alive && !g.player.down && !g.radioVoice?.busy && !this.chat.pendingAi;
+  }
+
+  update(dt) {
+    if (!this.talk || this.active) return;
+    if (this.restartT > 0) this.restartT -= dt;
+    if (this.restartT <= 0 && this.canListen()) {
+      this.restartT = RADIO_VOICE.talk.restartSec;
+      this.start(true);
+    }
+    this.refreshTalk();
+  }
+
+  // KONUŞ düğmesinin durumu ve İLETİŞİM düğmesindeki işaret
+  refreshTalk() {
+    const b = this.talkButton;
+    const state = !this.talk ? 'Kapalı' : this.active ? 'Dinliyorum…' : this.chat.pendingAi ? 'Cevap bekleniyor' : this.chat.game.radioVoice?.speaking ? 'Tim konuşuyor' : 'Hazır';
+    const key = `${state}|${this.active}`;
+    if (key === this.talkState) return;
+    this.talkState = key;
+    if (b) {
+      b.classList.toggle('on', this.talk);
+      b.setAttribute('aria-pressed', String(this.talk));
+      const small = b.querySelector('small');
+      if (small && small.firstChild?.nodeType === 3) small.firstChild.textContent = state;
+      else if (small) small.prepend(document.createTextNode(state));
+    }
+    document.body.classList.toggle('talkMode', this.talk);
+    document.body.classList.toggle('talkListening', this.talk && this.active);
+  }
+
+  start(quiet = false) {
     if (!this.supported || this.active) return;
     try {
       this.rec.start();
       this.setActive(true);
-      this.chat.add('TELSİZ', '🎤 Dinliyorum…', 'system');
+      if (!quiet && !this.talk) this.chat.add('TELSİZ', '🎤 Dinliyorum…', 'system');
     } catch {
       this.setActive(false);
     }

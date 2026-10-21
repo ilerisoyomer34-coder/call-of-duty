@@ -86,6 +86,19 @@ export class World extends CollisionWorld {
     return true;
   }
 
+  // Fizik motoru (physics.js) haritaya bağlıyken sonradan eklenen/kaldırılan kutuları izler (patlayan varil, görev
+  // sırasında kurulan düzenekler). Kanca yoksa ortak davranış aynıdır
+  addCollider(...args) {
+    const c = super.addCollider(...args);
+    this.onColliderChange?.('add', c);
+    return c;
+  }
+
+  removeCollider(c) {
+    super.removeCollider(c);
+    this.onColliderChange?.('remove', c);
+  }
+
   // Çarpıştırıcı köşeleri ve ışın sonuçları THREE.Vector3 olsun (istemci kodu clone/distanceTo kullanır)
   newVec(x = 0, y = 0, z = 0) {
     return new THREE.Vector3(x, y, z);

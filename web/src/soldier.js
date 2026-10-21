@@ -868,8 +868,10 @@ class SkinnedSoldier {
     game.addDebris(drop, new THREE.Vector3((d?.x || 0) * 1.5 + rand(-0.6, 0.6), rand(0.6, 1.6), (d?.z || 0) * 1.5 + rand(-0.6, 0.6)), 0.04);
   }
 
-  // A: { deathT, fallDir, fallSide } — önce dizler çöker, sonra gövde devrilir; kollar bekleme pozunda sarkar
+  // A: { deathT, fallDir, fallSide } — önce dizler çöker, sonra gövde devrilir; kollar bekleme pozunda sarkar.
+  // Ragdoll varsa (physics.js) kemikleri fizik yazar; donduktan sonra poz olduğu gibi kalır
   updateDeath(dt, D, pos, yaw) {
+    if (this.ragdoll) return;
     this.idle.setEffectiveWeight(1);
     this.walk.setEffectiveWeight(0);
     this.run.setEffectiveWeight(0);

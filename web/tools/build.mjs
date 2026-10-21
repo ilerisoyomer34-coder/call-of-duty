@@ -27,6 +27,18 @@ export const THREE_CDNS = [
 // three'nin kendi window.__THREE__ değişkeniyle çakışmasın diye ayrı ad
 const THREE_GLOBAL = '__DS_THREE';
 const ASSET_EXT = /\.(glb|jpg|jpeg|png)$/i;
+// Fizik motoru (Rapier, WASM gömülü ~4 MB): oyunun açılışını bekletmeden arka planda yüklenir (src/physics.js).
+// Bağımsız sürümde pakete gömülü; PWA ve mağaza uygulamasında sayfanın yanında yerel dosya (çevrimdışı önbellekte);
+// Artifact'ta three.js gibi CDN'den (jsDelivr, olmazsa unpkg)
+const RAPIER_VERSION = JSON.parse(readFileSync(join(root, 'node_modules/@dimforge/rapier3d-compat/package.json'), 'utf8')).version;
+const RAPIER_FILE = 'vendor/rapier.mjs';
+const RAPIER_SRC = join(root, 'node_modules/@dimforge/rapier3d-compat/dist/rapier.mjs');
+// Apache-2.0: dağıtılan dosyanın yanında lisans metni (önbelleğe girmez)
+const RAPIER_LICENSE = join(root, 'node_modules/@dimforge/rapier3d-compat/LICENSE');
+export const RAPIER_CDNS = [
+  `https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@${RAPIER_VERSION}/dist/rapier.mjs`,
+  `https://unpkg.com/@dimforge/rapier3d-compat@${RAPIER_VERSION}/dist/rapier.mjs`,
+];
 const AS_TEXT = /\.glb$/i; // Artifact'ın sunmadığı ikili türler
 const publishedPath = (p) => (AS_TEXT.test(p) ? `${p}.txt` : p);
 
@@ -60,6 +72,30 @@ function assetsPlugin(mode, urlOf = publishedPath) {
   };
 }
 
+// virtual:rapier → loadRapier(): sürüme göre motorun nereden geleceği (yukarıdaki açıklama)
+function rapierPlugin(kind) {
+  const code = {
+    standalone: `export const loadRapier = () => import('@dimforge/rapier3d-compat');`,
+    local: `export const loadRapier = () => import(new URL(${JSON.stringify(RAPIER_FILE)}, document.baseURI).href);`,
+    artifact: `const URLS = ${JSON.stringify(RAPIER_CDNS)};
+export async function loadRapier() {
+  let last;
+  for (const u of URLS) {
+    try { return await import(u); } catch (e) { last = e; }
+  }
+  throw last;
+}`,
+  };
+  const key = kind === 'standalone' ? 'standalone' : kind === 'artifact' ? 'artifact' : 'local';
+  return {
+    name: 'rapier',
+    setup(b) {
+      b.onResolve({ filter: /^virtual:rapier$/ }, () => ({ path: 'rapier', namespace: 'rapier' }));
+      b.onLoad({ filter: /.*/, namespace: 'rapier' }, () => ({ contents: code[key], loader: 'js', resolveDir: root }));
+    },
+  };
+}
+
 // 'three' içe aktarımlarını, yükleyicinin küresel değişkene koyduğu modüle bağlar
 async function threeGlobalPlugin() {
   const names = Object.keys(await import(pathToFileURL(join(root, 'node_modules/three/build/three.module.js')).href));
@@ -79,7 +115,7 @@ async function threeGlobalPlugin() {
 // olduğu gibi; 'app' mağaza sürümü bayrağıyla)
 async function bundle(kind) {
   const artifact = kind === 'artifact';
-  const plugins = [kind === 'standalone' ? assetsPlugin('embed') : assetsPlugin('url', artifact ? publishedPath : (p) => p)];
+  const plugins = [kind === 'standalone' ? assetsPlugin('embed') : assetsPlugin('url', artifact ? publishedPath : (p) => p), rapierPlugin(kind)];
   if (artifact) plugins.push(await threeGlobalPlugin());
   const r = await build({
     entryPoints: [join(root, 'src/main.js')],
@@ -178,6 +214,9 @@ for (const p of listAssets()) {
   mkdirSync(dirname(join(pwaDir, p)), { recursive: true });
   copyFileSync(join(root, p), join(pwaDir, p));
 }
+mkdirSync(join(pwaDir, 'vendor'), { recursive: true });
+copyFileSync(RAPIER_SRC, join(pwaDir, RAPIER_FILE));
+copyFileSync(RAPIER_LICENSE, join(pwaDir, 'vendor/rapier-LICENSE.txt'));
 mkdirSync(join(pwaDir, 'icons'), { recursive: true });
 for (const f of PWA.icons) copyFileSync(join(root, 'src/pwa/icons', f), join(pwaDir, 'icons', f));
 // start_url/scope/id göreli: site hangi alt yolda yayımlanırsa (ör. /call-of-duty/web/dist/pwa/) orası olur
@@ -203,7 +242,7 @@ const manifest = {
 };
 writeFileSync(join(pwaDir, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2) + '\n');
 // Hizmet çalışanı: önbelleğe alınacak her dosya ve içerik özetinden sürüm (değişince güncelleme iner)
-const pwaFiles = ['index.html', 'manifest.webmanifest', ...PWA.icons.map((f) => `icons/${f}`), ...listAssets()];
+const pwaFiles = ['index.html', 'manifest.webmanifest', ...PWA.icons.map((f) => `icons/${f}`), RAPIER_FILE, ...listAssets()];
 const hash = createHash('sha256');
 for (const f of pwaFiles) hash.update(f).update(readFileSync(join(pwaDir, f)));
 const pwaVersion = hash.digest('hex').slice(0, 12);
@@ -231,8 +270,11 @@ for (const p of listAssets()) {
   copyFileSync(join(root, p), join(appDir, p));
 }
 for (const f of readdirSync(join(root, 'src/fonts'))) copyFileSync(join(root, 'src/fonts', f), join(appDir, 'fonts', f));
+mkdirSync(join(appDir, 'vendor'), { recursive: true });
+copyFileSync(RAPIER_SRC, join(appDir, RAPIER_FILE));
+copyFileSync(RAPIER_LICENSE, join(appDir, 'vendor/rapier-LICENSE.txt'));
 copyFileSync(join(root, 'src/pwa/privacy.html'), join(appDir, 'privacy.html'));
-const appBytes = [...listAssets(), 'index.html'].reduce((n, f) => n + statSync(join(appDir, f)).size, 0);
+const appBytes = [...listAssets(), 'index.html', RAPIER_FILE].reduce((n, f) => n + statSync(join(appDir, f)).size, 0);
 
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
 const assetKb = Object.values(publishFiles).reduce((n, p) => n + statSync(join(root, '..', p)).size, 0) / 1024;

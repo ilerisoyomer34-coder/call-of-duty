@@ -174,7 +174,10 @@ export class RemotePlayers {
     r.alive = true;
     r.pos.set(pos.x, pos.y, pos.z);
     r.yaw = yaw;
-    if (r.model) r.model.reset(r.pos, yaw);
+    if (r.model) {
+      this.game.physics?.release(r.model);
+      r.model.reset(r.pos, yaw);
+    }
   }
 
   onKilled(slot, fromPos) {
@@ -194,6 +197,8 @@ export class RemotePlayers {
     } else D.fallDir = 1;
     D.fallSide = (Math.random() - 0.5) * 0.6;
     r.model.die({ dir }, this.game);
+    // Fizik motoru varsa ragdoll (yalnız görüntü: maç sunucuda sürer, ceset kimsenin oyununu etkilemez)
+    this.game.physics?.ragdoll(r.model, { vel: r.vel, dir, zone: 'torso' });
   }
 
   // Ateş eden uzak oyuncu: namlu konumu (iz başlangıcı), görsel tepme
@@ -223,6 +228,7 @@ export class RemotePlayers {
       if (aliveNow && !r.alive) {
         // Doğuşu kaçırdık (bağlanınca): modeli o konuma kur
         r.alive = true;
+        this.game.physics?.release(r.model);
         r.model.reset(r.pos, r.yaw);
       }
       if (!r.alive) {

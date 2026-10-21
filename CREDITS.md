@@ -74,6 +74,7 @@ Google Play tanıtım görselindeki "Demir Şafak" posteri proje sahibine aittir
 ### Yazılım ve yazı tipleri
 
 - three.js — MIT lisansı
+- Rapier fizik motoru (`@dimforge/rapier3d-compat`, Dimforge) — Apache License 2.0. PWA ve mağaza uygulamasında `vendor/rapier.mjs` yanında `vendor/rapier-LICENSE.txt`; Artifact sürümü CDN'den (jsDelivr/unpkg) yükler. Oyunda Emeği geçenler → Lisanslar ekranında da yazar.
 - Big Shoulders Stencil Display, Barlow Condensed, Share Tech Mono — SIL Open Font License (Google Fonts). Mağaza uygulaması (`web/dist/app`) bunları kendi içinde taşır: `web/src/fonts/` (lisans metinleri `OFL-*.txt`, `tools/fetch-fonts.mjs`)
 
 Pompalı nişancı tüfeği PR-10 Tayfun kodla üretilir (`web/src/models.js → buildPumpRifle`). Yüklenen "Lightning pump action rifle" modeli Sketchfab Standard lisanslı olduğu için (ham dosya oyunla dağıtılamaz), lokeig'in önceki AK-47 modeli CC BY-NC olduğu için (ticari kullanım yok) alınmadı. Aşağıda eklenen Billy Jackman AK-47 modeli farklıdır ve CC BY 4.0 lisanslıdır.

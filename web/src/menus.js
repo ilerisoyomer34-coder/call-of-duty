@@ -25,6 +25,12 @@ const ACCOUNT_INFO = 'Ad, etiket, arkadaşlar ve bildirimler bu sunucudan kalıc
 const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScreen', 'loadoutScreen', 'storeScreen', 'settingsScreen', 'controlsScreen', 'creditsScreen', 'licenseScreen', 'pauseScreen', 'deathScreen', 'victoryScreen'];
 
 // Atıfta yazılan değişiklik (CC BY değişikliğin belirtilmesini ister)
+// Paketle dağıtılan yazılım kütüphaneleri (Lisanslar ekranının sonunda)
+const LIBRARY_CREDITS = [
+  ['Fizik motoru', 'Rapier (@dimforge/rapier3d-compat), Dimforge — Apache License 2.0. https://rapier.rs'],
+  ['Grafik', 'three.js — MIT lisansı. https://threejs.org'],
+];
+
 const CREDIT_CHANGES = {
   fpsArms: 'El ve ön kollar ayrıldı, parmaklar kavrama pozuna büküldü ve birinci şahıs görünümüne uyarlandı.',
   municipality: 'Geometri sadeleştirildi, dokular küçültüldü; belediye tabelası ve çarpışma modeli eklendi.',
@@ -153,6 +159,14 @@ export class Menus {
       const license = (c.license || '').replace(/\s*\(.*\)$/, '');
       const change = CREDIT_CHANGES[id] || (WEAPON_ASSETS[id] ? 'Oyun için sadeleştirildi, dokulardaki marka yazıları silindi.' : 'Oyun için sadeleştirildi.');
       p.append(b, document.createTextNode(`"${c.title}" — ${author}, Sketchfab (${license}). ${change} ${c.source}`));
+      box.appendChild(p);
+    }
+    // Yazılım kütüphaneleri (paketle dağıtılan)
+    for (const [name, text] of LIBRARY_CREDITS) {
+      const p = document.createElement('p');
+      const b = document.createElement('b');
+      b.textContent = `${name}: `;
+      p.append(b, document.createTextNode(text));
       box.appendChild(p);
     }
   }
@@ -444,6 +458,7 @@ export class Menus {
     chk('sBob', S.headBob);
     set('sCh', S.crosshairColor);
     chk('sBlood', S.blood);
+    chk('sPhysics', S.physics);
     chk('sDmgNum', S.damageNumbers);
     chk('sRealNames', S.realNames);
     $('sRealNames').closest('.set').hidden = STORE_BUILD;
@@ -452,11 +467,12 @@ export class Menus {
     set('sChatSlow', String(S.chatSlowMo));
     set('sServerUrl', S.serverUrl || '');
     this.refreshAccount();
-    chk('sTts', S.tts);
+    chk('sRadioVoice', S.radioVoice);
+    set('sRadioVol', S.radioVolume);
     chk('sVoiceCmd', S.voiceCommands);
     chk('sButtonIcons', S.buttonIcons);
     // Tarayıcı desteklemiyorsa seslendirme / sesli komut satırı görünmez (§8.3/5)
-    $('sTts').closest('.set').hidden = !speechSupported();
+    for (const id of ['sRadioVoice', 'sRadioVol']) $(id).closest('.set').hidden = !speechSupported();
     $('sVoiceCmd').closest('.set').hidden = !recognitionCtor();
     this.updateOutputs();
     if (!this.settingsBound) {
@@ -478,6 +494,7 @@ export class Menus {
     $('oMaster').textContent = `${Math.round(S.masterVolume * 100)}`;
     $('oSfx').textContent = `${Math.round(S.sfxVolume * 100)}`;
     $('oAmb').textContent = `${Math.round(S.ambientVolume * 100)}`;
+    $('oRadioVol').textContent = `${Math.round(S.radioVolume * 100)}`;
     $('oFov').textContent = `${S.fov}°`;
   }
 
@@ -508,12 +525,14 @@ export class Menus {
     S.headBob = $('sBob').checked;
     S.crosshairColor = $('sCh').value;
     S.blood = $('sBlood').checked;
+    S.physics = $('sPhysics').checked;
     S.damageNumbers = $('sDmgNum').checked;
     S.realNames = $('sRealNames').checked;
     S.rerollBonuses = $('sReroll').checked;
     S.wheelSlowMo = parseFloat($('sWheelSlow').value) || 1;
     S.chatSlowMo = parseFloat($('sChatSlow').value) || 1;
-    S.tts = $('sTts').checked;
+    S.radioVoice = $('sRadioVoice').checked;
+    S.radioVolume = parseFloat($('sRadioVol').value);
     S.voiceCommands = $('sVoiceCmd').checked;
     S.buttonIcons = $('sButtonIcons').checked;
   }
