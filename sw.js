@@ -1,0 +1,72 @@
+// Demir Şafak hizmet çalışanı (PWA). tools/build.mjs bu şablondan dist/pwa/sw.js üretir:
+// __VERSION__ tüm dosyaların içerik özetiyle, __FILES__ önbelleğe alınacak dosya listesiyle değişir.
+// Sürüm her içerik değişiminde değiştiği için tarayıcı yeni sw.js'i görür ve güncellemeyi indirir.
+const VERSION = "07c737b2892d";
+const FILES = ["index.html","manifest.webmanifest","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png","icons/apple-touch-icon.png","icons/favicon-32.png","vendor/rapier.js","assets/characters/robot.glb","assets/characters/robot_hands_baseColor.jpg","assets/characters/robot_hands_emissive.jpg","assets/characters/robot_hands_normal.jpg","assets/characters/robot_hands_orm.jpg","assets/characters/robot_legs_baseColor.jpg","assets/characters/robot_legs_emissive.jpg","assets/characters/robot_legs_normal.jpg","assets/characters/robot_legs_orm.jpg","assets/characters/robot_torse_baseColor.jpg","assets/characters/robot_torse_emissive.jpg","assets/characters/robot_torse_normal.jpg","assets/characters/robot_torse_orm.jpg","assets/characters/soldier.glb","assets/characters/soldier_diffuse.jpg","assets/characters/soldier_lod.glb","assets/characters/soldier_normal.jpg","assets/characters/squad_desert.glb","assets/characters/squad_desert_diffuse.jpg","assets/characters/squad_desert_normal.jpg","assets/characters/squad_desert_orm.jpg","assets/characters/squad_forest.glb","assets/characters/squad_forest_diffuse.jpg","assets/characters/squad_forest_normal.jpg","assets/characters/squad_forest_orm.jpg","assets/characters/squad_woodland.glb","assets/characters/squad_woodland_diffuse.jpg","assets/characters/squad_woodland_lod.glb","assets/characters/squad_woodland_normal.jpg","assets/characters/squad_woodland_orm.jpg","assets/props/containers.glb","assets/props/fps-arms.glb","assets/props/fpsgloves_map.jpg","assets/props/fpsgloves_normalMap.jpg","assets/props/fpsgloves_ormMap.jpg","assets/props/fpssleeves_map.jpg","assets/props/fpssleeves_normalMap.jpg","assets/props/fpssleeves_ormMap.jpg","assets/props/helicopter.glb","assets/props/municipality.glb","assets/props/pine.glb","assets/weapons/adar215.glb","assets/weapons/ak47.glb","assets/weapons/ak47_t0.jpg","assets/weapons/ak47_t1.jpg","assets/weapons/ak47_t2.jpg","assets/weapons/ak74.glb","assets/weapons/ar10t.glb","assets/weapons/ar10t_t0.jpg","assets/weapons/ar10t_t1.jpg","assets/weapons/ar10t_t10.jpg","assets/weapons/ar10t_t11.jpg","assets/weapons/ar10t_t2.jpg","assets/weapons/ar10t_t3.jpg","assets/weapons/ar10t_t4.jpg","assets/weapons/ar10t_t5.jpg","assets/weapons/ar10t_t6.jpg","assets/weapons/ar10t_t7.jpg","assets/weapons/ar10t_t8.jpg","assets/weapons/ar10t_t9.jpg","assets/weapons/awm.glb","assets/weapons/awm_t0.jpg","assets/weapons/awm_t1.jpg","assets/weapons/awm_t2.jpg","assets/weapons/bazooka.glb","assets/weapons/bazooka_t0.jpg","assets/weapons/bazooka_t1.jpg","assets/weapons/bazooka_t3.jpg","assets/weapons/bren2.glb","assets/weapons/d50.glb","assets/weapons/g95.glb","assets/weapons/ithaca37.glb","assets/weapons/ithaca37_t0.jpg","assets/weapons/ithaca37_t1.jpg","assets/weapons/ithaca37_t2.jpg","assets/weapons/k8.glb","assets/weapons/knife.glb","assets/weapons/knife_t0.jpg","assets/weapons/knife_t1.jpg","assets/weapons/knife_t2.jpg","assets/weapons/kr4.glb","assets/weapons/kt9.glb","assets/weapons/kt9_t0.jpg","assets/weapons/kt9_t1.jpg","assets/weapons/kt9_t2.jpg","assets/weapons/kt9_t3.jpg","assets/weapons/kt9_t4.jpg","assets/weapons/kt9_t5.jpg","assets/weapons/kt9_t6.jpg","assets/weapons/kt9_t7.jpg","assets/weapons/kt9_t8.jpg","assets/weapons/m4super90.glb","assets/weapons/m4super90_t0.jpg","assets/weapons/m4super90_t1.jpg","assets/weapons/m4super90_t2.jpg","assets/weapons/m4super90_t3.jpg","assets/weapons/m4super90_t4.jpg","assets/weapons/m4super90_t5.jpg","assets/weapons/m4super90_t6.jpg","assets/weapons/m82.glb","assets/weapons/mar556.glb","assets/weapons/mg43.glb","assets/weapons/minigun.glb","assets/weapons/mk4.glb","assets/weapons/mk4_t0.jpg","assets/weapons/mk4_t1.jpg","assets/weapons/mk4_t2.jpg","assets/weapons/mp7.glb","assets/weapons/stm556.glb","assets/weapons/uar10.glb"];
+const PREFIX = 'demirsafak-';
+const CACHE = `${PREFIX}${VERSION}`;
+// Yazı tipleri sürümden bağımsız: her güncellemede yeniden inmesin
+const FONT_CACHE = `${PREFIX}fonts`;
+const FONT_HOST = /^fonts\.(googleapis|gstatic)\.com$/;
+const INDEX = 'index.html';
+
+// Kurulum: oyunun tüm dosyaları. 'no-cache' sunucuya sorar ama tarayıcıda zaten inen dosya için
+// 304 alır; böylece ilk açılışta ~15 MB iki kez inmez ve bayat HTTP önbelleği de alınmaz.
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'no-cache' })))));
+});
+
+// Etkinleşme: eski sürümlerin önbelleklerini sil, açık sayfaların denetimini hemen al
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE && k !== FONT_CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Yeni sürüm kendiliğinden devreye girmez: oyun ortasında eski sayfa yeni dosyalarla karışmasın.
+// Oyuncu menüde "Güncelle"ye basınca sayfa bu mesajı yollar.
+self.addEventListener('message', (e) => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
+  else if (e.data === 'version' && e.source) e.source.postMessage({ version: VERSION });
+});
+
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin === self.location.origin) e.respondWith(sameOrigin(req));
+  else if (FONT_HOST.test(url.hostname)) e.respondWith(font(req));
+});
+
+// Önce önbellek: oyun çevrimdışı ve hızlı açılır. Sayfa gezintisi (adres çubuğu, ana ekran simgesi)
+// her zaman önbellekteki index.html'e düşer. Listede olmayan dosya ağdan gelir.
+async function sameOrigin(req) {
+  const c = await caches.open(CACHE);
+  const hit = await c.match(req, { ignoreSearch: true });
+  if (hit) return hit;
+  if (req.mode === 'navigate') {
+    const index = await c.match(INDEX);
+    if (index) return index;
+  }
+  return fetch(req);
+}
+
+// Yazı tipleri: eldeki kopyayı hemen ver, arkada yenile. Ağ da kopya da yoksa stil sayfası boş döner
+// (hata yerine: sayfa sessizce yedek yazı tiplerini kullanır), yazı tipi dosyası ise ağ hatası
+async function font(req) {
+  const c = await caches.open(FONT_CACHE);
+  const hit = await c.match(req);
+  const net = fetch(req)
+    .then((res) => {
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    })
+    .catch(() => null);
+  if (hit) return hit;
+  const res = await net;
+  if (res) return res;
+  return req.destination === 'style' ? new Response('', { headers: { 'content-type': 'text/css' } }) : Response.error();
+}
