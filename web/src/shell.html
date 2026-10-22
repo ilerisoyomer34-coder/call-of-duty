@@ -930,6 +930,35 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 /* ---------- Telsiz kutusu (radioChat.js): sol alt, tim listesinin üstünde; Enter ile yazılı komut ---------- */
 body:not(.playing) #radioLog, body:not(.squad) #radioLog, body.online #radioLog { display: none; }
 body.radioCollapsed #radio, body.squad #radio { display: none; }
+/* Sinematik telsiz görüntüsü: PC'de mini haritanın altında, telefonda üst ortada geniş (sinema oranı) kutu. Görüntü
+   tuvalde (kutunun tam altında), burada yalnız çerçeve, köşe işaretleri, CANLI yazısı ve altyazı */
+#commsCam { position: absolute; right: calc(16px + env(safe-area-inset-right, 0px)); top: calc(190px + env(safe-area-inset-top, 0px)); width: clamp(180px, min(22vw, 34vh), 340px); pointer-events: none; opacity: 0; z-index: 3; }
+#commsCam[hidden] { display: none; }
+#commsCam .ccView { position: relative; aspect-ratio: 16 / 9; border: 1px solid rgba(231,220,196,.38); box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+#commsCam .ccView::before, #commsCam .ccView::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.7); }
+#commsCam .ccView::before { left: 6px; top: 6px; border-right: 0; border-bottom: 0; }
+#commsCam .ccView::after { right: 6px; bottom: 6px; border-left: 0; border-top: 0; }
+#commsCam .ccRec { position: absolute; left: 26px; top: 6px; font: 700 10px/1 var(--f-num); letter-spacing: .14em; color: #ff6a5a; text-shadow: 0 1px 2px #000; }
+#commsCam .ccRec::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: #ff4a3a; vertical-align: -1px; animation: ccBlink 1.1s steps(2, start) infinite; }
+@keyframes ccBlink { to { opacity: 0; } }
+#commsCam .ccChan { position: absolute; right: 26px; top: 6px; font: 600 9px/1 var(--f-num); letter-spacing: .06em; color: rgba(255,255,255,.8); text-shadow: 0 1px 2px #000; }
+#commsCam .ccCap { margin-top: 6px; padding: 6px 9px 7px; background: rgba(10,13,16,.72); border-left: 3px solid rgba(231,220,196,.6); }
+#commsCam .ccName { display: block; font: 800 13px/1.1 var(--f-ui); letter-spacing: .06em; }
+#commsCam .ccRole { display: block; margin-top: 2px; font: 500 11px/1.2 var(--f-ui); color: rgba(231,220,196,.7); }
+#commsCam .ccLine { margin: 5px 0 0; font: 500 14px/1.3 var(--f-ui); color: #f2eee4; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+#commsCam[data-shot="enemy"] .ccCap { border-left-color: #ff7a6a; }
+body.touch #commsCam { right: auto; left: 50%; transform: translateX(-50%); top: calc(38px + env(safe-area-inset-top, 0px)); width: clamp(150px, 22vw, 240px); }
+body.touch #commsCam .ccView { aspect-ratio: 2.1 / 1; }
+/* Kısa ekranda (dar pencere) görev satırı yok, altyazı iki satır: silah paneline binmesin */
+@media (max-height: 640px) {
+  #commsCam .ccRole { display: none; }
+  #commsCam .ccLine { -webkit-line-clamp: 2; line-clamp: 2; }
+}
+/* Telefonda ad ve altyazı tek paragrafta, en çok iki satır: kutu nişangâha inmesin */
+body.touch #commsCam .ccCap { margin-top: 3px; padding: 3px 7px 4px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+body.touch #commsCam .ccRole { display: none; }
+body.touch #commsCam .ccName { display: inline; margin-right: 6px; font-size: 12px; }
+body.touch #commsCam .ccLine { display: inline; font-size: 12px; margin: 0; }
 #radioLog { position: absolute; left: 16px; bottom: calc(190px + env(safe-area-inset-bottom, 0px)); width: min(400px, 42vw); display: flex; flex-direction: column; gap: 4px; }
 #radioLog:not(.open) { width: auto; }
 #radioLog:not(.open) .rlSugg { display: none; }
@@ -1211,6 +1240,11 @@ body.touch #squad { display: none; }
     <div id="interact" class="panel"><kbd id="interactKey">F</kbd><span id="interactText"></span><span class="p"><i id="interactBar"></i></span></div>
     <div id="feed"></div>
     <div id="radio"></div>
+    <!-- Sinematik konuşma görüntüsü (commsCam.js): 3B çekim .ccView kutusuna WebGL ile basılır, yazılar DOM'da -->
+    <div id="commsCam" hidden aria-live="polite">
+      <div class="ccView"><span class="ccRec">CANLI</span><span class="ccChan"></span></div>
+      <div class="ccCap"><b class="ccName"></b><span class="ccRole"></span><p class="ccLine"></p></div>
+    </div>
     <div id="message"></div>
     <div id="introCard"><div class="a">05:42 · KIZILKUM VADİSİ</div><div class="b">DEMİR ŞAFAK</div><div class="c">Kartal-1 · Tek kişilik sızma operasyonu</div></div>
     <div id="fps" hidden></div>
@@ -1447,6 +1481,7 @@ body.touch #squad { display: none; }
           <div class="set"><label for="sBob">Yürürken kafa sallantısı</label><input type="checkbox" class="toggle" id="sBob"></div>
           <div class="set"><label for="sCh">Nişangah rengi</label><select id="sCh"><option value="#ffffff">Beyaz</option><option value="#7dff6a">Yeşil</option><option value="#ffe14d">Sarı</option><option value="#5ee7ff">Camgöbeği</option><option value="#ff5ee1">Pembe</option></select></div>
           <div class="set"><label for="sBlood">Kan efektleri</label><input type="checkbox" class="toggle" id="sBlood"></div>
+          <div class="set"><label for="sCommsCam">Sinematik telsiz görüntüsü<small>Telsizde konuşan asker, karargâh ya da pilot köşede canlı görüntüyle ve altyazıyla görünür</small></label><input type="checkbox" class="toggle" id="sCommsCam"></div>
           <div class="set"><label for="sPhysics">Fizik efektleri<small>Ölen asker gerçekçi yığılır (ragdoll), kovan ve düşen silah seker, patlamada parçalar saçılır</small></label><input type="checkbox" class="toggle" id="sPhysics"></div>
           <div class="set"><label for="sDmgNum">Hasar sayıları</label><input type="checkbox" class="toggle" id="sDmgNum"></div>
           <div class="set"><label for="sRealNames">Gerçek silah adları<small>Kapalıyken kurgusal adlar</small></label><input type="checkbox" class="toggle" id="sRealNames"></div>

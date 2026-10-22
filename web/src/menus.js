@@ -459,6 +459,7 @@ export class Menus {
     set('sCh', S.crosshairColor);
     chk('sBlood', S.blood);
     chk('sPhysics', S.physics);
+    chk('sCommsCam', S.commsCam);
     chk('sDmgNum', S.damageNumbers);
     chk('sRealNames', S.realNames);
     $('sRealNames').closest('.set').hidden = STORE_BUILD;
@@ -526,6 +527,7 @@ export class Menus {
     S.crosshairColor = $('sCh').value;
     S.blood = $('sBlood').checked;
     S.physics = $('sPhysics').checked;
+    S.commsCam = $('sCommsCam').checked;
     S.damageNumbers = $('sDmgNum').checked;
     S.realNames = $('sRealNames').checked;
     S.rerollBonuses = $('sReroll').checked;

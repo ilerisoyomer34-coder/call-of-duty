@@ -1403,6 +1403,36 @@ export const BLOOD = {
 
 // Sesli telsiz (src/radioVoice.js): tarayıcının Türkçe sesleri (speechSynthesis). Her konuşmacı ayrı ses yuvası
 // (birden çok Türkçe ses varsa farklı ses, yoksa farklı perde/hız). Askerlerin perde/hızı data/squad.json → voice
+// Sinematik konuşma görüntüsü (commsCam.js): telsizde konuşanın canlı çekimi. fps: kaliteye göre çekimin kare hızı
+// (sinema; her karede çizilmez, ardışık iki oyun karesinde de çekilmez), maxPR: çekim hedefinin piksel oranı üst sınırı
+// (dokunmatikte touchPR). Çekim MSAA'sız ve uzak düzlemi kısa (far): ana sahnenin ikinci kez çizilmesi ucuz kalsın
+// (yazılımsal GPU'da MSAA çekimin maliyetini ikiye katlıyordu). Yüz çekimi baştan metre: dist önden, side yandan, height
+// yukarı (kafa kemiğinden), lookUp bakış noktası yüzün ortası (kafa kemiği boyun dibinde); minDist arada duvar varsa en
+// yakın mesafe. grade.exposure karanlık haritada yüz seçilsin diye çekime ek pozlama. Süre: minSec + harf başına
+// perChar (en çok maxSec), konuşma bitince tail sn kalır; fade giriş/çıkış, cut kesmede parazit süresi (sn).
+// studioY: karargâh/pilot/düşman stüdyo köşesinin yüksekliği (haritanın çok altında, ana kamera görmez).
+export const COMMS_CAM = {
+  fps: { low: 12, medium: 18, high: 24, ultra: 24 }, maxPR: 1.5, touchPR: 1,
+  fov: 30, near: 0.05, far: 22,
+  dist: 1.0, side: 0.3, height: 0.1, lookUp: 0.07, minDist: 0.45,
+  drift: { amp: 0.03, speed: 0.3 },
+  minSec: 2.6, perChar: 0.055, maxSec: 8, tail: 0.5, fade: 0.25, cut: 0.14,
+  enemyStatic: 0.18,
+  studioY: -400,
+  grade: { exposure: 1.45, saturation: 0.8, vignette: 1.3, grain: 0.14, aberration: 0.035, shadow: [0.86, 0.98, 1.06], highlight: [1.08, 1.0, 0.9] },
+  studio: {
+    hq: { type: 'allyElite', model: 'squad_desert', backdrop: 'map' },
+    pilot: { type: 'ally', model: 'squad_woodland', backdrop: 'cockpit' },
+    enemy: { type: 'rifleman', backdrop: 'enemy' },
+  },
+  labels: {
+    ally: { channel: 'TİM KANALI' },
+    hq: { name: 'YUVA', role: 'Karargâh · komuta', color: '#f0c860', channel: 'KOMUTA KANALI' },
+    pilot: { name: 'PİLOT', role: 'Tahliye helikopteri', color: '#9fd0ff', channel: 'HAVA KANALI' },
+    enemy: { name: 'DÜŞMAN TELSİZİ', role: 'Dinleniyor', color: '#ff7a6a', channel: 'YAKALANAN YAYIN' },
+  },
+};
+
 export const RADIO_VOICE = {
   maxQueue: 3, // bekleyen en çok satır: fazlası en eskiden atılır (telsiz dakikalarca geriden gelmesin)
   gapSec: 0.18, // iki satır arası
@@ -1506,6 +1536,7 @@ export const SOLDIER_ANIM = {
   lodVeryFar: 90,
   lodRates: [1 / 30, 1 / 15, 1 / 8], // yakın-orta / uzak / çok uzak güncelleme aralığı (s)
   offscreenRate: 1 / 10, // görüş alanı dışındaki asker (gölgesi görünebilir: donmasın, seyrek güncellensin)
+  talkHead: 0.07, // konuşurken baş sallama/eğme genliği (rad; sinematik telsiz görüntüsü)
   meshLodDist: 28, // bu mesafeden ötede sade model (≈2,3 bin üçgen; tam model ≈11,4 bin)
   meshLodHyst: 3,
   blobFrom: 38, // gölge haritasının menzili dışında askerin altına yumuşak ayak gölgesi (m)

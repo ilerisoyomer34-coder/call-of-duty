@@ -780,6 +780,14 @@ class SkinnedSoldier {
     _qw.setFromUnitVectors(_u1, _u2);
     _q2.identity().slerp(_qw, 0.85);
     rotateBoneWorld(B.Head, _q2);
+    // Konuşurken (sinematik telsiz görüntüsü) baş küçük vurgularla sallanır: iki ayrı hızda baş sallama ve yana eğme
+    this.talkT = damp(this.talkT || 0, st.talk ? 1 : 0, 6, step);
+    if (this.talkT > 0.01) {
+      this.talkPhase = (this.talkPhase || 0) + step;
+      const t = this.talkPhase, k = this.talkT * A.talkHead;
+      rotateBoneAxis(B.Head, _right, (Math.sin(t * 7.1) * 0.6 + Math.sin(t * 3.3 + 1) * 0.4) * k);
+      rotateBoneAxis(B.Head, _up, Math.sin(t * 2.1 + 0.5) * k * 0.7);
+    }
   }
 
   // El bombası: sol el kundaktan omuz arkasına kalkar, öne-yukarı savrulur, kundağa döner

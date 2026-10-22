@@ -59,8 +59,8 @@ export function rankVoices(voices, prefer = RV.prefer) {
 export class RadioVoice {
   constructor(game) {
     this.game = game;
-    this.queue = []; // { text, profile, urgent }
-    this.current = null; // { u, endAt }
+    this.queue = []; // { text, profile, urgent, who }
+    this.current = null; // { u, endAt, who }
     this.gapT = 0;
     this.voices = [];
     this.listeners = new Set(); // durum değişince (konuşma kipi mikrofonu bununla açıp kapatır)
@@ -99,7 +99,7 @@ export class RadioVoice {
     if (!this.enabled && !force) return false;
     const line = sayable(text);
     if (!line) return false;
-    const item = { text: line, profile: profileFor(who, kind), urgent: !!urgent };
+    const item = { text: line, profile: profileFor(who, kind), urgent: !!urgent, who };
     if (urgent) {
       this.queue.unshift(item);
       if (this.current) this.stopCurrent();
@@ -135,7 +135,7 @@ export class RadioVoice {
     u.volume = Math.max(0, Math.min(1, this.game.settings.radioVolume ?? 1));
     const v = this.voices.length ? this.voices[item.profile.slot % this.voices.length] : null;
     if (v) u.voice = v;
-    const cur = { u, endAt: performance.now() + (RV.watchdog.base + item.text.length * RV.watchdog.perChar / Math.max(0.5, u.rate)) * 1000 };
+    const cur = { u, who: item.who, endAt: performance.now() + (RV.watchdog.base + item.text.length * RV.watchdog.perChar / Math.max(0.5, u.rate)) * 1000 };
     this.current = cur;
     const done = () => {
       if (this.current !== cur) return;

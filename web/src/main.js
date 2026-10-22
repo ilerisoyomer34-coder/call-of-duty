@@ -40,6 +40,7 @@ import { CommandWheel } from './commandWheel.js';
 import { PingSystem } from './ping.js';
 import { RadioChat, VoiceCommand } from './radioChat.js';
 import { RadioVoice } from './radioVoice.js';
+import { CommsCam } from './commsCam.js';
 import { AiRadio } from './aiRadio.js';
 import { prepareButtonIcons, applyButtonIcons } from './buttonIcons.js';
 import { EV } from './events.js';
@@ -239,6 +240,8 @@ export class Game {
     prepareButtonIcons();
     // Sesli telsiz: her satır konuşanın sesiyle (radioVoice.js); konuşma kipi mikrofonu buna göre açıp kapatır
     this.radioVoice = new RadioVoice(this);
+    // Sinematik konuşma görüntüsü: telsizde konuşanın canlı çekimi (commsCam.js)
+    this.comms = new CommsCam(this);
     this.chat = new RadioChat(this);
     this.voice = new VoiceCommand(this.chat);
     this.voice.refresh(this.settings);
@@ -347,6 +350,8 @@ export class Game {
       });
       await Promise.race([p, wait(PRECOMPILE_TIMEOUT_MS)]);
       if (this.mode !== 'menu') await Promise.race([r.compileAsync(this.viewmodel.scene, this.viewmodel.camera), wait(PRECOMPILE_TIMEOUT_MS / 2)]);
+      // Telsiz çekiminin stüdyo köşesi ve süzgeci (ilk konuşmada kare takılmasın)
+      if (this.mode === 'mission') this.comms.precompile(r);
     } catch (err) {
       warnOnce('precompile', `Gölgelendirici ön derlemesi atlandı (${err.message})`);
     }
@@ -419,6 +424,7 @@ export class Game {
     // Telsiz kanalı ana sesi atlar: oyun sesi kapalıyken de telsiz konuşmaları duyulur (kendi anahtarı ve düzeyi)
     this.audio.setVolumes({ master: S.muted ? 0 : S.masterVolume, sfx: S.sfxVolume, ambient: S.ambientVolume, radio: S.radioVoice === false ? 0 : S.radioVolume ?? 1 });
     if (S.radioVoice === false) this.radioVoice?.cancel();
+    if (S.commsCam === false) this.comms?.hide();
     this.updateSoundButtons();
     this.hud.applySettings(S);
     this.voice?.refresh(S);
@@ -613,6 +619,7 @@ export class Game {
   async showMenu() {
     this.state = 'menu';
     this.radioVoice?.cancel();
+    this.comms?.hide();
     this.voice?.setTalk(false);
     this.mode = 'menu';
     this.input.enabled = false;
@@ -785,6 +792,7 @@ export class Game {
     this.chat.closeChat();
     // Telsiz duraklatma ekranında konuşmasın; konuşma kipi dinlemeyi bırakır (sürdürünce yeniden dinler)
     this.radioVoice.cancel();
+    this.comms.hide();
     this.voice.stop();
     this.input.exitLock();
     this.clickToPlay.hidden = true;
@@ -1088,6 +1096,7 @@ export class Game {
       // Telsiz seslendirmesi her durumda ilerler (duraklatmada yeni satır başlamaz: kuyruk orada boşaltılır)
       this.radioVoice.update(dt);
       this.voice.update(dt);
+      this.comms.update(dt);
       I.pollGamepad(dt, this.settings.sensitivity);
       if (I.pressed('console') && (this.state === 'playing' || this.state === 'paused')) this.console.toggle();
       switch (this.state) {
@@ -1273,6 +1282,7 @@ export class Game {
     this.followSun(this.player.pos);
     this.drawWorld(this.camera);
     if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory' && !this.mission?.takeoff && !this.vehicles?.driving) this.viewmodel.render(r);
+    this.comms.render(r);
   }
 }
 

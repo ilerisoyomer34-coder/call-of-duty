@@ -169,6 +169,8 @@ export class RadioChat {
       if (!this.open) this.peek(who, body, ally?.member.color);
     }
     if (ally) ally.talkUntil = performance.now() + TALK_MS;
+    // Sinematik görüntü: konuşanın canlı çekimi ve altyazı (komutanın sözü ve genel sistem satırları hariç)
+    this.game.comms?.show(who, body, { kind: k === 'warn' ? 'enemy' : k, ally });
     // Seslendirme: her satır konuşanın sesiyle (komutanın sözü hariç); sesli soruya cevap ayar kapalıyken de sesli
     this.game.radioVoice?.say(ally ? ally.radioLabel : who, body, { kind: k === 'warn' ? 'enemy' : k, urgent, force: !!ai?.voice });
   }

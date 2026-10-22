@@ -46,6 +46,22 @@ Telsize (Enter) yazılan ya da mikrofona (N) söylenen her soru cevaplanır, her
   - Pages'te ya da uygulamada, yapay zekâsı açık bir sunucuya bağlıyken (ev sunucusu: `Docs/HOME_SERVER.md` → "Yapay zekâlı telsiz").
 - **Yapay zekâ yoksa ya da cevap gelmezse:** emir yerel ayrıştırıcıyla uygulanır. Sık sorular (kalan düşman, düşman nerede, hedef, tahliye, can, mermi, silah, bölüm, süre, zorluk, tuşlar) oyun durumundan cevaplanır.
 
+## Sinematik telsiz görüntüsü
+
+Telsizde biri konuşurken köşede konuşanın canlı görüntüsü ve altyazısı çıkar. Yer: PC'de mini haritanın altında, telefonda üst ortada.
+
+- **Alfa askeri konuşuyorsa** sahnedeki gerçek asker çekilir: yüzünün önünden, hafif yandan, el kamerası salınımıyla. Arada duvar varsa kamera yaklaşır. Asker konuşurken başını sallar.
+- **Karargâh (YUVA), pilot ve düşman telsizi** için haritanın altında gizli bir stüdyo köşesi kullanılır:
+  - karargâh: harita duvarı;
+  - pilot: kokpit camı;
+  - düşman: kırmızı karanlık oda.
+- **Görüntü**: saniyede 24 kare çekilir ve sinema süzgecinden geçer (renk tonu, film greni, tarama çizgisi, vinyet). Konuşan değişince kısa bir parazit olur; düşman yayını hep parazitlidir.
+- **Kapanış**: sesli okuma sürdükçe görüntü açık kalır. Duraklatmada ve menüde kapanır.
+- **Çekilmeyenler**: genel sistem satırları (TELSİZ, POLİGON, İPUCU) ve komutanın kendi sözü.
+- **Ayar**: Ayarlar → "Sinematik telsiz görüntüsü".
+
+Kod `src/commsCam.js` (saf kurallar `src/commsShot.js`), ayarlar `config.js → COMMS_CAM`.
+
 ## Doğrulama
 
 `node --test tests/parser.test.mjs tests/commands.test.mjs tests/ally-grenade.test.mjs`: 42 ilgili test geçti. Telsiz testleri adım sırasını, çoklu muhatabı, olumsuz komutları, hedef seçimini, mesafeyi, plan iptalini, yol hatasını, konuşma bağlamını ve yazı/ses girişini kapsar. El bombası testleri gerçek asker mantığından atış üretimini, ilk kademede kullanımı, grup atışını, sıralı planı, uçuş hesabını, iptali, menzili, dost kontrolünü, engelleri ve bekleme süresini doğrular.

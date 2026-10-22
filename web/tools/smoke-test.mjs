@@ -60,9 +60,10 @@ async function openPage(kind, quality = 'low', opts = {}) {
   const unlocked = opts.unlocked ?? 6;
   // Oyuncu adı eski anahtarla verilir (ad ekranı akışları tıkamasın); opts.name === null → ad yok, ekran açılır
   const name = opts.name === undefined ? SMOKE_NAME : opts.name;
+  // Sinematik telsiz kutusu (ikinci çekim) yazılımsal GPU'da kareyi yavaşlatır: yalnız 'radio' bölümü açar ve dener
   await page.addInitScript(([q, u, n]) => {
     try {
-      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: q }));
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: q, commsCam: false }));
       localStorage.setItem('demirsafak.progress.v1', JSON.stringify({ unlocked: u, best: {} }));
       if (n) localStorage.setItem('demirsafak.profile.v1', JSON.stringify({ name: n }));
     } catch {
@@ -1548,6 +1549,43 @@ console.log('Telsiz kutusu ve yazılı komut');
   });
   check(!talk.sup || (talk.on && talk.blocked && talk.waiting && talk.off), `Konuşma kipi: açılır, tim konuşurken ve cevap beklenirken dinlemez, kapanır (${JSON.stringify(talk)})`);
   check(tts.talk && tts.sub, 'Konuşan asker vurgulandı; tim satırı ortadaki altyazıya çıkmadı, karargâh satırı çıktı');
+  // Sinematik telsiz görüntüsü (commsCam.js): asker satırında askerin kendisi canlı çekilir (ayrıntılı, baş hareketli),
+  // karargâh satırında haritanın altındaki stüdyo köşesi; sistem satırı çekilmez; duraklatmada ve ayar kapalıyken yok
+  const cine = await page.evaluate(async () => {
+    const g = window.__game;
+    const frames = (n) => new Promise((res) => { let k = 0; const f = () => (++k >= n ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+    const el = document.getElementById('commsCam');
+    const a2 = g.allies.list[1];
+    g.settings.commsCam = true;
+    g.comms.hide();
+    // Görev canlı (başka askerin satırı araya girebilir): satırın değerleri hemen okunur, çekim birkaç kare sonra
+    g.events.emit('radio', `${a2.radioLabel}: Sol kanat temiz.`, 'squad');
+    const ally = { shot: g.comms.line?.shot, subject: g.comms.subject === a2, talk: g.comms.talking(a2), name: el.querySelector('.ccName').textContent, line: el.querySelector('.ccLine').textContent };
+    await frames(8);
+    Object.assign(ally, { shown: !el.hidden && g.comms.fade > 0, rt: !!g.comms.rt && g.comms.rect.w > 50 && g.comms.rect.h > 30 });
+    g.events.emit('radio', 'YUVA: Hedef binayı temizleyin.', 'system');
+    const hq = { shot: g.comms.line?.shot, name: el.querySelector('.ccName').textContent };
+    await frames(8);
+    hq.studio = !!g.comms.studio && g.comms.studio.root.parent === g.scene && !g.comms.studio.root.visible;
+    g.events.emit('radio', 'YUVA: ikinci satır', 'system');
+    g.events.emit('radio', 'TELSİZ: sistem satırı', 'system');
+    const sys = g.comms.line?.shot;
+    // Ayar kapalı: açık görüntü kapanır (applySettings → hide), yeni satır gösterilmez
+    g.settings.commsCam = false;
+    g.comms.hide();
+    g.events.emit('radio', `${a2.radioLabel}: Kapalıyken`, 'squad');
+    const off = el.hidden && !g.comms.line;
+    g.settings.commsCam = true;
+    return { ally, hq, sys, off };
+  });
+  check(cine.ally.shot === 'ally' && cine.ally.subject && cine.ally.talk && /ALFA-2/.test(cine.ally.name) && cine.ally.line === 'Sol kanat temiz.' && cine.ally.shown && cine.ally.rt, `Sinematik telsiz: konuşan asker canlı çekildi (${cine.ally.name} · ${cine.ally.line})`);
+  check(cine.hq.shot === 'hq' && cine.hq.name === 'YUVA' && cine.hq.studio && cine.sys === 'hq' && cine.off, `Sinematik telsiz: karargâh stüdyoda, sistem satırı çekilmez, ayar kapalıyken görüntü yok (${JSON.stringify(cine.hq)})`);
+  await page.evaluate(async () => {
+    const g = window.__game;
+    g.events.emit('radio', `${g.allies.list[0].radioLabel}: Komutanım, sol kanat temiz, ilerliyoruz.`, 'squad');
+    await new Promise((res) => { let k = 0; const f = () => (++k >= 8 ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+  });
+  await page.screenshot({ path: join(shots, '23g-comms-cam.png') });
   // Sesli komut: destek yoksa ayar satırı ve düğme görünmez
   const vc = await page.evaluate(() => {
     const g = window.__game;
@@ -1572,7 +1610,8 @@ console.log('Telsiz kutusu ve yazılı komut');
   });
   // Cevap telsiz kuyruğunda önceki satırların arkasından gelir (satırlar arası bekleme)
   const want = `Bölgede ${qa0.alive} düşman kaldı`;
-  await page.waitForFunction((w) => window.__game.chat.lines.some((l) => l.el.textContent.includes(w)), want, { timeout: 90000, polling: 100 }).catch(() => {});
+  // Telsiz kuyruğu oyun saatiyle ilerler; yazılımsal GPU'da (sinematik telsiz kutusu açıkken daha da) yavaş
+  await page.waitForFunction((w) => window.__game.chat.lines.some((l) => l.el.textContent.includes(w)), want, { timeout: 180000, polling: 100 }).catch(() => {});
   const qa = await page.evaluate(() => ({ lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-4), peek: document.getElementById('commsPeek')?.hidden === false ? document.getElementById('commsPeek').textContent : '' }));
   check(!qa0.ai && qa.lines.some((l) => l.startsWith('[YUVA]') && l.includes(want)) && qa.peek.includes(want), `Yapay zekâsız soru yerel cevaplandı, kapalı panelde önizlendi ("${qa.peek}")`);
   // Artifact yolu: 'sample' (izleyicinin Claude hesabı) taklit edilir. Uzun cümle yapay zekâya gider; cevap konuşanın
@@ -1598,7 +1637,7 @@ console.log('Telsiz kutusu ve yazılı komut');
     window.__said = said;
     return { backend: g.ai.backend, calls, ev: window.__ev.slice(n0) };
   });
-  await page.waitForFunction(() => window.__game.chat.lines.some((l) => l.el.textContent.endsWith('Tepeye baskı ateşi açıyorum!')), null, { timeout: 90000, polling: 100 }).catch(() => {});
+  await page.waitForFunction(() => window.__game.chat.lines.some((l) => l.el.textContent.endsWith('Tepeye baskı ateşi açıyorum!')), null, { timeout: 180000, polling: 100 }).catch(() => {});
   const ai2 = await page.evaluate(() => ({ lines: window.__game.chat.lines.map((l) => l.el.textContent).slice(-5), said: window.__said, has: !!window.speechSynthesis }));
   const c0 = ai1.calls[0];
   check(ai1.backend === 'artifact' && c0 && /Demir Şafak/.test(c0.first) && /DURUM/.test(c0.last) && /"squad":\[/.test(c0.last) && c0.last.endsWith('kaldıramasınlar') && c0.opts.tier === 'quick' && c0.opts.cache === false, `Artifact yolu: talimat + oyun durumu + soru 'sample'a gitti (${c0 ? `${c0.n} tur, ${c0.opts.tier}` : 'çağrı yok'})`);
@@ -1667,6 +1706,16 @@ console.log('Telsiz kutusu ve yazılı komut');
     const others = ['objective', 'health', 'ammo', 'squad', 'tracker', 'tbSwap', 'tbCrouch', 'tbItem1', 'tbItem2'].map((id) => document.getElementById(id)).filter((el) => el && !el.hidden && getComputedStyle(el).display !== 'none');
     return { over: others.filter((el) => hit(box, r(el))).map((el) => el.id), box: { l: Math.round(box.left), r: Math.round(box.right), t: Math.round(box.top), b: Math.round(box.bottom) }, chat: getComputedStyle(document.getElementById('mobileComms')).display !== 'none', collapsed: document.getElementById('radioMessages').hidden && !window.__game.chat.open };
   });
+  // Sinematik telsiz kutusu telefonda üst ortada: HUD panellerine, düğmelere ve nişangâha binmez
+  const mc = await mp.evaluate(() => {
+    const r = (el) => el.getBoundingClientRect();
+    const hit = (a, b) => a.width && b.width && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+    const el = document.getElementById('commsCam');
+    const box = r(el);
+    const others = ['objective', 'health', 'ammo', 'tracker', 'minimap', 'btnPause', 'mobileComms', 'tbFire', 'tbAds', 'tbJump', 'tbReload', 'tbGrenade', 'tbSwap'].map((id) => document.getElementById(id)).filter((e) => e && !e.hidden && getComputedStyle(e).display !== 'none');
+    return { shown: !el.hidden && window.__game.comms.line?.shot === 'hq', over: others.filter((e) => hit(box, r(e))).map((e) => e.id), bottom: Math.round(box.bottom), mid: innerHeight / 2 };
+  });
+  check(mc.shown && mc.over.length === 0 && mc.bottom < mc.mid - 10, `Telefonda sinematik telsiz kutusu üst ortada, boşlukta (alt kenar ${mc.bottom} px, ekran ortası ${mc.mid}${mc.over.length ? ` · çakışan: ${mc.over.join(', ')}` : ''})`);
   check(ml.over.length === 0 && ml.box.b <= 390 && ml.chat && ml.collapsed, `Telefonda telsiz kutusu boşlukta (${JSON.stringify(ml.box)}${ml.over.length ? ` · çakışan: ${ml.over.join(', ')}` : ''}), İLETİŞİM düğmesi var, geçmiş kapalı`);
   await mp.screenshot({ path: join(shots, '23c-mobile-radio.png') });
   await mp.tap('#btnCommsToggle');

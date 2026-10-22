@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   chatSlowMo: 0.3, // telsiz satırına yazarken oyun saatinin çarpanı
   radioVoice: true, // telsiz satırları sesli (radioVoice.js; speechSynthesis tr-TR); oyun sesi kapalıyken de
   radioVolume: 1, // telsiz seslendirmesi ve cızırtısının düzeyi
+  commsCam: true, // sinematik telsiz görüntüsü: konuşanın canlı çekimi ve altyazı (commsCam.js)
   physics: true, // fizik motoru (ragdoll, kovan, düşen eşya, patlama parçaları; physics.js)
   voiceCommands: true, // N basılı sesli komut (tarayıcı desteklemiyorsa arayüzde görünmez)
   buttonIcons: false, // dokunmatik ve iletişim düğmelerinde yazı yerine simge (buttonIcons.js)
