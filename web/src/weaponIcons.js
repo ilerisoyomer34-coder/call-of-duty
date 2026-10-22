@@ -141,6 +141,18 @@ function getStudio() {
   return studio;
 }
 
+// Stüdyo bağlamını bırak (görev başlarken): bütün silahların dokuları bu ikinci WebGL bağlamında da yüklüydü ve
+// görev boyunca ana bağlamla birlikte belleği dolduruyordu (telefonda yeni dokular yüklenemeyip yüzeyler kararabilir).
+// Gerekince yeniden kurulur; simgeler önbellekte (data: adresi) kalır
+export function releaseStudio() {
+  if (!studio) return;
+  studio.slot.clear();
+  studio.scene.environment?.dispose();
+  studio.r.dispose();
+  studio.r.forceContextLoss();
+  studio = undefined;
+}
+
 // Modelin kendisi: GLB silah (yüklenemezse oyundaki gibi prosedürel yedek) ya da prosedürel model
 async function modelFor(id) {
   const d = WEAPONS[id];

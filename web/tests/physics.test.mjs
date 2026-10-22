@@ -147,3 +147,23 @@ test('motor yüklenemezse oyun eski yollarla sürer', async () => {
   ph.update(0.1);
   ph.blast(new THREE.Vector3(), 3);
 });
+
+test('hareketli gövde yoksa dünya adımlanmaz; ilk gövdeyle adımlar başlar, yavaş karede en çok maxSubsteps', async () => {
+  const cw = new CollisionWorld();
+  for (let i = 0; i < 50; i++) cw.addCollider(i * 2, 0, 0, i * 2 + 1, 1, 1, 'concrete');
+  const ph = new PhysicsSystem({});
+  await ph.init(load);
+  ph.setMap(cw);
+  let steps = 0;
+  const orig = ph.world.step.bind(ph.world);
+  ph.world.step = () => {
+    steps++;
+    orig();
+  };
+  ph.update(0.5);
+  assert.equal(steps, 0, 'yalnız statik kutular: adım yok');
+  assert.ok(ph.addDebris(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2)), new THREE.Vector3(0, 3, 5)));
+  ph.update(1);
+  assert.equal(steps, PHYSICS.maxSubsteps, 'uzun karede adım sınırı');
+  ph.clear();
+});

@@ -74,6 +74,7 @@ Google Play tanıtım görselindeki "Demir Şafak" posteri proje sahibine aittir
 ### Yazılım ve yazı tipleri
 
 - three.js — MIT lisansı
+- meshoptimizer (Arseny Kapoulkine) — MIT lisansı. Oyunda uzak ağaç gövdesi ve tim askerinin elindeki/yerde duran silahın sade kopyası tarayıcıda bununla üretilir (`web/src/lod.js`); araçlarda (`tools/prepare-*.mjs`) model sadeleştirme. Oyunda Emeği geçenler → Lisanslar ekranında da yazar.
 - Rapier fizik motoru (`@dimforge/rapier3d-compat`, Dimforge) — Apache License 2.0. PWA ve mağaza uygulamasında `vendor/rapier.js` yanında `vendor/rapier-LICENSE.txt`; Artifact sürümü CDN'den (jsDelivr/unpkg) yükler. Oyunda Emeği geçenler → Lisanslar ekranında da yazar.
 - Big Shoulders Stencil Display, Barlow Condensed, Share Tech Mono — SIL Open Font License (Google Fonts). Mağaza uygulaması (`web/dist/app`) bunları kendi içinde taşır: `web/src/fonts/` (lisans metinleri `OFL-*.txt`, `tools/fetch-fonts.mjs`)
 

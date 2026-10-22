@@ -281,7 +281,7 @@ export class CommsCam {
     if (this.layoutDirty && !this.measure(r)) return;
     if (!this.rt) return;
     const L = this.line;
-    const fps = C.fps[this.game.renderQuality] || C.fps.medium;
+    const fps = this.game.isTouch ? C.touchFps : C.fps[this.game.renderQuality] || C.fps.medium;
     this.captureT -= dt;
     // Yavaş cihazda (kare süresi çekim aralığından uzun) her kare çekilmesin: en fazla iki karede bir
     if (this.captureT <= 0 && !this.capturedLast) {

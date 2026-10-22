@@ -57,6 +57,29 @@ export function assetImageUrl(path) {
   return `data:${/\.png$/i.test(path) ? 'image/png' : 'image/jpeg'};base64,${src}`;
 }
 
+// Doku boyu üst sınırı (px; 0 = sınır yok). Telefonda ve düşük kalitede silah/asker dokuları (2048 px) bu boya
+// küçültülerek yüklenir: GPU belleği dörtte bir; küçük ekranda fark görünmez. Bellek dolunca yeni dokular
+// yüklenemiyor, yüzeyler kararıyordu
+let textureCap = 0;
+export function setTextureCap(px) {
+  textureCap = px || 0;
+}
+
+function capImage(img) {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!textureCap || typeof document === 'undefined' || Math.max(w, h) <= textureCap) return img;
+  const k = textureCap / Math.max(w, h);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k));
+  c.height = Math.max(1, Math.round(h * k));
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+
 // Doku <img> ile yüklenir (blob/fetch gerektirmez): gömülüde data: adresi, Artifact'ta göreli dosya
 export function loadTexture(path, { srgb = true, flipY = false } = {}) {
   const src = GAME_ASSETS.files[path];
@@ -64,6 +87,7 @@ export function loadTexture(path, { srgb = true, flipY = false } = {}) {
   const mime = /\.png$/i.test(path) ? 'image/png' : 'image/jpeg';
   const url = GAME_ASSETS.mode === 'embed' ? `data:${mime};base64,${src}` : src;
   return textureLoader.loadAsync(url).then((t) => {
+    t.image = capImage(t.image);
     t.flipY = flipY; // glTF UV'leri üstten başlar
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     t.anisotropy = maxAniso;
@@ -180,16 +204,6 @@ export function rigFor(assetId) {
     boltHandle: p.boltHandle ? v(p.boltHandle) : null,
     length: r.length,
   };
-}
-
-export function preloadWeapons(weapons, onLoaded) {
-  for (const d of Object.values(weapons)) {
-    if (d.model !== 'glb') continue;
-    const id = assetIdFor(d);
-    loadWeaponAsset(id)
-      .then((scene) => onLoaded(d.id, scene))
-      .catch((e) => warnOnce(`glb-${id}`, `${d.name}: model yüklenemedi, yedek model kullanılıyor (${e.message})`));
-  }
 }
 
 // İskeletli karakter: { scene, animations } şablonu (kopyalamak için SkeletonUtils.clone kullanılır).

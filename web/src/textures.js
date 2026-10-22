@@ -388,9 +388,10 @@ export function createTextures(quality = 'high', anisotropy = 4) {
         const grain = n(u, v);
         const patch = pt(u, v) > 0.64 ? 0.85 : 1;
         const k = (0.55 + grain * 0.35) * patch;
-        o[0] = clamp255(92 * k);
-        o[1] = clamp255(92 * k);
-        o[2] = clamp255(96 * k);
+        // Eskisi (92) gölgede ACES'in koyu ucunda simsiyah kalıyordu
+        o[0] = clamp255(124 * k);
+        o[1] = clamp255(124 * k);
+        o[2] = clamp255(130 * k);
       })
     );
   }

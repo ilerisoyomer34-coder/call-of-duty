@@ -10,6 +10,7 @@ import { createRobot } from './robot.js';
 import { Health } from './health.js';
 import { rollEnemyArmor, computeArmorDamage, penFor, enemyPen, playerZoneAt } from './armor.js';
 import { EV } from './events.js';
+import { bodySamples, anyVisible, occlusionStep, occlusionInterval } from './occlusion.js';
 import { DEG, clamp, damp, dampAngle, angleDiff, dirToYaw, rand, randomInCone, pick, lerp, rayCylinder } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -21,6 +22,7 @@ const _pv = new THREE.Vector3();
 const _fk = new THREE.Vector3(); // uçaksavar mermisinin patladığı nokta
 const _fc = new THREE.Vector3(); // uçaksavar hedefinin göğsü
 const _hit = {};
+const _occBody = { x: 0, y: 0, z: 0, eyeH: 0, chestH: 0, radius: 0 };
 const _ray = new THREE.Raycaster();
 const UP = new THREE.Vector3(0, 1, 0);
 const FOE_PLAYER_BIAS = 1.25;
@@ -66,6 +68,9 @@ export class Enemy {
 
   reset() {
     const s = this.spec;
+    // Duvar arkası gizlemesi (updateOcclusion): yeniden doğan asker görünür başlar
+    this.occ = { unseen: 0, hidden: false, t: Math.random() * 0.1, last: 0 };
+    this.occluded = false;
     // Poligon mankeni yeniden doğar: ragdoll'u bırakılır (kalça kemiği yerine döner, pozu canlandırma yazar)
     this.game.physics?.release(this.model);
     this.pos.copy(s.pos);
@@ -244,6 +249,8 @@ export class Enemy {
 
   die(info) {
     const g = this.game;
+    // Duvar arkasında ölen asker de görünür kalır (ölüden sonra yoklama yapılmaz)
+    this.setOccluded(false);
     this.alive = false;
     this.dead = true;
     this.aiState = 'dead';
@@ -326,6 +333,7 @@ export class Enemy {
       this.vel.z = 0;
     }
     this.moveBody(dt);
+    this.updateOcclusion(dt, distToPlayer);
     this.animate(dt, distToPlayer);
     this.alertIconT = Math.max(0, this.alertIconT - dt);
     if (this.alertT > 0) {
@@ -338,6 +346,38 @@ export class Enemy {
         this.awareness = Math.max(this.awareness, 0.8);
       }
     }
+  }
+
+  // Yalnız bakılan yer çizilir: görüş konisindeki askere kameradan baş, göğüs, diz ve iki omuz noktasına ışın
+  // (çarpışma dünyası, yapay zekânın görüşüyle aynı duvarlar). Hiçbiri görmüyorsa (duvar, kat arkası) asker çizilmez,
+  // iskeleti seyrek güncellenir; görünür olduğu yoklamada hemen geri gelir. Görüş konisi dışını three.js zaten kırpar
+  updateOcclusion(dt, dist) {
+    const O = this.occ;
+    O.t -= dt;
+    O.last += dt;
+    if (O.t > 0) return;
+    O.t = occlusionInterval(dist, Math.random());
+    const g = this.game;
+    const cam = g.camera.position;
+    let seen = true;
+    if (g.enemies.occlusionOn && g.inView(this.pos)) {
+      _occBody.x = this.pos.x;
+      _occBody.y = this.pos.y;
+      _occBody.z = this.pos.z;
+      _occBody.eyeH = (this.crouch ? 1.15 : this.T.eyeH || 1.62) * this.model.root.scale.y;
+      _occBody.chestH = this.crouch ? 0.95 : this.T.chestH || 1.3;
+      _occBody.radius = this.state.radius;
+      seen = anyVisible(cam, bodySamples(cam, _occBody), g.enemies.losFn);
+    }
+    const hidden = occlusionStep(O, seen, O.last);
+    O.last = 0;
+    this.setOccluded(hidden);
+  }
+
+  setOccluded(hidden) {
+    if (hidden === this.occluded) return;
+    this.occluded = hidden;
+    this.model.root.visible = !hidden;
   }
 
   // Görme: oyuncu ve en yakın dost asker değerlendirilir; çatışmada görünen en yakın hasım hedef olur
@@ -1295,7 +1335,7 @@ export class Enemy {
     ANIM_STATE.stance = stance;
     ANIM_STATE.reload = W.reloadT > 0 ? 1 - W.reloadT / this.W.reload : -1;
     ANIM_STATE.dist = dist;
-    ANIM_STATE.offscreen = !g.inView(this.pos);
+    ANIM_STATE.offscreen = this.occluded || !g.inView(this.pos);
     ANIM_STATE.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
     // Mevzide: eller silahın tutamaklarında (eğilince bırakır)
     if (this.mount && !this.crouch) {
@@ -1337,6 +1377,13 @@ export class Enemy {
   }
 }
 
+function pointInSolid(world, p) {
+  for (const c of world.query(p.x - 0.01, p.z - 0.01, p.x + 0.01, p.z + 0.01)) {
+    if (p.x > c.min.x && p.x < c.max.x && p.y > c.min.y && p.y < c.max.y && p.z > c.min.z && p.z < c.max.z) return true;
+  }
+  return false;
+}
+
 // Görünüm katmanına her karede aktarılan durum (bellek ayırmamak için tek nesne)
 const ANIM_STATE = { pos: null, yaw: 0, vel: null, crouch: false, aimPitch: 0, stance: 'relaxed', reload: -1, throw: -1, dist: 0, mount: null, hideGun: false };
 
@@ -1349,6 +1396,9 @@ export class EnemyManager {
     this.grenadeGlobalT = 0;
     this.tokenT = 0;
     this.armor = []; // mevzi kalkanı ve silah gövdesi: mermiyi durdurur
+    // Duvar arkası gizlemesi (Enemy.updateOcclusion): görüş hattı çarpışma dünyasında
+    this.occlusionOn = true;
+    this.losFn = (a, b) => this.game.world.lineOfSight(a, b);
   }
 
   spawn(spec) {
@@ -1394,6 +1444,9 @@ export class EnemyManager {
   update(dt) {
     this.pathBudget = 3;
     this.grenadeGlobalT -= dt;
+    // Kamera bir çarpıştırıcının içindeyse (alçak tavan, merdiven kenarı) bütün ışınlar baştan kesilir: o karede
+    // kimse gizlenmez
+    this.occlusionOn = !pointInSolid(this.game.world, this.game.camera.position);
     // Saldırı jetonları: en yakın N görünür düşman ateş eder
     this.tokenT -= dt;
     if (this.tokenT <= 0) {

@@ -154,6 +154,12 @@ export class PhysicsSystem {
   // Sabit adım; yavaş karede en çok maxSubsteps (fazlası atılır). Ragdoll kemikleri ve enkaz mesh'leri yazılır
   update(dt) {
     if (!this.ready) return;
+    // Hareketli gövde (ragdoll, enkaz, kovan, parça) yoksa dünya adımlanmaz: yalnız statik harita kutuları varken
+    // adım boşa gider (Belediye'de kare başına birkaç ms). Statik kutular eklenip silinebilir; ilk gövdeyle güncellenir
+    if (!this.world.bodies.len()) {
+      this.acc = 0;
+      return;
+    }
     this.acc += dt;
     let n = 0;
     while (this.acc >= P.step && n < P.maxSubsteps) {

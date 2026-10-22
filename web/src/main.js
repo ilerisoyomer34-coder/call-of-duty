@@ -24,7 +24,7 @@ import { PhysicsSystem } from './physics.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
 import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT } from './config.js';
-import { setMaxAnisotropy, loadPropAsset, PROP_ASSETS } from './assets.js';
+import { setMaxAnisotropy, setTextureCap, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, setFpsArmProp, setMunicipalityProp, updateWind } from './models.js';
 import { warnOnce } from './util.js';
@@ -40,6 +40,7 @@ import { CommandWheel } from './commandWheel.js';
 import { PingSystem } from './ping.js';
 import { RadioChat, VoiceCommand } from './radioChat.js';
 import { RadioVoice } from './radioVoice.js';
+import { releaseStudio } from './weaponIcons.js';
 import { CommsCam } from './commsCam.js';
 import { AiRadio } from './aiRadio.js';
 import { prepareButtonIcons, applyButtonIcons } from './buttonIcons.js';
@@ -211,6 +212,7 @@ export class Game {
     // Anizotropi kaliteye göre: zemin tüm ekranı kapladığı için zayıf GPU'da 16× örnekleme kareyi belirgin yavaşlatır
     const aniso = Math.min(this.renderer.capabilities.getMaxAnisotropy(), RENDER.anisotropy[this.quality] || 4);
     setMaxAnisotropy(aniso);
+    setTextureCap(this.isTouch ? RENDER.touchTextureCap : RENDER.textureCap[this.quality]);
     this.textures = createTextures(this.quality, aniso);
     this.worldRT = null;
     this.worldPR = 1;
@@ -509,6 +511,8 @@ export class Game {
   // (ACES + sRGB burada). Ölçek 1 ise doğrudan tuvale.
   drawWorld(cam) {
     const r = this.renderer;
+    // Ağaçlar uzaklığa göre sade gövdeye geçer, uzakta gölge düşürmez; uzak çimen çizilmez
+    this.world?.updateDetail(cam.position);
     // Dokunmatik cihazda gölge haritası her N karede bir yenilenir (gölge geçişi sahneyi bir kez daha çizer;
     // gölge kamerası da yalnız yenilenen karede taşınır, eski harita yeni matrisle karışmaz)
     const every = this.isTouch ? RENDER.touchShadowEvery : 1;
@@ -727,6 +731,8 @@ export class Game {
     this.audio.init();
     this.audio.stopMenuMusic();
     this.menus.hideAll();
+    // Teçhizat ekranının silah stüdyosu (ikinci WebGL bağlamı, bütün silah dokuları) görevde bellek tutmasın
+    releaseStudio();
     const L = loadingScreen();
     const level = LEVELS.find((l) => l.id === levelId) || LEVELS[0];
     const mapName = mode === 'mission' ? MAPS[level.map]?.name : 'Atış Poligonu';
@@ -866,6 +872,7 @@ export class Game {
     this.audio.init();
     this.audio.stopMenuMusic();
     this.menus.hideAll();
+    releaseStudio();
     const L = loadingScreen();
     L.show(match.kind === 'sandbox' ? 'DENEME ODASI' : 'MAÇA BAĞLANILIYOR');
     this.state = 'loading';

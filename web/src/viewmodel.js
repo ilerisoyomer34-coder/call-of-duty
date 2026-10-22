@@ -4,8 +4,8 @@
 // Ayrı sahnede çizilir: silah duvarların içine girmez.
 import * as THREE from 'three';
 import { buildWeapon, buildArms, poseArm, buildGrenade, buildSmokeGrenade, buildRocket, mat } from './models.js';
-import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW, HAND_VIEW } from './config.js';
-import { preloadWeapons, rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
+import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW, HAND_VIEW, DEFAULT_LOADOUT } from './config.js';
+import { rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
 import { sightFor, hasReticle, isScoped, canAim } from './sights.js';
 import { calibrateWeapon, placeWeapon, gripElbow } from './weaponAim.js';
 import { reticleMesh, housingMesh, glowDots } from './reticles.js';
@@ -165,8 +165,12 @@ export class Viewmodel {
     this.textures = textures;
     this.models = {};
     for (const id of WEAPON_ORDER) this.installModel(id, buildWeapon(id));
-    // Blender modelleri hazır olunca yedek (prosedürel) modelin yerine geçer
-    preloadWeapons(WEAPONS, (id, scene) => this.installModel(id, this.modelFromGlb(id, scene), true));
+    // Hazır (GLB) modeller yalnız gerektiğinde yüklenir ve hazır olunca yedek (prosedürel) modelin yerine geçer:
+    // teçhizattaki silahlar şimdi, diğerleri ele geçince (update → ensureGlb). Eskiden açılışta 27 silahın hepsi
+    // 2K dokularıyla belleğe yükleniyordu
+    this.glbLoading = new Set();
+    const L = game.loadout || {};
+    for (const id of [L.primary, L.secondary, L.melee, DEFAULT_LOADOUT.primary, DEFAULT_LOADOUT.secondary]) if (id) this.ensureGlb(id);
     this.arms = buildArms(textures);
     this.holder.add(this.arms.left.g, this.arms.right.g);
     this.grenade = buildGrenade();
@@ -223,6 +227,16 @@ export class Viewmodel {
     this.lightScale = 1;
     this.lightCheckT = 0;
     this.currentId = null;
+  }
+
+  // Silahın hazır modeli yüklü değilse yükle (bir kez); o ana dek prosedürel yedek görünür
+  ensureGlb(id) {
+    const d = WEAPONS[id];
+    if (!d || d.model !== 'glb' || this.models[id]?.glb || this.glbLoading.has(id)) return;
+    this.glbLoading.add(id);
+    loadWeaponAsset(assetIdFor(d))
+      .then((scene) => this.installModel(id, this.modelFromGlb(id, scene), true))
+      .catch((e) => warnOnce(`glb-${id}`, `${d.name}: model yüklenemedi, yedek model kullanılıyor (${e.message})`));
   }
 
   // Modeli tutucuya yerleştir; parçaların dinlenme konumlarını sakla
@@ -456,6 +470,8 @@ export class Viewmodel {
     if (!w) return;
     const d = w.data;
     const m = this.models[w.id];
+    // Elde olan (yerden alınan, poligonda verilen) silahların hazır modeli
+    for (const id in W.owned) this.ensureGlb(id);
     if (this.currentId !== w.id) {
       for (const id in this.models) this.models[id].root.visible = id === w.id;
       this.currentId = w.id;

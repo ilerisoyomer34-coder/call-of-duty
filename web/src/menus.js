@@ -29,6 +29,7 @@ const SCREENS = ['menu', 'nameScreen', 'onlineScreen', 'diffScreen', 'briefScree
 const LIBRARY_CREDITS = [
   ['Fizik motoru', 'Rapier (@dimforge/rapier3d-compat), Dimforge — Apache License 2.0. https://rapier.rs'],
   ['Grafik', 'three.js — MIT lisansı. https://threejs.org'],
+  ['Model sadeleştirme', 'meshoptimizer, Arseny Kapoulkine — MIT lisansı. https://github.com/zeux/meshoptimizer'],
 ];
 
 const CREDIT_CHANGES = {

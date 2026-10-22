@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { WIND, HAND_VIEW } from './config.js';
+import { WIND, HAND_VIEW, FOLIAGE } from './config.js';
 
 const matCache = new Map();
 export function mat(color, rough = 0.7, metal = 0.1, extra = null) {
@@ -1185,6 +1185,7 @@ export function setTreeProp(scene, info, alphaTest) {
     o.geometry.computeBoundingBox();
     const gb = o.geometry.boundingBox;
     addWind(m, foliage ? WIND.treeFoliage : WIND.treeTrunk, gb.min.y, Math.max(1e-3, gb.max.y - gb.min.y));
+    if (foliage) addAlphaBoost(m);
     if (propEnv) applyPropEnv(m);
     o.geometry.userData.shared = true;
     parts.push({ geometry: o.geometry, material: m, matrix: o.matrixWorld.clone(), foliage });
@@ -1228,6 +1229,32 @@ export function addWind(material, amp, y0, h) {
   };
   // Aynı malzeme farklı genlikle iki kez derlenmesin: önbellek anahtarı genliği içerir
   material.customProgramCacheKey = () => `wind${amp}|${y0.toFixed(3)}|${h.toFixed(3)}`;
+  material.needsUpdate = true;
+}
+
+// Alfa kesmeli yaprak ve çimen: doku küçük katmanına indikçe (uzak, eğik bakış) saydamlık güçlenir (FOLIAGE). Kesme
+// eşiği ortalama saydamlığa yakın dokuda küçük katmanlarda bütün kümeler eşiğin altına düşüp kayboluyordu. Katman,
+// ekran türevlerinden (dFdx/dFdy) doku boyutuyla hesaplanır; gölge geçişi etkilenmez
+export function addAlphaBoost(material) {
+  const prev = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey.bind(material);
+  material.onBeforeCompile = (shader, r) => {
+    prev?.(shader, r);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>
+      #ifdef USE_MAP
+      {
+        vec2 tuv = vMapUv * vec2(textureSize(map, 0));
+        vec2 ddx = dFdx(tuv);
+        vec2 ddy = dFdy(tuv);
+        float mipLevel = max(0.0, 0.5 * log2(max(dot(ddx, ddx), dot(ddy, ddy))));
+        diffuseColor.a *= min(1.0 + mipLevel * ${FOLIAGE.mipBoost.toFixed(3)}, ${FOLIAGE.maxBoost.toFixed(3)});
+      }
+      #endif`
+    );
+  };
+  material.customProgramCacheKey = () => `${prevKey()}|alphaBoost`;
   material.needsUpdate = true;
 }
 

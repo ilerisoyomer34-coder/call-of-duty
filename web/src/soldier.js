@@ -17,7 +17,8 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { loadCharacterAsset, loadCharacterLod, loadWeaponAsset, CHARACTER_ASSETS, WEAPON_ASSETS } from './assets.js';
 import { warnOnce } from './util.js';
-import { buildSoldier, buildEnemyGun, mergeGroup, ENEMY_GUN_KIND, ENEMY_GUN_POINTS } from './models.js';
+import { buildSoldier, buildEnemyGun, mergeGroup, bakeStatic, ENEMY_GUN_KIND, ENEMY_GUN_POINTS } from './models.js';
+import { lowPolyGun } from './lod.js';
 import { SOLDIER_ANIM, SOLDIER_LOOKS, SOLDIER_HITBOXES } from './config.js';
 import { clamp, damp, dampAngle, angleDiff, dirToYaw, lerp, smoothstep, rand, Spring } from './util.js';
 
@@ -490,11 +491,12 @@ class SkinnedSoldier {
   }
 
   // Kodla kurulmuş silahın yerine gerçek model (Alfa Timi). Tutma noktaları modelin kendi noktalarından:
-  // köken sağ elin kavradığı yer, sol el kundakta (leftHand), dipçik ucu modelin arka sınırı
+  // köken sağ elin kavradığı yer, sol el kundakta (leftHand), dipçik ucu modelin arka sınırı. Model birinci şahıs
+  // görünümünün sade kopyası (lod.js): tam model asker başına 10–35 bin üçgendi, gölgede bir kez daha çiziliyordu
   useGunAsset(id) {
     const r = WEAPON_ASSETS[id];
     const H = A.heldGun;
-    loadWeaponAsset(id)
+    lowPolyGun(id, loadWeaponAsset, bakeStatic)
       .then((scene) => {
         if (this.disposed) return;
         const gun = worldGun(id, scene);

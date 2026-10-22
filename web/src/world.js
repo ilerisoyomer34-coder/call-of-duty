@@ -3,8 +3,9 @@
 import * as THREE from 'three';
 import { CollisionWorld } from '../shared/sim/collision.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { getTreeProp, getContainerProp, buildMunicipality, addWind } from './models.js';
+import { getTreeProp, getContainerProp, buildMunicipality, addWind, addAlphaBoost } from './models.js';
 import { TREES, RENDER, GRASS, WIND } from './config.js';
+import { simplifyGeometry, lodAvailable } from './lod.js';
 
 let grassGeo = null; // çimen öbeği geometrisi (haritalar arasında paylaşılır)
 
@@ -36,6 +37,27 @@ class Batch {
 }
 
 const _sphere = new THREE.Sphere();
+
+// Çam tacının yarıçapı / boyu (model: 2,2 m genişlik, 5,3 m boy): hücre sınırının payı
+const CROWN_RATIO = 0.21;
+
+// Örnek grubunun yatay sınırı (pay: ağaç tacı ya da öbek yarıçapı kadar)
+function cellBounds(items, pad) {
+  const c = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity, hi: [], lo: [], all: [], far: false, shadow: true };
+  for (const it of items) {
+    c.x0 = Math.min(c.x0, it.x - pad);
+    c.z0 = Math.min(c.z0, it.z - pad);
+    c.x1 = Math.max(c.x1, it.x + pad);
+    c.z1 = Math.max(c.z1, it.z + pad);
+  }
+  return c;
+}
+
+function cellDist(c, p) {
+  const dx = Math.max(c.x0 - p.x, 0, p.x - c.x1);
+  const dz = Math.max(c.z0 - p.z, 0, p.z - c.z1);
+  return Math.sqrt(dx * dx + dz * dz);
+}
 
 // Örnekleri harita hücrelerine böl (RENDER.instanceCell): her hücre ayrı InstancedMesh, görüş konisi kırpması
 // hücre hücre işler (tek dev örnek ağı bütün haritayı kapsar, hiç kırpılmaz)
@@ -124,8 +146,10 @@ export class World extends CollisionWorld {
     M.contGreen = std(T.corrugated, 0x4d5d3a, 0.7, 0.35, 2.4);
     M.contOrange = std(T.corrugated, 0xa8622a, 0.7, 0.35, 2.4);
     M.contGrey = std(T.corrugated, 0x7b7f80, 0.7, 0.35, 2.4);
-    M.metal = std(T.metal, 0x8a8e90, 0.5, 0.7, 1.5);
-    M.metalDark = std(T.metal, 0x3c4042, 0.55, 0.6, 1.5);
+    // Dünya malzemelerinde ortam yansıması yok: yüksek metallik yalnız kararttığı için (yansıyacak gökyüzü yok)
+    // metaller, su ve cam düşük metallikle; gölgede simsiyah kalıyorlardı
+    M.metal = std(T.metal, 0x8a8e90, 0.5, 0.4, 1.5);
+    M.metalDark = std(T.metal, 0x3c4042, 0.55, 0.35, 1.5);
     M.olive = std(T.metal, 0x55603f, 0.75, 0.25, 1.5);
     M.rust = std(T.corrugated, 0x6b4a36, 0.85, 0.3, 2);
     M.wood = std(T.wood, 0xffffff, 0.9, 0, 1.4);
@@ -136,9 +160,9 @@ export class World extends CollisionWorld {
     M.tarpGreen = std(T.canvas, 0x5b6446, 0.95, 0, 2);
     M.tarpRed = std(T.canvas, 0x8a3a2e, 0.95, 0, 2);
     M.tire = std(T.metal, 0x1d1d1d, 0.95, 0, 1);
-    M.glass = new THREE.MeshStandardMaterial({ color: 0x223038, roughness: 0.15, metalness: 0.6, vertexColors: true });
+    M.glass = new THREE.MeshStandardMaterial({ color: 0x223038, roughness: 0.15, metalness: 0.25, vertexColors: true });
     M.glass.userData.tile = 1;
-    M.burnt = std(T.metal, 0x4d4540, 0.95, 0.2, 1.5);
+    M.burnt = std(T.metal, 0x857a70, 0.95, 0.05, 1.5); // yanmış araç: koyu kömür grisi (eskisi düz siyah bir kütle gibiydi)
     M.helipad = std(T.concrete, 0x6d6a64, 0.95, 0, 2.5);
     M.paint = new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.9, vertexColors: true });
     M.paint.userData.tile = 1;
@@ -147,10 +171,10 @@ export class World extends CollisionWorld {
     M.asphalt = std(T.asphalt, 0xffffff, 0.95, 0, 4);
     M.brick = std(T.brick, 0xffffff, 0.95, 0, 2);
     M.pine = std(T.canvas, 0x33503a, 0.95, 0, 2);
-    M.steelPipe = std(T.metal, 0x8e9398, 0.45, 0.7, 1);
+    M.steelPipe = std(T.metal, 0x8e9398, 0.45, 0.4, 1);
     M.craneYellow = std(T.metal, 0xd6a02a, 0.6, 0.35, 1.5);
     M.hullRed = std(T.corrugated, 0x7a2e24, 0.7, 0.3, 3);
-    M.water = new THREE.MeshStandardMaterial({ color: 0x1c3644, roughness: 0.18, metalness: 0.35, vertexColors: true });
+    M.water = new THREE.MeshStandardMaterial({ color: 0x2c5266, roughness: 0.18, metalness: 0.12, vertexColors: true });
     M.water.userData.tile = 1;
     // Işımalı lamba başlığı: gece haritasında ışık kaynağı eklemeden parlak görünür (ışık sayısı sabit)
     M.lampGlow = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffd49a, emissiveIntensity: 3, vertexColors: true });
@@ -301,7 +325,13 @@ export class World extends CollisionWorld {
     const snow = new THREE.Color().setRGB(...TREES.snowTint);
     const white = new THREE.Color(1, 1, 1);
     const fract = (v) => v - Math.floor(v);
+    // Gövde/dalların sade kopyası (uzak hücreler): şablonda bir kez; sadeleştirici hazır değilse hep tam model
+    for (const part of T.parts) {
+      if (!part.foliage && part.lod === undefined && lodAvailable()) part.lod = simplifyGeometry(part.geometry, TREES.trunkLod.ratio, TREES.trunkLod.error);
+    }
+    this.treeCells = [];
     for (const group of groupByCell(this.trees)) {
+      const cell = cellBounds(group, Math.max(...group.map((t) => t.h)) * CROWN_RATIO);
       for (const part of T.parts) {
         const mesh = new THREE.InstancedMesh(part.geometry, part.material, group.length);
         group.forEach((t, i) => {
@@ -322,9 +352,47 @@ export class World extends CollisionWorld {
         mesh.computeBoundingSphere();
         this.scene.add(mesh);
         this.meshes.push(mesh);
+        cell.all.push(mesh);
+        if (part.lod) {
+          // Aynı örnek dönüşümleriyle sade gövde; uzak hücrede tam gövdenin yerine görünür (updateDetail)
+          const lo = new THREE.InstancedMesh(part.lod, part.material, group.length);
+          lo.instanceMatrix.array.set(mesh.instanceMatrix.array);
+          lo.castShadow = true;
+          lo.receiveShadow = true;
+          lo.visible = false;
+          lo.userData.prop = 'tree';
+          lo.userData.lod = true;
+          lo.computeBoundingSphere();
+          this.scene.add(lo);
+          this.meshes.push(lo);
+          cell.hi.push(mesh);
+          cell.lo.push(lo);
+          cell.all.push(lo);
+        }
       }
+      this.treeCells.push(cell);
     }
     this.treeMeshes = n;
+  }
+
+  // Her karede (drawWorld): ağaç hücreleri uzaklığa göre sade gövdeye geçer ve uzakta gölge düşürmez; uzak çimen
+  // hücreleri çizilmez. Uzaklık kameradan hücrenin en yakın noktasına (yatay)
+  updateDetail(pos) {
+    for (const c of this.treeCells || []) {
+      const d = cellDist(c, pos);
+      const far = c.far ? d > TREES.lodDist - TREES.lodHyst : d > TREES.lodDist;
+      if (far !== c.far) {
+        c.far = far;
+        for (const m of c.hi) m.visible = !far;
+        for (const m of c.lo) m.visible = far;
+      }
+      const shadow = d < TREES.shadowDist;
+      if (shadow !== c.shadow) {
+        c.shadow = shadow;
+        for (const m of c.all) m.castShadow = shadow;
+      }
+    }
+    for (const c of this.grassCells || []) c.mesh.visible = cellDist(c, pos) < GRASS.drawDist;
   }
 
   // Çimen öbekleri: haritanın ortam satırındaki sıklıkla (100 m² başına) rastgele ama her açılışta aynı yerlere,
@@ -350,6 +418,7 @@ export class World extends CollisionWorld {
     if (!this.grassMat) {
       this.grassMat = new THREE.MeshStandardMaterial({ map: this.T.grassBlades, alphaTest: 0.45, roughness: 1, metalness: 0 });
       addWind(this.grassMat, WIND.grass, 0, 1);
+      addAlphaBoost(this.grassMat);
     }
     const area = (B.maxx - B.minx) * (B.maxz - B.minz);
     const count = Math.round((area / 100) * spec.density * q);
@@ -391,6 +460,7 @@ export class World extends CollisionWorld {
       mesh.computeBoundingSphere();
       this.scene.add(mesh);
       this.meshes.push(mesh);
+      (this.grassCells ||= []).push({ ...cellBounds(list, 1), mesh });
     }
     this.grassCount = items.length;
   }

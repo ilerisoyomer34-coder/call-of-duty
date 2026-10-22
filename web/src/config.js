@@ -108,12 +108,44 @@ export const ONLINE = {
 // Rüzgâr (models.js → addWind): salınım hızı ve genliği (yüksekliğin oranı); çimen öbekleri (world.js →
 // scatterGrass): harita ortamındaki "grass" satırı sıklığı (100 m² başına) ve rengi verir; kaliteye göre sıklık çarpanı
 export const WIND = { speed: 1.25, treeFoliage: 0.022, treeTrunk: 0.006, grass: 0.16 };
-export const GRASS = { cell: 32, density: { low: 0, medium: 0.55, high: 1 }, height: [0.35, 0.75], width: [0.45, 0.85] };
+// drawDist: bu mesafeden (hücrenin en yakın noktası) ötedeki çimen hücresi çizilmez; uzakta öbekler pikselden küçük
+export const GRASS = { cell: 32, density: { low: 0, medium: 0.55, high: 1 }, height: [0.35, 0.75], width: [0.45, 0.85], drawDist: 60 };
 
 export const TREES = {
   alphaTest: 0.2, // yaprak kartlarının saydamlık kesme eşiği (modelin kendi MASK eşiği ≈ 0,21; yüksek değer tacı seyreltir)
   scaleJitter: 0.12, // aynı boydaki ağaçlar birbirinin kopyası görünmesin: ± oran
   snowTint: [0.86, 0.93, 1.05], // karlı haritada yaprak rengi çarpanı (soğuk, kırağılı)
+  // Yalnız yakındaki ağaç tam ayrıntılı: gövde ve dallar (modelin üçgenlerinin ~%75'i) bu mesafeden ötede sade
+  // geometriyle çizilir (yapraklar aynı). Kara Orman'da tek bakışta 260 ağacın gövdesi milyonu aşkın üçgendi
+  lodDist: 34, // hücrenin en yakın noktasına uzaklık (m)
+  lodHyst: 4, // sınırda gidip gelmesin
+  trunkLod: { ratio: 0.15, error: 0.02 }, // sade gövde: üçgen oranı ve göreli hata (meshoptimizer)
+  // Bu mesafeden ötedeki ağaç hücresi gölge düşürmez (gölge haritası ±48 m; uzakta gölge zaten seçilmez)
+  shadowDist: 42,
+};
+
+// Alfa kesmeli yapraklar ve çimen: doku küçük katmanına (uzak, eğik bakış) indikçe saydamlık güçlenir. Çam yaprağı
+// dokusunun ortalama saydamlığı (≈0,22) kesme eşiğine (0,2) çok yakın: küçük katmanlarda bütün kümeler eşiğin altına
+// düşüp yapraklar bir anda kayboluyordu. Katman başına bu oranda güçlenir (Golus, "alpha to coverage" notları)
+export const FOLIAGE = { mipBoost: 0.3, maxBoost: 3 };
+
+// Görünmeyen asker çizilmez (yalnız bakılan yer): görüş konisindeki düşmana kameradan birkaç noktasına (baş, göğüs,
+// diz, iki omuz) çarpışma dünyasında ışın atılır; hiçbiri görmüyorsa (duvar, kat arkası) gizlenir, iskeleti seyrek
+// güncellenir. Duvarlar yapay zekânın görüşüyle aynı: oyuncuyu gören asker oyuncuya da görünür
+export const OCCLUSION = {
+  every: 0.12, // yakın askerde yoklama aralığı (s; askerler arasında dağıtılır)
+  farEvery: 0.3, // uzaktaki askerde
+  farDist: 30, // m
+  hideAfter: 0.25, // bu kadar art arda görünmezse gizlenir (köşede titremesin); görününce hemen çizilir
+  side: 1.6, // omuz noktaları: asker yarıçapının bu katı yana
+  knee: 0.5, // diz yüksekliği (m)
+};
+
+// Üçüncü şahıs silah modeli (src/lod.js): tim askerinin elindeki ve yerde duran silah, birinci şahıs görünümünün tam
+// modelinden türetilir: parçalar malzeme başına birleşir, üçgenler azaltılır (10–140 bin → birkaç bin). Göreli hata
+// modelin boyuna göre (0,006 ≈ 5 mm); sinematik telsiz yakın çekiminde de bozulmasın diye küçük
+export const LOD_MODELS = {
+  gun: { ratio: 0.25, error: 0.006, minTris: 600, maxTris: 9000 }, // maxTris: çok ayrıntılı modelde (M4: 138 bin) üst sınır
 };
 
 // Sabit adımlı oyuncu simülasyonu (çok oyunculu M1; tick hızı shared/constants.js → TICK_RATE)
@@ -1412,7 +1444,7 @@ export const BLOOD = {
 // perChar (en çok maxSec), konuşma bitince tail sn kalır; fade giriş/çıkış, cut kesmede parazit süresi (sn).
 // studioY: karargâh/pilot/düşman stüdyo köşesinin yüksekliği (haritanın çok altında, ana kamera görmez).
 export const COMMS_CAM = {
-  fps: { low: 12, medium: 18, high: 24, ultra: 24 }, maxPR: 1.5, touchPR: 1,
+  fps: { low: 12, medium: 18, high: 24, ultra: 24 }, touchFps: 10, maxPR: 1.5, touchPR: 1, // telefonda sahne ikinci kez seyrek çizilir
   fov: 30, near: 0.05, far: 22,
   dist: 1.0, side: 0.3, height: 0.1, lookUp: 0.07, minDist: 0.45,
   drift: { amp: 0.03, speed: 0.3 },
@@ -1458,7 +1490,7 @@ export const RADIO_VOICE = {
 export const PHYSICS = {
   gravity: -13, // m/s² — gerçekten biraz güçlü: ceset ve parçalar "süzülmesin"
   step: 1 / 60, // sabit adım (s)
-  maxSubsteps: 4, // yavaş karede en çok bu kadar adım (fazlası atılır: oyun ağır çekime girer, donmaz)
+  maxSubsteps: 2, // yavaş karede en çok bu kadar adım (fazlası atılır: ceset ve parçalar ağır çekime girer, kare uzamaz)
   ground: { halfSize: 600, depth: 1 }, // y = 0 zemini (çarpışma dünyasındaki düzlemin karşılığı)
   limits: { ragdolls: 6, ragdollsTouch: 3, debris: 20, chunks: 40, chunksTouch: 20 },
   ragdoll: {
@@ -1639,13 +1671,16 @@ export const TACTIC_LABELS = {
 // Harita ortamları. Işık SAYISI sabit (hemi + güneş/ay); yalnızca renk ve şiddet değişir, shader yeniden
 // derlenmez. sky: gökyüzü gölgelendiricisi (glow: güneş halesi, disc: güneş/ay diski, band: ufuk bandı,
 // stars: gece yıldızları), fog: [yakın, uzak] (renk ufuktan), view: silah görünümü sahnesinin ışıkları,
-// reflect: silah metalleri için yansıma gökyüzü, perception: gece/kar görüşü (düşman algısı çarpanı)
+// reflect: silah metalleri için yansıma gökyüzü, perception: gece/kar görüşü (düşman algısı çarpanı).
+// hemi [gök, yer, şiddet]: güneş almayan yüzün tek ışığı. three.js bunu π'ye böler, ACES de koyu tonları ezer:
+// eski değerlerle (≈1) gölgedeki asfalt/bina/kaya simsiyahtı (Liman'da bir yönde ekranın %91'i, gece haritalarında
+// %98'i). Şiddet ve yer rengi buna göre ölçülerek yükseltildi; gece haritaları yine karanlık ama okunur
 export const MAPS = {
   kizilkum: {
     name: 'Kızılkum Vadisi', desc: 'Çöl vadisi, şafak',
     env: {
       sky: { zenith: 0x3d6a9a, horizon: 0xd8a987, ground: 0xb89878, glow: [1.0, 0.62, 0.32], disc: [1.0, 0.85, 0.6], band: [0.35, 0.16, 0.06], stars: 0 },
-      fog: [70, 460], sunDir: [0.82, 0.3, -0.22], sun: [0xffcf9c, 2.9], hemi: [0xb4c8e0, 0x8a6f4d, 1.15], exposure: 1.05,
+      fog: [70, 460], sunDir: [0.82, 0.3, -0.22], sun: [0xffcf9c, 2.9], hemi: [0xb4c8e0, 0x978a79, 2.4], exposure: 1.05,
       reflect: [0x4a78a8, 0xe0b595, 0x9a7a58], view: [0xd6e0ec, 0x7a6650, 1.5, 0xffd9b0, 2.2],
       dust: 0xcbb08a, ambient: { wind: 420, gain: 0.16, distant: 1 }, perception: 1, weather: null,
       grass: { density: 5, color: 0xb6a46a, height: 0.8 }, // kuru çöl otu
@@ -1655,7 +1690,7 @@ export const MAPS = {
     name: 'Liman', desc: 'Konteyner limanı, gün batımı',
     env: {
       sky: { zenith: 0x34457a, horizon: 0xf0925a, ground: 0x5a4a4c, glow: [1.0, 0.45, 0.18], disc: [1.0, 0.7, 0.4], band: [0.5, 0.18, 0.05], stars: 0 },
-      fog: [60, 420], sunDir: [-0.93, 0.13, 0.34], sun: [0xff9a5c, 2.7], hemi: [0x8a92c0, 0x6a4a3a, 1.05], exposure: 1.0,
+      fog: [60, 420], sunDir: [-0.93, 0.13, 0.34], sun: [0xff9a5c, 2.7], hemi: [0x9aa2cc, 0x8a7070, 4.2], exposure: 1.0,
       reflect: [0x3e5088, 0xf0a070, 0x5a4a4c], view: [0xb8bde0, 0x6a4a3a, 1.35, 0xffb080, 2.1],
       dust: 0xa89078, ambient: { wind: 300, gain: 0.2, distant: 0.7, sea: true }, perception: 1, weather: null,
     },
@@ -1664,7 +1699,7 @@ export const MAPS = {
     name: 'Yıkık Şehir', desc: 'Savaşta yıkılmış şehir, kapalı hava',
     env: {
       sky: { zenith: 0x5d6975, horizon: 0xa9aeb0, ground: 0x6a6a68, glow: [0.25, 0.25, 0.25], disc: [0.3, 0.3, 0.3], band: [0.04, 0.04, 0.05], stars: 0 },
-      fog: [35, 290], sunDir: [0.35, 0.7, 0.45], sun: [0xe6ebf0, 1.55], hemi: [0xc2cad4, 0x5c5854, 1.55], exposure: 1.02,
+      fog: [35, 290], sunDir: [0.35, 0.7, 0.45], sun: [0xe6ebf0, 1.55], hemi: [0xc2cad4, 0x7b7a7a, 3.0], exposure: 1.02,
       reflect: [0x6a7682, 0xa9aeb0, 0x5a5a58], view: [0xc8d0d8, 0x5c5854, 1.6, 0xe6ebf0, 1.4],
       dust: 0x8f8a82, ambient: { wind: 360, gain: 0.18, distant: 1.4 }, perception: 0.95, weather: 'ash',
     },
@@ -1673,7 +1708,7 @@ export const MAPS = {
     name: 'Karlı Dağ Geçidi', desc: 'Karlı sıradağlar, kar yağışı',
     env: {
       sky: { zenith: 0x4f78a6, horizon: 0xd2dde8, ground: 0xe4ebf0, glow: [0.6, 0.55, 0.45], disc: [1.0, 0.95, 0.85], band: [0.08, 0.08, 0.1], stars: 0 },
-      fog: [45, 360], sunDir: [0.5, 0.42, 0.62], sun: [0xfff0dc, 2.3], hemi: [0xcfe0f2, 0x8894a0, 1.3], exposure: 0.92,
+      fog: [45, 360], sunDir: [0.5, 0.42, 0.62], sun: [0xfff0dc, 2.3], hemi: [0xcfe0f2, 0x9daab8, 2.4], exposure: 0.92,
       reflect: [0x5a82b0, 0xd8e2ec, 0xe8eef2], view: [0xdbe6f2, 0x8894a0, 1.5, 0xfff0dc, 2.0],
       dust: 0xe8eef2, ambient: { wind: 620, gain: 0.26, distant: 0.6 }, perception: 0.9, weather: 'snow',
     },
@@ -1682,7 +1717,7 @@ export const MAPS = {
     name: 'Gece Rafinerisi', desc: 'Petrol rafinerisi, gece',
     env: {
       sky: { zenith: 0x040814, horizon: 0x1c2640, ground: 0x07070a, glow: [0.18, 0.22, 0.35], disc: [0.85, 0.9, 1.0], band: [0.12, 0.06, 0.02], stars: 1 },
-      fog: [28, 250], sunDir: [-0.42, 0.55, -0.62], sun: [0xa8bcff, 0.85], hemi: [0x4a5e9a, 0x2a2018, 0.95], exposure: 1.5,
+      fog: [28, 250], sunDir: [-0.42, 0.55, -0.62], sun: [0xa8bcff, 0.85], hemi: [0x6a7ec0, 0x4a4858, 4.5], exposure: 1.5,
       reflect: [0x0a1224, 0x2a3450, 0x0a0a0c], view: [0x6a7aa8, 0x2a2018, 0.9, 0xb0c0ff, 0.6],
       dust: 0x6a6a70, ambient: { wind: 260, gain: 0.12, distant: 0.8, hum: true }, perception: 0.85, weather: null,
     },
@@ -1691,7 +1726,7 @@ export const MAPS = {
     name: 'Kara Orman', desc: 'Sık çam ormanı, sisli sabah',
     env: {
       sky: { zenith: 0x58789a, horizon: 0xb9c6bf, ground: 0x4a5640, glow: [0.85, 0.7, 0.45], disc: [1.0, 0.92, 0.72], band: [0.12, 0.1, 0.05], stars: 0 },
-      fog: [24, 240], sunDir: [-0.55, 0.38, 0.62], sun: [0xffe2b4, 2.5], hemi: [0xc4d6dc, 0x56663f, 1.55], exposure: 1.12,
+      fog: [24, 240], sunDir: [-0.55, 0.38, 0.62], sun: [0xffe2b4, 2.5], hemi: [0xc4d6dc, 0x77876e, 3.0], exposure: 1.12,
       reflect: [0x56708a, 0xb9c6bf, 0x4a5640], view: [0xc6d4d8, 0x4a5a3a, 1.45, 0xffe2b4, 1.8],
       dust: 0x7a7a5a, ambient: { wind: 380, gain: 0.15, distant: 0.6 }, perception: 0.82, weather: null,
       grass: { density: 26, color: 0x7e9a56, height: 1.1 },
@@ -1701,7 +1736,7 @@ export const MAPS = {
     name: 'Çelik Fabrika', desc: 'Robot fabrikası, gece',
     env: {
       sky: { zenith: 0x05070f, horizon: 0x2a1e30, ground: 0x08080a, glow: [0.3, 0.12, 0.18], disc: [0.9, 0.85, 1.0], band: [0.16, 0.05, 0.05], stars: 1 },
-      fog: [26, 240], sunDir: [0.4, 0.55, -0.7], sun: [0xb8c4ff, 0.9], hemi: [0x5a5e9a, 0x2a1a18, 1.0], exposure: 1.55,
+      fog: [26, 240], sunDir: [0.4, 0.55, -0.7], sun: [0xb8c4ff, 0.9], hemi: [0x7a7ec0, 0x4a4250, 4.5], exposure: 1.55,
       reflect: [0x0c1020, 0x3a2a40, 0x0a0a0c], view: [0x7a7aa8, 0x2a1a18, 0.95, 0xc0c8ff, 0.65],
       dust: 0x5a5a62, ambient: { wind: 220, gain: 0.1, distant: 0.9, hum: true }, perception: 0.85, weather: null,
     },
@@ -1710,7 +1745,7 @@ export const MAPS = {
     name: 'Kıyı', desc: 'Kumsal ve burun, şafak',
     env: {
       sky: { zenith: 0x3e6a9c, horizon: 0xf2c19a, ground: 0xc8b090, glow: [1.0, 0.6, 0.35], disc: [1.0, 0.86, 0.62], band: [0.36, 0.16, 0.08], stars: 0 },
-      fog: [70, 460], sunDir: [0.2, 0.22, 0.95], sun: [0xffcfa0, 2.8], hemi: [0xb8cce4, 0x8a7458, 1.2], exposure: 1.05,
+      fog: [70, 460], sunDir: [0.2, 0.22, 0.95], sun: [0xffcfa0, 2.8], hemi: [0xb8cce4, 0x988e82, 3.2], exposure: 1.05,
       reflect: [0x4a78a8, 0xf2c19a, 0x9a8466], view: [0xd2deec, 0x8a7458, 1.5, 0xffd2a8, 2.1],
       dust: 0xd2bc94, ambient: { wind: 360, gain: 0.18, distant: 1.1, sea: true }, perception: 1, weather: null,
       grass: { density: 4, color: 0xc0b07a, height: 1.0 }, // kumul otu
@@ -1720,7 +1755,7 @@ export const MAPS = {
     name: 'Son Kale', desc: 'Kızıl kanyon, alacakaranlık, kül yağışı',
     env: {
       sky: { zenith: 0x2a1218, horizon: 0xc0583a, ground: 0x4a2418, glow: [1.0, 0.32, 0.14], disc: [1.0, 0.55, 0.3], band: [0.5, 0.12, 0.04], stars: 0 },
-      fog: [30, 270], sunDir: [-0.5, 0.34, 0.8], sun: [0xff7a48, 2.5], hemi: [0xb47a8a, 0x6a3220, 1.45], exposure: 1.12,
+      fog: [30, 270], sunDir: [-0.5, 0.34, 0.8], sun: [0xff7a48, 2.5], hemi: [0xb47a8a, 0x804840, 3.0], exposure: 1.12,
       reflect: [0x4a2028, 0xc0583a, 0x4a2418], view: [0xc89090, 0x5a2a1a, 1.35, 0xff9a6a, 1.9],
       dust: 0x9a5a40, ambient: { wind: 480, gain: 0.2, distant: 1.3 }, perception: 0.92, weather: 'ash',
       grass: { density: 2.5, color: 0x9a6a48, height: 0.7 },
@@ -1887,6 +1922,9 @@ export const RENDER = {
   shadowAhead: 20,
   // Dokunmatik cihazlarda gölge haritası bu kadar karede bir yenilenir (gölge geçişinin maliyeti yarıya iner)
   touchShadowEvery: 2,
+  // Silah ve asker dokularının en büyük boyu (px; 0 = dosyadaki gibi, en çok 2048). Telefonda bellek dörtte bir
+  textureCap: { high: 0, medium: 0, low: 1024 },
+  touchTextureCap: 1024,
 };
 
 // Teçhizat ekranındaki silah görselleri (Operasyon Güncellemesi §5.4): oyunun kendi modelinden stüdyo

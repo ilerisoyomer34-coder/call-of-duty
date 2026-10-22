@@ -2228,16 +2228,61 @@ console.log('Haritalar, mevziler ve manga kademeleri');
         trees: g.world.trees.length,
         // Hücrelere bölünmüş örnek ağları: gövde ve yaprak örneklerinin toplamı ağaç sayısı kadar
         treeInst: (() => {
-          const sum = { trunk: 0, leaf: 0, cells: 0 };
+          const sum = { trunk: 0, leaf: 0, cells: 0, lod: 0 };
           g.scene.traverse((o) => {
             if (!o.isInstancedMesh || o.userData.prop !== 'tree') return;
             if (o.userData.foliage) {
               sum.leaf += o.count;
               sum.cells++;
               sum.alpha = o.material.alphaTest > 0;
-            } else sum.trunk += o.count;
+            } else if (o.userData.lod) sum.lod += o.count;
+            else sum.trunk += o.count;
           });
+          // Uzak hücre sade gövdeyle, yakın hücre tam gövdeyle çizilir (ikisi aynı anda görünmez)
+          sum.exclusive = (g.world.treeCells || []).every((c) => c.lo.every((m, i) => m.visible !== c.hi[i].visible));
           return sum;
+        })(),
+        // Gölgede kalan yüzler simsiyah olmasın: dört yönde dünya görüntüsünün alt %70'inde neredeyse siyah piksel oranı
+        dark: (() => {
+          const gl = g.renderer.getContext();
+          const w = gl.drawingBufferWidth;
+          const h = gl.drawingBufferHeight;
+          const px = new Uint8Array(w * h * 4);
+          const yaw0 = g.player.yaw;
+          const out = [];
+          for (let k = 0; k < 4; k++) {
+            g.player.yaw = yaw0 + (k * Math.PI) / 2;
+            g.player.applyCamera(g.camera, 0);
+            g.camera.updateMatrixWorld();
+            g.followSun(g.player.pos);
+            g.drawWorld(g.camera);
+            gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            let d = 0;
+            let n = 0;
+            for (let y = 0; y < Math.floor(h * 0.7); y += 3)
+              for (let x = 0; x < w; x += 3) {
+                const i = (y * w + x) * 4;
+                n++;
+                if (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2] < 28) d++;
+              }
+            out.push(Math.round((d / n) * 100));
+          }
+          g.player.yaw = yaw0;
+          g.player.applyCamera(g.camera, 0);
+          return out;
+        })(),
+        // Tim askerinin elindeki silah birinci şahıs modelinin sade kopyası (lod.js)
+        allyGun: (() => {
+          // Alfa-1'in AK-74M'si: görünüm modelinde de ana silah (tam modeli yüklü)
+          const a = g.allies.list.find((x) => x.model.gunAsset === 'ak74');
+          if (!a) return null;
+          const tris = (root) => {
+            let n = 0;
+            root.traverse((o) => o.isMesh && (n += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3));
+            return n;
+          };
+          const full = g.viewmodel.models[a.model.gunAsset];
+          return { id: a.model.gunAsset, tris: tris(a.model.gun), full: full?.glb ? tris(full.root) : 0 };
         })(),
         // Konteynerler hazır modelle: renk başına bir InstancedMesh, örneklerin toplamı haritadaki konteyner sayısı
         containers: g.world.containers.length,
@@ -2265,6 +2310,11 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
     if ([1, 5, 7, 9].includes(id)) check(r.trees > 0 && r.treeInst.trunk === r.trees && r.treeInst.leaf === r.trees && r.treeInst.alpha, `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, ${r.treeInst.cells} hücre: bakılmayan hücre çizilmez)`);
+    if ([1, 5, 7, 9].includes(id)) check(r.treeInst.lod === r.trees && r.treeInst.exclusive, `Seviye ${id}: uzak ağaç hücreleri sade gövdeyle (${r.treeInst.lod} örnek; tam ve sade gövde aynı anda çizilmez)`);
+    // Gece haritaları karanlık ama okunur; gündüz haritasında gölgedeki zemin/bina simsiyah değil
+    const darkMax = ['refinery', 'factory'].includes(map) ? 70 : 55;
+    check(Math.max(...r.dark) <= darkMax, `Seviye ${id}: gölgedeki yüzler simsiyah değil (dört yönde siyah piksel %${r.dark.join('/%')}, sınır %${darkMax})`);
+    if (id === 1 && r.allyGun) check(r.allyGun.full > 0 && r.allyGun.tris < r.allyGun.full * 0.45, `Tim askerinin silahı sade kopya (${r.allyGun.id}: ${r.allyGun.full} → ${r.allyGun.tris} üçgen)`);
     if (![5, 7, 9].includes(id)) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk ve hücre başına bir çizim çağrısı)`);
     if (id >= 3) {
       await waitGame(page, 1.0);
@@ -2288,6 +2338,40 @@ console.log('Haritalar, mevziler ve manga kademeleri');
   });
   console.log(`    düşman güncellemesi (medyan): ${cost.toFixed(2)} ms`);
   check(cost < 6, `Düşman güncellemesi makul (${cost.toFixed(2)} ms)`);
+
+  // --- Yalnız bakılan yer (Belediye): binanın içindeki muhafızlar meydandan çizilmez, içeri girince görünür ---
+  await start(11);
+  const occAt = (x, z, yaw) =>
+    page.evaluate(
+      ([x, z, yaw]) => {
+        const g = window.__game;
+        g.cheats.aiOff = true;
+        g.cheats.god = true;
+        g.player.teleport({ x, y: 0.03, z }, yaw);
+        return new Promise((res) => {
+          const t0 = g.time;
+          const iv = setInterval(() => {
+            if (g.time - t0 < 0.7) return;
+            clearInterval(iv);
+            const cam = g.camera.position;
+            const alive = g.enemies.list.filter((e) => e.alive);
+            const hidden = alive.filter((e) => e.occluded);
+            // Gizlenen her askerin başı ve göğsü gerçekten duvar arkasında (görünen gizlenmez)
+            const wrong = hidden.filter((e) => g.world.lineOfSight(cam, e.eyePos()) || g.world.lineOfSight(cam, e.chestPos())).length;
+            res({ alive: alive.length, inView: alive.filter((e) => g.inView(e.pos)).length, hidden: hidden.length, drawn: alive.filter((e) => e.model.root.visible).length, wrong });
+          }, 50);
+        });
+      },
+      [x, z, yaw]
+    );
+  const plaza = await occAt(0, 10, 0);
+  check(plaza.hidden >= 10 && plaza.wrong === 0 && plaza.drawn === plaza.alive - plaza.hidden, `Belediye meydanından binadaki muhafızlar çizilmiyor (${plaza.inView} görüş konisinde, ${plaza.hidden} duvar arkasında gizli, yanlış gizlenen ${plaza.wrong})`);
+  const hall = await occAt(0, -14, 0);
+  check(hall.wrong === 0 && hall.hidden < plaza.hidden, `Binaya girince aynı kattakiler görünür (${hall.hidden} gizli, yanlış gizlenen ${hall.wrong})`);
+  await page.evaluate(() => {
+    window.__game.cheats.aiOff = false;
+    window.__game.cheats.god = false;
+  });
 
   // --- Savaş robotu (Kara Orman): model, hasar kuralları, ölüm ---
   await start(7);

@@ -11,6 +11,7 @@ import { C4, SCORE, WEAPONS, WEAPON_ORDER, DEFAULT_LOADOUT, LEVELS, HMG, AA_GUN,
 import { HeavyNest } from './hmg.js';
 import { Tank } from './tank.js';
 import { loadWeaponAsset, assetIdFor } from './assets.js';
+import { lowPolyGun } from './lod.js';
 import { weaponName } from './weaponInfo.js';
 import { EV } from './events.js';
 import { rand, lerp, clamp, smoothstep, pick, dirToYaw, damp } from './util.js';
@@ -86,7 +87,8 @@ class WeaponPickup {
     g.scene.add(this.root);
     this.setModel(buildWeapon(id).root);
     if (this.data.model === 'glb') {
-      loadWeaponAsset(assetIdFor(this.data))
+      // Birinci şahıs modelinin sade kopyası (lod.js): yerdeki silah 10–140 bin üçgen yerine birkaç bin
+      lowPolyGun(assetIdFor(this.data), loadWeaponAsset, bakeStatic)
         .then((scene) => !this.taken && this.setModel(scene))
         .catch(() => {});
     }
@@ -115,8 +117,8 @@ class WeaponPickup {
     const g = this.mission.game;
     if (this.model) this.model.removeFromParent();
     const holder = new THREE.Group();
-    // Parçalar malzeme başına tek ağa: yerdeki silah 10–30 çizim çağrısı yerine birkaç
-    obj = bakeStatic(obj);
+    // Parçalar malzeme başına tek ağa: yerdeki silah 10–30 çizim çağrısı yerine birkaç (sade kopya zaten birleşik)
+    if (!obj.userData.baked) obj = bakeStatic(obj);
     holder.add(obj);
     holder.rotation.z = Math.PI / 2;
     this.root.add(holder);
