@@ -31,7 +31,7 @@ export function freshSave(startCredits = STORE.startCredits) {
     inventory: { armor: [], helmets: [], consumables: {}, upgrades: [], weapons: [] },
     loadout: { primary: null, secondary: null, melee: null, armor: null, helmet: null, slots: [null, null] },
     // Yapılmış bir kerelik geçişler (yeni kayıtta hepsi yapılmış sayılır: seçimine dokunulmaz)
-    migrated: { detailedGuns: true },
+    migrated: { detailedGuns: true, soundOn: true },
     progress: { unlocked: 1, best: {}, campaignOrder: 1 },
     missions: {},
     stats: { revivesGiven: 0, timesDowned: 0, commandsIssued: 0, kills: 0, missionsCompleted: 0 },
@@ -88,6 +88,12 @@ function normalize(raw, startCredits) {
     if (s.loadout.primary === 'rifle') s.loadout.primary = DEFAULT_LOADOUT.primary;
     if (s.loadout.secondary === 'pistol') s.loadout.secondary = DEFAULT_LOADOUT.secondary;
     s.migrated.detailedGuns = true;
+  }
+  // Bir kerelik: oyun sesi eskiden varsayılan kapalıydı ("Ses gelmiyor"); kayıtlı kapalı ayar bir kez açılır,
+  // sonra oyuncunun seçimine dokunulmaz
+  if (!s.migrated.soundOn) {
+    if (s.settings) s.settings.muted = false;
+    s.migrated.soundOn = true;
   }
   return s;
 }

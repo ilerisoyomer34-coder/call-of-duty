@@ -1422,15 +1422,19 @@ async function boot() {
   // Mağaza uygulaması: Android geri tuşu (duraklat / geri dön / çift basışla çık)
   game.native = setupNative(game);
   requestAnimationFrame((t) => game.frame(t));
-  // İlk tıklamada menü müziği
-  const startAudio = () => {
-    game.audio.init();
-    if (game.state === 'menu') game.audio.startMenuMusic();
-    window.removeEventListener('pointerdown', startAudio);
-    window.removeEventListener('keydown', startAudio);
+  // Ses ve telsiz konuşması tarayıcıda ancak bir dokunuşun/tıklamanın/tuşun içinde başlar: iOS Safari ikisini de,
+  // Chrome konuşmayı engeller; görev yüklenirken (bekleme sonrası) açılan ses askıda kalıyordu, iOS arka plandan
+  // dönünce de askıya alır. Her etkileşimde açılır/sürdürülür; ilk etkileşimde menüdeyse müzik başlar
+  let music = false;
+  const unlockAudio = () => {
+    game.audio.unlock();
+    game.radioVoice.unlock();
+    if (!music && game.state === 'menu') {
+      music = true;
+      game.audio.startMenuMusic();
+    }
   };
-  window.addEventListener('pointerdown', startAudio);
-  window.addEventListener('keydown', startAudio);
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(ev, unlockAudio, { capture: true, passive: true });
   window.claude?.hot?.snapshot?.(() => ({ settings: game.settings }));
   void saveSettings;
 }

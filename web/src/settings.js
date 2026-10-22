@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS = {
   sprintMode: 'hold',
   quality: 'auto', // 'auto' | 'low' | 'medium' | 'high'
   renderScale: 'auto', // dünya çözünürlüğü: 'auto' ya da '1' | '0.85' | '0.7' | '0.5' (eller ve silah hep tam)
-  muted: true, // oyun sesi kapalı (kullanıcı isteği); lobideki ses düğmesi, duraklatma menüsü ve Ayarlar açar
+  muted: false, // oyun sesi açık başlar (kullanıcı: "Ses gelmiyor"); lobideki hoparlör, duraklatma menüsü ve Ayarlar kapatır
   masterVolume: 0.8,
   sfxVolume: 1.0,
   ambientVolume: 0.6,

@@ -15,11 +15,18 @@ export class Audio {
 
   init() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      // iOS arka plandan dönünce ya da aramadan sonra 'interrupted', diğerleri 'suspended' bırakır
+      if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') this.ctx.resume?.().catch?.(() => {});
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    // iOS 17+: telefonun sessiz tuşu açıkken de oyun sesi çalsın (Web Audio varsayılanda sessiz tuşa uyar)
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch {
+      /* desteklenmiyor */
+    }
     this.ctx = new AC();
     const ctx = this.ctx;
     this.comp = ctx.createDynamicsCompressor();
@@ -66,6 +73,18 @@ export class Audio {
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     this.applyVolumes();
+  }
+
+  // Ses ancak bir dokunuşun/tıklamanın/tuşun içinde başlar: oyun her etkileşimde çağırır (main.js). İlk seferde
+  // tek örneklik sessiz ses çalınır (eski iOS'ta bağlamın kilidi böyle açılır)
+  unlock() {
+    this.init();
+    if (!this.ctx || this.primed) return;
+    this.primed = true;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+    src.connect(this.ctx.destination);
+    src.start(0);
   }
 
   setVolumes(v) {

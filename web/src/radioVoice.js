@@ -71,6 +71,20 @@ export class RadioVoice {
     speechSynthesis.addEventListener?.('voiceschanged', load);
   }
 
+  // iOS Safari konuşmayı, bir dokunuşun içinde başlamış bir satır olmadan hiç okumaz (oyunun satırları döngüden
+  // gelir); Chrome da etkileşimsiz sayfada okumaz. İlk etkileşimde sessiz bir satır okutulur (main.js)
+  unlock() {
+    if (!this.supported || this.unlocked) return;
+    this.unlocked = true;
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    } catch {
+      this.unlocked = false;
+    }
+  }
+
   get enabled() {
     return this.supported && this.game.settings.radioVoice !== false;
   }
@@ -150,6 +164,8 @@ export class RadioVoice {
     this.game.audio.radioKey?.(true);
     this.game.audio.radioHiss?.(true);
     try {
+      // Arka plandan dönünce ya da kesintiden sonra okuma "duraklatılmış" kalabiliyor (Chrome, iOS)
+      speechSynthesis.resume?.();
       speechSynthesis.speak(u);
     } catch {
       done();

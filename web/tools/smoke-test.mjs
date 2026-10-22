@@ -123,7 +123,7 @@ console.log('Görsel kontrol (yüksek kalite)');
   const page = await openPage('standalone', 'high');
   await sleep(1500);
   await page.screenshot({ path: join(shots, '00-menu-high.png') });
-  // Lobi (CODM düzeni): 3B operatör, oyuncu kartı, günün görevleri, günlük ödül, ses varsayılan kapalı
+  // Lobi (CODM düzeni): 3B operatör, oyuncu kartı, günün görevleri, günlük ödül, ses varsayılan açık
   const lb = await page.evaluate(() => {
     const g = window.__game;
     return {
@@ -133,19 +133,22 @@ console.log('Görsel kontrol (yüksek kalite)');
       emblem: !!document.querySelector('#lbEmblem svg'),
       challenges: document.querySelectorAll('#lbChallenges li').length,
       pips: document.querySelectorAll('#lbPips li').length,
-      muted: g.settings.muted && document.body.classList.contains('muted') && g.audio.volumes.master === 0,
+      soundOn: !g.settings.muted && !document.body.classList.contains('muted') && g.audio.volumes.master > 0,
     };
   });
   check(lb.op && lb.level === '1' && lb.rank === 'Er' && lb.emblem && lb.challenges === 3 && lb.pips === 7, `Lobi: iskeletli operatör, seviye ${lb.level} ${lb.rank}, ${lb.challenges} günün görevi, 7 günlük ödül`);
-  check(lb.muted, 'Oyun sesi varsayılan kapalı (hoparlör düğmesi sessiz)');
+  check(lb.soundOn, 'Oyun sesi varsayılan açık');
   const kr0 = await page.evaluate(() => window.__game.economy.credits);
   await page.click('#btnDaily');
   const dl = await page.evaluate(() => ({ kr: window.__game.economy.credits, dis: document.getElementById('btnDaily').disabled, xp: window.__game.save.data.progression.xp, last: window.__game.save.data.progression.daily.last }));
   check(dl.kr === kr0 + 500 && dl.dis && dl.xp === 100 && !!dl.last, `Günlük ödül alındı (+500 KR, +100 XP), düğme yarına kadar kapalı`);
+  // Ses ilk etkileşimde açılır (iOS: dokunuşun içinde); bağlam çalışıyor, telsiz konuşması bir kez açıldı
+  const unl = await page.evaluate(() => ({ ctx: window.__game.audio.ctx?.state, speech: !window.speechSynthesis || window.__game.radioVoice.unlocked }));
+  check(unl.ctx === 'running' && unl.speech, `Ses ilk tıklamada açıldı (bağlam ${unl.ctx}, telsiz konuşması ${unl.speech ? 'açık' : 'kapalı'})`);
   await page.click('#btnSound');
   const snd = await page.evaluate(() => ({ muted: window.__game.settings.muted, master: window.__game.audio.volumes.master, saved: window.__game.save.data.settings.muted }));
   await page.click('#btnSound');
-  check(!snd.muted && snd.master > 0 && snd.saved === false && (await page.evaluate(() => window.__game.settings.muted)), 'Ses düğmesi açıp kapatıyor ve kayda yazıyor');
+  check(snd.muted && snd.master === 0 && snd.saved === true && !(await page.evaluate(() => window.__game.settings.muted)), 'Ses düğmesi kapatıp açıyor ve kayda yazıyor');
   await page.click('#btnPlay');
   await page.click('#diffList .diff:nth-child(2)');
   await page.click('#levelList .lvl:nth-child(2)'); // Kızılkum köyü

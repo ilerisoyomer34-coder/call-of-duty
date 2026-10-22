@@ -111,3 +111,12 @@ test('bir kerelik geçiş: eski varsayılan kod modelli silahlar hazır modeller
   const again = migrateSave({ ...save, loadout: { ...save.loadout, primary: 'rifle' } }, () => null, 1000).save;
   assert.equal(again.loadout.primary, 'rifle');
 });
+
+test('bir kerelik geçiş: eskiden varsayılan kapalı olan oyun sesi bir kez açılır, sonra seçime dokunulmaz', () => {
+  const { save } = migrateSave({ version: 1, credits: 10, settings: { muted: true, quality: 'low' } }, () => null, 1000);
+  assert.equal(save.settings.muted, false);
+  assert.equal(save.settings.quality, 'low');
+  assert.equal(save.migrated.soundOn, true);
+  const again = migrateSave({ ...save, settings: { ...save.settings, muted: true } }, () => null, 1000).save;
+  assert.equal(again.settings.muted, true, 'oyuncu sonradan kapattıysa kapalı kalır');
+});

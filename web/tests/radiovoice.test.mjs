@@ -103,3 +103,13 @@ test('ayar kapalıyken okunmaz (sesli soruya cevap hariç); bitiş olayı gelmez
   rv.update(0.016);
   assert.equal(rv.speaking, false, 'bekçi süresi doldu');
 });
+
+test('ilk etkileşimde konuşma bir kez sessiz satırla açılır (iOS ilk satırı dokunuşun içinde ister)', () => {
+  const rv = new RadioVoice(game());
+  const n0 = spoken.length;
+  rv.unlock();
+  rv.unlock();
+  assert.equal(spoken.length, n0 + 1);
+  assert.equal(spoken.at(-1).volume, 0);
+  assert.equal(rv.unlocked, true);
+});
