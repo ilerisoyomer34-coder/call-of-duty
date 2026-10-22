@@ -150,7 +150,7 @@ export class World extends CollisionWorld {
     // metaller, su ve cam düşük metallikle; gölgede simsiyah kalıyorlardı
     M.metal = std(T.metal, 0x8a8e90, 0.5, 0.4, 1.5);
     M.metalDark = std(T.metal, 0x3c4042, 0.55, 0.35, 1.5);
-    M.olive = std(T.metal, 0x55603f, 0.75, 0.25, 1.5);
+    M.olive = std(T.metal, 0x6e7a52, 0.75, 0.1, 1.5); // askerî yeşil (çıkarma botunun gölgedeki içi simsiyahtı)
     M.rust = std(T.corrugated, 0x6b4a36, 0.85, 0.3, 2);
     M.wood = std(T.wood, 0xffffff, 0.9, 0, 1.4);
     M.woodDark = std(T.wood, 0x7a6048, 0.9, 0, 1.4);
