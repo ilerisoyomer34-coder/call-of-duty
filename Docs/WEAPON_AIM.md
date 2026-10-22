@@ -47,3 +47,33 @@ Matematik testleri sabit pozdaki hizayı ölçer; oyundaki nefes, geri tepme ve 
 `Soldier Full Tactical Gear` (DanlyVostok, CC BY 4.0) eldivenleri ve üniforma ön kolları kullanılır. `tools/prepare-fps-arms.mjs` avuç yönünü orta parmak, işaret ve serçe boğumlarından ortonormal olarak çıkarır. Dirsek/bilek tabanında eksenler birbirine diktir; yan ölçekleme ve bükülme kumaşı sivriltmez. Ön kolun dönüşü el sırtından türetilir. Dirsekler elin dünya konumundan anatomik uzunlukta ofsetlerle kurulur (`HAND_VIEW`).
 
 Hazırlama: `TEXTURE_PYTHON=/path/to/python-with-pillow node tools/prepare-fps-arms.mjs`. Kaynak ve lisans `SourceAssets/Sketchfab/fps_arms_danlyvostok/` içindedir. Yakın denetim: `node tools/arms-inspector.mjs`; gerçek silahlar: `node tools/aim-inspector.mjs`.
+
+## Silaha göre el tutuşu (22 Ekim 2026)
+
+Sorun: sol ön kol ekranın altından dimdik çıkıyor, el bilekten yaklaşık 90° yana kırılıyordu; sağ elin parmakları kabzanın yanlış ekseni çevresinde bükülüyordu. Dirsek elden sabit bir uzaklıkta, elin yönü ise ondan bağımsız kurulduğu için bilek açısı denetimsizdi.
+
+Yeni düzen:
+
+- **Tutuşlar** `config.js → HAND_HOLDS`: `under` (kundağı alttan avuç yukarı), `vertical` (ön tutamak), `cup` (tabancada destek eli), `firing` (kabza), `stock` (dipçik bileği). Her tutuş işaret parmağı ekseni (`index`: kavranan parçanın ekseni) ve el sırtı yönüyle (`back`) tanımlanır; parmaklar bu eksene dik sarılır.
+- **Dirsek elden türer** (`weaponAim.js → forearmLocal`, `gripElbow`): ön kol elin ekseninden bilek açılarıyla çıkar (`bend` el sırtına doğru, `ulnar` serçe parmağı yönüne; `stock`'ta silah uzayında `forearm` yönü), dirsek `HAND_VIEW.forearm` kadar geride. Ön kol ekranın dışına kadar uzanır (açık kol ağzı görünmez). Şarjör/bomba animasyonunda serbest dirsekle arasında yumuşak geçiş olur.
+- **Silah başına ölçüm** `node tools/fit-hands.mjs` → `src/data/handFit.json`. `WEAPON_AIM` içindeki `left`/`right` yalnız ipucudur. Araç her modelin kundağını ve kabzasını gerçek geometriden keser. Kabzanın kesit merkezlerinden eğim (rake) çıkar, avuç kavranan yüze oturur. Eğim gerçek kabza aralığına sıkıştırılır: kabzada 8,6°–28,6°, ön tutamakta −8,6°–14,3°.
+- **İpucuyla kalanlar**: dört elde ölçüm bilerek yapılmaz, `WEAPON_AIM` ipucu kullanılır.
+  - MG4 ve AWM kabzaları dipçiğe karışık.
+  - MP7 kabzası şarjörle bir.
+  - Minigunun arka tutamağı ince tüp.
+- **Silaha özel seçimler**:
+  - AK-74M Zenitco: dikey ön tutamaktan tutulur (eskiden kundaktaydı).
+  - Bazuka: tüp alttan kavranır.
+  - MP7: katlı ön tutamak alttan kavranır.
+  - Minigun: ön dikey tutamak ve arka tutamak.
+  - Tabancalar: destek eli sağ elin üstüne kapanır.
+- **Testler**:
+  - `tests/weapon-aim.test.mjs` her silahta, kalçada ve nişanda şunları denetler:
+    - bilek ≤ 60° bükük;
+    - dirsek elin altında ve kameraya yakın tarafta;
+    - ön kol dıştan geliyor;
+    - kollar nişan hattını kapatmıyor.
+  - `tests/hand-fit.test.mjs` `handFit.json`'ın güncel olduğunu denetler.
+- Kol kumaşı çift yüzlü: dirsek kameranın yanından geçerken yakın düzlem kesitinde yırtık gibi görünmez.
+
+Model ya da ipucu değişince: `node tools/fit-hands.mjs` (güncellik: `--check`).

@@ -35,7 +35,12 @@
 - Fizik motoru derlemede: bağımsız sürümde pakete gömülü, PWA/uygulamada `vendor/rapier.js` (+ `rapier-LICENSE.txt`, PWA önbelleğinde), Artifact'ta CDN (`tools/build.mjs → RAPIER_CDNS`, jsDelivr › unpkg; `virtual:rapier`). Sürüm `package.json`'daki sabit sürüm.
 - `npm test` → önce birim testleri (`npm run test:unit` = `node --test tests/*.test.mjs`), sonra derler, başsız Chromium'da menü/görev/poligon/telefon akışlarını dener; ekran görüntüleri `web/tools/shots/`
 - Kaynak değiştiyse `dist/` yeniden derlenip commit'lenmeli.
-- Silaha özel nişan/tutuş kalibrasyonu `config.js → WEAPON_AIM`, ortak matematik `weaponAim.js`; GLB'nin nokta kayıtları yerinde kalır, birinci şahıs düzeltmeleri bu tablodan uygulanır. Kontrol: `node tools/aim-inspector.mjs` (tarayıcıyı elle aç; tüm silahlar ve animasyon taraması). Gerçek geometriyle nişan testleri `tests/weapon-aim.test.mjs`, ölçüm tablosu `Docs/WEAPON_AIM.md`.
+- Silaha özel nişan/tutuş kalibrasyonu `config.js → WEAPON_AIM`, ortak matematik `weaponAim.js`; GLB'nin nokta kayıtları yerinde kalır, birinci şahıs düzeltmeleri bu tablodan uygulanır.
+- Eller (`Docs/WEAPON_AIM.md` → "Silaha göre el tutuşu"):
+  - Tutuşlar `config.js → HAND_HOLDS` (`under`/`vertical`/`cup`/`firing`/`stock`: `index` işaret parmağı ekseni, `back` el sırtı, bilek açıları `bend`/`ulnar` ya da `forearm`).
+  - Dirsek elden türer (`weaponAim.js → gripElbow`, ön kol `HAND_VIEW.forearm`): bilek kırılmaz.
+  - Avuç noktaları ve kabza eğimi modelden ölçülür: `cd web && node tools/fit-hands.mjs [--check]` → `src/data/handFit.json` (ortak kod `tools/handFitLib.mjs`; `WEAPON_AIM.left/right/hold/trigger` yalnız ipucu). Model ya da ipucu değişince çalıştırılıp commit'lenir; `tests/hand-fit.test.mjs` eskiyse düşer.
+  - Bilek açısı ve kolların nişan hattı `tests/weapon-aim.test.mjs`'de denetlenir. Kontrol: `node tools/aim-inspector.mjs` (tarayıcıyı elle aç; tüm silahlar ve animasyon taraması). Gerçek geometriyle nişan testleri `tests/weapon-aim.test.mjs`, ölçüm tablosu `Docs/WEAPON_AIM.md`.
 - Çevrim içi sunucu: `cd web && npm run server` (port 8790; ayarlar `server/.env.example`, `DB_PATH=:memory:` deneme). Oyunu ona bağlamak: adrese `?server=http://localhost:8790` ya da Ayarlar → "Çevrim içi sunucu". Yedek: `node server/backup.mjs <klasör>`.
 - Ev sunucusu (kullanıcının bilgisayarı): depo kökü `Sunucuyu-Baslat.bat` / `.command` → `web/server/host.mjs` (bekçi):
   - `server/host.env` (git dışı, ilk açılışta rastgele `SERVER_SECRET`, `SERVER_NAME`);

@@ -598,7 +598,9 @@ export const ENEMY_GUN_POINTS = {
 // side: 1 sağ, -1 sol (başparmak iç tarafta)
 let fpsArmProp = null;
 export function setFpsArmProp(scene) {
-  scene.traverse(o => { if (o.isMesh) { o.geometry.userData.shared = true; o.frustumCulled = false; } });
+  // Kol ağzı açık bir tüp: dirsek kameranın yanından geçerken yakın düzlem kesitinde içi görünür; çift yüzlü kumaş
+  // yırtık görünmesin diye
+  scene.traverse(o => { if (o.isMesh) { o.geometry.userData.shared = true; o.frustumCulled = false; if (/Fore/.test(o.name)) o.material.side = THREE.DoubleSide; } });
   fpsArmProp = scene;
 }
 function naturalArms() {

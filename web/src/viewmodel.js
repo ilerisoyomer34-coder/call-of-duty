@@ -7,7 +7,7 @@ import { buildWeapon, buildArms, poseArm, buildGrenade, buildSmokeGrenade, build
 import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW, HAND_VIEW } from './config.js';
 import { preloadWeapons, rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
 import { sightFor, hasReticle, isScoped, canAim } from './sights.js';
-import { calibrateWeapon, placeWeapon } from './weaponAim.js';
+import { calibrateWeapon, placeWeapon, gripElbow } from './weaponAim.js';
 import { reticleMesh, housingMesh, glowDots } from './reticles.js';
 import { clamp, damp, lerp, smoothstep, Spring, rand, warnOnce } from './util.js';
 
@@ -19,6 +19,7 @@ const _upR = new THREE.Vector3(); // el sırtı yön ipuçları (poseArm)
 const _upL = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _qa = new THREE.Quaternion();
+const _elbow = new THREE.Vector3(); // kavrayan elin dirseği (gripElbow)
 const _NEG_Z = new THREE.Vector3(0, 0, -1);
 const _m4 = new THREE.Matrix4();
 const _box = new THREE.Box3();
@@ -769,11 +770,15 @@ export class Viewmodel {
     const freeRight = !!rightOverride || cooking || throwing;
     m.leftGripBlend = damp(m.leftGripBlend ?? 1, freeLeft ? 0 : 1, HAND_VIEW.blendRate, dt);
     m.rightGripBlend = damp(m.rightGripBlend ?? 1, freeRight ? 0 : 1, HAND_VIEW.blendRate, dt);
+    // Kavrarken dirsek elin yönünden bulunur (ön kol bileğin doğal açısıyla elin devamı); serbest elde (şarjör,
+    // bomba) eski dirsek noktası. Geçişte ikisi arasında kayar, kol kopmaz.
     const rightGrip = m.rightGrip ? _qa.copy(m.root.quaternion).multiply(m.rightGrip) : null;
+    if (rightGrip && m.rightForearm) elbowR.lerp(gripElbow(rightGrip, rightHand, m.rightForearm, _elbow), m.rightGripBlend);
     poseArm(this.arms.right, elbowR, rightHand, _upR, rightGrip, m.rightGripBlend);
     // Elde bıçakta sol el boştur (ekran dışında); el bombası atarken görünür
     this.arms.left.g.visible = !d.melee || cooking || throwing;
     const leftGrip = m.leftGrip ? _qa.copy(m.root.quaternion).multiply(m.leftGrip) : null;
+    if (leftGrip && m.leftForearm) elbowL.lerp(gripElbow(leftGrip, leftHand, m.leftForearm, _elbow), m.leftGripBlend);
     poseArm(this.arms.left, elbowL, leftHand, _upL, leftGrip, m.leftGripBlend);
 
     // Kamera ve ışık

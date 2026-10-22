@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WEAPONS, WEAPON_ORDER, WEAPON_AIM, HAND_VIEW } from '../src/config.js';
 import ASSETS from '../src/weaponAssets.json' with { type: 'json' };
 import { buildArms, buildWeapon, poseArm, setFpsArmProp } from '../src/models.js';
-import { calibrateWeapon, placeWeapon, gripQuaternion } from '../src/weaponAim.js';
+import { calibrateWeapon, placeWeapon, gripQuaternion, gripElbow } from '../src/weaponAim.js';
 import { canAim, isScoped, sightFor } from '../src/sights.js';
 
 const loader = new GLTFLoader();
@@ -35,7 +35,7 @@ test('her silahın ayrı nişan mesafesi ve sonlu kavrama çerçevesi var', () =
     assert.ok(d.adsDist >= .14 && d.adsDist <= .6, id);
     assert.ok(d.ads.vmFov >= 30 && d.ads.vmFov <= 60, id);
     if (!d.melee) for (const side of ['left','right']) {
-      const frame = d.grip[side], q = gripQuaternion(frame);
+      const frame = d.grip[side], q = gripQuaternion(frame, side === 'left' ? -1 : 1);
       assert.ok(frame.position.every(Number.isFinite), `${id}/${side}`);
       assert.ok(Math.abs(q.length()-1)<1e-10, `${id}/${side}: geçerli dönüş`);
     }
@@ -56,8 +56,10 @@ for (const id of WEAPON_ORDER.filter(canAim)) test(`${id}: gez, arpacık ve elle
       assert.ok(Math.hypot(p.x,p.y)<1e-6, `${id}: gez/arpacık hizalı değil`);
     }
     const right=m.rightHand.clone().applyMatrix4(m.root.matrix), left=m.leftHand.clone().applyMatrix4(m.root.matrix);
-    poseArm(arms.right,right.clone().add(v(HAND_VIEW.elbowRight)),right,new THREE.Vector3(.45,1,.1),m.root.quaternion.clone().multiply(m.rightGrip));
-    poseArm(arms.left,left.clone().add(v(d.category === 'secondary' && !d.projectile ? HAND_VIEW.elbowPistol : HAND_VIEW.elbowLeft)),left,new THREE.Vector3(-.35,-1,0),m.root.quaternion.clone().multiply(m.leftGrip));
+    // Oyundaki gibi: dirsek elin tutuş yönünden (gripElbow)
+    const rq=m.root.quaternion.clone().multiply(m.rightGrip), lq=m.root.quaternion.clone().multiply(m.leftGrip);
+    poseArm(arms.right,gripElbow(rq,right,m.rightForearm,new THREE.Vector3()),right,new THREE.Vector3(.45,1,.1),rq);
+    poseArm(arms.left,gripElbow(lq,left,m.leftForearm,new THREE.Vector3()),left,new THREE.Vector3(-.35,-1,0),lq);
     arms.left.g.updateMatrixWorld(true);arms.right.g.updateMatrixWorld(true);
     for(const x of [-.06,-.03,0,.03,.06]) for(const y of [0,.03,.06,.09]) {
       rays.setFromCamera(new THREE.Vector2(x,y),camera);
@@ -74,7 +76,7 @@ for (const id of WEAPON_ORDER.filter(canAim)) test(`${id}: gez, arpacık ve elle
 });
 
 test('sabit tutuşta kol bileğe bağlıdır; dirsek değişince el silahın etrafında dönmez', () => {
-  const arm=buildArms().left, hand=new THREE.Vector3(-.03,-.08,-.4), q=gripQuaternion(WEAPONS.ak47.grip.left);
+  const arm=buildArms().left, hand=new THREE.Vector3(-.03,-.08,-.4), q=gripQuaternion(WEAPONS.ak47.grip.left, -1);
   for(const elbow of [new THREE.Vector3(-.3,-.5,0),new THREE.Vector3(-.4,-.3,-.1)]) {
     poseArm(arm,elbow,hand,new THREE.Vector3(0,-1,0),q);
     arm.g.updateMatrixWorld(true);
@@ -98,4 +100,24 @@ test('anatomik bilek: ön kolun dönüşü el sırtını izler ve dirsek uzaklı
    assert.ok(new THREE.Vector3(0,1,0).applyQuaternion(arm.fore.quaternion).dot(back)>.999999,'kumaş bilekten bağımsız dönmemeli');
   }
  }
+});
+
+// Bilek kırık görünmesin: kavrayan elin ön kolu elin ekseninden en çok bilek sınırı kadar sapar; dirsek kalçada ve
+// nişanda elin altında, kameraya doğru ve dışta (sol el solda, sağ el sağda) kalır: kollar ekranın alt köşelerinden gelir.
+for (const id of WEAPON_ORDER.filter((id) => !WEAPONS[id].melee)) test(`${id}: kavrayan bilek anatomik, ön kol alttan ve dıştan gelir`, () => {
+  const d=WEAPONS[id],m=models.get(id);
+  for (const ads of [0,1]) {
+    const position=ads ? new THREE.Vector3(-m.sight.x,-m.sight.y,-d.adsDist-m.sight.z) : new THREE.Vector3(...d.hip.pos);
+    placeWeapon(m.root,position,ads ? new THREE.Euler() : new THREE.Euler(...(d.hip.rot || [0,0,0])),m.sight,m.adsAlign,ads);
+    for (const [side,local,grip,fore] of [[-1,m.leftHand,m.leftGrip,m.leftForearm],[1,m.rightHand,m.rightGrip,m.rightForearm]]) {
+      const hand=local.clone().applyMatrix4(m.root.matrix), q=m.root.quaternion.clone().multiply(grip);
+      const elbow=gripElbow(q,hand,fore,new THREE.Vector3());
+      const fingers=new THREE.Vector3(0,0,1).applyQuaternion(q), wrist=hand.clone().addScaledVector(fingers,-HAND_VIEW.palmCenter);
+      const forearm=wrist.clone().sub(elbow).normalize();
+      assert.ok(forearm.angleTo(fingers)<1.05,`${id}/${side}: bilek ${forearm.angleTo(fingers).toFixed(2)} rad bükük`);
+      assert.ok(elbow.y<wrist.y,`${id}/${side}: dirsek elin üstünde`);
+      assert.ok(elbow.z>wrist.z,`${id}/${side}: dirsek elin önünde`);
+      assert.ok(side*(elbow.x-wrist.x)>-.02,`${id}/${side}: ön kol içeriden geliyor`);
+    }
+  }
 });
