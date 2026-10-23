@@ -2245,8 +2245,11 @@ console.log('Haritalar, mevziler ve manga kademeleri');
           sum.exclusive = (g.world.treeCells || []).every((c) => c.lo.every((m, i) => m.visible !== c.hi[i].visible));
           return sum;
         })(),
-        // Gölgede kalan yüzler simsiyah olmasın: dört yönde dünya görüntüsünün alt %70'inde neredeyse siyah piksel oranı
+        // Gölgede kalan yüzler simsiyah olmasın: dört yönde dünya görüntüsünün alt %70'inde neredeyse siyah piksel oranı.
+        // Askerler ölçülmez (dar botta kameranın dibindeki tim askeri ekranı kaplayıp sonucu oynatıyordu)
         dark: (() => {
+          const soldiers = [...g.allies.list, ...g.enemies.list].map((a) => a.model.root).filter((r) => r.visible);
+          for (const r of soldiers) r.visible = false;
           const gl = g.renderer.getContext();
           const w = gl.drawingBufferWidth;
           const h = gl.drawingBufferHeight;
@@ -2272,6 +2275,7 @@ console.log('Haritalar, mevziler ve manga kademeleri');
           }
           g.player.yaw = yaw0;
           g.player.applyCamera(g.camera, 0);
+          for (const r of soldiers) r.visible = true;
           return out;
         })(),
         // Tim askerinin elindeki silah birinci şahıs modelinin sade kopyası (lod.js)
