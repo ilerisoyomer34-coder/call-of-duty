@@ -1,0 +1,5 @@
+{
+  "_": "Oyuncu adı filtresi (çok oyunculu §9.1, §11.5). Değerler katlanmış biçimde: Türkçe küçük harf → ASCII (ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u), rakam hileleri harfe (0→o, 1→i, 3→e, 4→a, 5→s, 7→t), tekrar eden harf teke. 'part' adın herhangi bir yerinde geçerse, 'word' yalnız ayrı bir kelime olarak (boşluk, _ ya da - ile ayrılmış) yasaktır: kısa kökler masum kelimelerin içinde de geçer.",
+  "part": ["orospu", "orosbu", "yarak", "yarrak", "amcik", "amina", "aminako", "sikis", "siktir", "sikik", "sikerim", "sikeyim", "pezevenk", "kahpe", "yavsak", "serefsiz", "gavat", "pust", "kaltak", "fahise", "ibne", "gotveren", "dalyarak", "fuck", "shit", "bitch", "nigger", "nazi", "hitler"],
+  "word": ["amk", "aq", "mk", "oc", "sik", "got", "am", "pic", "sg", "ananı", "anani", "bok", "dick", "cunt", "porn", "sex", "admin", "moderator", "yonetici"]
+}

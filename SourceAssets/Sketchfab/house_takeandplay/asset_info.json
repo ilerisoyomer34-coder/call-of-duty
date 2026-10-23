@@ -1,0 +1,23 @@
+{
+  "title": "House",
+  "author": "Thomas Visonà (https://sketchfab.com/TakeAndPlay)",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "source": "https://sketchfab.com/3d-models/house-256adc61a3c04654a056d75a48a69d60",
+  "originalBytes": 376832516,
+  "sha256": "c6ebaefb5e4b14cdf5dd978d92845529e7d7ad55a3c9a4a405d7fbeedf788d2a",
+  "changes": "Mesh simplification preserving borders; 4096px textures resized to 1024px JPEG; game collision proxy and municipal signage added. Original user file kept outside Git (>100MB). Secondary textures limited to 512px for mobile GPU memory; architectural color maps retained at 1024px.",
+  "tris": 84400,
+  "bytes": 5216700,
+  "bounds": {
+    "min": [
+      -4.588475554181087,
+      -0.09163293451440957,
+      -4.53260305474301
+    ],
+    "max": [
+      7.568049095872249,
+      12.496402245942127,
+      4.588475012676605
+    ]
+  }
+}

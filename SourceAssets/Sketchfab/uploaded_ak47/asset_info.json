@@ -1,0 +1,9 @@
+{
+  "author": "Billy Jackman (https://sketchfab.com/billyjackman3d)",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "source": "https://sketchfab.com/3d-models/ak-47-game-ready-assault-rifle-weapon-dc58144409534abbb60970638d171f9f",
+  "title": "AK-47  - Game Ready Assault Rifle Weapon",
+  "original_file": "ak-47__-_game_ready_assault_rifle_weapon.glb",
+  "sha256": "f682bf46b0b00a69658c2c1fba1d4a17e61c180778b4da79e7ef9c241a27990f",
+  "changes": "Oyun için yön/ölçek, tutuş ve nişan noktaları; hareketli parçalar ayrılır; dokular JPEG olarak paketlenir."
+}

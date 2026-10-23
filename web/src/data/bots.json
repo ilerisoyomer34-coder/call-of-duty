@@ -1,0 +1,25 @@
+{
+  "_": "Sunucu botları (S6). Ad listesi sırayla kullanılır; adın yanında arayüzde YZ rozeti çıkar. weapons: botların ana silahı (rastgele). skill 0–1 değerleri aşağıdaki aralıklarda doğrusal: [kolay, zor].",
+  "names": ["Kartal", "Bora", "Tuna", "Poyraz", "Atlas", "Doruk", "Kaan", "Toprak", "Alp", "Rüzgâr", "Çelik", "Akın", "Yiğit", "Tolga", "Ozan", "Serhat"],
+  "weapons": ["rifle", "mar556", "smg", "k8", "kr4", "mk4"],
+  "secondary": "pistol",
+  "skill": {
+    "reactionSec": [0.75, 0.3],
+    "aimErrorDeg": [7, 2.5],
+    "aimSettleSec": [1.4, 0.5],
+    "turnDegPerSec": [220, 520],
+    "fireConeDeg": [6, 3],
+    "burst": [[2, 5], [4, 9]],
+    "burstPauseSec": [[0.45, 0.9], [0.18, 0.4]],
+    "viewDist": [45, 70],
+    "fovDeg": [110, 140]
+  },
+  "hearDist": 22,
+  "strafeSec": [0.5, 1.3],
+  "crouchChance": 0.2,
+  "engageMaxDist": 28,
+  "tooCloseDist": 5,
+  "repathSec": 1.2,
+  "stuckSec": 0.9,
+  "seekSec": 6
+}

@@ -1,0 +1,17 @@
+{
+  "title": "low-poly CZ Bren 2",
+  "author": "D_U",
+  "author_url": "https://sketchfab.com/DU1701",
+  "source_url": "https://sketchfab.com/3d-models/low-poly-cz-bren-2-90b2de2d55e9458f9c7d8ffeac9003af",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-14",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (bea3037b-low-poly_cz_bren_2.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), dokusuz; düz renkli malzemeler, 20 256 üçgen",
+  "category": "Weapons",
+  "game_name": "BR-2 Şimşek (bren2)",
+  "intended_use": "Taarruz tüfeği (katlanır demir nişangâh)",
+  "original_file": "original/low-poly_cz_bren_2.glb",
+  "sha256": "30485feaaeb859fc59ed57d6df897dbfb81bb8b67b803f535031ac80a6097550",
+  "modifications": "web/tools/prepare-weapon-glb.mjs: sergi amaçlı yedek şarjör ve fişek atıldı; namlu -Z, gerçek boya ölçeklendi, köken kabzada; şarjör ve kurma kolu ayrı parça; sadeleştirildi ve nicemlendi.",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında gösterilir. Modelde logo/marka yazısı yok."
+}

@@ -1,0 +1,10 @@
+{
+  "_": "Ağ koşulu profilleri (çok oyunculu belge §16.1). rtt: gidiş-dönüş ms, jitter: ± ms, loss: % (WebSocket'te gecikme sıçraması olarak). Konsol net_profile <ad>, adres ?netsim=<ad>, sunucuda NETSIM=<ad>.",
+  "profiles": {
+    "lan": { "name": "LAN", "rtt": 4, "jitter": 1, "loss": 0 },
+    "iyi": { "name": "İyi", "rtt": 40, "jitter": 5, "loss": 0 },
+    "orta": { "name": "Orta", "rtt": 100, "jitter": 15, "loss": 0.5 },
+    "kotu": { "name": "Kötü", "rtt": 200, "jitter": 40, "loss": 2 },
+    "uc": { "name": "Uç", "rtt": 350, "jitter": 80, "loss": 5 }
+  }
+}

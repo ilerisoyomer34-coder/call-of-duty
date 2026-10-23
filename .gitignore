@@ -1,0 +1,24 @@
+# Node
+node_modules/
+web/tools/shots/
+
+# Unreal Engine (ileride eklenecek UE5 projesi için)
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+*.opensdf
+*.sdf
+*.suo
+
+# Gizli bilgiler
+.env
+# Ev sunucusu: bilgisayara özel ayarlar (SERVER_SECRET) ve indirilen tünel programı
+web/server/host.env
+web/server/bin/
+web/dist/artifact-assets/
+# Mağaza uygulaması derlemesi (her derlemede yeniden üretilir; mobile/ içinde npm run sync kopyalar)
+web/dist/app/
