@@ -125,5 +125,6 @@ Anketlere dürüst yanıt ver. Oyunda gerçekçi askerî şiddet var; kan efekti
 | İzleme / reklam | Hayır |
 | Aktarımda şifreleme | Evet (https) |
 | Silme | Evet, uygulama içinden (Ayarlar → Çevrim içi hesap → Hesabı sil) |
+| Yedekleme | Android otomatik yedeği kapalı; ilerleme yalnız cihazda (ikinci, kimliksiz kurtarma kopyası da cihazda) |
 | Konum, kişiler, fotoğraf, sağlık, ödeme | Hayır |
 | Ses (sesli komut) | Uygulama sesi toplamaz; tanımayı cihazın kendi hizmeti yapar |

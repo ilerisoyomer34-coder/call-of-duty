@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Android'in otomatik yedeği kapalı: yerel kayıtta çevrim içi hesap belirteci var, başka cihaza taşınmasın.
+         Bedeli: uygulama silinip kurulunca çevrim dışı ilerleme kendiliğinden geri gelmez (Docs/STORE_RELEASE.md) -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

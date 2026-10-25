@@ -10,6 +10,7 @@
     "test": "node --test --disable-warning=ExperimentalWarning tests/*.test.mjs && node tools/build.mjs && node tools/smoke-test.mjs",
     "test:unit": "node --test --disable-warning=ExperimentalWarning tests/*.test.mjs",
     "deploy:pages": "node tools/deploy-pages.mjs",
+    "audit:release": "node tools/release-audit.mjs",
     "server": "node --disable-warning=ExperimentalWarning server/index.js"
   },
   "devDependencies": {

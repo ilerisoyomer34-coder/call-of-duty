@@ -1402,6 +1402,8 @@ async function boot() {
     // Davet bağlantısı (?sunucu=): sunucu Ayarlar'a kaydedilir, menüden sonra Çevrim içi ekranı açılır
     invited = game.social.consumeInvite();
     if (invited) game.pendingNotice = 'Sunucu bağlantısı kaydedildi; Çevrim içi bölümünden bağlanılıyor.';
+    // Ana kayıt bozuktu, çevrim dışı yedekten kurtarıldı (saveBackup.js): oyuncu adı ve çevrim içi hesap yedekte yok
+    else if (game.save.recoveredFromBackup) game.pendingNotice = 'Kayıt bozulmuştu; ilerleme yedekten kurtarıldı. Çevrim içi hesap için yeniden bağlan.';
     game.showMenu();
     L.step('Gölgelendiriciler derleniyor', 0.85);
     await nextPaint();

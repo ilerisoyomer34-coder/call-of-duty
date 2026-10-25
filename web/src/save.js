@@ -9,6 +9,7 @@ import { storage as browserStorage } from './util.js';
 import STORE from './data/store.json' with { type: 'json' };
 import { freshProgression, normalizeProgression } from './progression.js';
 import { DEFAULT_LOADOUT } from './config.js';
+import { offlineBackup, selectResilientSave, SAVE_BACKUP_KEY } from './saveBackup.js';
 
 export const SAVE_KEY = 'demirsafak.save';
 export const SAVE_VERSION = 1;
@@ -136,15 +137,18 @@ export class SaveSystem {
     this.startCredits = startCredits;
     this.flushDelayMs = flushDelayMs;
     this.timer = null;
-    const raw = store.get(SAVE_KEY, null);
+    // Ana kayıt bozuksa (yarım yazılmış JSON, elle düzenleme) çevrim dışı yedekten kurtarılır (saveBackup.js)
+    const primary = store.get(SAVE_KEY, null);
+    const { raw, recovered } = selectResilientSave(primary, store.get(SAVE_BACKUP_KEY, null));
     const { save, migrated } = migrateSave(raw, (k) => store.get(k, null), startCredits);
     this.data = save;
     this.migrated = migrated;
+    this.recoveredFromBackup = recovered;
     // Eski anahtardaki ad, kayıtta ad yokken alınır (kimlik alanları sunucudan gelir)
     const lp = store.get(LEGACY_KEYS.profile, null);
     if (!save.profile.name && isObj(lp) && typeof lp.name === 'string' && lp.name) save.profile.name = lp.name;
-    // İlk açılış ya da yükseltme: yeni biçim hemen yazılsın
-    if (!isObj(raw) || migrated) this.flush();
+    // İlk açılış, yükseltme ya da yedekten kurtarma: ana kayıt hemen yeniden yazılsın
+    if (!isObj(primary) || migrated || recovered) this.flush();
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       window.addEventListener('pagehide', () => this.flush());
       document.addEventListener('visibilitychange', () => {
@@ -164,6 +168,8 @@ export class SaveSystem {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.store.set(SAVE_KEY, this.data);
+    // Yedek ana kayıttan sonra: depolama dolarsa önce ana kayıt yazılmış olsun
+    this.store.set(SAVE_BACKUP_KEY, offlineBackup(this.data));
   }
 
   // Geliştirici konsolu: kaydı sıfırla (eski anahtarlar yine içe aktarılmaz). Oyuncu adı ve çevrim içi kimlik

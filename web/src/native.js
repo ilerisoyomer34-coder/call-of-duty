@@ -12,7 +12,11 @@ const $ = (id) => document.getElementById(id);
 export function handleBack(game) {
   const g = game;
   const M = g.menus;
-  if (g.console?.open) return true;
+  // Açık geliştirici konsolu: geri tuşu onu kapatır (yalnız tüketmek konsolu ekranda bırakıyordu)
+  if (g.console?.open) {
+    g.console.toggle(false);
+    return true;
+  }
   if (g.state === 'playing') {
     // Açık çark ve telsiz satırı önce kapanır; yoksa duraklat
     if (g.wheel?.open) g.wheel.close(false);

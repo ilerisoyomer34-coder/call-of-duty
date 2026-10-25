@@ -43,6 +43,15 @@ npm run ios         # sync + Xcode'u açar (Mac)
 
 Simgeyi değiştirirsen önce `web/src/pwa/icon.svg` dosyasını değiştir, sonra `npm run assets` çalıştır.
 
+Yüklemeden önce ön denetim (API 36, Capacitor güvenlik bayrakları, otomatik yedek kapalı, gizlilik belgeleri, imza anahtarı depoda değil; `--built` derleme ve mağaza görsellerini de arar). Aynı denetim her push'ta GitHub'da da koşar (`.github/workflows/quality-gates.yml`):
+
+```
+cd web
+npm run audit:release            # ya da: node tools/release-audit.mjs --built
+```
+
+Ayrıntılı yayın kapıları ve elle yapılacak cihaz testleri: `Docs/RELEASE_QA_TR.md`.
+
 ## 3. Google Play
 
 1. **Geliştirici hesabı:** https://play.google.com/console. Kayıt ücreti bir kez 25 $. Kimlik doğrulaması istenir.
@@ -115,6 +124,7 @@ Simgeyi değiştirirsen önce `web/src/pwa/icon.svg` dosyasını değiştir, son
   - Yazı tipleri SIL OFL (`web/src/fonts/`).
   - CC BY-NC ve "Sketchfab Standard" lisanslı dosyalar alınmadı.
 - [x] **Asgari işlev** (Apple 4.2): Oyunun tamamı uygulamanın içinde, internetsiz oynanır. Web sitesi sarmalayıcısı değil.
+- [x] **Otomatik yedek kapalı** (Android `allowBackup="false"`): yerel kayıtta çevrim içi hesap belirteci var, Google yedeğiyle başka cihaza taşınmasın. Bedeli: uygulama silinip kurulunca ilerleme kendiliğinden geri gelmez. Aynı cihazda ana kayıt bozulursa ilerleme çevrim dışı yedekten (`web/src/saveBackup.js`, kimliksiz) kurtarılır. Veri güvenliği formunda "yedeklenmez" de.
 - [x] **İzinler:**
   - Android'de yalnız İnternet.
   - iOS'ta mikrofon ve konuşma tanıma gerekçe metinleri var (sesli komut isteğe bağlı, varsayılan kapalı).

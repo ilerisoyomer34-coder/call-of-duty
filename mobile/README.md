@@ -13,7 +13,7 @@ npm run assets               # simge ve açılış görsellerini web/src/pwa/ico
 
 Elle yapılan ayarlar (Capacitor şablonunun üstüne). `cap add` yeniden çalıştırılırsa bunlar geri konmalı:
 
-- `android/app/src/main/AndroidManifest.xml`: `screenOrientation="sensorLandscape"`, OpenGL ES 3.0 zorunlu (WebGL 2).
+- `android/app/src/main/AndroidManifest.xml`: `screenOrientation="sensorLandscape"`, OpenGL ES 3.0 zorunlu (WebGL 2), `allowBackup="false"` (yerel kayıttaki hesap belirteci Google yedeğine girmesin; `web/tools/release-audit.mjs` denetler).
 - `android/.../MainActivity.java`: sistem çubukları gizli (tam ekran), ekran kararmaz.
 - `android/app/src/main/res/values/ic_launcher_background.xml`: simge zemini `#0D1013`.
 - `ios/App/App/Info.plist`: yalnız yatay, `UIRequiresFullScreen`, durum çubuğu gizli, mikrofon / konuşma tanıma gerekçeleri, `ITSAppUsesNonExemptEncryption = false`, bölge `tr`.

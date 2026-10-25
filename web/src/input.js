@@ -105,6 +105,27 @@ export function keyName(code) {
   return code;
 }
 
+// Yazı alanı mı (telsiz satırı, konsol, ad kutusu, tuş atama dışı her türlü metin girişi): oradaki tuşlar oyun
+// komutu değildir; W yazarken asker yürümesin, Boşluk zıplatmasın
+export function isTextEditingTarget(target) {
+  if (!target) return false;
+  const tag = String(target.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'OPTION') return true;
+  if (target.isContentEditable) return true;
+  return !!target.closest?.('[contenteditable=""], [contenteditable="true"], [role="textbox"]');
+}
+
+// Önceki dokunuş (id) hâlâ ekranda mı (touches listesi yoksa bilinmez: öyle sayılır). touchend kaçarsa
+// (bildirim perdesi, sistem hareketi) eski parmak kimliği çubuğu ve bakışı kilitli bırakmasın diye yeni dokunuşta
+// denetlenir. Kimlik yeni başlayan dokunuşlardaysa tarayıcı onu yeniden kullanmıştır: eskisi bitmiş demektir
+function touchStillDown(e, id) {
+  if (id === null) return false;
+  for (const t of e.changedTouches || []) if (t.identifier === id) return false;
+  if (!e.touches) return true;
+  for (const t of e.touches) if (t.identifier === id) return true;
+  return false;
+}
+
 export class Input {
   constructor(canvas, touchRoot) {
     this.canvas = canvas;
@@ -137,25 +158,60 @@ export class Input {
     }
   }
 
+  // Basılı tutulan her şeyi bırak (klavye, fare, dokunmatik düğme ve çubuk, gamepad): odak kaybı, arka plana
+  // geçiş, fare kilidinin düşmesi ya da ekran dönmesinde tuşun bırakılma olayı gelmeyebilir; ateş ve yürüme
+  // takılı kalıyordu. Bırakılan eylemler bir kare "released" görünür (komut çarkı, sesli komut kapanır)
+  clearTransientInput() {
+    for (const c of this.down) this.releasedCodes.add(c);
+    this.down.clear();
+    this.pressedCodes.clear();
+    this.lookDX = this.lookDY = 0;
+    for (const action of this.touch.buttons) this.touch.released.add(action);
+    this.touch.buttons.clear();
+    this.touch.pressed.clear();
+    this.touch.moveX = this.touch.moveY = 0;
+    this.touch.sprint = false;
+    this.clearGamepad();
+    this.resetTouchTracking?.();
+  }
+
+  clearGamepad() {
+    this.gamepad.cur = [];
+    this.gamepad.prev = [];
+    this.gamepad.moveX = this.gamepad.moveY = 0;
+    this.gamepad.lookX = this.gamepad.lookY = 0;
+  }
+
   bind() {
     window.addEventListener('keydown', (e) => {
+      // Tuş atama ekranı her tuşu yakalar (oyun dışındayken de)
       if (this.onAnyKey && this.onAnyKey(e)) return;
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      if (this.enabled && (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab' || boundFKeys.has(e.code))) e.preventDefault();
+      // Menüde oyun tuşu toplanmaz; yazı alanındaki tuşlar komut değildir
+      if (!this.enabled || isTextEditingTarget(e.target)) return;
+      if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab' || boundFKeys.has(e.code)) e.preventDefault();
       if (!this.down.has(e.code)) this.pressedCodes.add(e.code);
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => {
-      this.down.delete(e.code);
-      this.releasedCodes.add(e.code);
+      // Yalnız oyunun basılı saydığı tuşun bırakılması olay sayılır: telsiz satırına yazılan N'nin keyup'ı
+      // sesli komutu "bırakıldı" diye kapatmasın
+      if (this.down.delete(e.code)) this.releasedCodes.add(e.code);
     });
-    window.addEventListener('blur', () => {
-      for (const c of this.down) this.releasedCodes.add(c);
-      this.down.clear();
+    window.addEventListener('blur', () => this.clearTransientInput());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.clearTransientInput();
     });
+    window.addEventListener('pagehide', () => this.clearTransientInput());
+    window.addEventListener('orientationchange', () => this.clearTransientInput());
     this.canvas.addEventListener('mousedown', (e) => {
       if (!this.enabled) return;
-      if (!this.locked && !this.lockFailed) this.requestLock();
+      // İlk tık yalnız fareyi yakalar: oyuna girerken/dönerken istemeden ateş edilmesin (kilit alınamazsa
+      // lockFailed olur ve sonraki tıklar doğrudan ateş eder). Dokunmatikte kilit hiç istenmez: tık ateştir
+      if (!this.locked && !this.lockFailed && !this.touch.active) {
+        this.requestLock();
+        e.preventDefault();
+        return;
+      }
       const code = `Mouse${e.button}`;
       if (!this.down.has(code)) this.pressedCodes.add(code);
       this.down.add(code);
@@ -163,8 +219,7 @@ export class Input {
     });
     window.addEventListener('mouseup', (e) => {
       const code = `Mouse${e.button}`;
-      this.down.delete(code);
-      this.releasedCodes.add(code);
+      if (this.down.delete(code)) this.releasedCodes.add(code);
     });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mousemove', (e) => {
@@ -182,12 +237,15 @@ export class Input {
     window.addEventListener(
       'wheel',
       (e) => {
-        if (!this.enabled) return;
+        if (!this.enabled || isTextEditingTarget(e.target) || !e.deltaY) return;
+        // Silah değiştirirken sayfa kaymasın; ama yalnız oyun alanında (kilitliyken olay tuvale gelir).
+        // Duraklatmada da enabled açık: oradaki Ayarlar paneli ve telsiz geçmişi tekerlekle kaymalı
+        if (this.locked || e.target === this.canvas) e.preventDefault();
         const code = e.deltaY > 0 ? 'WheelDown' : 'WheelUp';
         this.pressedCodes.add(code);
         this.releasedCodes.add(code);
       },
-      { passive: true }
+      { passive: false }
     );
     document.addEventListener('pointerlockchange', () => {
       const was = this.locked;
@@ -197,19 +255,34 @@ export class Input {
       // satır o arada kapanmış olabilir (hızlı Enter → Esc)
       const self = !this.locked && this.selfExit;
       this.selfExit = false;
+      // Kilit düşünce (Esc, telsiz satırı, konsol) basılı ateş/nişan/yürüme duraklatma ekranından önce bırakılır
+      if (was && !this.locked) this.clearTransientInput();
       if (was !== this.locked && this.onLockChange) this.onLockChange(this.locked, self);
     });
     document.addEventListener('pointerlockerror', () => {
       this.lockFailed = true;
     });
-    window.addEventListener('gamepadconnected', () => (this.gamepad.connected = true));
-    window.addEventListener('gamepaddisconnected', () => (this.gamepad.connected = false));
+    window.addEventListener('gamepadconnected', () => {
+      // İzin ya da sürücü yüzünden kapanan gamepad yeni bağlantıda yeniden denenir
+      this.gamepadBlocked = false;
+      this.gamepad.connected = true;
+    });
+    window.addEventListener('gamepaddisconnected', () => {
+      // Çıkarılan kolun son analog değeri oyuncuyu yürütmeye devam etmesin
+      this.gamepad.connected = false;
+      this.clearGamepad();
+    });
   }
 
   requestLock() {
     if (this.touch.active) return;
+    // Fare kilidi olmayan tarayıcı/WebView: kilitsiz nişan kipine geç (yoksa her tık yalnız kilit isterdi)
+    if (typeof this.canvas.requestPointerLock !== 'function') {
+      this.lockFailed = true;
+      return;
+    }
     try {
-      const r = this.canvas.requestPointerLock?.();
+      const r = this.canvas.requestPointerLock();
       if (r && r.catch) r.catch(() => (this.lockFailed = true));
     } catch {
       this.lockFailed = true;
@@ -354,7 +427,20 @@ export class Input {
     let lx = 0;
     let ly = 0;
     const R = 60;
+    // Aynı eyleme bağlı birden çok düğme olabilir (iki ateş düğmesi): eylem, son parmak kalkana dek basılı
+    const actionFingers = new Map();
+    const buttonResetters = [];
+    this.resetTouchTracking = () => {
+      moveId = lookId = null;
+      stick.hidden = true;
+      knob.style.transform = 'translate(-50%, -50%)';
+      for (const set of actionFingers.values()) set.clear();
+      for (const reset of buttonResetters) reset();
+    };
     moveZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      // Çubuk tutulurken ikinci parmak çubuğun merkezini kendi yerine taşımasın
+      if (touchStillDown(e, moveId) || !e.changedTouches.length) return;
       const t = e.changedTouches[0];
       moveId = t.identifier;
       ox = t.clientX;
@@ -363,7 +449,6 @@ export class Input {
       stick.style.top = `${oy}px`;
       stick.hidden = false;
       knob.style.transform = 'translate(-50%, -50%)';
-      e.preventDefault();
     }, { passive: false });
     const onMove = (e) => {
       for (const t of e.changedTouches) {
@@ -404,33 +489,53 @@ export class Input {
     root.addEventListener('touchend', onEnd);
     root.addEventListener('touchcancel', onEnd);
     lookZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      // Bakan parmak varken ikinci parmak bakışı devralıp sıçratmasın
+      if (touchStillDown(e, lookId) || !e.changedTouches.length) return;
       const t = e.changedTouches[0];
       lookId = t.identifier;
       lx = t.clientX;
       ly = t.clientY;
-      e.preventDefault();
     }, { passive: false });
     for (const btn of root.querySelectorAll('[data-action]')) {
       const action = btn.dataset.action;
       const drag = btn.hasAttribute('data-look');
+      // Düğmedeki parmaklar ve eylemin bütün düğmelerdeki parmakları: ikinci parmak basılıyken ilki kalkınca
+      // ateş kesilmez
+      const fingers = new Set();
+      if (!actionFingers.has(action)) actionFingers.set(action, new Set());
+      const all = actionFingers.get(action);
+      buttonResetters.push(() => {
+        fingers.clear();
+        btn.classList.remove('on');
+      });
       btn.addEventListener('touchstart', (e) => {
-        const t = e.changedTouches[0];
-        T.buttons.add(action);
-        T.pressed.add(action);
-        btn.classList.add('on');
-        if (drag) {
-          lookId = t.identifier;
-          lx = t.clientX;
-          ly = t.clientY;
+        for (const t of e.changedTouches) {
+          if (!all.size) {
+            T.buttons.add(action);
+            T.pressed.add(action);
+          }
+          fingers.add(t.identifier);
+          all.add(t.identifier);
+          // Sürüklenebilir ateş düğmesi (data-look) bakışı da çevirir; bakan parmak yoksa devralır
+          if (drag && !touchStillDown(e, lookId)) {
+            lookId = t.identifier;
+            lx = t.clientX;
+            ly = t.clientY;
+          }
         }
+        btn.classList.add('on');
         e.preventDefault();
         e.stopPropagation();
       }, { passive: false });
       const end = (e) => {
-        T.buttons.delete(action);
-        T.released.add(action);
-        btn.classList.remove('on');
-        for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null;
+        for (const t of e.changedTouches) {
+          if (!fingers.delete(t.identifier)) continue;
+          all.delete(t.identifier);
+          if (t.identifier === lookId) lookId = null;
+        }
+        if (!fingers.size) btn.classList.remove('on');
+        if (!all.size && T.buttons.delete(action)) T.released.add(action);
       };
       btn.addEventListener('touchend', end);
       btn.addEventListener('touchcancel', end);
@@ -438,6 +543,8 @@ export class Input {
   }
 
   enableTouch(on) {
+    // Dokunmatik kapanırken (fare bağlandı, menüye dönüldü) basılı düğme kalmasın
+    if (!on && this.touch.active) this.clearTransientInput();
     this.touch.active = on;
     if (this.touchRoot) this.touchRoot.hidden = !on;
   }
