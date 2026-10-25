@@ -3,7 +3,8 @@
 // etti ya da manga vuruldu) düzen yerinin yakınında siper alır ve görünen en yakın düşmana kısa seriler
 // atar. Sessiz ilerlerken ateş açmaz: oyuncunun gizliliğini bozmasın diye.
 // Vurulan dost kalıcı ölmez; bir süre yaralı kalıp toparlanır. Böylece seviye dengesi dostların
-// kaybına bağlanmaz. Düşmanlar dostları da hedef alır (enemy.js → foe); oyuncunun mermisi dostu yaralamaz.
+// kaybına bağlanmaz. Düşmanlar dostları da hedef alır (enemy.js → foe). Dost ateşi açık: oyuncunun mermisi,
+// bıçağı ve patlayıcısı dostu yaralar (friendlyFire.js; vurulan asker telsizden uyarır).
 //
 // Kademe (ALLY_TIERS, seviyeye göre): isabet, tepki, hasar, can ve açık taktikler. Taktikler:
 //   peek: siperde eğilip çıkarak ateş · callout: düşmanı telsizle ve HUD işaretiyle bildirme
@@ -26,6 +27,7 @@ import SQUAD from './data/squad.json' with { type: 'json' };
 import STORE from './data/store.json' with { type: 'json' };
 import VOICE from './data/voicelines.tr.json' with { type: 'json' };
 import { computeArmorDamage } from './armor.js';
+import { shouldComplain } from './friendlyFire.js';
 import { EV } from './events.js';
 import { REVIVE, BleedOut, allyBleedOutFor, allyCanDie, assistScore, assistDecision, reviveTime } from './downed.js';
 
@@ -114,6 +116,7 @@ export class Ally {
     this.down = false;
     this.downT = 0;
     this.lastHurt = -100;
+    this.complainAt = -100;
     this.target = null;
     this.targetVisible = false;
     this.lastSeenT = -100;
@@ -199,16 +202,20 @@ export class Ally {
     return out.set(this.pos.x, this.pos.y + (this.crouch ? 0.95 : 1.3), this.pos.z);
   }
 
+  // hit: { zone, pen, source } (source 'player' = dost ateşi). Dönüş: { armorHit, downed } ya da yerdeyse null
+  // (vuran taraf kıvılcım/kan ve uyarıyı buna göre seçer)
   takeDamage(amount, fromPos = null, hit = null) {
-    if (this.down) return;
+    if (this.down) return null;
     const g = this.game;
     this.lastHurt = g.time;
     // Tim Zırhı (mağaza yükseltmesi): gövde ve kafa vuruşunu emer, bacak vuruşu doğrudan cana
-    if (this.armor && this.armor.points > 0 && hit?.zone !== 'leg') amount = computeArmorDamage(amount, hit?.pen ?? 0.3, this.armor).healthDamage;
+    const armorHit = !!(this.armor && this.armor.points > 0 && hit?.zone !== 'leg');
+    if (armorHit) amount = computeArmorDamage(amount, hit?.pen ?? 0.3, this.armor).healthDamage;
     this.health.damage(amount);
     this.model.hit('torso');
     // Ağır isabet ama ayakta: "Vuruldum!" (bekleme süreleri ve aynı tür kuralı geçerli)
-    if (!this.health.dead && amount >= VOICE.hitMinDamage) this.say('hit');
+    // (dost ateşinde bunun yerine onFriendlyFire'ın "bana ateş etme" satırı)
+    if (!this.health.dead && amount >= VOICE.hitMinDamage && hit?.source !== 'player') this.say('hit');
     // Görmediği yerden vurulduysa o yöne döner
     if (fromPos && !this.targetVisible) this.threatYaw = dirToYaw(fromPos.x - this.pos.x, fromPos.z - this.pos.z);
     // Oyuncuyu canlandırırken ağır hasar işlemi keser (§7.5); karar yeniden verilir
@@ -231,7 +238,7 @@ export class Ally {
       this.revivedBy = null;
       this.rescueT = 0;
       if (g.player.reviver === this) g.player.reviver = null;
-      g.events.emit(EV.ALLY_DOWNED, { allyId: this.callsign, ally: this });
+      g.events.emit(EV.ALLY_DOWNED, { allyId: this.callsign, ally: this, by: hit?.source || null });
       this.registerReviveInteract();
       this.target = null;
       g.commands?.drop(this, this.throwAnim?.cmd, 'down');
@@ -251,6 +258,7 @@ export class Ally {
       g.effects.bloodPool(this.pos, BLOOD.downedPoolSize, BLOOD.downedPoolTime, 0.6, g.world);
       g.events.emit('allyDown', this);
     }
+    return { armorHit, downed: this.down };
   }
 
   // Oyuncu yanına gelip E'yi basılı tutarak kaldırır (3 sn, Muharebe Medik Eğitimi ile kısa)
@@ -311,8 +319,12 @@ export class Ally {
     this.model.updateDeath?.(dt, A, this.pos, this.yaw);
   }
 
-  // Oyuncunun mermisi değdi: hasar yok, uyarı var
+  // Oyuncunun mermisi/bıçağı değdi (hasar takeDamage'da): telsizden uyarır. Otomatik ateşte her mermide
+  // değil, complainSec aralıkla; asker yere düştüyse "vuruldum" satırı zaten söylendi
   onFriendlyFire() {
+    const g = this.game;
+    if (this.down || !shouldComplain(this.complainAt, g.time)) return;
+    this.complainAt = g.time;
     this.say('friendly', true);
   }
 
@@ -1384,7 +1396,7 @@ function pushApart(a, p, r) {
   }
 }
 
-// Manga: doğurma, yeniden toplama, dost ateşi ışın testi, düşmanlara görünürlük
+// Manga: doğurma, yeniden toplama, dost ateşi ışın testi (oyuncu mermisi/roketi/bıçağı), düşmanlara görünürlük
 export class AllyManager {
   constructor(game) {
     this.game = game;

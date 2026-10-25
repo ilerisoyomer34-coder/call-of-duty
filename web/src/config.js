@@ -1653,6 +1653,15 @@ export const ALLY = {
   flank: { dist: 11, time: 18 }, // mevzinin yanına dolanma: yan mesafe, en uzun süre
 };
 
+// Dost ateşi: oyuncunun mermisi, bıçağı ve patlayıcısı Alfa askerini yaralar (kullanıcı isteği). Mermi
+// silahın kendi hasarı × bölge çarpanıyla gelir; Tim Zırhı varsa silahın zırh delmesiyle hesaplanır.
+// Patlayıcı oyuncunun kendi bombasının ona verdiği oranla (grenades.js: 0,7) işler.
+export const FRIENDLY_FIRE = {
+  bulletMult: 1, // oyuncu mermisi / bıçağı → dost
+  explosiveMult: 0.7, // oyuncunun el bombası, roketi, C4'ü, vurduğu varil → dost
+  complainSec: 3, // vurulan asker "bana ateş etme" satırını en sık bu aralıkla söyler (otomatik ateşte her mermide değil)
+};
+
 // Manga kademeleri: seviye ilerledikçe dostlar profesyonelleşir (LEVELS → allyTier).
 // reaction: hedefi görünce ilk atışa kadar (s), aimDeg: temel isabet hatası (derece), downTime: yaralı
 // kalma süresi (s); tactics açık taktiklerdir (ally.js)

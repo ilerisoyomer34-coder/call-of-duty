@@ -619,7 +619,7 @@ console.log('Seviyeler ve dost manga');
     return Math.max(...g.allies.list.map((a) => a.pos.distanceTo(g.player.pos)));
   });
   check(follow < 9, `Dostlar oyuncuyu izledi (en uzak ${follow.toFixed(1)} m)`);
-  // Arkaya dön: mavi isim etiketleri görünsün; bir dosta ateş et, yaralanmamalı
+  // Arkaya dön: mavi isim etiketleri görünsün; bir dosta ateş et: dost ateşi açık, yaralanmalı ve uyarmalı
   const aimAtAlly = () =>
     page.evaluate(() => {
       const g = window.__game;
@@ -646,11 +646,20 @@ console.log('Seviyeler ve dost manga');
     await waitGame(page, 0.05);
     await page.mouse.up();
     await waitGame(page, 0.3);
-    ff = await page.evaluate(() => ({ hp: window.__game.allies.list[0].health.hp, msg: document.getElementById('message').textContent }));
+    ff = await page.evaluate(() => {
+      const g = window.__game;
+      const a = g.allies.list[0];
+      return { hp: a.health.hp, msg: document.getElementById('message').textContent, dealt: g.stats.friendlyDamage, complained: a.complainAt > 0 };
+    });
     if (/DOST/.test(ff.msg)) break;
     await page.waitForFunction(() => window.__game.weapons.state === 'idle', null, { timeout: 30000 });
   }
-  check(ff.hp === hpBefore && /DOST/.test(ff.msg), `Dost ateşi: dost yaralanmadı, uyarı çıktı ("${ff.msg}")`);
+  check(ff.hp < hpBefore && ff.dealt > 0 && ff.complained && /DOST/.test(ff.msg), `Dost ateşi: dost yaralandı (${Math.round(hpBefore)} → ${Math.round(ff.hp)} can), telsizden uyardı, HUD uyarısı ("${ff.msg}")`);
+  // Sonraki denetimler tam canlı timle sürsün
+  await page.evaluate(() => {
+    const a = window.__game.allies.list[0];
+    a.health.hp = a.health.max;
+  });
   // Çatışma: dostlar düşmana ateş eder
   await page.evaluate(() => {
     const g = window.__game;

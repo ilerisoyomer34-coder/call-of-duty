@@ -10,6 +10,7 @@ import { EV } from './events.js';
 import { buildTank, buildC4 } from './models.js';
 import { rand, clamp, angleDiff, dirToYaw, damp, randomInCone, rayCylinder, DEG } from './util.js';
 import { enemyPen, playerZoneAt } from './armor.js';
+import { allyZoneAt, friendlyBulletDamage } from './friendlyFire.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -492,8 +493,19 @@ export class Tank {
     const d = randomInCone(base, K.errDeg * DEG, _dir, 0.8);
     const wh = g.world.raycast(muzzle, d, K.range, _hit);
     const eh = g.enemies.raycast(muzzle, d, wh ? wh.dist : K.range);
+    // Dost ateşi: önündeki Alfa askerini yaralar (weapons.js'teki mermiyle aynı kural)
+    const ah = g.allies.raycast(muzzle, d, eh ? eh.dist : wh ? wh.dist : K.range);
     let end;
-    if (eh?.enemy) {
+    if (ah) {
+      const zone = allyZoneAt(ah.point.y, ah.ally);
+      const dmg = friendlyBulletDamage(K.damage, zone, ALLY.zones);
+      const out = ah.ally.takeDamage(dmg, this.pos, { zone, pen: enemyPen('coax'), source: 'player' });
+      if (out) g.stats.friendlyDamage += dmg;
+      g.effects.impact(ah.point, _aim.copy(d).negate(), out?.armorHit ? 'metal' : 'flesh', 0.6);
+      ah.ally.onFriendlyFire();
+      g.events.emit('friendlyFire', ah.ally);
+      end = ah.point;
+    } else if (eh?.enemy) {
       const out = eh.enemy.takeDamage(K.damage, { zone: eh.zone, dir: d.clone(), point: eh.point, source: 'player', weapon: 'coax' });
       g.effects.impact(eh.point, _aim.copy(d).negate(), out.armorHit ? 'metal' : 'flesh', 0.6);
       if (!out.armorHit) g.effects.bloodSpatter(eh.point, d, g.world, 0.7);

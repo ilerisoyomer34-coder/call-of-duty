@@ -9,6 +9,8 @@ import { fireInterval, recoverBloom, spreadDeg, triggerShots, recordShot, addBlo
 import { EV } from './events.js';
 import { CONSUMABLES } from './loadout.js';
 import { canAim } from './sights.js';
+import { penFor } from './armor.js';
+import { allyZoneAt, friendlyBulletDamage } from './friendlyFire.js';
 
 export class Weapon {
   constructor(id) {
@@ -501,6 +503,7 @@ export class PlayerWeapons {
     let headHit = false;
     let armorHit = false;
     let armorBroken = false;
+    let friendly = null;
     for (let p = 0; p < pellets; p++) {
       pelletDir(_fwd, d, spread, this.rng, _d);
       const res = this.trace(_o, _d, d.range, _muz);
@@ -524,12 +527,17 @@ export class PlayerWeapons {
         if (!out.armorHit) g.effects.bloodSpatter(res.point, _d, g.world, pellets > 1 ? 0.6 : 1);
         if (g.settings.damageNumbers || g.mode === 'range') g.hud.damageNumber(res.point, dmg, res.zone === 'head');
       } else if (res.ally) {
-        // Zırha çarpan kıvılcım, hasar yok; dost uyarır
-        g.effects.impact(res.point, _tmp.copy(_d).negate(), 'metal', 0.6);
-        if (p === 0) {
-          res.ally.onFriendlyFire();
-          g.events.emit('friendlyFire', res.ally);
-        }
+        // Dost ateşi: Alfa askeri yaralanır (bölge isabetin yüksekliğinden, Tim Zırhı silahın delmesiyle);
+        // isabet işareti yok, asker telsizden uyarır (fire sonunda bir kez)
+        friendly = res.ally;
+        const zone = allyZoneAt(res.point.y, friendly);
+        const dmg = friendlyBulletDamage(d.damage * this.falloff(res.dist), zone, d.zones);
+        const out = friendly.takeDamage(dmg, P.pos, { zone, pen: penFor(d.id), source: 'player' });
+        if (out) g.stats.friendlyDamage += dmg;
+        const surf = out?.armorHit ? 'metal' : 'flesh';
+        g.effects.impact(res.point, _tmp.copy(_d).negate(), surf, pellets > 1 ? 0.5 : 1);
+        if (p === 0) g.audio.impact(surf, res.point);
+        if (surf === 'flesh') g.effects.bloodSpatter(res.point, _d, g.world, pellets > 1 ? 0.6 : 1);
       } else if (res.point) {
         g.effects.impact(res.point, res.normal, res.surface, pellets > 1 ? 0.4 : 1);
         if (p % 3 === 0) g.audio.impact(res.surface, res.point);
@@ -541,6 +549,10 @@ export class PlayerWeapons {
         if (_muz.distanceTo(end) > 3) g.effects.tracer(_muz, end, 380, 0.012);
       }
       g.enemies.bulletNearMiss(_o, _d, res.dist);
+    }
+    if (friendly) {
+      friendly.onFriendlyFire();
+      g.events.emit('friendlyFire', friendly);
     }
     g.stats.shots++;
     if (anyHit) {
@@ -629,7 +641,7 @@ export class PlayerWeapons {
     const wh = g.world.raycast(o, d, range, _hit);
     let maxD = wh ? wh.dist : range;
     const eh = g.enemies.raycast(o, d, maxD);
-    // Dost asker mermiyi durdurur ama yaralanmaz (dost ateşi kapalı)
+    // Dost asker mermiyi durdurur ve yaralanır (dost ateşi; hasar fire()'da)
     const ah = g.allies.raycast(o, d, eh ? eh.dist : maxD);
     if (ah) {
       r.ally = ah.ally;
@@ -834,7 +846,18 @@ export class PlayerWeapons {
         if (out.killed) g.addScore(SCORE.melee, 'BIÇAK');
       } else {
         const wh = g.world.raycast(_o, _fwd, range * 0.8, _hit);
-        if (wh) {
+        // Dost ateşi: önündeki Alfa askerine de işler (duvarın berisindeyse)
+        const ah = g.allies.raycast(_o, _fwd, wh ? wh.dist : range);
+        if (ah) {
+          const dmg = friendlyBulletDamage(damage, 'torso', null);
+          const out = ah.ally.takeDamage(dmg, g.player.pos, { zone: 'torso', pen: penFor(K ? K.id : 'melee'), source: 'player' });
+          if (out) g.stats.friendlyDamage += dmg;
+          g.effects.impact(ah.point, _tmp.copy(_fwd).negate(), out?.armorHit ? 'metal' : 'flesh', 1.2);
+          g.audio.impact(out?.armorHit ? 'metal' : 'flesh', ah.point);
+          g.player.shake(0.15);
+          ah.ally.onFriendlyFire();
+          g.events.emit('friendlyFire', ah.ally);
+        } else if (wh) {
           g.effects.impact(wh.point, wh.normal, wh.surface, 0.6, false);
           g.audio.impact(wh.surface, wh.point);
           g.player.shake(0.12);

@@ -407,7 +407,7 @@ export class Game {
   }
 
   freshStats() {
-    return { kills: 0, headshots: 0, shots: 0, hits: 0, deaths: 0, score: 0, time: 0, grenades: 0, damageTaken: 0, explosions: 0, ttd: [] };
+    return { kills: 0, headshots: 0, shots: 0, hits: 0, deaths: 0, score: 0, time: 0, grenades: 0, damageTaken: 0, explosions: 0, friendlyDamage: 0, ttd: [] };
   }
 
   enableTouch() {

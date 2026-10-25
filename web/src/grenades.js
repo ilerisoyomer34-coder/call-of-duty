@@ -5,6 +5,7 @@ import { buildGrenade, buildSmokeGrenade, buildRocket } from './models.js';
 import { clamp, rand, rayCylinder } from './util.js';
 import { ARMOR_DATA } from './armor.js';
 import { CONSUMABLES } from './loadout.js';
+import { friendlyBlastDamage, friendlyBulletDamage } from './friendlyFire.js';
 
 // Sis bombası ayarları (data/store.json → consumables.smoke)
 const SMOKE = CONSUMABLES.get('smoke');
@@ -41,6 +42,7 @@ export class GrenadeSystem {
       _d.copy(r.vel).normalize();
       let point = null;
       let enemyHit = null;
+      let allyHit = null;
       if (r.life <= 0) point = r.pos.clone();
       else {
         const wh = g.world.raycast(r.pos, _d, len + 0.15, _hit);
@@ -48,7 +50,12 @@ export class GrenadeSystem {
         // Düşman mermisi (tank topu) düşman askerlerinin içinden geçer; oyuncuya ya da dost askere çarpar
         const eh = r.owner === 'enemy' ? null : g.enemies.raycast(r.pos, _d, maxT);
         const fh = r.owner === 'enemy' ? this.foeHit(r.pos, _d, maxT) : -1;
-        if (eh) {
+        // Oyuncunun roketi (ya da sürdüğü tankın topu) önündeki dosta çarpar (dost ateşi)
+        const ah = r.owner === 'player' ? g.allies.raycast(r.pos, _d, eh ? eh.dist : maxT) : null;
+        if (ah) {
+          point = ah.point.clone();
+          allyHit = ah.ally;
+        } else if (eh) {
           point = eh.point.clone();
           enemyHit = eh;
         } else if (fh >= 0) point = r.pos.clone().addScaledVector(_d, fh);
@@ -63,6 +70,11 @@ export class GrenadeSystem {
             g.events.emit('hitmarker', 'kill');
             g.audio.hitmarker('kill');
           }
+        }
+        // Doğrudan isabet (alan hasarı ayrıca explode'da; uyarı orada)
+        if (allyHit) {
+          const dmg = friendlyBulletDamage(r.data.damage, 'torso', null);
+          if (allyHit.takeDamage(dmg, g.player.pos, { zone: 'torso', pen: ARMOR_DATA.explosivePen, source: 'player' })) g.stats.friendlyDamage += dmg;
         }
         g.explode(point, r.data.splashRadius, r.data.splashDamage, r.owner, 1.25);
         continue;
@@ -223,15 +235,25 @@ export function applyRadialDamage(game, pos, radius, damage, owner) {
       if (f > 0.01 && owner !== 'ally') P.takeDamage(damage * f * mult, pos, { zone: 'torso', pen: ARMOR_DATA.explosivePen, source: 'explosion' });
     }
   }
-  // Dost askerler: düşman patlamasından etkilenir, oyuncunun ve manganın patlamasından değil (dost ateşi kapalı)
-  if (owner !== 'player' && owner !== 'ally') {
+  // Dost askerler: düşman patlamasından ve oyuncunun patlayıcısından (dost ateşi: el bombası, roket, C4, vurduğu
+  // varil) etkilenir; manganın kendi bombası atılmadan önce dostlardan uzak seçilir (ally.js → G.safe), yaralamaz
+  if (owner !== 'ally') {
+    const mine = owner === 'player';
     for (const a of game.allies.list) {
       if (!a.alive) continue;
       const c = a.chestPos(_v);
       const d = c.distanceTo(pos);
       if (d > radius) continue;
       const f = Math.pow(1 - d / radius, 1.4) * (W.lineOfSight(pos, c) ? 1 : 0.2);
-      if (f > 0.01) a.takeDamage(damage * f * ALLY.damageTaken, pos);
+      if (f <= 0.01) continue;
+      if (!mine) {
+        a.takeDamage(damage * f * ALLY.damageTaken, pos);
+        continue;
+      }
+      const dmg = friendlyBlastDamage(damage * f);
+      if (a.takeDamage(dmg, pos, { zone: 'torso', pen: ARMOR_DATA.explosivePen, source: 'player' })) game.stats.friendlyDamage += dmg;
+      a.onFriendlyFire();
+      game.events.emit('friendlyFire', a);
     }
   }
   let hitAny = false;
