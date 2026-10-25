@@ -2384,6 +2384,43 @@ console.log('Haritalar, mevziler ve manga kademeleri');
   check(plaza.hidden >= 10 && plaza.wrong === 0 && plaza.drawn === plaza.alive - plaza.hidden, `Belediye meydanından binadaki muhafızlar çizilmiyor (${plaza.inView} görüş konisinde, ${plaza.hidden} duvar arkasında gizli, yanlış gizlenen ${plaza.wrong})`);
   const hall = await occAt(0, -14, 0);
   check(hall.wrong === 0 && hall.hidden < plaza.hidden, `Binaya girince aynı kattakiler görünür (${hall.hidden} gizli, yanlış gizlenen ${hall.wrong})`);
+  // İç mekân göz uyumu (indoor.js): binada 0,7 sn sonra pozlama ve gök ışığı artmış; aynı bakışta görüntü parlak
+  const indoor = await page.evaluate(() => {
+    const g = window.__game;
+    const r = g.renderer;
+    const gl = r.getContext();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    const px = new Uint8Array(w * h * 4);
+    const lum = () => {
+      g.drawWorld(g.camera);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      let s = 0;
+      let n = 0;
+      for (let i = 0; i < px.length; i += 4 * 7) {
+        s += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+        n++;
+      }
+      return s / n;
+    };
+    const k = g.indoor.k;
+    const exposure = r.toneMappingExposure / g.env.exposure;
+    const hemi = g.hemi.intensity / g.env.hemi[2];
+    const kept = g.indoor.k;
+    g.indoor.k = 0;
+    g.indoor.apply();
+    const dim = lum();
+    g.indoor.k = 1;
+    g.indoor.apply();
+    const lit = lum();
+    g.indoor.k = kept;
+    g.indoor.apply();
+    return { k, exposure, hemi, dim, lit };
+  });
+  check(indoor.k > 0.6 && indoor.exposure > 1.3 && indoor.hemi > 1.2 && indoor.lit > indoor.dim * 1.4, `Belediye binasında göz uyumu: pozlama ×${indoor.exposure.toFixed(2)}, gök ışığı ×${indoor.hemi.toFixed(2)}, ortalama parlaklık ${Math.round(indoor.dim)} → ${Math.round(indoor.lit)}`);
+  const outdoor = await occAt(0, 10, 0);
+  const outK = await page.evaluate(() => window.__game.indoor.k);
+  check(outK < 0.3 && outdoor.alive > 0, `Dışarı çıkınca göz uyumu söner (k ${outK.toFixed(2)})`);
   await page.evaluate(() => {
     window.__game.cheats.aiOff = false;
     window.__game.cheats.god = false;

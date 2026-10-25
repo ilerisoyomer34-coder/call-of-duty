@@ -141,6 +141,17 @@ export const OCCLUSION = {
   knee: 0.5, // diz yüksekliği (m)
 };
 
+// İç mekân göz uyumu (src/indoor.js): kamera haritanın `interiors` kutularından birindeyken görüntü pozlaması ve gök
+// ışığı yumuşakça artar, çıkınca iner. Binanın içini güneş görmez, tek ışığı gök ışığıdır: dışarıya göre ayarlı
+// pozlamada içerisi loş kalıyordu ("belediye binasında bir şey göremiyoruz"). Işık sayısı değişmez (yalnız iki sayı);
+// kutu kendi exposure/hemi değerini verebilir
+export const INDOOR = {
+  exposure: 1.7, // içeride pozlama çarpanı (pencereden görünen dışarı parlar: gözün içeriye alışması)
+  hemi: 1.5, // içeride gök ışığı çarpanı
+  inRate: 2.2, // içeri girince uyum hızı (1/s; ~1 sn'de büyük kısmı)
+  outRate: 3, // dışarı çıkınca (parlaklığa daha çabuk alışılır)
+};
+
 // Üçüncü şahıs silah modeli (src/lod.js): tim askerinin elindeki ve yerde duran silah, birinci şahıs görünümünün tam
 // modelinden türetilir: parçalar malzeme başına birleşir, üçgenler azaltılır (10–140 bin → birkaç bin). Göreli hata
 // modelin boyuna göre (0,006 ≈ 5 mm); sinematik telsiz yakın çekiminde de bozulmasın diye küçük

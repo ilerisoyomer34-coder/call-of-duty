@@ -42,6 +42,7 @@ import { RadioChat, VoiceCommand } from './radioChat.js';
 import { RadioVoice } from './radioVoice.js';
 import { releaseStudio } from './weaponIcons.js';
 import { CommsCam } from './commsCam.js';
+import { IndoorLight } from './indoor.js';
 import { AiRadio } from './aiRadio.js';
 import { prepareButtonIcons, applyButtonIcons } from './buttonIcons.js';
 import { EV } from './events.js';
@@ -244,6 +245,8 @@ export class Game {
     this.radioVoice = new RadioVoice(this);
     // Sinematik konuşma görüntüsü: telsizde konuşanın canlı çekimi (commsCam.js)
     this.comms = new CommsCam(this);
+    // İç mekân göz uyumu: binanın içinde pozlama ve gök ışığı artar (indoor.js)
+    this.indoor = new IndoorLight(this);
     this.chat = new RadioChat(this);
     this.voice = new VoiceCommand(this.chat);
     this.voice.refresh(this.settings);
@@ -566,6 +569,8 @@ export class Game {
     this.sky = sky;
     const hemi = new THREE.HemisphereLight(env.hemi[0], env.hemi[1], env.hemi[2]);
     scene.add(hemi);
+    this.hemi = hemi;
+    this.indoor?.reset();
     const sun = new THREE.DirectionalLight(env.sun[0], env.sun[1]);
     sun.castShadow = this.renderer.shadowMap.enabled;
     const size = this.quality === 'high' ? 2048 : 1024;
@@ -1254,6 +1259,7 @@ export class Game {
     this.missionHud.update(dt, canAct ? I : NULL_INPUT);
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
+    this.indoor.update(dt);
     const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine;
     this.clickToPlay.hidden = !lockMissing;
     if (this.state === 'dying') {

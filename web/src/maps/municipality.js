@@ -73,6 +73,8 @@ export function build(W) {
   return {
     playerStart:{pos:V(0,56),yaw:0},checkpoints:[{pos:V(0,56),yaw:0},{pos:V(-9,5),yaw:0},{pos:V(-13,-12),yaw:-Math.PI/2},{pos:V(1,-18.8,HALL_FLOORS[2]),yaw:0}],
     grassAvoid:[[-44,-48,44,64]], aaGuns:[],tanks:[],nests:[],barrels:[V(13,16),V(-18,-31)],
+    // Bina içi (dış duvarların iç yüzü, zeminden çatıya): kamera buradayken göz içeriye alışır (indoor.js)
+    interiors:[{minx:HALL.x-9,maxx:HALL.x+9,minz:HALL.z-9,maxz:HALL.z+9,miny:-0.5,maxy:12.2}],
     laptop:{pos:V(2.5,-20.5,HALL_FLOORS[2]+.85),floor:HALL_FLOORS[2],yaw:Math.PI},
     terminal:{holdTime:8,relayTime:3,guardGroup:'robots',relays:[{id:'west',floor:HALL_FLOORS[1],pos:V(-6,-15,HALL_FLOORS[1]+1.1)},{id:'server',floor:HALL_FLOORS[2],pos:V(1,-21.7,HALL_FLOORS[2]+1.1)}]},
     ammoCrates:[V(-5,53),V(-12,7),V(-13,-13),V(6,-17,HALL_FLOORS[1]),V(-6,-13,HALL_FLOORS[2])],weaponPickups:[{id:'rpg',pos:V(-12,44,1.05),rotY:0},{id:'ak47',pos:V(12,23,1.05),rotY:.4}],
