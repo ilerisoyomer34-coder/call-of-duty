@@ -48,7 +48,7 @@ export function freshSave(startCredits = STORE.startCredits) {
 // id/tag/token etkin sunucunun (server: kalıcı sunucu kimliği) hesabıdır; öbür sunucularınki servers[serverId]'de
 // (net/servers.js → selectIdentity). Ev sunucusunun tünel adresi değişse de hesap kimliğe bağlı kalır
 export function freshProfile() {
-  return { name: null, tag: null, id: null, token: null, server: null, servers: {} };
+  return { name: null, tag: null, id: null, token: null, server: null, key: null, servers: {} };
 }
 
 function normalizeProfile(p) {
@@ -56,10 +56,12 @@ function normalizeProfile(p) {
   if (!isObj(p)) return d;
   const str = (v) => (typeof v === 'string' && v ? v : null);
   const servers = {};
+  // key: sunucunun sabitlenmiş kimlik anahtarı (net/servers.js → pinIdentity); hesap silinse de kalır ki aynı kimliği
+  // taklit eden sunucu tanınsın
   if (isObj(p.servers)) {
-    for (const [k, v] of Object.entries(p.servers)) if (isObj(v) && str(v.token)) servers[k] = { id: str(v.id), tag: str(v.tag), token: str(v.token) };
+    for (const [k, v] of Object.entries(p.servers)) if (isObj(v) && (str(v.token) || str(v.key))) servers[k] = { id: str(v.id), tag: str(v.tag), token: str(v.token), key: str(v.key) };
   }
-  return { ...p, name: str(p.name), tag: str(p.tag), id: str(p.id), token: str(p.token), server: str(p.server), servers };
+  return { ...p, name: str(p.name), tag: str(p.tag), id: str(p.id), token: str(p.token), server: str(p.server), key: str(p.key), servers };
 }
 
 // Kaydı varsayılanlarla tamamla: eksik ya da bozuk alan varsayılana döner, bilinmeyen alanlar korunur

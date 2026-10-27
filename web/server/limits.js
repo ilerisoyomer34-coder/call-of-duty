@@ -4,6 +4,16 @@ export const LIMITS = {
   wsPayloadBytes: 2048, // WebSocket iletisi
   helloTimeoutMs: 5000, // bağlanınca kimlik bu sürede gelmezse kapat
   wsMsgPerSec: 20,
+  // Güvenlik tabanı: kimliksiz istek seli ve belirteç denemesi IP'den durdurulur; sosyal WebSocket IP başı/toplam
+  ipGeneral: { max: 600, windowMs: 60_000 }, // IP başına bütün REST (kimlikli ya da değil)
+  authFail: { max: 30, windowMs: 60_000 }, // IP başına geçersiz belirteç
+  wsPerIp: 8, // IP başına açık sosyal bağlantı (birkaç sekme + telefon)
+  wsTotal: 2000, // sunucudaki bütün sosyal bağlantılar
+  tokenMax: 128, // belirteç uzunluğu (43 karakter üretilir; uzun değer özetlenmeden reddedilir)
+  // HTTP zaman aşımları (yavaş istek saldırısı: başlığı ya da gövdeyi damla damla gönderip bağlantı tutmak)
+  headersTimeoutMs: 10_000,
+  requestTimeoutMs: 30_000,
+  keepAliveTimeoutMs: 5_000,
   session: { max: 5, windowMs: 60_000 }, // IP başına yeni kimlik
   rename: { max: 5, windowMs: 3_600_000 },
   search: { max: 10, windowMs: 10_000 },

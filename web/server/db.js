@@ -1,11 +1,12 @@
 // Kalıcı veri: Node'un yerleşik SQLite'ı (node:sqlite, yerel derleme gerektirmez).
 // Oyuncular (ad + etiket + belirteç özeti), arkadaşlıklar ve bildirimler. Parti ve davetler bellekte (party.js).
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { randomBytes, randomInt, createHash } from 'node:crypto';
+import { randomBytes, randomInt, createHash, generateKeyPairSync, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { foldName, TAG_DIGITS } from '../shared/names.js';
 import { LIMITS } from './limits.js';
+import { proofMessage, CHALLENGE_RE } from '../shared/net/serverProof.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS players (
@@ -73,8 +74,16 @@ const pub = (r) => (r ? { id: r.id, name: r.name, tag: r.tag } : null);
 
 export class Store {
   constructor(path) {
-    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+    // Veritabanında belirteç özetleri ve sunucunun kimlik anahtarı var: klasör ve dosya yalnız sahibine açık
+    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
+    if (path !== ':memory:') {
+      try {
+        chmodSync(path, 0o600);
+      } catch {
+        /* Windows: izin bitleri yok */
+      }
+    }
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
     this.db.exec(SCHEMA);
     const q = (sql) => this.db.prepare(sql);
@@ -119,6 +128,21 @@ export class Store {
       this.serverId = `s_${randomBytes(12).toString('hex')}`;
       this.q.setMeta.run('serverId', this.serverId);
     }
+    // Kimlik anahtarı (ECDSA P-256): bir kez üretilir, veritabanıyla kalıcı. Oyun bağlanmadan önce imza ister ve
+    // anahtarı hesaba sabitler; başka bir sunucu bu serverId'yi söylese de imzalayamaz (belirteç ona gitmez)
+    let pem = this.q.getMeta.get('serverKey')?.value;
+    if (!pem) {
+      pem = generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey.export({ type: 'pkcs8', format: 'pem' });
+      this.q.setMeta.run('serverKey', pem);
+    }
+    this.privateKey = createPrivateKey(pem);
+    this.publicKey = createPublicKey(this.privateKey).export({ type: 'spki', format: 'der' }).toString('base64url');
+  }
+
+  // Meydan okumanın imzası (base64url, IEEE P1363: WebCrypto'nun beklediği r||s). Geçersiz meydan okuma imzalanmaz
+  proveIdentity(challenge) {
+    if (typeof challenge !== 'string' || !CHALLENGE_RE.test(challenge)) return null;
+    return sign('sha256', Buffer.from(proofMessage(this.serverId, challenge)), { key: this.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
   }
 
   close() {

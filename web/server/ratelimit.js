@@ -18,6 +18,14 @@ export class RateLimiter {
     return true;
   }
 
+  // Saymadan pencere içindeki istek sayısı (hatalı belirteç gibi yalnız başarısızlıkta sayılan sınırlar için)
+  count(key, windowMs, now = Date.now()) {
+    const arr = this.hits.get(key);
+    if (!arr) return 0;
+    while (arr.length && arr[0] <= now - windowMs) arr.shift();
+    return arr.length;
+  }
+
   sweep(maxAgeMs, now = Date.now()) {
     for (const [k, arr] of this.hits) if (!arr.length || arr[arr.length - 1] <= now - maxAgeMs) this.hits.delete(k);
   }

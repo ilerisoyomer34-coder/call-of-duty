@@ -8,7 +8,7 @@ import { NET } from '../config.js';
 import { EV } from '../events.js';
 import { displayName } from '../../shared/names.js';
 import { saveSettings } from '../settings.js';
-import { INVITE_PARAM, parseServerInput, probeServer, selectIdentity, rememberIdentity, forgetIdentity } from './servers.js';
+import { INVITE_PARAM, parseServerInput, probeServer, selectIdentity, rememberIdentity, forgetIdentity, randomChallenge, verifyServerProof, identityVerdict, pinIdentity } from './servers.js';
 
 // Sunucu hata kodları → oyuncuya gösterilen metin
 // Sunucu, silinen hesabın açık bağlantılarını bu kodla kapatır (server/hub.js → kick)
@@ -48,6 +48,9 @@ export const ERRORS = {
   ai_timeout: 'Yapay zekâ telsizi zamanında cevap vermedi',
   network: 'Sunucuya ulaşılamadı',
   server: 'Sunucu hatası',
+  // Sunucu kimliği kanıtı (servers.js → identityVerdict): belirteç gönderilmedi
+  server_impostor: 'Güvenlik uyarısı: bu sunucu, bağlı olduğun başka bir sunucunun kimliğini taklit ediyor. Bağlanılmadı.',
+  server_unverified: 'Sunucunun kimliği doğrulanamadı (eski sürüm ya da sahte sunucu). Bağlanılmadı.',
 };
 export const errorText = (code) => ERRORS[code] || 'Bir sorun oluştu';
 
@@ -152,16 +155,27 @@ export class SocialClient {
   }
 
   // Sunucu kapalıysa (bilgisayar kapalı, tünel adresi eskimiş) ağ hatası; açıksa hesabını yükle
+  // Sunucu kimliği kanıtlanmadan (imza + sabitlenmiş anahtar) belirteç gönderilmez: başka bir sunucu bu kimliği
+  // taklit edip hesabı ele geçiremesin (davet bağlantısı herkesten gelebilir; servers.js → identityVerdict)
   async identify() {
     const url = this.serverUrl;
-    const info = await probeServer(url);
+    const challenge = randomChallenge();
+    const info = await probeServer(url, { challenge });
     if (url !== this.serverUrl) throw Object.assign(new Error('network'), { code: 'network' });
     if (!info) {
       this.info = null;
       throw Object.assign(new Error('network'), { code: 'network' });
     }
+    const verdict = identityVerdict(this.profile, info, await verifyServerProof(info, challenge));
+    if (verdict !== 'ok') {
+      this.info = null;
+      throw Object.assign(new Error(verdict), { code: verdict === 'mismatch' ? 'server_impostor' : 'server_unverified' });
+    }
     this.info = info;
-    if (info.serverId && this.profile.server !== info.serverId) this.game.save.update((d) => selectIdentity(d.profile, info.serverId), { now: true });
+    this.game.save.update((d) => {
+      if (d.profile.server !== info.serverId) selectIdentity(d.profile, info.serverId);
+      pinIdentity(d.profile, info.key);
+    }, { now: true });
   }
 
   stop() {

@@ -9,6 +9,7 @@ import { CONSUMABLES } from './loadout.js';
 import { levelMission, RULES } from './missionSystem.js';
 import { COMMANDS } from './commands.js';
 import { HitboxDebug } from './hitboxDebug.js';
+import { STORE_BUILD } from './platform.js';
 
 const HELP = `Komutlar:
   god                 ölümsüzlük aç/kapa
@@ -47,6 +48,10 @@ const HELP = `Komutlar:
   resetsave           kaydı sıfırla (kredi, envanter, ilerleme) ve sayfayı yenile
   clear               konsolu temizle`;
 
+// Oyunun gidişini değiştiren komutlar: çevrim içi maçta çalışmaz (sunucu otoriter olsa da istemcide ölümsüzlük,
+// sonsuz cephane gibi görüntüler yanıltıcı olur; tek oyunculu ilerleme hileleri maça taşınmasın)
+const CHEATS = new Set(['god', 'ammo', 'infiniteammo', 'giveall', 'spawn', 'killall', 'timescale', 'ai', 'toggleai', 'tp', 'unlock', 'level', 'nest', 'tier', 'cp', 'credits', 'armor', 'give', 'down', 'missions', 'armorfill']);
+
 export class DevConsole {
   constructor(game) {
     this.game = game;
@@ -82,6 +87,8 @@ export class DevConsole {
   }
 
   toggle(on = !this.open) {
+    // Mağaza sürümünde geliştirici konsolu açılmaz (oyuncuya hile menüsü sunulmaz)
+    if (STORE_BUILD && on) return;
     this.open = on;
     this.el.hidden = !on;
     const g = this.game;
@@ -103,6 +110,10 @@ export class DevConsole {
     const g = this.game;
     const [cmd, ...args] = line.split(/\s+/);
     const C = g.cheats;
+    if (g.net && CHEATS.has(cmd.toLowerCase())) {
+      this.print('Çevrim içi maçta geliştirici komutları kapalı.');
+      return;
+    }
     switch (cmd.toLowerCase()) {
       case 'help':
         this.print(HELP);

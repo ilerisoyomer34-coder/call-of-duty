@@ -24,6 +24,13 @@ export function createGameGateway({ store, rooms, buildHash, log = () => {}, net
   const writer = new Writer(256);
   const profile = NETSIM.profiles[netsim] || null;
 
+  // IP sayacı yükseltmeden önce ayrılır (aynı anda gelen bağlantılar sınırı aşamaz), bağlantı ya da soket
+  // kapanınca bir kez bırakılır
+  const release = (ip) => {
+    const n = (perIp.get(ip) || 1) - 1;
+    if (n <= 0) perIp.delete(ip);
+    else perIp.set(ip, n);
+  };
   function handleUpgrade(req, socket, head) {
     const ip = ipOf(req);
     const n = perIp.get(ip) || 0;
@@ -31,7 +38,14 @@ export function createGameGateway({ store, rooms, buildHash, log = () => {}, net
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, ip));
+    perIp.set(ip, n + 1);
+    let released = false;
+    const done = () => {
+      if (!released) release(ip);
+      released = true;
+    };
+    socket.once('close', done);
+    wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, done));
   }
 
   function wrap(ws) {
@@ -70,8 +84,7 @@ export function createGameGateway({ store, rooms, buildHash, log = () => {}, net
     return t;
   }
 
-  function onConnection(ws, ip) {
-    perIp.set(ip, (perIp.get(ip) || 0) + 1);
+  function onConnection(ws, releaseIp) {
     const transport = wrap(ws);
     const conn = { transport, slot: -1, playerId: null, room: null, loaded: false, pending: [], invalid: 0 };
     let windowStart = Date.now();
@@ -116,7 +129,16 @@ export function createGameGateway({ store, rooms, buildHash, log = () => {}, net
       }
       conn.room.onMessage(conn, m);
     };
-    transport.onmessage = handle;
+    // Beklenmeyen hata (oda kodunda) yalnız bu bağlantıyı düşürür: bozuk iletiyle sunucu çökertilemez
+    const safeHandle = (bytes) => {
+      try {
+        handle(bytes);
+      } catch (e) {
+        log('oyun bağlantısı hatası', String(e?.message || e).slice(0, 80));
+        fail(ERR.BAD_MESSAGE);
+      }
+    };
+    transport.onmessage = safeHandle;
     ws.on('message', (data, isBinary) => {
       if (!isBinary) {
         if (++conn.invalid >= GAME_LIMITS.invalidMax) fail(ERR.BAD_MESSAGE);
@@ -130,14 +152,12 @@ export function createGameGateway({ store, rooms, buildHash, log = () => {}, net
         return;
       }
       if (transport.receive) transport.receive(new Uint8Array(bytes));
-      else handle(bytes);
+      else safeHandle(bytes);
     });
     ws.on('close', () => {
       clearTimeout(hello);
       transport.stop?.();
-      const n = (perIp.get(ip) || 1) - 1;
-      if (n <= 0) perIp.delete(ip);
-      else perIp.set(ip, n);
+      releaseIp();
       if (conn.room) conn.room.leave(conn);
     });
     ws.on('error', () => {});

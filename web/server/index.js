@@ -11,7 +11,7 @@ import { Hub } from './hub.js';
 import { PartyManager } from './party.js';
 import { RateLimiter } from './ratelimit.js';
 import { LIMITS } from './limits.js';
-import { createApi } from './api.js';
+import { createApi, logSafe } from './api.js';
 import { RoomManager, Matchmaker, MM } from './game/rooms.js';
 import { createGameGateway } from './game/gateway.js';
 import { computeBuildHash } from './game/buildhash.js';
@@ -36,9 +36,24 @@ export async function startServer(overrides = {}) {
   const ai = await createAiRadio({ config, log, client: config.aiClient || null });
   const api = createApi({ store, hub, parties, limiter, config, log, rooms, matchmaker, ai });
   const http = createHttp((req, res) => api.handle(req, res));
+  // Yavaş istek saldırısı (başlığı/gövdeyi damla damla gönderip bağlantıları tutmak) zaman aşımıyla kesilir
+  http.headersTimeout = LIMITS.headersTimeoutMs;
+  http.requestTimeout = LIMITS.requestTimeoutMs;
+  http.keepAliveTimeout = LIMITS.keepAliveTimeoutMs;
   const wss = new WebSocketServer({ noServer: true, maxPayload: LIMITS.wsPayloadBytes });
   const ipOf = makeIpOf(config);
   const game = createGameGateway({ store, rooms, buildHash, log, netsim: config.netsim, ipOf });
+  // Sosyal bağlantılar IP başına ve toplamda sınırlı: kimliksiz bağlantı seli belleği ve dosya tanıtıcılarını
+  // tüketmesin (kimlik 5 sn içinde gelmezse zaten kapanır). Sayaç yükseltmeden önce ayrılır: aynı anda gelen
+  // bağlantılar sınırı aşamaz
+  const wsPerIp = new Map();
+  let wsTotal = 0;
+  const releaseWs = (ip) => {
+    wsTotal--;
+    const n = (wsPerIp.get(ip) || 1) - 1;
+    if (n <= 0) wsPerIp.delete(ip);
+    else wsPerIp.set(ip, n);
+  };
 
   http.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url, 'http://x');
@@ -46,8 +61,25 @@ export async function startServer(overrides = {}) {
       socket.destroy();
       return;
     }
-    if (url.pathname === '/ws') wss.handleUpgrade(req, socket, head, (ws) => onSocket(ws));
-    else if (url.pathname === '/game') game.handleUpgrade(req, socket, head);
+    if (url.pathname === '/ws') {
+      const ip = ipOf(req);
+      if ((wsPerIp.get(ip) || 0) >= LIMITS.wsPerIp || wsTotal >= LIMITS.wsTotal) {
+        socket.destroy();
+        return;
+      }
+      wsPerIp.set(ip, (wsPerIp.get(ip) || 0) + 1);
+      wsTotal++;
+      let released = false;
+      const release = () => {
+        if (!released) releaseWs(ip);
+        released = true;
+      };
+      socket.once('close', release);
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        ws.once('close', release);
+        onSocket(ws);
+      });
+    } else if (url.pathname === '/game') game.handleUpgrade(req, socket, head);
     else socket.destroy();
   });
 
@@ -57,7 +89,7 @@ export async function startServer(overrides = {}) {
     let count = 0;
     let windowStart = Date.now();
     const hello = setTimeout(() => ws.close(4000, 'hello'), LIMITS.helloTimeoutMs);
-    ws.on('message', (data) => {
+    const onMessage = (data) => {
       const now = Date.now();
       if (now - windowStart > 1000) {
         windowStart = now;
@@ -73,7 +105,8 @@ export async function startServer(overrides = {}) {
       if (!msg || typeof msg.t !== 'string') return ws.close(4002, 'bad');
       if (!id) {
         if (msg.t !== 'hello') return ws.close(4001, 'hello');
-        const p = store.playerByToken(typeof msg.token === 'string' ? msg.token : '');
+        const token = typeof msg.token === 'string' && msg.token.length <= LIMITS.tokenMax ? msg.token : '';
+        const p = store.playerByToken(token);
         if (!p) {
           ws.send(JSON.stringify({ t: 'error', error: 'unauthorized' }));
           return ws.close(4001, 'unauthorized');
@@ -87,7 +120,17 @@ export async function startServer(overrides = {}) {
         return;
       }
       if (msg.t === 'status') hub.setStatus(id, msg.status);
-      else if (msg.t === 'ping') ws.send(JSON.stringify({ t: 'pong', at: msg.at }));
+      // Yalnız sayı geri yansıtılır (keyfi veri yansıtılmasın)
+      else if (msg.t === 'ping') ws.send(JSON.stringify({ t: 'pong', at: Number.isFinite(msg.at) ? msg.at : 0 }));
+    };
+    // Beklenmeyen hata yalnız bu bağlantıyı kapatır; bütün sunucuyu düşürmez (bozuk iletiyle sunucuyu çökertme)
+    ws.on('message', (data) => {
+      try {
+        onMessage(data);
+      } catch (e) {
+        log('ws hatası', logSafe(e?.message));
+        ws.close(1011, 'error');
+      }
     });
     ws.on('close', () => {
       clearTimeout(hello);
@@ -130,6 +173,8 @@ export async function startServer(overrides = {}) {
 
 // Doğrudan çalıştırıldıysa başlat
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  // Sunucunun yazdığı dosyalar (veritabanı, WAL günlükleri) yalnız sunucuyu çalıştıran kullanıcıya açık
+  process.umask(0o077);
   const s = await startServer();
   const stop = async () => {
     await s.close();

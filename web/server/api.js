@@ -45,6 +45,20 @@ function readBody(req, max = LIMITS.bodyBytes) {
 }
 
 const str = (v) => (typeof v === 'string' ? v : '');
+// Günlüğe giden kullanıcı metni: satır sonu ve denetim karakterleri sahte günlük satırı üretmesin, uzunluk sınırlı
+const CONTROL_CHARS = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]', 'g');
+export const logSafe = (v) => String(v ?? '').replace(CONTROL_CHARS, '?').slice(0, 80);
+
+// Her yanıtta: JSON'u başka türde yorumlatma, çerçeveye koyma, adres sızdırma, sayfa olarak açılınca hiçbir şey
+// yükleme. API yalnız JSON döndürür; bu başlıklar tarayıcıdan doğrudan açılan uçları da korur
+export const SECURITY_HEADERS = Object.freeze({
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  'cross-origin-opener-policy': 'same-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+});
 // Şikâyet gerekçeleri: uygunsuz ad, taciz/hile (istemcide aynı kodlar → Türkçe metin)
 export const REPORT_REASONS = ['name', 'abuse'];
 
@@ -56,11 +70,17 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
   const limit = (key, rule) => {
     if (!limiter.allow(key, rule.max, rule.windowMs)) throw new HttpError(429, 'rate_limited');
   };
+  // Geçersiz belirteç IP başına sayılır: belirteç tahmini (kaba kuvvet) sınırdan sonra hiç denenmez
   const auth = (req) => {
+    const failKey = `af:${ipOf(req)}`;
+    if (limiter.count(failKey, LIMITS.authFail.windowMs) >= LIMITS.authFail.max) throw new HttpError(429, 'rate_limited');
     const h = String(req.headers.authorization || '');
     const token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
-    const p = store.playerByToken(token);
-    if (!p) throw new HttpError(401, 'unauthorized');
+    const p = token.length <= LIMITS.tokenMax ? store.playerByToken(token) : null;
+    if (!p) {
+      limiter.allow(failKey, Infinity, LIMITS.authFail.windowMs);
+      throw new HttpError(401, 'unauthorized');
+    }
     limit(`g:${p.id}`, LIMITS.general);
     return p;
   };
@@ -197,7 +217,7 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       if (!REPORT_REASONS.includes(reason)) throw new HttpError(400, 'bad_reason');
       if (other === p.id) throw new HttpError(400, 'self');
       if (!store.report(p.id, other, reason)) throw new HttpError(404, 'not_found');
-      log('şikâyet', reason, other);
+      log('şikâyet', reason, logSafe(other));
       return { ok: true };
     },
     'GET /api/notifications': async (req) => ({ notifications: store.notifications(auth(req).id) }),
@@ -273,7 +293,18 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
     },
     // serverId: veritabanıyla birlikte kalıcı; tünel adresi her açılışta değişse de oyun hesabı bu kimliğe bağlanır
     // ai: yapay zekâlı telsiz bu sunucuda açık mı (oyun telsizde ona göre sorar)
-    'GET /api/health': async () => ({ ok: true, online: hub.sockets.size, rooms: rooms.rooms.size, serverId: store.serverId, name: config.serverName || DEFAULT_SERVER_NAME, ai: !!ai?.available }),
+    // key/proof: sunucunun kimlik anahtarı ve ?c= meydan okumasının imzası (shared/net/serverProof.js); oyun belirteci
+    // ancak imza doğrulanıp anahtar sabitlenmiş anahtarla tutarsa gönderir
+    'GET /api/health': async (req, body, url) => ({
+      ok: true,
+      online: hub.sockets.size,
+      rooms: rooms.rooms.size,
+      serverId: store.serverId,
+      name: config.serverName || DEFAULT_SERVER_NAME,
+      ai: !!ai?.available,
+      key: store.publicKey,
+      proof: store.proveIdentity(url.searchParams.get('c')) || '',
+    }),
   };
 
   const originOk = (origin) => {
@@ -288,11 +319,12 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
   async function handle(req, res) {
     const origin = req.headers.origin;
     const send = (status, obj) => {
-      const h = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
+      const h = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS };
       if (origin && originOk(origin)) {
         h['access-control-allow-origin'] = origin;
         h.vary = 'Origin';
       }
+      if (status === 429) h['retry-after'] = '60';
       res.writeHead(status, h);
       res.end(JSON.stringify(obj));
     };
@@ -304,8 +336,14 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
         'access-control-allow-headers': 'authorization, content-type',
         'access-control-max-age': '600',
         vary: 'Origin',
+        ...SECURITY_HEADERS,
       });
       return res.end();
+    }
+    // IP başına genel sınır (kimliksiz istek seli dahil): gövde okunmadan reddedilir
+    if (!limiter.allow(`ip:${ipOf(req)}`, LIMITS.ipGeneral.max, LIMITS.ipGeneral.windowMs)) {
+      req.resume();
+      return send(429, { error: 'rate_limited' });
     }
     const url = new URL(req.url, 'http://x');
     const fn = routes[`${req.method} ${url.pathname}`];
@@ -316,7 +354,7 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
     } catch (e) {
       if (e instanceof HttpError) send(e.status, { error: e.code });
       else {
-        log('api hatası', req.method, url.pathname, e?.message);
+        log('api hatası', req.method, logSafe(url.pathname), logSafe(e?.message));
         send(500, { error: 'server' });
       }
     }
