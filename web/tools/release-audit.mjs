@@ -61,6 +61,14 @@ check(!!read('web/src/save.js')?.includes('SAVE_BACKUP_KEY') && exists('web/src/
 check(exists('web/tests/mobile-input-regressions.test.mjs') && exists('web/tests/save-backup-regressions.test.mjs'), 'Girdi ve kayıt gerileme testleri');
 check(exists('web/src/pwa/privacy.html') && exists('store/LISTING.md'), 'Gizlilik politikası ve mağaza metni');
 check(exists('CREDITS.md') && exists('SourceAssets'), 'Lisans kayıtları (CREDITS.md, SourceAssets)');
+// Güvenlik tabanı (Docs/SECURITY_TR.md)
+check(/Tüm hakları saklıdır/.test(read('LICENSE') || '') && exists('SECURITY.md') && exists('Docs/SECURITY_TR.md'), 'Lisans (tüm hakları saklı) ve güvenlik politikası');
+const pwaPage = read('web/dist/pwa/index.html') || '';
+const scriptSrc = pwaPage.match(/http-equiv="Content-Security-Policy" content="[^"]*script-src ([^;"]*)/)?.[1] || '';
+check(!!scriptSrc && !/'unsafe-inline'|'unsafe-eval'|https?:/.test(scriptSrc), 'PWA içerik güvenlik politikası (satır içi ve dış betik yok)');
+const api = read('web/server/api.js') || '';
+check(api.includes('SECURITY_HEADERS') && api.includes('authFail') && !!read('web/server/db.js')?.includes('proveIdentity'), 'Sunucu: güvenlik başlıkları, belirteç deneme sınırı, kimlik kanıtı');
+check(exists('web/tools/secret-scan.mjs') && !!read('.github/workflows/quality-gates.yml')?.includes('secret-scan.mjs'), "Her push'ta gizli bilgi taraması");
 if (built) {
   const webDir = cap?.webDir ? path.join('mobile', cap.webDir) : null;
   check(!!webDir && exists(path.join(webDir, 'index.html')), 'Mağaza derlemesi (dist/app) var', webDir || 'webDir yok');

@@ -114,7 +114,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - Bildirim: `GET /api/notifications`, `POST /api/notifications/seen`.
   - Parti: `GET /api/party`, `POST /api/party/invite|respond|leave|kick|mode`.
   - Yapay zekâlı telsiz: `POST /api/ai/radio { text, context, history }` → `{ speaker, reply, actions[] }` (`server/ai.js`, kurallar `shared/ai/radio.js`). Anahtar `ANTHROPIC_API_KEY` sunucu ortamında; yoksa `503 ai_off`. Sınırlar `LIMITS.aiRadio/aiDaily/aiGlobal`, gövde 16 KB.
-  - Sağlık: `GET /api/health` → `{ ok, online, rooms, serverId, name, ai }`. `serverId` veritabanıyla kalıcı (`meta` tablosu); `name` `SERVER_NAME`'den.
+  - Sağlık: `GET /api/health[?c=<meydan okuma>]` → `{ ok, online, rooms, serverId, name, ai, key, proof }`. `serverId` ve kimlik anahtarı (ECDSA P-256, `key` SPKI DER base64url) veritabanıyla kalıcı (`meta` tablosu); `proof` = `proofMessage(serverId, c)` imzası (SHA-256, IEEE P1363, base64url; `c` 16–64 karakter base64url değilse boş); `name` `SERVER_NAME`'den.
   - Hatalar `{ error: kod }`; Türkçe metinler `src/net/social.js → ERRORS`.
 - **WebSocket `/ws`:**
   - İstemci → sunucu:
@@ -128,7 +128,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
     - Parti: `party`, `party_invite`, `party_invite_declined`.
 - **İstemci `SocialClient`** (`game.social`):
   - Adres önceliği: `?server=` (geliştirme, kaydedilmez) › Ayarlar "Çevrim içi sunucu" (Çevrim içi → "Sunucu bağlantısı" alanı ve davet bağlantısı `?sunucu=` buraya yazar) › `config.js → NET.serverUrl`.
-  - Bağlanmadan önce `/api/health` okunur. Hesap (id/tag/token) sunucunun kalıcı kimliğine bağlıdır: `profile.server` etkin sunucu, öbürleri `profile.servers[serverId]` (`src/net/servers.js → selectIdentity/rememberIdentity/forgetIdentity`). Ev sunucusunun tünel adresi değişse de aynı hesap; başka sunucuya geçince o sunucunun hesabı. Kimliği bilinmeyen eski hesap ilk bağlanılan sunucuya ait sayılır (yanlışsa 401 → yalnız o sunucunun hesabı silinir).
+  - Bağlanmadan önce `/api/health` okunur. Hesap (id/tag/token) sunucunun kalıcı kimliğine bağlıdır: `profile.server` etkin sunucu, öbürleri `profile.servers[serverId]` (`src/net/servers.js → selectIdentity/rememberIdentity/forgetIdentity`). Ev sunucusunun tünel adresi değişse de aynı hesap; başka sunucuya geçince o sunucunun hesabı. Kimliği bilinmeyen eski hesap ilk bağlanılan sunucuya ait sayılır (yanlışsa 401 → yalnız o sunucunun hesabı silinir). Belirteç gönderilmeden önce sunucu kimliğini kanıtlar: oyun rastgele meydan okumayla imza ister, WebCrypto ile doğrular, anahtarı hesaba sabitler (`verifyServerProof`, `identityVerdict`, `pinIdentity`); anahtar değişmişse ya da imza yoksa bağlantı `server_impostor`/`server_unverified` hatasıyla durur (sahte davet bağlantısı belirteç çalamaz). Ayrıntı `Docs/SECURITY_TR.md`.
   - Davet bağlantısı: `NET.gameUrl?sunucu=<adres>` (ev sunucusu başlatıcısı `web/server/host.mjs` üretir). Açılışta `consumeInvite()` adresi kaydeder, parametreyi siler, Çevrim içi ekranını açar.
   - Kopunca `NET.reconnectSec` aralıklarıyla yeniden bağlanır; 25 sn'de bir `ping` gönderir.
   - Olaylar: `EV.SOCIAL_STATUS`, `FRIENDS_CHANGED`, `NOTIFICATION`, `PARTY_CHANGED`, `PROFILE_CHANGED`.
