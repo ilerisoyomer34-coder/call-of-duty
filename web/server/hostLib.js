@@ -2,7 +2,7 @@
 // bilgisayara özel ayar dosyası, sürüm ve güncelleme kararları, platforma göre cloudflared dosyası.
 // Süreç başlatmaz, ağa çıkmaz (yalnız ensureHostEnv dosyaya yazar): tests/host.test.mjs doğrudan dener.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 
 // Oyunun yayımlandığı adres (GitHub Pages); davet bağlantısı buna ?sunucu= ekler
 export const GAME_URL = 'https://ilerisoyomer34-coder.github.io/call-of-duty/';
@@ -94,6 +94,21 @@ export function cloudflaredAsset(platform, arch) {
 }
 
 export const cloudflaredUrl = (asset) => `https://github.com/cloudflare/cloudflared/releases/latest/download/${asset}`;
+
+// İndirilen tünel programının bütünlüğü: GitHub sürüm bilgisi her dosyanın SHA-256 özetini verir (digest). Özet
+// tutmazsa dosya çalıştırılmaz (yoldaki vekil ya da önbellek dosyayı değiştirmiş olabilir). Yalnız Cloudflare'in
+// kendi deposundaki indirme adresi kabul edilir
+export const CLOUDFLARED_RELEASE_API = 'https://api.github.com/repos/cloudflare/cloudflared/releases/latest';
+const CLOUDFLARED_DOWNLOAD = 'https://github.com/cloudflare/cloudflared/releases/download/';
+
+export function releaseAsset(release, name) {
+  const a = Array.isArray(release?.assets) ? release.assets.find((x) => x?.name === name) : null;
+  if (!a || typeof a.browser_download_url !== 'string' || !a.browser_download_url.startsWith(CLOUDFLARED_DOWNLOAD)) return null;
+  const m = typeof a.digest === 'string' ? a.digest.match(/^sha256:([0-9a-f]{64})$/i) : null;
+  return { url: a.browser_download_url, sha256: m ? m[1].toLowerCase() : null, tag: String(release.tag_name || '') };
+}
+
+export const sha256Hex = (buf) => createHash('sha256').update(buf).digest('hex');
 
 // Pencere açıkken bilgisayar uyumasın. Windows: SetThreadExecutionState (ES_CONTINUOUS | ES_SYSTEM_REQUIRED),
 // betik tırnak sorunu yaşamasın diye -EncodedCommand (UTF-16LE base64) ile verilir

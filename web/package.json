@@ -2,6 +2,7 @@
   "name": "demir-safak",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Demir Şafak — tarayıcıda oynanan birinci şahıs taktiksel savaş oyunu",
   "type": "module",
   "scripts": {

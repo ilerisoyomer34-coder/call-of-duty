@@ -2,6 +2,7 @@
   "name": "demir-safak-mobile",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Demir Şafak mağaza uygulaması (App Store / Google Play): web/dist/app'i saran Capacitor kabuğu",
   "type": "module",
   "scripts": {

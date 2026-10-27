@@ -28,9 +28,17 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
+      # Depo herkese açık: anahtar, belirteç ya da imza dosyası gönderildiyse burada durur (Docs/SECURITY_TR.md)
+      - name: Gizli bilgi taraması
+        working-directory: web
+        run: node tools/secret-scan.mjs
       - name: Bağımlılıklar (kilit dosyasındaki sürümler)
         working-directory: web
         run: npm ci
+      # Oyuncuya ve sunucuya giden paketlerde yüksek/kritik bilinen açık varsa durur (geliştirme araçları hariç)
+      - name: Bağımlılık açıkları (oyun ve sunucu)
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
       - name: Birim testleri
         working-directory: web
         run: npm run test:unit

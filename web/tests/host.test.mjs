@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseTunnelUrl, inviteLink, ensureHostEnv, parseEnv, nodeVersionOk, shouldUpdate, cloudflaredAsset, keepAwakeCommand, GAME_URL } from '../server/hostLib.js';
+import { parseTunnelUrl, inviteLink, ensureHostEnv, parseEnv, nodeVersionOk, shouldUpdate, cloudflaredAsset, releaseAsset, sha256Hex, keepAwakeCommand, GAME_URL } from '../server/hostLib.js';
 import { parseServerInput } from '../src/net/servers.js';
 
 test('tünel adresi cloudflared çıktısından yakalanır, api.trycloudflare.com sayılmaz', () => {
@@ -74,4 +74,19 @@ test('uyku engeli: macOS caffeinate bu sürece bağlı, Windows betiği kodlanm�
   assert.match(script, /SetThreadExecutionState\(0x80000001\)/);
   assert.match(script, /Get-Process -Id 4242/);
   assert.equal(keepAwakeCommand('linux', 1), null);
+});
+
+test('cloudflared bütünlüğü: GitHub özeti okunur, yalnız Cloudflare deposundan indirme kabul edilir', () => {
+  const data = Buffer.from('cloudflared ikili dosyası');
+  const sum = sha256Hex(data);
+  const url = 'https://github.com/cloudflare/cloudflared/releases/download/2026.10.0/cloudflared-linux-amd64';
+  const release = { tag_name: '2026.10.0', assets: [{ name: 'cloudflared-linux-amd64', browser_download_url: url, digest: `sha256:${sum.toUpperCase()}` }] };
+  assert.deepEqual(releaseAsset(release, 'cloudflared-linux-amd64'), { url, sha256: sum, tag: '2026.10.0' });
+  assert.equal(releaseAsset(release, 'cloudflared-windows-amd64.exe'), null);
+  // Başka depodan adres ya da bozuk özet
+  const evil = { assets: [{ name: 'cloudflared-linux-amd64', browser_download_url: 'https://github.com/kotu/cloudflared/releases/download/x/cloudflared-linux-amd64', digest: `sha256:${sum}` }] };
+  assert.equal(releaseAsset(evil, 'cloudflared-linux-amd64'), null);
+  assert.equal(releaseAsset({ assets: [{ ...release.assets[0], digest: 'md5:abc' }] }, 'cloudflared-linux-amd64').sha256, null);
+  assert.equal(releaseAsset(null, 'cloudflared-linux-amd64'), null);
+  assert.notEqual(sha256Hex(Buffer.from('değiştirilmiş')), sum);
 });

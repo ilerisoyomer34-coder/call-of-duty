@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, chmodSync, writeFileSync, renameSync, rmSync } f
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { aiEnv, nodeVersionOk, MIN_NODE, ensureHostEnv, parseTunnelUrl, inviteLink, shouldUpdate, cloudflaredAsset, cloudflaredUrl, keepAwakeCommand, openCommand, clipboardCommand, DEFAULT_PORT } from './hostLib.js';
+import { aiEnv, nodeVersionOk, MIN_NODE, ensureHostEnv, parseTunnelUrl, inviteLink, shouldUpdate, cloudflaredAsset, cloudflaredUrl, CLOUDFLARED_RELEASE_API, releaseAsset, sha256Hex, keepAwakeCommand, openCommand, clipboardCommand, DEFAULT_PORT } from './hostLib.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, '..');
@@ -85,9 +85,17 @@ async function ensureCloudflared() {
   if (existsSync(bin)) return bin;
   mkdirSync(binDir, { recursive: true });
   say(`Tünel programı (cloudflared) indiriliyor: ${a.asset} …`);
-  const res = await fetch(cloudflaredUrl(a.asset));
+  // Sürüm bilgisi alınamazsa (GitHub API sınırı) indirme yine GitHub'dan https ile yapılır ama özet denetlenemez
+  const meta = await fetch(CLOUDFLARED_RELEASE_API, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'demir-safak-host' }, signal: AbortSignal.timeout(20_000) })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  const rel = releaseAsset(meta, a.asset);
+  if (!rel?.sha256) say('Uyarı: sürüm özeti alınamadı; dosya yalnız https ile doğrulanacak.');
+  const res = await fetch(rel?.url || cloudflaredUrl(a.asset));
   if (!res.ok) throw new Error(`cloudflared indirilemedi (HTTP ${res.status}).`);
   const data = Buffer.from(await res.arrayBuffer());
+  if (rel?.sha256 && sha256Hex(data) !== rel.sha256) throw new Error("İndirilen cloudflared GitHub'daki özetle tutmuyor: dosya çalıştırılmadı. Biraz sonra yeniden dene.");
+  if (rel?.sha256) say(`Özet doğrulandı (${rel.tag}, SHA-256).`);
   const tmp = join(binDir, `${a.asset}.part`);
   writeFileSync(tmp, data);
   if (a.tgz) {
