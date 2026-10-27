@@ -291,7 +291,9 @@ copyFileSync(join(root, 'src/pwa/privacy.html'), join(pwaDir, 'privacy.html'));
 const appDir = join(root, 'dist/app');
 rmSync(appDir, { recursive: true, force: true });
 mkdirSync(join(appDir, 'fonts'), { recursive: true });
+// Boş simge: uygulamanın simgesi kabuktadır; bağlantı olmazsa tarayıcı olmayan /favicon.ico'yu ister (404)
 const appHead = `<meta name="theme-color" content="${PWA.color}">
+<link rel="icon" href="data:,">
 <script>window.__DS_FONTS = 'fonts/fonts.css';</script>
 `;
 // Google Fonts'a ön bağlantı da kurulmasın (gizlilik politikası: açılışta dışarıya istek yok)

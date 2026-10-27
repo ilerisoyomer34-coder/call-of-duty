@@ -1336,6 +1336,7 @@ export class Enemy {
     ANIM_STATE.reload = W.reloadT > 0 ? 1 - W.reloadT / this.W.reload : -1;
     ANIM_STATE.dist = dist;
     ANIM_STATE.offscreen = this.occluded || !g.inView(this.pos);
+    ANIM_STATE.noShadow = !g.inShadowReach(this.pos);
     ANIM_STATE.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
     // Mevzide: eller silahın tutamaklarında (eğilince bırakır)
     if (this.mount && !this.crouch) {

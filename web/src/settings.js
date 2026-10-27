@@ -11,7 +11,9 @@ export const DEFAULT_SETTINGS = {
   crouchMode: 'toggle',
   sprintMode: 'hold',
   quality: 'auto', // 'auto' | 'low' | 'medium' | 'high'
-  renderScale: 'auto', // dünya çözünürlüğü: 'auto' ya da '1' | '0.85' | '0.7' | '0.5' (eller ve silah hep tam)
+  renderScale: 'auto', // dünya çözünürlüğü: 'auto' (kare süresine göre uyarlanır) ya da '1' | '0.85' | '0.7' | '0.5' (eller ve silah hep tam)
+  fpsCap: 'auto', // kare hızı sınırı: 'auto' (dokunmatikte 60, masaüstünde sınırsız) | '30' | '60' | '90' | '120' | '0' (sınırsız)
+  postFx: true, // görüntü efektleri: ışık parlaması, renk düzeni, vinyet (postfx.js; düşük kalitede kapalı)
   muted: false, // oyun sesi açık başlar (kullanıcı: "Ses gelmiyor"); lobideki hoparlör, duraklatma menüsü ve Ayarlar kapatır
   masterVolume: 0.8,
   sfxVolume: 1.0,

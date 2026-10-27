@@ -43,7 +43,7 @@ const CROWN_RATIO = 0.21;
 
 // Örnek grubunun yatay sınırı (pay: ağaç tacı ya da öbek yarıçapı kadar)
 function cellBounds(items, pad) {
-  const c = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity, hi: [], lo: [], all: [], far: false, shadow: true };
+  const c = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity, hi: [], lo: [], all: [], swaps: [], far: false, shadow: true };
   for (const it of items) {
     c.x0 = Math.min(c.x0, it.x - pad);
     c.z0 = Math.min(c.z0, it.z - pad);
@@ -368,11 +368,23 @@ export class World extends CollisionWorld {
           cell.hi.push(mesh);
           cell.lo.push(lo);
           cell.all.push(lo);
+          cell.swaps.push([mesh, part.geometry, part.lod]);
         }
       }
       this.treeCells.push(cell);
     }
     this.treeMeshes = n;
+  }
+
+  // Gölge geçişinde yakın hücrelerin tam gövdesi sade gövdeyle değişir (gölge haritasında dal ayrıntısı seçilmez;
+  // Kara Orman'da gölge geçişindeki gövdeler 104 bin üçgendi). main.js güneş gölgesinin matris güncellemesinde
+  // başlatır, sahne çizimi bitince geri alır (askerde de aynısı: soldier.js → shadowSwaps)
+  beginShadowPass() {
+    for (const c of this.treeCells || []) if (!c.far && c.shadow) for (const s of c.swaps) s[0].geometry = s[2];
+  }
+
+  endShadowPass() {
+    for (const c of this.treeCells || []) for (const s of c.swaps) s[0].geometry = s[1];
   }
 
   // Her karede (drawWorld): ağaç hücreleri uzaklığa göre sade gövdeye geçer ve uzakta gölge düşürmez; uzak çimen

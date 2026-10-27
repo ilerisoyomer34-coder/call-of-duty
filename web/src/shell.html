@@ -1474,7 +1474,9 @@ body.touch #squad { display: none; }
           <h3>Görüntü</h3>
           <div class="set"><label for="sFov">Görüş alanı (yatay)</label><input type="range" id="sFov" min="70" max="110" step="1"><output id="oFov"></output></div>
           <div class="set"><label for="sQuality">Grafik kalitesi</label><select id="sQuality"><option value="auto">Otomatik</option><option value="low">Düşük</option><option value="medium">Orta</option><option value="high">Yüksek</option></select></div>
-          <div class="set"><label for="sRes">Dünya çözünürlüğü</label><select id="sRes"><option value="auto">Otomatik</option><option value="1">%100</option><option value="0.85">%85</option><option value="0.7">%70</option><option value="0.5">%50</option></select></div>
+          <div class="set"><label for="sRes">Dünya çözünürlüğü<small>Otomatik: oyun takılmaya başlarsa dünya biraz küçük çizilir, rahatlayınca geri büyür (eller ve silah hep keskin)</small></label><select id="sRes"><option value="auto">Otomatik (uyarlanır)</option><option value="1">%100</option><option value="0.85">%85</option><option value="0.7">%70</option><option value="0.5">%50</option></select></div>
+          <div class="set"><label for="sFpsCap">Kare hızı sınırı<small>Otomatik: telefonda 60 (pil ve ısınma), bilgisayarda sınırsız</small></label><select id="sFpsCap"><option value="auto">Otomatik</option><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="0">Sınırsız</option></select></div>
+          <div class="set"><label for="sPostFx">Görüntü efektleri<small>Işık parlaması (güneş, patlama, alev), renk düzeni ve vinyet; düşük kalitede kapalı</small></label><input type="checkbox" class="toggle" id="sPostFx"></div>
           <div class="set"><label for="sFps">FPS göstergesi</label><input type="checkbox" class="toggle" id="sFps"></div>
           <h3>Erişilebilirlik</h3>
           <div class="set"><label for="sShake">Kamera sarsıntısı</label><input type="checkbox" class="toggle" id="sShake"></div>

@@ -18,7 +18,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { loadCharacterAsset, loadCharacterLod, loadWeaponAsset, CHARACTER_ASSETS, WEAPON_ASSETS } from './assets.js';
 import { warnOnce } from './util.js';
 import { buildSoldier, buildEnemyGun, mergeGroup, bakeStatic, ENEMY_GUN_KIND, ENEMY_GUN_POINTS } from './models.js';
-import { lowPolyGun } from './lod.js';
+import { lowPolyGun, lodAvailable, simplifyGeometry } from './lod.js';
 import { SOLDIER_ANIM, SOLDIER_LOOKS, SOLDIER_HITBOXES } from './config.js';
 import { clamp, damp, dampAngle, angleDiff, dirToYaw, lerp, smoothstep, rand, Spring } from './util.js';
 
@@ -27,6 +27,38 @@ let template = null; // düşman askeri (soldier); kliplerin sahibi
 const templates = new Map(); // karakter kimliği → şablon (soldier + Alfa Timi askerleri)
 let envMap = null; // haritanın yansıma haritası (setSoldierEnvironment)
 let realShadows = true; // gölge haritası açık mı (düşük kalitede kapalı: ayak gölgesi her mesafede)
+
+// Gölge geçişinde yakın askerin tam ağı yerine sade ağı çizilir (aynı iskelet ve bağlama): gölge haritasında ayrıntı
+// seçilmez, asker başına ≈11,4 bin yerine ≈2,3 bin üçgen (Belediye'de gölge geçişindeki askerler 103 bin üçgendi).
+// three.js gölge geçişi ana kameranın katmanlarını kullandığı için "yalnız gölge" nesnesi kurulamıyor: geçiş başında
+// (beginSoldierShadowPass, güneş gölgesinin matris güncellemesi) geometri sade olanla değişir, sahne çizimi bitince
+// (endSoldierShadowPass) geri alınır. Ana geçiş geometrisini gölgeden önce listesine almıştır: görünen model tam kalır
+const shadowSwaps = new Set();
+export function beginSoldierShadowPass() {
+  for (const s of shadowSwaps) s.swapShadow(true);
+}
+export function endSoldierShadowPass() {
+  for (const s of shadowSwaps) s.swapShadow(false);
+}
+// Sahne değişince eski askerler bırakılır (canlanan asker animate'te kendini yeniden kaydeder: telsiz stüdyosu)
+export function clearSoldierShadowSwaps() {
+  shadowSwaps.clear();
+}
+
+// Ağın gölge geometrisi: şablonun sade modeli; yoksa (sadeleştirme dosyada yarıya inmemiş çeşit) sadeleştirici hazır
+// olunca bir kez üretilir, şablonda saklanır. Yalnız dizin yeni, köşeler (iskelet ağırlıkları dahil) paylaşılır
+function shadowGeometry(T, mesh) {
+  const lod = T.lodGeos?.get(mesh.name);
+  if (lod) return lod;
+  if (!lodAvailable()) return undefined;
+  T.shadowGeos ||= new Map();
+  if (!T.shadowGeos.has(mesh.name)) {
+    const g = simplifyGeometry(mesh.geometry, A.shadowLod.ratio, A.shadowLod.error);
+    if (g) g.userData.shared = true;
+    T.shadowGeos.set(mesh.name, g);
+  }
+  return T.shadowGeos.get(mesh.name);
+}
 
 // Yumuşak ayak gölgesi: tek geometri ve malzeme, tüm askerler paylaşır
 let blobShared = null;
@@ -413,8 +445,10 @@ class SkinnedSoldier {
       }
     });
     // Uzak model: aynı iskelete ve malzemeye bağlı sade ağlar; uzaklığa göre biri görünür (görüş konisi kırpması
-    // sınır küresiyle sürer). Gölgeyi de görünen düşürür
+    // sınır küresiyle sürer). Gölgeyi her mesafede sade geometri düşürür (yakında gölge geçişinde değiştirilerek)
     this.hi = [];
+    this.shadowPairs = [];
+    this.swapped = false;
     this.lo = [];
     this.far = false;
     if (T.lodGeos) {
@@ -608,7 +642,10 @@ class SkinnedSoldier {
     this.root.rotation.set(0, st.yaw, 0, 'YXZ');
     // Gölge haritasının menzili dışında (ya da gölgeler kapalıyken) ayak gölgesi: asker havada durmasın
     // Uzakta gerçek gölge yerine ayak gölgesi: gövde gölge geçişinde bir daha çizilmez
-    this.useBlob(st.dist > A.blobFrom || !realShadows);
+    // Görüş konisinden uzaktaki (kameranın arkasındaki) askerin gölgesi ekrana düşmez: gölge geçişinde çizilmez
+    this.useBlob(st.dist > A.blobFrom || !realShadows || !!st.noShadow);
+    if (!this.shadowReady) this.prepareShadow();
+    else if (this.shadowPairs.length && !shadowSwaps.has(this)) shadowSwaps.add(this);
     // Uzak model: eşikte gidip gelmesin diye geri dönüş biraz daha yakında
     if (this.lo.length) {
       const far = this.far ? st.dist > A.meshLodDist - A.meshLodHyst : st.dist > A.meshLodDist;
@@ -842,6 +879,33 @@ class SkinnedSoldier {
       solveTwoBone(up, low, foot, target, _pole);
       setBoneWorldQuat(foot, _qf[i]);
     }
+  }
+
+  // Gölge geometrileri (şablonun sade modeli ya da sadeleştirilmiş kopya): sadeleştirici yüklenene dek denenir
+  prepareShadow() {
+    const pairs = [];
+    let pending = false;
+    this.body.traverse((o) => {
+      if (!o.isSkinnedMesh || o.userData.lod) return;
+      const g = shadowGeometry(this.T, o);
+      if (g === undefined) pending = true;
+      else if (g) pairs.push([o, o.geometry, g]);
+    });
+    // Sadeleştirici hiç yüklenemezse (WebAssembly yok) bir süre sonra tam ağla kalınır: her karede yeniden denenmez
+    this.shadowTries = (this.shadowTries || 0) + 1;
+    if (pending && !this.T.lodGeos && this.shadowTries < A.shadowLod.tries) return;
+    this.shadowPairs = pairs;
+    this.shadowReady = true;
+    if (pairs.length) shadowSwaps.add(this);
+  }
+
+  // Gölge geçişi süresince tam ağların geometrisi sade olanla değişir (yukarıda shadowSwaps). Uzaktayken tam ağ zaten
+  // gizli; gölgesi kapalı ya da görünmeyen askerde değişime gerek yok
+  swapShadow(on) {
+    if (on === this.swapped) return;
+    if (on && (this.far || this.blob.visible || !this.root.visible)) return;
+    this.swapped = on;
+    for (const [m, hi, lo] of this.shadowPairs) m.geometry = on ? lo : hi;
   }
 
   // Ayak gölgesi ya da gerçek gölge (ikisi birden değil)

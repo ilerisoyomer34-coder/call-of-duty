@@ -17,13 +17,15 @@ import { Mission } from './mission.js';
 import { HUD } from './hud.js';
 import { Menus } from './menus.js';
 import { DevConsole } from './devconsole.js';
-import { preloadSoldier, setSoldierEnvironment, createSoldier } from './soldier.js';
+import { preloadSoldier, setSoldierEnvironment, createSoldier, beginSoldierShadowPass, endSoldierShadowPass, clearSoldierShadowSwaps } from './soldier.js';
 import { preloadRobot, setRobotEnvironment } from './robot.js';
 import { VehicleSystem } from './vehicle.js';
 import { PhysicsSystem } from './physics.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT, POST, FRAME } from './config.js';
+import { PostFX } from './postfx.js';
+import { FrameLimiter, DynamicResolution, resolveFpsCap, targetFrameMs } from './framePacing.js';
 import { setMaxAnisotropy, setTextureCap, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
 import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, setFpsArmProp, setMunicipalityProp, updateWind } from './models.js';
@@ -161,6 +163,7 @@ const _lobbyO = new THREE.Vector3();
 const _sunFwd = new THREE.Vector3();
 const _lobbyD = new THREE.Vector3();
 const _viewSphere = new THREE.Sphere(new THREE.Vector3(), 1.2);
+const _shadowSphere = new THREE.Sphere(new THREE.Vector3(), 1);
 
 export class Game {
   constructor() {
@@ -217,7 +220,12 @@ export class Game {
     this.textures = createTextures(this.quality, aniso);
     this.worldRT = null;
     this.worldPR = 1;
-    this.blit = createBlit();
+    // Dünya hedefinden tuvale: parlama, renk düzeni, keskinleştirme, ton eşleme (postfx.js)
+    this.post = new PostFX(this.renderer);
+    // Akıcılık: kare hızı sınırı ve uyarlanır dünya çözünürlüğü (framePacing.js)
+    this.frameLimiter = new FrameLimiter(FRAME);
+    this.dynRes = new DynamicResolution(FRAME.dynamicRes);
+    this.fpsCap = 0;
     this.audio = new Audio();
     // Fizik motoru (Rapier): ragdoll, kovan, düşen eşya, patlama parçaları. Motor açılıştan sonra arka planda yüklenir
     this.physics = new PhysicsSystem(this);
@@ -344,6 +352,7 @@ export class Game {
     const wait = (ms) => new Promise((res) => setTimeout(res, ms));
     try {
       this.camera.updateMatrixWorld();
+      if (this.worldRT) this.post.precompile();
       // Zaman aşımı kazansa da derleme arka planda sürer: bitene dek bu sahnenin malzemeleri atılmaz
       // Dünya ara hedefe çiziliyorsa gölgelendiriciler o hedefin ayarlarıyla (ton eşlemesiz) derlenmeli
       r.setRenderTarget(this.worldRT);
@@ -394,7 +403,11 @@ export class Game {
     const env = MAPS[key]?.env || MAPS.kizilkum.env;
     this.env = env;
     this.sunDir.set(env.sunDir[0], env.sunDir[1], env.sunDir[2]).normalize();
+    // Ayakta askerin gölge boyu (güneş alçaldıkça uzar): bu kadar ötede görüş konisine giren asker gölge düşürür
+    const sy = Math.max(0.1, this.sunDir.y);
+    this.shadowReach = Math.min(RENDER.shadowReachMax, (1.9 * Math.sqrt(1 - sy * sy)) / sy) + RENDER.shadowReachPad;
     this.renderer.toneMappingExposure = env.exposure;
+    this.post?.setGrade(env.grade);
     if (this.envKey !== key) {
       this.envKey = key;
       this.envMap?.dispose();
@@ -438,6 +451,11 @@ export class Game {
     this.physics.setEnabled(S.physics !== false);
     const q = resolveQuality(S.quality, this.isTouch);
     this.renderQuality = q;
+    this.fpsCap = resolveFpsCap(S.fpsCap, this.isTouch, FRAME);
+    this.frameLimiter.reset();
+    // Elle seçilen çözünürlükte uyarlama yok; kalite değişince ölçek baştan
+    if (q !== this.dynResQuality || (S.renderScale && S.renderScale !== 'auto')) this.dynRes.reset();
+    this.dynResQuality = q;
     if (this.sun) this.sun.castShadow = q !== 'low' && this.renderer.shadowMap.enabled;
     if (this.envMap) setSoldierEnvironment(this.envMap, q !== 'low' && this.renderer.shadowMap.enabled);
     this.resize();
@@ -481,19 +499,29 @@ export class Game {
     const q = this.renderQuality || resolveQuality(this.settings.quality, this.isTouch);
     const scale = this.settings.renderScale;
     const table = this.isTouch ? RENDER.touchWorldPixelRatio : RENDER.worldPixelRatio;
-    const worldPR = Math.min(canvasPR, scale === 'auto' || !scale ? Math.min(dpr, table[q]) : canvasPR * parseFloat(scale));
+    // Otomatik: kalitenin oranı × uyarlanır ölçek (kare süresi hedefi aşınca küçülür; framePacing.js)
+    const auto = scale === 'auto' || !scale;
+    const worldPR = Math.min(canvasPR, auto ? Math.min(dpr, table[q]) * this.dynRes.scale : canvasPR * parseFloat(scale));
     this.renderer.setPixelRatio(canvasPR);
     this.renderer.setSize(w, h, false);
     this.worldPR = worldPR;
+    this.autoRes = auto;
     const rw = Math.max(1, Math.round(w * worldPR));
     const rh = Math.max(1, Math.round(h * worldPR));
-    if (worldPR < canvasPR - 0.01) {
+    // Son işlem (parlama, renk düzeni) dünyanın HDR hedefe çizilmesini ister; kapalıysa ve dünya tam çözünürlükteyse
+    // ara hedef yok (ek maliyet yok)
+    const post = this.settings.postFx !== false && q !== 'low';
+    const scaled = worldPR < canvasPR - 0.01;
+    if (scaled || post) {
       const samples = (this.isTouch ? RENDER.touchMsaa : RENDER.msaa)[q];
       if (!this.worldRT || this.worldRT.samples !== samples) {
         this.worldRT?.dispose();
         this.worldRT = new THREE.WebGLRenderTarget(rw, rh, { type: THREE.HalfFloatType, samples });
-        this.blit.material.uniforms.tDiffuse.value = this.worldRT.texture;
-      } else this.worldRT.setSize(rw, rh);
+      } else if (this.worldRT.width !== rw || this.worldRT.height !== rh) this.worldRT.setSize(rw, rh);
+      const S = POST.sharpen;
+      const up = canvasPR / worldPR - 1;
+      this.post.configure({ quality: q, isTouch: this.isTouch, enabled: post, sharpen: scaled ? Math.min(S.max, S.base + up * S.perScale) : 0 });
+      if (this.post.width !== rw || this.post.height !== rh) this.post.resize(rw, rh);
     } else if (this.worldRT) {
       this.worldRT.dispose();
       this.worldRT = null;
@@ -510,8 +538,30 @@ export class Game {
     return this.viewFrustum.intersectsSphere(_viewSphere);
   }
 
-  // Dünyayı çiz: ölçekli hedefe (ton eşleme yok, doğrusal HDR), sonra tam ekran dörtgenle tuvale
-  // (ACES + sRGB burada). Ölçek 1 ise doğrudan tuvale.
+  // Askerin gölgesi ekrana düşebilir mi: görüş konisine gölge boyu kadar yakın mı (applyEnvironment → shadowReach)
+  inShadowReach(pos) {
+    _shadowSphere.center.set(pos.x, pos.y + 1, pos.z);
+    _shadowSphere.radius = this.shadowReach;
+    return this.viewFrustum.intersectsSphere(_shadowSphere);
+  }
+
+  // Güneş gölgesi çizilmeden hemen önce (gölgenin matris güncellemesi) asker ve ağaç gövdeleri sade geometriye geçer,
+  // sahne çizimi bitince geri döner (soldier.js → shadowSwaps, world.js → beginShadowPass)
+  beginShadowPass() {
+    this.shadowSwapped = true;
+    beginSoldierShadowPass();
+    this.world?.beginShadowPass();
+  }
+
+  endShadowPass() {
+    if (!this.shadowSwapped) return;
+    this.shadowSwapped = false;
+    endSoldierShadowPass();
+    this.world?.endShadowPass();
+  }
+
+  // Dünyayı çiz: HDR hedefe (ton eşleme yok, doğrusal), sonra son işlemle tuvale (parlama, ACES + sRGB, renk düzeni;
+  // postfx.js). Son işlem kapalı ve ölçek 1 ise doğrudan tuvale.
   drawWorld(cam) {
     const r = this.renderer;
     // Ağaçlar uzaklığa göre sade gövdeye geçer, uzakta gölge düşürmez; uzak çimen çizilmez
@@ -525,9 +575,7 @@ export class Game {
       r.setRenderTarget(this.worldRT);
       r.clear();
       r.render(this.scene, cam);
-      r.setRenderTarget(null);
-      r.clear();
-      r.render(this.blit.scene, this.blit.camera);
+      this.post.render(this.worldRT);
     } else {
       r.clear();
       r.render(this.scene, cam);
@@ -579,6 +627,13 @@ export class Game {
     Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 320 });
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.04;
+    // Gölge geçişi başında sade geometriler (beginShadowPass); sahne çizimi bitince geri alınır
+    const shadowMatrices = sun.shadow.updateMatrices.bind(sun.shadow);
+    sun.shadow.updateMatrices = (light, vp) => {
+      this.beginShadowPass();
+      shadowMatrices(light, vp);
+    };
+    scene.onAfterRender = () => this.endShadowPass();
     scene.add(sun);
     scene.add(sun.target);
     this.sun = sun;
@@ -605,6 +660,8 @@ export class Game {
   }
 
   disposeScene() {
+    this.endShadowPass();
+    clearSoldierShadowSwaps();
     this.scene.traverse((o) => {
       if (o.geometry && !o.geometry.userData?.shared) o.geometry.dispose();
     });
@@ -1092,11 +1149,20 @@ export class Game {
   // --- Ana döngü ---
   frame(now) {
     requestAnimationFrame((t) => this.frame(t));
+    // Kare hızı sınırı (Ayarlar; dokunmatikte otomatik 60): atlanan karede hiçbir şey güncellenmez, süre birikir
+    if (!this.frameLimiter.ready(now, this.fpsCap)) return;
     const last = this.lastNow ?? now;
     // Zaman ilerlemediyse (Safari aynı zaman damgasıyla iki kare verebilir) kare atlanır: sıfır adımlı
     // güncellemeler bölmelerde NaN üretir, çizilecek yeni bir şey de yoktur
     if (this.lastNow !== undefined && !(now > last)) return;
     this.lastNow = now;
+    // Uyarlanır dünya çözünürlüğü yalnız oyun sürerken ölçer (menü kendi sınırında, duraklatma ölçümü bozmasın)
+    if (this.state === 'playing' && this.autoRes) {
+      if (this.dynResIdle) {
+        this.dynRes.restart();
+        this.dynResIdle = false;
+      } else if (this.dynRes.sample(now - last, targetFrameMs(this.fpsCap, FRAME))) this.resize();
+    } else this.dynResIdle = true;
     let dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     // Komut çarkı açıkken oyun yavaşlar (ayar); çarkın kendisi gerçek girdilerle çalışır
     // Telsize yazarken de yavaşlar (ayar)
@@ -1297,30 +1363,6 @@ export class Game {
     if (this.mode !== 'menu' && this.player.alive && this.state !== 'victory' && !this.mission?.takeoff && !this.vehicles?.driving) this.viewmodel.render(r);
     this.comms.render(r);
   }
-}
-
-// Ölçekli dünya hedefini tuvale aktaran tam ekran dörtgen: ton eşleme ve sRGB dönüşümü burada yapılır
-// (hedefe çizilirken three.js bunları atlar), böylece iki yolun görüntüsü aynı olur
-function createBlit() {
-  const material = new THREE.ShaderMaterial({
-    uniforms: { tDiffuse: { value: null } },
-    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-    fragmentShader: /* glsl */ `
-uniform sampler2D tDiffuse;
-varying vec2 vUv;
-void main() {
-  gl_FragColor = texture2D(tDiffuse, vUv);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const scene = new THREE.Scene();
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
-  quad.frustumCulled = false;
-  scene.add(quad);
-  return { scene, material, camera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
 }
 
 // Gökyüzü gölgelendiricisinin renk uniform'ları (ortam tablosundan)

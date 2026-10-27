@@ -826,10 +826,12 @@ export class Ally {
     ANIM.throw = this.throwAnim ? this.throwAnim.t / SOLDIER_ANIM.throwTime : -1;
     ANIM.dist = this.pos.distanceTo(this.game.player.pos);
     ANIM.offscreen = !this.game.inView(this.pos);
+    ANIM.noShadow = !this.game.inShadowReach(this.pos);
     // Sinematik telsiz görüntüsünde çekilen asker: ekranda olmasa da ayrıntılı model ve her kare canlandırma
     const filmed = this.game.comms?.subject === this;
     if (filmed) {
       ANIM.offscreen = false;
+      ANIM.noShadow = false;
       ANIM.dist = Math.min(ANIM.dist, SOLDIER_ANIM.lodNear);
     }
     ANIM.talk = filmed && this.game.comms.talking(this);

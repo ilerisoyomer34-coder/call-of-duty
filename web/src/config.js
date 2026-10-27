@@ -1583,6 +1583,9 @@ export const SOLDIER_ANIM = {
   meshLodDist: 28, // bu mesafeden ötede sade model (≈2,3 bin üçgen; tam model ≈11,4 bin)
   meshLodHyst: 3,
   blobFrom: 38, // gölge haritasının menzili dışında askerin altına yumuşak ayak gölgesi (m)
+  // Sade modeli olmayan çeşidin (Alfa Timi'nin iki askeri, ≈16 bin üçgen) gölge geometrisi açılışta sadeleştirilir
+  // (yalnız gölge geçişinde; gölge haritasında ayrıntı seçilmez): üçgen oranı ve göreli hata
+  shadowLod: { ratio: 0.25, error: 0.05, tries: 600 }, // tries: sadeleştirici yüklenmezse bu kadar karede bırakılır
   blobOpacity: 0.42,
   envIntensity: 0.45, // ortam yansıması: gölgede ve uzakta asker simsiyah bir siluete dönmesin
   // Elde gerçek silah modeli (Alfa Timi): bileğin kabzaya göre yeri, sol bileğin kundak noktasına göre kayması,
@@ -1699,6 +1702,7 @@ export const MAPS = {
   kizilkum: {
     name: 'Kızılkum Vadisi', desc: 'Çöl vadisi, şafak',
     env: {
+      grade: { saturation: 1.08, tint: [1.02, 1.0, 0.97] }, // şafakta sıcak çöl
       sky: { zenith: 0x3d6a9a, horizon: 0xd8a987, ground: 0xb89878, glow: [1.0, 0.62, 0.32], disc: [1.0, 0.85, 0.6], band: [0.35, 0.16, 0.06], stars: 0 },
       fog: [70, 460], sunDir: [0.82, 0.3, -0.22], sun: [0xffcf9c, 2.9], hemi: [0xb4c8e0, 0x978a79, 2.4], exposure: 1.05,
       reflect: [0x4a78a8, 0xe0b595, 0x9a7a58], view: [0xd6e0ec, 0x7a6650, 1.5, 0xffd9b0, 2.2],
@@ -1709,6 +1713,7 @@ export const MAPS = {
   harbor: {
     name: 'Liman', desc: 'Konteyner limanı, gün batımı',
     env: {
+      grade: { saturation: 1.08, tint: [1.03, 0.99, 0.96] }, // gün batımı
       sky: { zenith: 0x34457a, horizon: 0xf0925a, ground: 0x5a4a4c, glow: [1.0, 0.45, 0.18], disc: [1.0, 0.7, 0.4], band: [0.5, 0.18, 0.05], stars: 0 },
       fog: [60, 420], sunDir: [-0.93, 0.13, 0.34], sun: [0xff9a5c, 2.7], hemi: [0x9aa2cc, 0x8a7070, 4.2], exposure: 1.0,
       reflect: [0x3e5088, 0xf0a070, 0x5a4a4c], view: [0xb8bde0, 0x6a4a3a, 1.35, 0xffb080, 2.1],
@@ -1718,6 +1723,7 @@ export const MAPS = {
   ruins: {
     name: 'Yıkık Şehir', desc: 'Savaşta yıkılmış şehir, kapalı hava',
     env: {
+      grade: { saturation: 0.94, contrast: 1.07, tint: [0.98, 1.0, 1.02] }, // kapalı hava, soluk ve soğuk
       sky: { zenith: 0x5d6975, horizon: 0xa9aeb0, ground: 0x6a6a68, glow: [0.25, 0.25, 0.25], disc: [0.3, 0.3, 0.3], band: [0.04, 0.04, 0.05], stars: 0 },
       fog: [35, 290], sunDir: [0.35, 0.7, 0.45], sun: [0xe6ebf0, 1.55], hemi: [0xc2cad4, 0x7b7a7a, 3.0], exposure: 1.02,
       reflect: [0x6a7682, 0xa9aeb0, 0x5a5a58], view: [0xc8d0d8, 0x5c5854, 1.6, 0xe6ebf0, 1.4],
@@ -1727,6 +1733,7 @@ export const MAPS = {
   pass: {
     name: 'Karlı Dağ Geçidi', desc: 'Karlı sıradağlar, kar yağışı',
     env: {
+      grade: { contrast: 1.04, tint: [0.98, 1.0, 1.03] }, // kar: soğuk
       sky: { zenith: 0x4f78a6, horizon: 0xd2dde8, ground: 0xe4ebf0, glow: [0.6, 0.55, 0.45], disc: [1.0, 0.95, 0.85], band: [0.08, 0.08, 0.1], stars: 0 },
       fog: [45, 360], sunDir: [0.5, 0.42, 0.62], sun: [0xfff0dc, 2.3], hemi: [0xcfe0f2, 0x9daab8, 2.4], exposure: 0.92,
       reflect: [0x5a82b0, 0xd8e2ec, 0xe8eef2], view: [0xdbe6f2, 0x8894a0, 1.5, 0xfff0dc, 2.0],
@@ -1736,6 +1743,7 @@ export const MAPS = {
   refinery: {
     name: 'Gece Rafinerisi', desc: 'Petrol rafinerisi, gece',
     env: {
+      grade: { saturation: 1.0, tint: [0.97, 0.99, 1.04], vignette: 0.28 }, // gece: mavi, köşeler koyu
       sky: { zenith: 0x040814, horizon: 0x1c2640, ground: 0x07070a, glow: [0.18, 0.22, 0.35], disc: [0.85, 0.9, 1.0], band: [0.12, 0.06, 0.02], stars: 1 },
       fog: [28, 250], sunDir: [-0.42, 0.55, -0.62], sun: [0xa8bcff, 0.85], hemi: [0x6a7ec0, 0x4a4858, 4.5], exposure: 1.5,
       reflect: [0x0a1224, 0x2a3450, 0x0a0a0c], view: [0x6a7aa8, 0x2a2018, 0.9, 0xb0c0ff, 0.6],
@@ -1745,6 +1753,7 @@ export const MAPS = {
   forest: {
     name: 'Kara Orman', desc: 'Sık çam ormanı, sisli sabah',
     env: {
+      grade: { saturation: 1.04, tint: [0.98, 1.02, 0.98] }, // orman: hafif yeşil
       sky: { zenith: 0x58789a, horizon: 0xb9c6bf, ground: 0x4a5640, glow: [0.85, 0.7, 0.45], disc: [1.0, 0.92, 0.72], band: [0.12, 0.1, 0.05], stars: 0 },
       fog: [24, 240], sunDir: [-0.55, 0.38, 0.62], sun: [0xffe2b4, 2.5], hemi: [0xc4d6dc, 0x77876e, 3.0], exposure: 1.12,
       reflect: [0x56708a, 0xb9c6bf, 0x4a5640], view: [0xc6d4d8, 0x4a5a3a, 1.45, 0xffe2b4, 1.8],
@@ -1942,9 +1951,55 @@ export const RENDER = {
   shadowAhead: 20,
   // Dokunmatik cihazlarda gölge haritası bu kadar karede bir yenilenir (gölge geçişinin maliyeti yarıya iner)
   touchShadowEvery: 2,
+  // Görüş konisine bu kadar (m; güneş alçaldıkça gölge boyuna göre artar, en çok shadowReachMax) uzak asker gölge
+  // düşürmez: kameranın arkasındaki askerin gölgesi ekrana düşmez ama gölge geçişinde çiziliyordu
+  shadowReachPad: 1.5,
+  shadowReachMax: 15,
   // Silah ve asker dokularının en büyük boyu (px; 0 = dosyadaki gibi, en çok 2048). Telefonda bellek dörtte bir
   textureCap: { high: 0, medium: 0, low: 1024 },
   touchTextureCap: 1024,
+};
+
+// Görüntü son işlemi (src/postfx.js): dünya HDR hedefinden tuvale. Ayarlar → "Görüntü efektleri" kapalıyken ya da
+// düşük kalitede yalnız ton eşleme (ve dünya büyütülüyorsa keskinleştirme)
+export const POST = {
+  bloom: {
+    threshold: 1.25, // pozlamadan sonra bu parlaklığı aşan ışık parlar (güneşli kum/duvar ≈0,8–1,1 parlamaz)
+    knee: 0.5, // eşiğin yumuşaklığı
+    clamp: 24, // tek parlak pikselin (ateş böceği) üst sınırı
+    intensity: 0.085, // parlamanın görüntüye katılma oranı (kademelerin toplamı)
+    spread: 1, // yukarı örnekleme süzgecinin genişliği (doku pikseli)
+    levels: { high: 6, medium: 5, low: 0 }, // kademe sayısı (her biri yarı boy)
+    touchLevels: { high: 5, medium: 4, low: 0 },
+    start: { high: 0.5, medium: 0.5, low: 0.5 }, // ilk kademenin dünya hedefine oranı
+    touchStart: { high: 0.5, medium: 0.25, low: 0.25 },
+  },
+  // Renk düzeni (görüntü uzayında): haritanın ortam satırındaki `grade` bunun üstüne yazar
+  grade: { saturation: 1.07, contrast: 1.05, tint: [1, 1, 1], vignette: 0.2 },
+  // Dünya ekrandan küçük çizilip büyütülürken keskinleştirme (0 kapalı); büyütme oranı arttıkça biraz artar
+  sharpen: { base: 0.35, perScale: 0.6, max: 0.8 },
+  dither: 1.5 / 255, // gökyüzü ve sis geçişlerinde bantlaşmayı kıran titreşim
+};
+
+// Akıcılık (src/framePacing.js): kare hızı sınırı ve uyarlanır dünya çözünürlüğü
+export const FRAME = {
+  touchCap: 60, // "Kare hızı sınırı: Otomatik" dokunmatikte (120 Hz ekranda pil ve ısı); masaüstünde sınırsız
+  capSlackMs: 1.5, // ekran yenilemesindeki küçük sapmada kare atlanmasın
+  defaultTargetFps: 60, // sınır yokken uyarlanır çözünürlüğün hedefi (144 Hz ekranda 144 kovalanıp bulanıklaşmaz)
+  maxTargetFps: 120,
+  // "Dünya çözünürlüğü: Otomatik": kalitenin dünya piksel oranı × ölçek (min…1)
+  dynamicRes: {
+    windowMs: 1000, // ölçüm penceresi
+    hitchMs: 250, // bundan uzun kare (yükleme, sekme değişimi) sayılmaz
+    overBudget: 1.12, // ortalama kare süresi hedefin bu katını aşarsa küçült
+    downStep: 0.87,
+    upStep: 1.08,
+    min: 0.6,
+    minGain: 0.04, // küçültme kare süresini en az bu oranda düşürmediyse (işlemci darboğazı) geri al
+    cpuBoundWindows: 30, // o durumda bu kadar pencere küçültme denenmez
+    upAfterWindows: 4, // hedefi tutan bu kadar pencereden sonra bir kademe büyütmeyi dene
+    maxUpAfterWindows: 64, // büyütme hedefi bozdukça denemeler seyrekleşir (en çok)
+  },
 };
 
 // Teçhizat ekranındaki silah görselleri (Operasyon Güncellemesi §5.4): oyunun kendi modelinden stüdyo

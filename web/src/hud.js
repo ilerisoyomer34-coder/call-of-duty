@@ -844,7 +844,9 @@ export class HUD {
       this.fpsAcc += dt;
       this.fpsN++;
       if (this.fpsAcc > 0.5) {
-        this.el.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} FPS · ${g.renderer.info.render.calls} çizim`;
+        // Dünya çözünürlüğü tuvale göre (uyarlanır çözünürlük küçülttüyse görünsün)
+        const res = Math.round((g.worldPR / g.renderer.getPixelRatio()) * 100);
+        this.el.fps.textContent = `${Math.round(this.fpsN / this.fpsAcc)} FPS · ${g.renderer.info.render.calls} çizim · dünya %${res}`;
         this.fpsAcc = 0;
         this.fpsN = 0;
       }

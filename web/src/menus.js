@@ -454,6 +454,8 @@ export class Menus {
     set('sFov', S.fov);
     set('sQuality', S.quality);
     set('sRes', S.renderScale);
+    set('sFpsCap', S.fpsCap);
+    chk('sPostFx', S.postFx !== false);
     chk('sFps', S.showFps);
     chk('sShake', S.cameraShake);
     chk('sBob', S.headBob);
@@ -522,6 +524,8 @@ export class Menus {
     S.fov = parseInt($('sFov').value, 10);
     S.quality = $('sQuality').value;
     S.renderScale = $('sRes').value;
+    S.fpsCap = $('sFpsCap').value;
+    S.postFx = $('sPostFx').checked;
     S.showFps = $('sFps').checked;
     S.cameraShake = $('sShake').checked;
     S.headBob = $('sBob').checked;
