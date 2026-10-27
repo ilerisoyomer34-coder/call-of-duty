@@ -38,7 +38,11 @@ function check(cond, msg) {
   }
 }
 
+// Paketin beklediği tarayıcı sürümü kurulu değilse ortamın hazır Chromium'u (bulut ortamında /opt/pw-browsers/chromium;
+// CHROMIUM_PATH ile başkası verilebilir)
+const fallbackChromium = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium';
 const browser = await chromium.launch({
+  executablePath: !existsSync(chromium.executablePath()) && existsSync(fallbackChromium) ? fallbackChromium : undefined,
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
 });
 
@@ -3501,6 +3505,9 @@ console.log('PWA sürümü (dist/pwa)');
     } catch {
       /* depolama yok */
     }
+    // İçerik güvenlik politikası (tools/build.mjs → withCsp) oyunun kendi işini engellememeli
+    window.__csp = [];
+    document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.effectiveDirective} ${e.blockedURI}`));
   });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   const page = await ctx.newPage();
@@ -3546,7 +3553,9 @@ console.log('PWA sürümü (dist/pwa)');
   check(sw.state === 'ready' && /Çevrimdışı/.test(sw.status), `Menüde durum satırı: "${sw.status}"`);
   const cdp = await ctx.newCDPSession(page);
   const inst = await cdp.send('Page.getInstallabilityErrors').catch((e) => ({ installabilityErrors: [{ errorId: e.message }] }));
-  check(inst.installabilityErrors.length === 0, `Tarayıcıya göre yüklenebilir${inst.installabilityErrors.length ? ` (${inst.installabilityErrors.map((e) => e.errorId).join(', ')})` : ''}`);
+  // Playwright bağlamları gizli pencere sayılır; yeni Chromium bunu 'in-incognito' diye bildirir (sayfanın kusuru değil)
+  const instErr = inst.installabilityErrors.filter((e) => e.errorId !== 'in-incognito');
+  check(instErr.length === 0, `Tarayıcıya göre yüklenebilir${instErr.length ? ` (${instErr.map((e) => e.errorId).join(', ')})` : ''}`);
 
   // Yükleme düğmesi: tarayıcının yükleme istemi gelince görünür, basınca istemi açar
   check(!(await page.isVisible('#btnInstall')), 'Yükleme istemi yokken "Uygulama olarak yükle" gizli');
@@ -3590,6 +3599,17 @@ console.log('PWA sürümü (dist/pwa)');
     return { n, soldiers: window.__game.enemies.list.length > 0 && window.__game.enemies.list.every((e) => !!e.model.bones) };
   });
   check(offW.n > 0 && offW.soldiers, `Çevrimdışı poligon: asker modeli ve Sketchfab silah dokuları önbellekten (${offW.n} dokulu parça)`);
+  const csp = await page.evaluate(() => ({
+    meta: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content || '',
+    violations: window.__csp,
+    physics: window.__game.physics.status,
+  }));
+  const scriptSrc = csp.meta.match(/script-src ([^;]*)/)?.[1] || '';
+  check(
+    /object-src 'none'/.test(csp.meta) && /frame-src 'none'/.test(csp.meta) && scriptSrc && !/'unsafe-inline'|'unsafe-eval'|https?:/.test(scriptSrc),
+    'PWA: içerik güvenlik politikası var (yalnız kendi betikleri, satır içi ve dış betik yok, çerçeve/eklenti yok)',
+  );
+  check(csp.violations.length === 0 && csp.physics === 'ready', `PWA: politika oyunu, fizik motorunu (WebAssembly) ve modelleri engellemedi${csp.violations.length ? ` (${csp.violations.slice(0, 3).join(', ')})` : ''}`);
   await page.evaluate(() => window.__game.toMenu());
   await menuReady();
 

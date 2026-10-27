@@ -113,6 +113,34 @@ async function threeGlobalPlugin() {
   };
 }
 
+const COPYRIGHT_BANNER = `/*! Demir Şafak © ${new Date().getUTCFullYear()} Ömer İlerisoy ve Tarık Kerem Öz. Tüm hakları saklıdır. İzinsiz kopyalanamaz, dağıtılamaz, değiştirilemez (LICENSE). Üçüncü taraf bileşenler kendi lisanslarıyla: oyunda Emeği geçenler → Lisanslar. */`;
+
+// İçerik Güvenliği Politikası (yalnız PWA; GitHub Pages başlık eklemeye izin vermediği için <meta>). Satır içi
+// betiklere karmalarıyla izin verilir: sayfaya sonradan sokulan (XSS) ya da değiştirilen betik çalışmaz. WebAssembly
+// (Rapier, meshoptimizer) 'wasm-unsafe-eval' ister; eval/new Function yok. Sunucu adresi oyuncunun girdiği
+// herhangi bir https/wss olabilir. Mağaza uygulamasında yok: Capacitor köprüsünü satır içi betik olarak ekler;
+// Artifact'ta sayfayı claude.ai sarar, Artifact'ın kendi politikası geçerli
+export function withCsp(html) {
+  const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => `'sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
+  const policy = [
+    "default-src 'self'",
+    `script-src 'self' ${hashes.join(' ')} 'wasm-unsafe-eval'`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "media-src 'self' data: blob:",
+    // blob:/data: GLTF yükleyicisinin model içi dokuları ve gömülü tamponları fetch ile okumasıdır
+    "connect-src 'self' blob: data: https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+  ].join('; ');
+  return html.replace('<meta charset="utf-8">', () => `<meta charset="utf-8">\n<meta http-equiv="Content-Security-Policy" content="${policy}">\n<meta name="referrer" content="no-referrer">`);
+}
+
 // kind: 'standalone' (her şey gömülü), 'artifact' (three dışarıdan, GLB'ler .txt), 'pwa' ve 'app' (three içeride, dosyalar
 // olduğu gibi; 'app' mağaza sürümü bayrağıyla)
 async function bundle(kind) {
@@ -127,6 +155,8 @@ async function bundle(kind) {
     target: 'es2020',
     write: false,
     legalComments: 'none',
+    // Telif bildirimi (küçültülmüş paketin başında kalır); üçüncü taraf lisansları oyundaki Lisanslar ekranında
+    banner: { js: COPYRIGHT_BANNER },
     define: { __BUILD_HASH__: JSON.stringify(BUILD_HASH), __STORE__: kind === 'app' ? 'true' : 'false' },
     plugins,
   });
@@ -210,7 +240,7 @@ const pwaHead = `<link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="${PWA.name}">
 `;
-const pwaHtml = page(await bundle('pwa'), pwaHead);
+const pwaHtml = withCsp(page(await bundle('pwa'), pwaHead));
 writeFileSync(join(pwaDir, 'index.html'), pwaHtml);
 for (const p of listAssets()) {
   mkdirSync(dirname(join(pwaDir, p)), { recursive: true });
