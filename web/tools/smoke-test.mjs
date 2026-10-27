@@ -3453,6 +3453,22 @@ console.log('Telefon görünümü');
   // Dünya ölçekli hedefe, eller ve silah tuvale tam cihaz çözünürlüğünde çizilir
   const pr = await page.evaluate(() => ({ canvas: window.__game.renderer.getPixelRatio(), world: window.__game.worldPR, rt: !!window.__game.worldRT, q: window.__game.renderQuality }));
   check(pr.canvas === 2 && pr.world < pr.canvas && pr.rt, `Telefonda eller/silah tam çözünürlükte (${pr.canvas}×), dünya ölçekli (${pr.world.toFixed(2)}×, ${pr.q})`);
+  // Son işlem (postfx.js): parlama zinciri, renk düzeni ve büyütülen dünyada keskinleştirme; ayardan kapanınca
+  // parlama ve renk düzeni gider, dünya ölçekli kaldığı için ara hedef ve keskinleştirme kalır
+  const post = await page.evaluate(() => {
+    const g = window.__game;
+    const P = g.post;
+    const on = { levels: P.levels.length, bloom: 'BLOOM' in P.final.defines, grade: 'GRADE' in P.final.defines, sharpen: P.final.uniforms.sharpen.value, cap: g.fpsCap, auto: g.autoRes };
+    g.settings.postFx = false;
+    g.applySettings();
+    const off = { levels: P.levels.length, bloom: 'BLOOM' in P.final.defines, grade: 'GRADE' in P.final.defines, rt: !!g.worldRT };
+    g.settings.postFx = true;
+    g.applySettings();
+    return { on, off, back: P.levels.length };
+  });
+  check(post.on.levels >= 3 && post.on.bloom && post.on.grade && post.on.sharpen > 0 && !post.off.bloom && !post.off.grade && post.off.levels === 0 && post.off.rt && post.back === post.on.levels,
+    `Telefonda son işlem: ${post.on.levels} kademeli parlama, renk düzeni, keskinleştirme ${post.on.sharpen.toFixed(2)}; ayardan kapanıp açılıyor`);
+  check(post.on.cap === 60 && post.on.auto, `Telefonda kare sınırı otomatik 60, dünya çözünürlüğü uyarlanır (${post.on.cap})`);
   await page.screenshot({ path: join(shots, '12-mobile-play.png') });
   // NİŞAN dokunmatikte aç/kapa: bir dokunuşla nişanda kalır (parmak kalksa da), ikincisiyle çıkar
   const adsState = () => page.evaluate(() => ({ on: window.__game.player.adsToggle, t: window.__game.player.adsT, lit: document.getElementById('tbAds').classList.contains('latched') }));
