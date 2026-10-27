@@ -163,8 +163,9 @@ export class PostFX {
     const levels = enabled ? (isTouch ? B.touchLevels : B.levels)[quality] || 0 : 0;
     const start = (isTouch ? B.touchStart : B.start)[quality] || 0.5;
     const grade = enabled && quality !== 'low';
+    // Tanımlar boş dizgiyle açılır ('' yanlış değer sayılır): varlığına bakılır
     const defs = this.final.defines;
-    if (!!defs.BLOOM !== levels > 0 || !!defs.GRADE !== grade) {
+    if ('BLOOM' in defs !== levels > 0 || 'GRADE' in defs !== grade) {
       if (levels > 0) defs.BLOOM = '';
       else delete defs.BLOOM;
       if (grade) defs.GRADE = '';
