@@ -1,12 +1,15 @@
 // Çevrim içi maç arayüzü (S6): skor çubuğu ve süre, maç öncesi teçhizat paneli (prepScreen.js), geri sayım bandı,
 // öldürme akışı, puan tablosu (Tab basılı;
-// dokunmatikte skor çubuğuna dokun), ölüm kartı (kim vurdu, doğuşa kalan), maç sonu ekranı.
+// dokunmatikte skor çubuğuna dokun), ölüm kartı (kim vurdu, doğuşa kalan), maç sonu ekranı. Rekabetçide raunt, para,
+// bomba, satın alma ve izleme compHud.js'te; skor çubuğu raunt sayısını gösterir.
 // Veri game.net'ten ve olaylardan (EV.NET_*); adlar sunucudan geldiği için hep textContent.
 import { EV } from '../events.js';
 import { PHASE, SIDE, RF, WEAPON_MELEE, WEAPON_FRAG, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
 import { WEAPON_ORDER, WEAPONS, MAPS } from '../config.js';
 import { weaponShortName } from '../weaponInfo.js';
 import { PrepScreen } from './prepScreen.js';
+import { CompHud } from './compHud.js';
+import { COMP_RULES, BOMB } from '../../shared/sim/competitive.js';
 import MODES from '../data/modes.json' with { type: 'json' };
 import ARENAS from '../data/arenas.json' with { type: 'json' };
 
@@ -33,6 +36,7 @@ export class MatchHud {
     this.feed = [];
     this.boardSig = '';
     this.prep = new PrepScreen(game);
+    this.comp = new CompHud(game, this);
     $('mhBar').addEventListener('click', () => {
       if (!this.active) return;
       this.pinned = !this.pinned;
@@ -72,19 +76,28 @@ export class MatchHud {
     $('mhBar').classList.toggle('sandbox', sandbox);
     document.body.classList.add('online');
     this.prep.start(net);
+    this.comp.start(net);
+  }
+
+  // Maç öncesi teçhizat paneli ya da Rekabetçi satın alma menüsü açık (imleç serbest, Esc onu kapatır)
+  get overlayOpen() {
+    return this.prep.open || this.comp.buyScreen.open;
   }
 
   stop() {
     this.prep.stop();
+    this.comp.stop();
     this.active = false;
     this.net = null;
     $('matchHud').hidden = true;
     document.body.classList.remove('online');
   }
 
-  banner(text, sec) {
+  // cls: win | lose | bomb (renk)
+  banner(text, sec, cls = '') {
     const b = $('mhBanner');
     b.textContent = text;
+    b.className = `mhBanner${cls ? ` ${cls}` : ''}`;
     b.hidden = false;
     this.bannerUntil = performance.now() + sec * 1000;
   }
@@ -110,6 +123,8 @@ export class MatchHud {
       $('mhDeath').hidden = false;
     }
     if (k.mine && !k.me) this.game.events.emit('pickup', k.head ? 'KAFADAN · +125' : 'ÖLDÜRME · +100');
+    // Rekabetçide ölen raunt sonuna dek izler: kart kısa görünür, sonra izleme şeridi
+    if (k.me && this.comp.active) this.deathCardUntil = performance.now() + 2500;
   }
 
   update(dt, input) {
@@ -133,9 +148,16 @@ export class MatchHud {
     $('mhScoreA').textContent = String(net.scoreA);
     $('mhScoreB').textContent = String(net.scoreB);
     const limit = net.welcome.scoreLimit;
-    $('mhLimit').textContent = limit ? `${limit} öldürme` : '';
+    const C = net.comp;
+    // Rekabetçide scoreLimit kazanmak için gereken raunt (sunucunun kuralı)
+    const toWin = limit || COMP_RULES.rounds.toWin;
+    $('mhLimit').textContent = C ? (C.round ? `RAUNT ${C.round} · İLK ${toWin}` : `İLK ${toWin} RAUNT`) : limit ? `${limit} öldürme` : '';
     const left = net.timeLeft;
-    $('mhTime').textContent = net.phase === PHASE.LIVE && net.welcome.timeLimit ? fmtTime(left) : net.phase === PHASE.WARMUP ? fmtTime(left) : net.phase === PHASE.ENDED ? 'BİTTİ' : '∞';
+    // Rekabetçide her evrenin süresi (raunt, satın alma, raunt sonu; bomba kurulunca bombanın)
+    const timed = net.phase === PHASE.WARMUP || (net.phase === PHASE.LIVE && (net.welcome.timeLimit || C)) || net.phase === PHASE.BUY || net.phase === PHASE.ROUND_END;
+    $('mhTime').textContent = timed ? fmtTime(left) : net.phase === PHASE.ENDED ? 'BİTTİ' : '∞';
+    $('mhTime').classList.toggle('bomb', !!C && C.bomb.state === BOMB.PLANTED);
+    this.comp.update(dt, input);
     this.prep.update();
     // Teçhizat paneli açıkken geri sayım panelin kendi sayacında
     if (net.phase === PHASE.WARMUP && !this.prep.open) {
@@ -145,13 +167,15 @@ export class MatchHud {
     }
     // Ölüm kartı: doğuşa kalan
     if (!net.me.alive && net.state === 'playing' && net.phase !== PHASE.ENDED) {
-      $('mhDeath').hidden = false;
-      $('mhRespawn').textContent = net.me.respawnIn > 0 ? `Yeniden doğuş: ${Math.ceil(net.me.respawnIn)} sn` : 'Doğuyor…';
+      // Rekabetçide izleme başlayınca kart kalkar (izleme şeridi alt ortada)
+      const watching = this.comp.active && this.comp.spectator.active && now > (this.deathCardUntil || 0);
+      $('mhDeath').hidden = watching;
+      $('mhRespawn').textContent = this.comp.active ? this.comp.deathText() : net.me.respawnIn > 0 ? `Yeniden doğuş: ${Math.ceil(net.me.respawnIn)} sn` : 'Doğuyor…';
     } else if (net.me.alive) $('mhDeath').hidden = true;
     // Maç sonu oylamasının sayacı
     if (net.vote && !$('mhVote').hidden) $('mhVoteTime').textContent = net.vote.winner === VOTE_NONE ? `${Math.ceil(net.voteLeft)} sn` : '';
     // Puan tablosu
-    const show = (input.isDown('scoreboard') || this.pinned) && !this.prep.open;
+    const show = (input.isDown('scoreboard') || this.pinned) && !this.overlayOpen;
     $('mhBoard').hidden = !show || !$('mhEnd').hidden;
     if (show) this.renderBoard($('mhBoardBody'));
   }
@@ -209,12 +233,20 @@ export class MatchHud {
     }
     $('mhEndTitle').textContent = title;
     $('mhEndTitle').className = cls;
-    $('mhEndSub').textContent = net.remotes.sided ? `Mavi ${r.scoreA} – ${r.scoreB} Kırmızı · ${r.reason === 1 ? 'skor sınırı' : 'süre doldu'}` : r.reason === 1 ? 'Öldürme sınırına ulaşıldı' : 'Süre doldu';
+    $('mhEndSub').textContent = net.comp
+      ? `Mavi ${r.scoreA} – ${r.scoreB} Kırmızı · ${r.winner === SIDE.NONE ? 'raunt sınırı (berabere)' : `ilk ${net.welcome.scoreLimit || COMP_RULES.rounds.toWin} raunt`}`
+      : net.remotes.sided
+        ? `Mavi ${r.scoreA} – ${r.scoreB} Kırmızı · ${r.reason === 1 ? 'skor sınırı' : 'süre doldu'}`
+        : r.reason === 1
+          ? 'Öldürme sınırına ulaşıldı'
+          : 'Süre doldu';
     this.boardSig = '';
     this.renderBoard($('mhEndBody'));
     $('mhEnd').hidden = false;
     $('mhBoard').hidden = true;
     $('mhDeath').hidden = true;
+    this.comp.spectator.release();
+    $('mhSpectate').hidden = true;
     this.game.input.exitLock();
     this.renderVote();
   }

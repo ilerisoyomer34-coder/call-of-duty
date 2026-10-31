@@ -19,6 +19,6 @@ export const QUANT = {
 
 // Ağ protokolü sürümü (belge §6.1): ikili mesaj düzeni değişince artar; istemci ve sunucu uyuşmazsa bağlantı
 // "Oyun güncellendi" hatasıyla kapanır. Derleme özeti (buildHash) ayrıca shared/ kodunun aynı olduğunu doğrular.
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 // Sunucunun anlık görüntü hızı (Hz): her iki tick'te bir
 export const SNAPSHOT_RATE = 32;

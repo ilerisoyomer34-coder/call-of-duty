@@ -45,6 +45,8 @@ export const EV = Object.freeze({
   NET_SPAWN: 'NET_SPAWN', // { pos, yaw } (yerel oyuncu)
   NET_DEATH: 'NET_DEATH', // { killer } (yerel oyuncu)
   NET_ROUND: 'NET_ROUND', // { code: 1 maç başladı | 2 maç bitti, value }
+  NET_ROUND_STATE: 'NET_ROUND_STATE', // Rekabetçi: { round, state (satın alma/raunt/sonu), attackSide, winner, reason }
+  NET_BOMB: 'NET_BOMB', // Rekabetçi: { state, slot, site, pos } bombanın durumu değişti
   NET_MATCH_END: 'NET_MATCH_END', // { winner, reason, scoreA, scoreB }
   // Oyuncu ilerlemesi (progression.js)
   XP_GAINED: 'XP_GAINED', // { amount, reason, level, frac }

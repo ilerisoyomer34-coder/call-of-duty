@@ -42,8 +42,10 @@ export const BINDINGS = {
   chat: ['Enter', 'NumpadEnter'],
   voice: ['KeyN'],
   talk: ['KeyK'], // eller serbest konuşma kipi (aç/kapat): cevap bitince mikrofon yeniden dinler
-  // Çevrim içi maç: puan tablosu (basılı tut)
+  // Çevrim içi maç: puan tablosu (basılı tut); Rekabetçi satın alma menüsü (yalnız raunt başında: atış modu tuşuyla
+  // paylaşılır, o sırada silah kullanılmaz)
   scoreboard: ['Tab'],
+  buyMenu: ['KeyB'],
   // Tim komutları (Operasyon Güncellemesi §8.2): F6/F7 bazı tarayıcılarda engellenemediği için F8/F9
   cmdFollow: ['F1'],
   cmdHold: ['F2'],
@@ -91,6 +93,7 @@ export const ACTION_LABELS = {
   wheel: 'Komut çarkı (basılı tut)', ping: 'İşaretle (çift basış: iptal)',
   chat: 'Telsiz: yazılı komut', voice: 'Sesli komut (basılı tut)', talk: 'Konuşma kipi (eller serbest, aç/kapat)',
   scoreboard: 'Puan tablosu (çevrim içi, basılı tut)',
+  buyMenu: 'Satın alma (Rekabetçi, raunt başında)',
 };
 
 const KEY_NAMES = {
@@ -553,5 +556,5 @@ export class Input {
 // Standart gamepad düğme indeksleri
 const GP_MAP = {
   jump: 0, crouch: 1, reload: 2, swapWeapon: 3, grenade: 5, melee: 11, ads: 6, fire: 7,
-  sprint: 10, holdBreath: 10, pause: 9, fireMode: 12, interact: 4, leanLeft: 14, leanRight: 15,
+  sprint: 10, holdBreath: 10, pause: 9, fireMode: 12, buyMenu: 12, interact: 4, leanLeft: 14, leanRight: 15,
 };

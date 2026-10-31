@@ -134,7 +134,7 @@ test('hızlı maç: takım aynı tarafta, ikinci oyuncu aynı maça (karışık)
   await call('POST', '/api/party/respond', { inviteId: got.invite.id, accept: true }, b.token);
   // Yalnız lider arar
   assert.equal((await call('POST', '/api/match/queue', { mode: 'tdm' }, b.token)).body.error, 'not_leader');
-  assert.equal((await call('POST', '/api/match/queue', { mode: 'competitive' }, a.token)).body.error, 'bad_mode');
+  assert.equal((await call('POST', '/api/match/queue', { mode: 'yok' }, a.token)).body.error, 'bad_mode');
   const q = await call('POST', '/api/match/queue', { mode: 'tdm' }, a.token);
   assert.ok(q.body.ok);
   assert.equal((await sb.wait((m) => m.t === 'queue' && m.queue)).queue.mode, 'tdm', 'üye de kuyrukta görür');

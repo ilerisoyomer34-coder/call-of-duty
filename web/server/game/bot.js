@@ -6,6 +6,9 @@
 //   - Çatışmada yana kayar, uzaksa yaklaşır, çok yakınsa geri çekilir; seri atış + ara.
 //   - Boşta gezinme noktalarına ya da rakiplerin bulunduğu bölgeye gider (yol: shared/sim/nav.js), takılırsa zıplar
 //     ve yeni hedef seçer.
+//   - Rekabetçi (sim.comp): raunt başında parasına göre silah ve bomba alır; saldırırken bombacı rauntun bölgesine
+//     gidip kurar (E basılı, yerinde), diğerleri ona eşlik eder, yerdeki bombayı en yakını alır, kurulunca bombayı
+//     korurlar; savunurken bölgelere dağılıp bekler, bomba kurulunca gidip imha eder. Çatışma her şeyin önünde.
 // Rastgelelik tohumlu (sim.secretSeed + yuva).
 import { TICK_DT } from '../../shared/constants.js';
 import { createInputCmd, BTN } from '../../shared/sim/movement.js';
@@ -14,6 +17,8 @@ import { lerp, clamp } from '../../shared/sim/math.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
 import { ONLINE } from '../../src/config.js';
 import { createThrow } from '../../shared/sim/grenade.js';
+import { BUY_ITEMS, BOMB, ACT, ROUND_STATE, COMP_RULES, actionFor } from '../../shared/sim/competitive.js';
+import { PHASE } from '../../shared/net/protocol.js';
 
 const DEG = Math.PI / 180;
 
@@ -103,6 +108,80 @@ export class BotBrain {
 
   onSpawn(sim, p) {
     this.reset(p);
+    this.cg = null;
+    if (sim.comp && sim.phase === PHASE.BUY) this.compBuy(sim, p);
+  }
+
+  // Rekabetçi satın alma: ana silahı yoksa paranın yettiği en pahalı tercihli silah (yoksa yettiği en pahalısı);
+  // artan parayla el bombası ve sis. Bir sonraki raunda da biraz para bırakır (tasarruf: ilk raunt yalnız bomba)
+  compBuy(sim, p) {
+    const C = sim.comp;
+    if (!p.compPrimary) {
+      const keep = 200;
+      const ok = BUY_ITEMS.map((it, i) => ({ it, i })).filter(({ it }) => it.kind === 'weapon' && it.price + keep <= p.money);
+      const pref = ok.filter(({ it }) => BOTS.weapons.includes(it.id));
+      const pick = (pref.length ? pref : ok).at(-1);
+      if (pick) C.buy(p, pick.i, []);
+    }
+    for (const kind of ['frag', 'smoke']) {
+      const i = BUY_ITEMS.findIndex((it) => it.kind === kind);
+      if (p.money >= BUY_ITEMS[i].price + 400) C.buy(p, i, []);
+    }
+  }
+
+  // Rekabetçi hedefi: { goal } yürünecek yer ya da { use: true } yerinde E basılı (kur / imha et). Hedef nesnesi aynı
+  // yer için aynı kalır (yol her tick yeniden aranmasın)
+  compObjective(sim, p) {
+    const C = sim.comp;
+    if (C.state !== ROUND_STATE.LIVE) return null;
+    const B = C.bomb;
+    const st = p.state;
+    const me = { slot: p.slot, side: p.side, alive: p.alive, x: st.pos.x, z: st.pos.z, grounded: st.grounded };
+    const act = actionFor(me, { live: true, attackSide: C.attackSide, bomb: { state: B.state, carrier: B.carrier ? B.carrier.slot : 255, x: B.x, z: B.z }, sites: C.sites });
+    // Kurma bölgenin ortasına yakın (kenarda kurulan bomba kolay imha edilir), imha bombanın dibinde
+    if (act === ACT.DEFUSE) return { use: true };
+    const site = C.sites[C.targetSite];
+    if (act === ACT.PLANT && site && Math.hypot(st.pos.x - site[0], st.pos.z - site[1]) < site[2] * 0.6) return { use: true };
+    // Yuvaya göre sabit dağılma (her bot başka yerde beklesin)
+    const ang = p.slot * 2.39996;
+    const off = (r) => ({ x: Math.cos(ang) * r, z: Math.sin(ang) * r });
+    let g;
+    if (p.side === C.attackSide) {
+      if (B.state === BOMB.CARRIED && B.carrier === p) g = { x: site[0], z: site[1] };
+      else if (B.state === BOMB.DROPPED) {
+        // Yerdeki bombaya en yakın saldıran gider, diğerleri bölgeye
+        let near = null;
+        let nd = Infinity;
+        for (const q of sim.players) {
+          if (!q || !q.alive || q.side !== C.attackSide) continue;
+          const d = Math.hypot(q.state.pos.x - B.x, q.state.pos.z - B.z);
+          if (d < nd) {
+            nd = d;
+            near = q;
+          }
+        }
+        if (near === p) g = { x: B.x, z: B.z };
+      } else if (B.state === BOMB.PLANTED) {
+        const o = off(6);
+        g = { x: B.x + o.x, z: B.z + o.z };
+      }
+      if (!g && site) {
+        const o = off(site[2] + 3);
+        g = { x: site[0] + o.x, z: site[1] + o.z };
+      }
+    } else if (B.state === BOMB.PLANTED) {
+      g = { x: B.x, z: B.z };
+    } else {
+      // Savunma: yuvanın çift/tekliğine göre bölge, çevresinde bekleme yeri
+      const s2 = C.sites[p.slot % C.sites.length];
+      if (s2) {
+        const o = off(s2[2] + 2);
+        g = { x: s2[0] + o.x, z: s2[1] + o.z };
+      }
+    }
+    if (!g) return null;
+    if (!this.cg || Math.abs(this.cg.x - g.x) > 0.5 || Math.abs(this.cg.z - g.z) > 0.5) this.cg = g;
+    return { goal: this.cg };
   }
 
   onDamaged(attacker) {
@@ -224,13 +303,23 @@ export class BotBrain {
       dirZ += fz * fwd + fx * this.strafe * 0.8;
       if (this.crouch) c.buttons |= BTN.CROUCH;
     } else {
-      // Boşta: hedef noktaya yürü (gerekirse koş)
-      if (!this.goal || t > this.seekUntil + 30) this.pickGoal(sim, p, t);
-      if (this.followPath(sim, p, this.goal, t)) {
-        dirX = this.moveDir.x;
-        dirZ = this.moveDir.z;
-        sprint = this.remaining > 8;
-      } else this.goal = null;
+      // Rekabetçide görev hedefi (kurma/imha yerinde E basılı); yoksa boşta: hedef noktaya yürü (gerekirse koş)
+      const obj = sim.comp && !sim.frozen ? this.compObjective(sim, p) : null;
+      if (obj && obj.use) c.buttons |= BTN.USE;
+      else if (obj) {
+        if (this.followPath(sim, p, obj.goal, t)) {
+          dirX = this.moveDir.x;
+          dirZ = this.moveDir.z;
+          sprint = this.remaining > 8;
+        }
+      } else {
+        if (!this.goal || t > this.seekUntil + 30) this.pickGoal(sim, p, t);
+        if (this.followPath(sim, p, this.goal, t)) {
+          dirX = this.moveDir.x;
+          dirZ = this.moveDir.z;
+          sprint = this.remaining > 8;
+        } else this.goal = null;
+      }
     }
     const len = Math.hypot(dirX, dirZ);
     if (len > 0.05) {

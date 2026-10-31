@@ -7,7 +7,19 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const WEB = fileURLToPath(new URL('../../', import.meta.url));
-const EXTRA = ['src/config.js', 'src/data/arenas.json', 'src/data/modes.json', 'src/data/bots.json'];
+// shared/ altındaki kodun okuduğu veri de (eklenti, silah, nişangâh, Rekabetçi kuralları): biri değişirse iki taraf
+// aynı hesabı yapmaz
+const EXTRA = [
+  'src/config.js',
+  'src/data/arenas.json',
+  'src/data/modes.json',
+  'src/data/bots.json',
+  'src/data/competitive.json',
+  'src/data/weapons.json',
+  'src/data/attachments.json',
+  'src/data/sights.json',
+  'src/data/squad.json',
+];
 
 function walk(dir, out) {
   for (const name of readdirSync(dir).sort()) {

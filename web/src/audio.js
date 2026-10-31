@@ -318,6 +318,22 @@ export class Audio {
         this.noiseBurst(dest, t + 0.4 + Math.random() * 0.9, 0.05, { type: 'bandpass', freq: rand(1500, 4000), q: 2, gain: 0.2 });
   }
 
+  // Seri ödülü geliyor (çevrim içi): hava saldırısında jet geçişi (yükselip alçalan uğultu), topçuda düşen mermi ıslığı
+  incoming(jet, pos = null) {
+    if (!this.ctx) return;
+    const sp = this.spatial(pos, 30, 600);
+    const t = this.now;
+    const dest = this.out(sp.pan * 0.4);
+    dest.gain.value = Math.max(0.25, sp.gain) * 0.9;
+    if (jet) {
+      this.noiseBurst(dest, t, 2.6, { type: 'bandpass', freq: 600, freqEnd: 2400, q: 0.6, gain: 0.8, attack: 1.2 });
+      this.noiseBurst(dest, t + 1.1, 1.8, { type: 'lowpass', freq: 900, freqEnd: 200, gain: 0.7, attack: 0.3 });
+      this.tone(dest, t + 0.4, 2.0, { type: 'sawtooth', freq: 140, freqEnd: 90, gain: 0.08, attack: 0.8 });
+    } else {
+      for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.9, 1.1, { type: 'sine', freq: 1900 - i * 120, freqEnd: 600, gain: 0.12, attack: 0.05 });
+    }
+  }
+
   // Tüfek/tabanca reload parçaları
   mech(kind, pos = null) {
     if (!this.ctx) return;

@@ -168,6 +168,13 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - Patlama (`NEV.BLAST`): yarıçap içindeki herkese `damage × (1 − d/r)^falloff`; göğüs ya da baştan görüş hattı yoksa `coverMult`. Takım arkadaşına hasar yok, atana `selfMult`. Öldürme `WEAPON_FRAG` (253) ile atana yazılır; atan oyundan ayrıldıysa kimseye.
   - Sis: patlama yerinde bulut (`smoke.duration`); `MatchSim.canSee` (botların algısı) bulutun içinden geçen hattı keser (`smokeBlocksLine`), mermi ve patlama yalnız duvara bakar.
   - Botlar çatışmada `bots.json → nadeDist` aralığındaki rakibe `nadeChancePerSec` olasılıkla atar (`nadeCooldownSec`).
+- **Rekabetçi** (`server/game/comp.js` → `CompRules`, kurallar `shared/sim/competitive.js` + `src/data/competitive.json`; kuralda `comp: true`):
+  - Raunt: `PHASE.BUY` (satın alma, hareket yok) → `LIVE` (raunt süresi; bomba kurulunca sayaç bombanın) → `ROUND_END` → sonraki raunt. Raunt içinde ölen doğmaz; herkes raunt başında rol tarafının doğuşunda doğar (saldıran kırmızı, savunan mavi doğuş noktaları). Hayatta kalan silahını ve atmadığı bombaları korur.
+  - Taraflar: oyuncunun tarafı maç boyunca aynı; ilk yarı kırmızı saldırır, `half` rauntundan sonra roller değişir, para ve silahlar başa döner. Skor kazanılan raunt; `toWin` alan kazanır, `max` raundda berabere.
+  - Bomba: raunt başında saldıranlardan birine. Taşıyan ölünce yere düşer, yanından geçen saldıran alır. Bölgede (`arenas.json → sites`, `tools/make-arenas.mjs`) E (etkileşim) basılı ve yerinde `plantSec` → kurulur; savunan bombanın dibinde `defuseSec` → imha. Koşul `actionFor` (istemci aynı koşulla komutun hareketini sıfırlar, tahmin aynı kalır); `maxSpeed`'i aşan ilerlemeyi kaybeder. Patlama yarıçaptaki herkesi yaralar.
+  - Bitiş: saldıranlar yok edildi (kurulmadıysa) ya da süre doldu → savunan; savunanlar yok edildi ya da bomba patladı → saldıran; imha → savunan.
+  - Para: başlangıç, öldürme (silah sınıfına göre), raunt (kazanan sabit, kaybeden art arda kayba göre), kurma/imha payı, tavan. Satın alma `C_BUY`; botlar raunt başında parasına göre alır.
+  - Can yenilenmez, doğuş koruması yok. Botlar: bombacı rauntun bölgesine gidip kurar, diğerleri eşlik eder, yerdeki bombayı en yakını alır; savunanlar bölgelere dağılır, kurulunca imhaya gider.
 - **Doğuş:** kendi tarafının noktalarından (herkes kendine modunda `ffa`), rakibe en uzak ve görüş dışında olanı.
 - **Evreler:** `WARMUP` (teçhizat paneli ve geri sayım, hareket ve atış yok; `modes.json → warmup` 60 sn) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır; eşleşme odasında oylama boyunca açık kalır).
 - **Maç öncesi teçhizat (`chooseLoadout`, `C_LOADOUT`):**
@@ -239,6 +246,8 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 
 **Sıradaki maç (`main.nextOnline`):** `S_NEXT` gelince kazanan harita `ONLINE.nextShowSec` gösterilir, sonra eski odadan ayrılıp yeni odaya bağlanılır (menüye dönmeden).
 
+**Rekabetçi istemcisi:** `gameClient.comp` (raunt/bomba olaylardan, para ve eylem anlık görüntüden), `compHud.js` (rol, para, bomba satırı, kurma/imha çubuğu, raunt bantları), `buyScreen.js` (satın alma evresinde kendiliğinden açılır; B), `compWorld.js` (bölge halkaları ve etiketleri, bomba modeli ve bip, radar), `spectate.js` (ölünce canlı takım arkadaşının gözünden; sol tık sıradaki).
+
 **`wsTransport.js`:** ikili WebSocket. Konsol `net_fakelag` / `net_profile` ya da `?netsim=` iki yönde `NetSim` uygular.
 
 **Konsol:** `net_graph 0|1|2`, `net_profile`, `net_fakelag`, `net_fakejitter`, `net_fakeloss`, `net_status`.
@@ -251,7 +260,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 | Ölüm Maçı | 6 oyuncu, 20 öldürme ya da 6 dk |
 | Co-op: Yapay Zekâya Karşı | Takım mavi tarafta (en çok 4), karşıda 6 bot; 50 öldürme ya da 8 dk |
 | Deneme odası | Botsuz, süresiz |
-| Rekabetçi | Yakında |
+| Rekabetçi | 5v5, bomba kur / imha et; 7 raunt alan kazanır (en çok 12, 6'dan sonra roller değişir); raunt içinde doğuş yok; para ve satın alma |
 
 Arenalar (`data/arenas.json`):
 - Depo: elle kurulmuş (`src/maps/depo.js`; nokta simetrik, doğuşlar birbirini görmez).
@@ -275,6 +284,7 @@ Arenalar (`data/arenas.json`):
   - `tests/clock.test.mjs` (saat farkı < 5 ms; ağ benzetimi sıra ve gecikme)
   - `tests/room.test.mjs` (sunucu hareketi tahminle bit düzeyinde aynı, komut bütçesi, gecikme telafisi, atış doğrulaması, botlu TDM/ÖM)
   - `tests/game-server.test.mjs` (gerçek sunucu: el sıkışma ve retler, deneme odası, hızlı maç)
+  - `tests/competitive.test.mjs` (kurallar, raunt akışı, satın alma, kurma/imha/patlama, yok etme, süre, para, yarı değişimi, maç sonu, botlarla 5v5)
   - `tests/grenade.test.mjs` (atış sınırı, patlama hasarı ve öldürme yazımı, kendi bombası, takım arkadaşı, siper, sisin görüşü kesmesi, istemcide aynı yörünge)
 - Duman `online`: sunucu alt süreçte; iki sayfa arasında arama, istek, kart, kabul, "Oyunda" durumu, davet, mod, çevrim dışı istek ve telefon görünümü.
 - Duman `netplay`:
@@ -284,5 +294,6 @@ Arenalar (`data/arenas.json`):
   - olmayan oda için hata ekranı;
   - hızlı TDM: takım aynı tarafta, 6 YZ, skor, öldürme akışı, el bombası ve sis (sunucu olayları, adet, bulut), puan tablosu;
   - telefonda ÖM.
+- Duman `comp`: tek oyuncu + 9 YZ, kısa süreler (`COMP_BUY/ROUND/POST/WIN`): yalnız tabancalı teçhizat paneli, satın alma menüsü (800 $, el bombası), raunt başı/sonu bandı, bölge etiketleri, kurma çubuğu, izleme kamerası, ikinci rauntta silah satın alma, telefonda menü.
 - Duman `determinism`: `shared/sim/replay.js` esbuild ile paketlenip Chromium'da koşar. Kızılkum ve Yıkık Şehir'de 10.000 komut sonrası konum Node ile karşılaştırılır (≤ 1 mm) ve her 1000 tick'in özeti eşleşmelidir.
 - Davranış referansı: `Docs/BASELINE.md` (`node tools/baseline.mjs --compare`).

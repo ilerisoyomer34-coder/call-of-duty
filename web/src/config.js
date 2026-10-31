@@ -2023,6 +2023,25 @@ export const RADAR = {
   firedDot: 5.5,
 };
 
+// Rekabetçi modun görünümü (src/net/compWorld.js, compHud.js, spectate.js; kurallar src/data/competitive.json):
+// bomba bölgesi halkası (renk, saydamlık, kalınlık, yerden yükseklik), bölge etiketinin yüksekliği, kurulu bombanın
+// bip aralığı (sn: tam süreden sona doğru beepSlow → beepFast) ve sesi, radarda yanıp sönme; ölünce izlenen takım
+// arkadaşının göz yüksekliği (ayakta/çömelik), izleme başlamadan önce ölüm kamerası süresi, bakışın yumuşaması
+export const COMP_VIEW = {
+  siteColor: 0xffc04a,
+  ringOpacity: 0.55,
+  fillOpacity: 0.07,
+  ringWidth: 0.22,
+  lift: 0.04,
+  tagHeight: 2.8,
+  beepSlow: 1.0,
+  beepFast: 0.12,
+  beepFreq: 2100,
+  radarBlinkMs: 700,
+  spectate: { eye: [1.62, 1.0], delaySec: 2.5, smooth: 14 },
+  bannerSec: 2.6,
+};
+
 // Görüntü son işlemi (src/postfx.js): dünya HDR hedefinden tuvale. Ayarlar → "Görüntü efektleri" kapalıyken ya da
 // düşük kalitede yalnız ton eşleme (ve dünya büyütülüyorsa keskinleştirme)
 export const POST = {

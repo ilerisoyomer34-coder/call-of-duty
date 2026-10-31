@@ -25,10 +25,11 @@ export async function startServer(overrides = {}) {
   const hub = new Hub(store);
   const parties = new PartyManager(store, hub);
   const limiter = new RateLimiter();
-  // Oyun odaları ve eşleştirme. Kural kısaltmaları yalnız testler için (MATCH_WARMUP, MATCH_TIME)
+  // Oyun odaları ve eşleştirme. Kural kısaltmaları yalnız testler için (MATCH_WARMUP, MATCH_TIME, COMP_*)
   const ruleOverrides = {};
   if (config.warmupSec !== null && config.warmupSec !== undefined) ruleOverrides.warmup = config.warmupSec;
   if (config.timeLimitSec) ruleOverrides.timeLimit = config.timeLimitSec;
+  if (Object.keys(config.compRounds || {}).length || Object.keys(config.compBomb || {}).length) ruleOverrides.compOverrides = { rounds: config.compRounds || {}, bomb: config.compBomb || {} };
   const rooms = new RoomManager({ log, secret: config.serverSecret || randomBytes(16).toString('hex'), overrides: ruleOverrides });
   const matchmaker = new Matchmaker({ rooms, hub, parties, log, searchSec: config.searchSec ?? MM.searchSec });
   const buildHash = config.buildCheck ? computeBuildHash() : '';

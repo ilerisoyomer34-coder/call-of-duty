@@ -48,10 +48,15 @@ export class PrepScreen {
     this.dismissed = false;
     this.ready = false;
     const [p, s] = net.loadout || validLoadout(ONLINE.defaultPrimary, ONLINE.defaultSecondary);
-    this.sel.primary = p;
+    // Rekabetçi: ana silah raunt başında parayla alınır (sunucudan null gelir); burada yalnız tabanca, seçili ana silah
+    // sonraki maçlara kalır
+    const comp = !!net.comp;
+    this.sel.primary = p || this.game.settings.onlineLoadout?.primary || ONLINE.defaultPrimary;
     this.sel.secondary = s;
     // Gerçek/kurgusal ad ayarı maçtan maça değişebilir: kartlar her maçta yeniden kurulur
     for (const S of SLOTS) this.build(S);
+    $('mhPrepPrimarySlot').hidden = comp;
+    $('mhPrepSub').textContent = comp ? 'Rekabetçi: tabancanı seç; ana silahı her raunt başında parayla alırsın' : 'Maç başlayınca seçtiğin silahlarla doğarsın';
     $('mhPrep').hidden = true;
     $('mhPrepChip').hidden = true;
   }

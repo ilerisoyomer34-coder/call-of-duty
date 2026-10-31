@@ -288,7 +288,7 @@ export class Game {
         return;
       }
       // Konsol ve telsiz satırı imleci bilerek serbest bırakır: o zaman duraklatma
-      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active && !this.matchHud?.prep.open) this.pause();
+      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active && !this.matchHud?.overlayOpen) this.pause();
     };
     this.clickToPlay = document.getElementById('clickToPlay');
     this.clickToPlay.addEventListener('click', () => {
@@ -927,9 +927,16 @@ export class Game {
   // Maçtaki silahlar: sunucunun onayladığı teçhizat (karşılama, sonra maç öncesi panelinin seçimi; roket ve el
   // bombası yok)
   onlineLoadout() {
-    const [p, s] = this.net?.loadout || [ONLINE.defaultPrimary, ONLINE.defaultSecondary];
+    // Rekabetçide ana silah satın alınmadıysa yalnız tabanca (sunucu da aynı sırayı kurar: yuva dizinleri eşleşir)
+    const ids = (this.net?.loadout || [ONLINE.defaultPrimary, ONLINE.defaultSecondary]).filter(Boolean);
+    const weapons = {};
+    const mods = {};
     // Eklentiler sunucuya gönderilenle aynı (sunucu aynı kuralla doğrular: shared/sim/mods.js)
-    return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: ONLINE.nades.fragCount, current: p, mods: { [p]: this.gunsmith.modsFor(p), [s]: this.gunsmith.modsFor(s) } };
+    for (const id of ids) {
+      weapons[id] = null;
+      mods[id] = this.gunsmith.modsFor(id);
+    }
+    return { weapons, slots: ids, grenades: this.net?.nades ? this.net.nades.frag : ONLINE.nades.fragCount, current: ids[0], mods };
   }
 
   matchTitle() {
@@ -973,7 +980,7 @@ export class Game {
       this.buildScene('online');
       this.mission.build();
       this.physics.setMap(this.world);
-      this.kit.resetOnline();
+      this.kit.resetOnline(net.nades?.smoke);
       this.weapons.reset(this.onlineLoadout());
       this.hud.bakeMinimap();
       this.player.applyCamera(this.camera, 0);
@@ -1285,7 +1292,10 @@ export class Game {
     this.net?.frame(dt);
     // Maç öncesi teçhizat paneli açıkken Esc paneli kapatır (haritaya bak), duraklatmaz
     const prep = this.matchHud.prep;
+    // Rekabetçi satın alma menüsü de öyle
+    const buy = this.matchHud.comp.buyScreen;
     if (prep.open && I.pressed('pause')) prep.close(true);
+    else if (buy.open && I.pressed('pause')) buy.close(true);
     else if (this.state === 'playing' && I.pressed('pause') && !this.console.open) {
       this.pause();
       this.renderFrame();
@@ -1294,7 +1304,7 @@ export class Game {
     // Kalkış sahnesinde oyuncu helikopterin içinde: kontrol yok, kamera kabinden bakar
     const cine = !!this.mission.takeoff;
     // Telsize yazarken oyuncu durur (tuşlar yazı alanına gider)
-    const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine && !prep.open;
+    const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine && !this.matchHud.overlayOpen;
     if (this.mode === 'mission' && canAct && !this.wheel.open && I.pressed('chat')) this.chat.openChat();
     if (this.console.open || cine) I.consumeLook();
     const driving = this.vehicles.driving;
@@ -1316,6 +1326,8 @@ export class Game {
       else if (this.wheel.open) this.wheel.close(false);
       this.player.update(dt, canAct ? I : NULL_INPUT);
       this.player.applyCamera(this.camera, dt);
+      // Rekabetçi: ölüyken canlı bir takım arkadaşının gözünden izle (raunt içinde doğuş yok)
+      if (this.net?.comp) this.matchHud.comp.updateCamera(dt, this.console.open ? NULL_INPUT : I);
     }
     this.camera.updateMatrixWorld();
     // Görüş konisi (askerler görüş dışındayken iskeletlerini seyrek günceller: inView)
@@ -1355,6 +1367,7 @@ export class Game {
     this.hud.update(dt);
     if (this.net) {
       this.net.remotes.updateTags(this.hud, this.width, this.height);
+      this.matchHud.comp.updateTags(this.hud, this.width, this.height);
       this.matchHud.update(dt, this.console.open ? NULL_INPUT : I);
     }
     this.netGraph.update(dt);
@@ -1362,7 +1375,7 @@ export class Game {
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
     this.indoor.update(dt);
-    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine && !this.matchHud.prep.open;
+    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine && !this.matchHud.overlayOpen;
     this.clickToPlay.hidden = !lockMissing;
     if (this.state === 'dying') {
       this.deathT += dt;

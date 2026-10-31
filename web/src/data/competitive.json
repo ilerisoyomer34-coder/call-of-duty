@@ -1,0 +1,29 @@
+{
+  "_": "Rekabetçi mod (kullanıcı isteği: \"çevrim içini baya geliştir\" → Rekabetçi: bomba, raunt, ekonomi). Kurallar shared/sim/competitive.js (sunucu ve istemci aynı tabloyu okur; derleme özetine girer). rounds: toWin raunt kazanan maçı alır, max raundda berabere biter, half raunttan sonra taraflar rol değiştirir (saldıran savunur; para başa döner); buySec raunt başında satın alma (hareket yok), roundSec raunt süresi (bomba kurulunca bomba sayacı işler), postSec raunt sonu. bomb: plantSec kurma, defuseSec imha (E basılı, yerinde), timerSec kurulduktan patlamaya, maxSpeed kurarken/imha ederken bundan hızlı giden başa döner, defuseDist imha için bombaya en çok uzaklık, pickupDist yerdeki bombayı alma, blastRadius/blastDamage patlama (merkezde; uzaklıkla azalır). money: start her yarının başı, max tavan, kill öldürme başına (silaha göre), win kazanan takımın her üyesine, lose art arda kaybedilen raunda göre (dizi sonu tavan), plant kuran oyuncuya, plantedLoss bomba kurulup kaybedilen rauntta saldıran takıma, defuse imha edene. prices: ana silah fiyatları (sınıf varsayılanı classes, silaha özel weapons; tabanca bedava), frag/smoke bomba; nades raunt başına en çok taşınan.",
+  "rounds": { "toWin": 7, "max": 12, "half": 6, "buySec": 15, "roundSec": 100, "postSec": 5 },
+  "bomb": { "plantSec": 3.2, "defuseSec": 5, "timerSec": 40, "maxSpeed": 0.6, "defuseDist": 1.7, "pickupDist": 1.4, "blastRadius": 15, "blastDamage": 400 },
+  "money": {
+    "start": 800,
+    "max": 9000,
+    "kill": { "default": 300, "melee": 1000, "frag": 300, "smg": 450, "shotgun": 500, "sniper": 150 },
+    "win": 3250,
+    "lose": [1400, 1900, 2400, 2900, 3400],
+    "plant": 300,
+    "plantedLoss": 800,
+    "defuse": 300
+  },
+  "prices": {
+    "classes": { "smg": 1250, "shotgun": 1100, "ar": 2700, "lmg": 3800, "marksman": 3200, "sniper": 4750 },
+    "weapons": {
+      "rifle": 2200, "mar556": 2900, "k8": 2500, "kr4": 2600, "mk4": 3100, "ak74": 2700, "bren2": 2900, "ak47": 2700, "adar215": 2300, "g95": 3000, "stm556": 2800,
+      "mp7": 1500, "smg": 1250,
+      "shotgun": 1100, "ithaca37": 1200, "m4super90": 1800,
+      "kt9": 3200, "pr10": 3000, "ar10t": 3500, "uar10": 3700,
+      "sniper": 4200, "awm": 4750,
+      "lmg": 3800
+    },
+    "frag": 300,
+    "smoke": 300
+  },
+  "nades": { "frag": 1, "smoke": 1 }
+}

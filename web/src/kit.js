@@ -33,11 +33,11 @@ export class KitSystem {
     this.emit();
   }
 
-  // Çevrim içi maç: yuvada her doğuşta sis bombası (ONLINE.nades.smokeCount); envanterden düşmez, sunucu sayar
-  resetOnline() {
+  // Çevrim içi maç: yuvada her doğuşta sis bombası (ONLINE.nades.smokeCount; Rekabetçide satın alınan adet n);
+  // envanterden düşmez, sunucu sayar
+  resetOnline(n = ONLINE.nades.smokeCount) {
     this.active = true;
     this.online = true;
-    const n = ONLINE.nades.smokeCount;
     this.slots = [n > 0 ? { id: 'smoke', def: CONSUMABLES.get('smoke'), left: n } : null, null];
     this.using = null;
     this.adrenalineUsed = 0;

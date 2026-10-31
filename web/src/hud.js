@@ -964,6 +964,8 @@ export class HUD {
       ctx.fillRect(-1, -12, 2, 11);
       ctx.restore();
     }
+    // Rekabetçi: bomba bölgeleri ve bomba (compWorld.js)
+    g.matchHud?.comp.drawRadar(ctx, toMap, R, P.yaw);
     for (const mk of markers) {
       const [x, z] = toMap(mk.p.x, mk.p.z);
       const d = Math.hypot(x, z);

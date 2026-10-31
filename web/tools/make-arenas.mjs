@@ -7,6 +7,10 @@
 //  - Çatışma alanı, görevin kontrol noktalarından aralığı TARGET'a en yakın iki nokta arası (haritanın tamamı açık;
 //    doğuşlar ve bot noktaları bu koridorda). Mavi bir uçta, kırmızı öbür uçta, yüzleri karşıya.
 //  - Seçim en uzak nokta örneklemesiyle (deterministik): aynı harita hep aynı noktaları verir.
+//  - Bomba bölgeleri (Rekabetçi mod, shared/sim/competitive.js): savunan (mavi) tarafa yakın iki açık alan; iki
+//    merkezi birleştiren hattın SITE_T aralığında, hattın iki yanında, birbirinden en az SITE_GAP uzakta. Bölgenin
+//    ortası geniş boş zemin (SITE_OPEN yarıçapındaki hücrelerin çoğu boş): bomba siperin dibine değil açığa kurulur.
+//    Elle kurulan arenada (depo) da aynı kuralla hesaplanır, doğuşlara dokunulmaz.
 // Kullanım: cd web && node tools/make-arenas.mjs [--check]   (--check: arenas.json güncel değilse çıkış 1)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -28,6 +32,14 @@ const SIDE_R = [3, 16]; // m: taraf doğuşlarının merkezden uzaklığı
 const CORRIDOR = 34; // m: Ölüm Maçı doğuşları ve bot noktaları iki merkezi birleştiren hattan en çok bu kadar uzakta
 const COUNTS = { side: 10, ffa: 16, hotspots: 16 };
 const SPACING = { side: 2.5, ffa: 9, hotspots: 10 };
+const NAV_CELL = 0.4; // m: yol ağı hücresi (boş hücreler bu aralıkla)
+const SITE_T = [0.16, 0.42]; // mavi merkezden kırmızıya giden hattın bu payında
+const SITE_T_BEST = 0.28;
+const SITE_R = 4; // m: bölge yarıçapı (kurma alanı)
+const SITE_GAP = 18; // m: iki bölge arası en az
+const SITE_LATERAL = 5; // m: hattan en az bu kadar yana (A bir yanda, B öbür yanda)
+const SITE_OPEN = 2.5; // m: bölge ortasının çevresinde boş hücre payı
+const SITE_MIN_BLUE = 12; // m: mavi doğuş merkezine en az
 
 // Arayüzdeki kısa tanım (ad config.js → MAPS'ten)
 const DESC = {
@@ -110,6 +122,64 @@ function farthest(cands, n, seed, spacing) {
   return picked;
 }
 
+// Bomba bölgeleri [[x, z, r], [x, z, r]] (A, B): a savunan (mavi) merkez, b saldıran (kırmızı) merkez
+export function makeSites(cells, a, b, step = NAV_CELL) {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const d = Math.hypot(dx, dz);
+  const ux = dx / d;
+  const uz = dz / d;
+  // Açıklık: SITE_OPEN içindeki boş hücre sayısı (ızgara adımı sabit: sayılar karşılaştırılabilir)
+  const key = (p) => `${Math.round(p.x * 10)},${Math.round(p.z * 10)}`;
+  const set = new Set(cells.map(key));
+  const openness = (p) => {
+    let n = 0;
+    let all = 0;
+    const r = Math.ceil(SITE_OPEN / step);
+    for (let i = -r; i <= r; i++)
+      for (let j = -r; j <= r; j++) {
+        if (i * i + j * j > r * r) continue;
+        all++;
+        if (set.has(key({ x: p.x + i * step, z: p.z + j * step }))) n++;
+      }
+    return n / all;
+  };
+  const cand = [];
+  for (const p of cells) {
+    const t = ((p.x - a.x) * ux + (p.z - a.z) * uz) / d;
+    if (t < SITE_T[0] || t > SITE_T[1]) continue;
+    if (Math.hypot(p.x - a.x, p.z - a.z) < SITE_MIN_BLUE) continue;
+    const lat = (p.x - a.x) * -uz + (p.z - a.z) * ux;
+    if (Math.abs(lat) > CORRIDOR) continue;
+    cand.push({ x: p.x, z: p.z, lat, t });
+  }
+  // Önce açık, sonra hattan uzak (iki bölge arası açılsın) ve hattın SITE_T_BEST payına yakın (savunana yakın, doğuşun
+  // dibinde değil); eşitlikte konum (deterministik)
+  const score = (c) => openness(c) * 40 + Math.min(Math.abs(c.lat), 20) - Math.abs(c.t - SITE_T_BEST) * 40;
+  const best = (list) => {
+    let out = null;
+    let bs = -Infinity;
+    for (const c of list) {
+      const v = score(c);
+      if (v > bs + 1e-9 || (Math.abs(v - bs) <= 1e-9 && out && (c.x < out.x || (c.x === out.x && c.z < out.z)))) {
+        out = c;
+        bs = v;
+      }
+    }
+    return out;
+  };
+  let A = best(cand.filter((c) => c.lat >= SITE_LATERAL));
+  let B = A ? best(cand.filter((c) => c.lat <= -SITE_LATERAL && Math.hypot(c.x - A.x, c.z - A.z) >= SITE_GAP)) : null;
+  // Dar harita: iki yan bulunamazsa koridorda birbirinden en uzak iki açık nokta
+  if (!A || !B) {
+    const open = cand.filter((c) => openness(c) > 0.7);
+    const pick = farthest(open.length >= 2 ? open : cand, 2, a, SITE_GAP * 0.6);
+    [A, B] = pick;
+  }
+  if (!A || !B) return [];
+  return [A, B].map((c) => [r1(c.x), r1(c.z), SITE_R]);
+}
+
 function segDist(p, a, b) {
   const vx = b.x - a.x;
   const vz = b.z - a.z;
@@ -120,7 +190,7 @@ function segDist(p, a, b) {
 export function makeArena(id) {
   const W = new CollisionWorld();
   const D = buildMission(W, id);
-  const nav = new NavGrid(W, 0.4);
+  const nav = new NavGrid(W, NAV_CELL);
   const cps = D.checkpoints.map((c) => c.pos || c);
   const cells = region(W, nav, cps[0]);
   const near = (p) => cells.reduce((b, c) => ((c.x - p.x) ** 2 + (c.z - p.z) ** 2 < (b.x - p.x) ** 2 + (b.z - p.z) ** 2 ? c : b), cells[0]);
@@ -155,6 +225,7 @@ export function makeArena(id) {
     generated: true,
     spawns: { blue: side(a, b), red: side(b, a), ffa },
     hotspots,
+    sites: makeSites(cells, a, b),
   };
   return { arena, info: { dist: Math.round(pair.d), cells: cells.length } };
 }
@@ -162,23 +233,50 @@ export function makeArena(id) {
 // Komut satırından çalışınca yazar (testler yalnız makeArena'yı alır)
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
 
+// Elle kurulan arena: doğuşlar ve gezinme noktaları dosyada; bomba bölgeleri aynı kuralla hesaplanır
+export function manualSites(id, arena) {
+  const W = new CollisionWorld();
+  ARENA_BUILDERS[id](W);
+  const nav = new NavGrid(W, NAV_CELL);
+  const mean = (l) => ({ x: l.reduce((s, p) => s + p[0], 0) / l.length, z: l.reduce((s, p) => s + p[1], 0) / l.length });
+  const a = mean(arena.spawns.blue);
+  const b = mean(arena.spawns.red);
+  const cells = region(W, nav, { x: arena.spawns.blue[0][0], z: arena.spawns.blue[0][1] });
+  return makeSites(cells, a, b);
+}
+
 function main() {
   const data = JSON.parse(readFileSync(file, 'utf8'));
   const out = {};
-  for (const [k, v] of Object.entries(data)) if (k === '_' || ARENA_BUILDERS[k]) out[k] = v; // elle konanlar
   let stale = 0;
+  for (const [k, v] of Object.entries(data)) {
+    if (k === '_') out[k] = v;
+    else if (ARENA_BUILDERS[k]) {
+      // Elle konanlar: yalnız bomba bölgeleri hesaplanır
+      const sites = manualSites(k, v);
+      if (sites.length !== 2) throw new Error(`${k}: bomba bölgesi bulunamadı`);
+      const next = { ...v, sites };
+      if (JSON.stringify(next) !== JSON.stringify(v)) stale++;
+      out[k] = next;
+      console.log(`${check ? (JSON.stringify(next) === JSON.stringify(v) ? '✓' : '✗') : '·'} ${k}: elle kurulu, bölgeler ${JSON.stringify(sites)}`);
+    }
+  }
   for (const id of Object.keys(MAP_BUILDERS)) {
     const { arena, info } = makeArena(id);
     const ok =
-      arena.spawns.blue.length === COUNTS.side && arena.spawns.red.length === COUNTS.side && arena.spawns.ffa.length >= 8 && arena.hotspots.length >= 8;
+      arena.spawns.blue.length === COUNTS.side &&
+      arena.spawns.red.length === COUNTS.side &&
+      arena.spawns.ffa.length >= 8 &&
+      arena.hotspots.length >= 8 &&
+      arena.sites.length === 2;
     if (!ok)
       throw new Error(
-        `${id}: yeterli nokta yok (${JSON.stringify({ b: arena.spawns.blue.length, r: arena.spawns.red.length, f: arena.spawns.ffa.length, h: arena.hotspots.length })})`,
+        `${id}: yeterli nokta yok (${JSON.stringify({ b: arena.spawns.blue.length, r: arena.spawns.red.length, f: arena.spawns.ffa.length, h: arena.hotspots.length, s: arena.sites.length })})`,
       );
     if (JSON.stringify(data[id]) !== JSON.stringify(arena)) stale++;
     out[id] = arena;
     console.log(
-      `${check ? (JSON.stringify(data[id]) === JSON.stringify(arena) ? '✓' : '✗') : '·'} ${id}: taraflar ${info.dist} m arayla, ${arena.spawns.ffa.length} ÖM doğuşu, ${arena.hotspots.length} bot noktası (${info.cells} boş hücre)`,
+      `${check ? (JSON.stringify(data[id]) === JSON.stringify(arena) ? '✓' : '✗') : '·'} ${id}: taraflar ${info.dist} m arayla, ${arena.spawns.ffa.length} ÖM doğuşu, ${arena.hotspots.length} bot noktası, bölgeler ${JSON.stringify(arena.sites)} (${info.cells} boş hücre)`,
     );
   }
   if (check) {

@@ -1,7 +1,7 @@
 # PROTOCOL — oyun bağlantısının ikili ileti kataloğu
 
 Kod: `web/shared/net/protocol.js` (sabitler), `web/shared/net/codec.js` (kodlama/çözme), testler `web/tests/codec.test.mjs`.
-Sürüm `PROTOCOL_VERSION = 1` (`web/shared/constants.js`). Bayt düzeni değişince sürüm artar.
+Sürüm `PROTOCOL_VERSION = 2` (`web/shared/constants.js`; 2: Rekabetçi alanları). Bayt düzeni değişince sürüm artar.
 
 ## Bağlantı
 
@@ -16,7 +16,7 @@ Sürüm `PROTOCOL_VERSION = 1` (`web/shared/constants.js`). Bayt düzeni değiş
   - saniyede en çok 80 `C_INPUT`, 120 ileti;
   - 3 bozuk ya da sınır dışı ileti → `S_ERROR BAD_MESSAGE` / `RATE_LIMIT` ve kapanış;
   - IP başına en çok 4 bağlantı.
-- Derleme özeti: `server/game/buildhash.js` (`shared/**`, `src/config.js`, maç verisi), istemciye derlemede `__BUILD_HASH__` olarak gömülür. `BUILD_CHECK=0` denetimi kapatır (yalnız geliştirme).
+- Derleme özeti: `server/game/buildhash.js` (`shared/**`, `src/config.js`, maç verisi ve paylaşılan kodun okuduğu veri: silah, eklenti, nişangâh, tim, Rekabetçi kuralları), istemciye derlemede `__BUILD_HASH__` olarak gömülür. `BUILD_CHECK=0` denetimi kapatır (yalnız geliştirme).
 
 ## Genel kurallar
 
@@ -77,6 +77,11 @@ Maç öncesi teçhizat paneli (`src/net/prepScreen.js`). Sunucu `shared/sim/load
 
 Yalnız maç sonu oylaması sürerken. Oy değiştirilebilir, son oy sayılır.
 
+### `0x08 C_BUY`
+`u8 item · mods`
+
+Rekabetçi satın alma. `item`: `shared/sim/competitive.js → BUY_ITEMS` dizini (ana silahlar fiyat sırasıyla, sonra el bombası ve sis); `mods` silahın eklentileri (`C_LOADOUT` biçimi). Sunucu yalnız satın alma evresinde (`PHASE.BUY`), canlıyken, para yetiyorsa ve bomba sınırı (`competitive.json → nades`) aşılmıyorsa kabul eder; kabul edince parayı düşer ve `NEV.LOADOUT` (şimdi) gönderir.
+
 ## Sunucu → istemci
 
 ### `0x81 S_WELCOME`
@@ -87,7 +92,7 @@ Başlık:
 `u32 tick · u16 ackSeq · u8 bufDepth · u16 tickUs · u8 phase · u16 phaseLeft×10 · i16 scoreA · i16 scoreB`
 
 Yerel oyuncu:
-`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10`, kayıt varsa:
+`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10 · u16 money · u8 act (0 yok, 1 bomba kuruyor, 2 imha ediyor) · u8 actProgress×255`, kayıt varsa:
 `f32 pos×3 · f32 vel×3 · u16 crouchT×1024 · u16 adsT×1024 · f32 sprintOut · u16 buttons · u8 (1 yerde, 2 çömelik, 4 koşuyor)`
 
 Diğer oyuncular:
@@ -105,9 +110,13 @@ Olaylar:
 | `SPAWN` 5 | `u8 slot · i16 pos×3 · u16 yaw` | herkes |
 | `MELEE` 6 / `RELOAD` 7 | `u8 slot` | diğerleri |
 | `ROUND` 8 | `u8 code (1 maç başladı, 2 bitti) · u8 value` | herkes |
-| `LOADOUT` 9 | `u8 primary · u8 secondary · u8 now (1 şimdi elde, 0 sonraki doğuşta)` | seçen |
+| `LOADOUT` 9 | `u8 primary (255: ana silah yok) · u8 secondary · u8 now (1 şimdi elde, 0 sonraki doğuşta) · u8 nades (alt 4 bit el bombası, üst 4 sis)` | seçen |
 | `NADE` 10 | `u16 id · u8 kind (0 el bombası, 1 sis) · u8 slot · i16 pos×3 (1/64 m) · i16 vel×3 (1/512 m/s)` | herkes |
 | `BLAST` 11 | `u16 id · u8 kind · i16 pos×3` | herkes |
+| `ROUND_STATE` 12 | `u8 round · u8 state (0 satın alma, 1 raunt, 2 raunt sonu) · u8 attackSide · u8 winner (255 yok) · u8 reason (1 yok etme, 2 süre, 3 bomba patladı, 4 imha)` | herkes (katılana bir kez) |
+| `BOMB` 13 | `u8 state (0 yok, 1 taşınıyor, 2 yerde, 3 kuruldu, 4 imha, 5 patladı) · u8 slot (taşıyan / kuran / imha eden) · u8 site (255 yok) · i16 pos×3` | herkes (katılana bir kez) |
+
+- Rekabetçi: evre `PHASE.BUY` 4 (satın alma, hareket yok) ve `PHASE.ROUND_END` 3 (raunt sonu); `scoreA/scoreB` kazanılan raunt; `phaseLeft` o evrenin süresi (bomba kurulunca bombanın). Raunt başında doğuştan önce `LOADOUT` gelir (eldeki silah ve bombalar raunttan rauntta kalır).
 
 - `NADE`: sunucu bombanın başlangıcını bu nicemlemeye yuvarlayıp (`codec.js → quantizeNade`) onunla yürütür; istemci aynı sayılarla `shared/sim/grenade.js → stepGrenade`'i aynı çarpışma dünyasında koşturur, yörünge birebir aynı. Patlamayı ve hasarı yalnız sunucu belirler (`BLAST`); `BLAST` gelmezse istemci bombayı `fuse + 3` sn sonra siler.
 

@@ -53,6 +53,14 @@ export function loadConfig(env = process.env) {
     // Testler: maç başı geri sayımı (sn) ve maç süresi kısaltılabilir
     warmupSec: env.MATCH_WARMUP ? Number(env.MATCH_WARMUP) : null,
     timeLimitSec: env.MATCH_TIME ? Number(env.MATCH_TIME) : null,
+    // Testler: Rekabetçi raunt süreleri (satın alma, raunt, raunt sonu, bomba sn) ve kazanmak için raunt
+    compRounds: {
+      ...(env.COMP_BUY ? { buySec: Number(env.COMP_BUY) } : {}),
+      ...(env.COMP_ROUND ? { roundSec: Number(env.COMP_ROUND) } : {}),
+      ...(env.COMP_POST ? { postSec: Number(env.COMP_POST) } : {}),
+      ...(env.COMP_WIN ? { toWin: Number(env.COMP_WIN) } : {}),
+    },
+    compBomb: env.COMP_BOMB ? { timerSec: Number(env.COMP_BOMB) } : {},
     // Yapay zekâlı telsiz (server/ai.js): ANTHROPIC_API_KEY ortamda varsa açık (anahtar yalnız SDK'ya gider,
     // burada saklanmaz). AI_RADIO=0 kapatır; AI_RADIO=1 anahtarsız da açar (ör. `ant auth login` profili)
     ai: {

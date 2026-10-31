@@ -27,7 +27,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 const errors = [];
 const SMOKE_NAME = 'Deneme';
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, app, profile, online, netplay, determinism
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, app, profile, online, netplay, comp, determinism
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -4427,6 +4427,173 @@ if (run('netplay')) {
   await mp.screenshot({ path: join(shots, '36-net-mobile.png') });
   check(mfit.mode === 'dm' && mfit.inView && mfit.players === 6 && mfit.label === 'SEN', `Telefonda Ölüm Maçı: ${mfit.players} oyuncu (5 YZ), skor çubuğu ekranda`);
   await mctx.close();
+  srv.kill();
+}
+
+// ---------------- Rekabetçi: raunt, satın alma, bomba arayüzü, izleme (server/game/comp.js, src/net/compHud.js) ----------------
+if (run('comp')) {
+  console.log('Rekabetçi mod: raunt, satın alma, bomba, izleme');
+  const PORT = 8794;
+  // Kısa süreler: ısınma 8 sn (HAZIRIM 3 sn'ye indirir), satın alma 15 (yazılımsal GPU'da sayfa yavaş), raunt 25, raunt sonu 3, bomba 15, 3 raunt alan kazanır
+  const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '8', COMP_BUY: '15', COMP_ROUND: '25', COMP_POST: '3', COMP_WIN: '3', COMP_BOMB: '15' },
+    stdio: 'ignore',
+  });
+  process.on('exit', () => srv.kill());
+  const base = `http://127.0.0.1:${PORT}`;
+  for (let i = 0; i < 50; i++) {
+    const ok = await fetch(`${base}/api/health`).then((r) => r.ok, () => false);
+    if (ok) break;
+    await sleep(100);
+  }
+  const q = `?server=${encodeURIComponent(base)}`;
+  const online = (pg) => pg.waitForFunction(() => window.__game.social.status === 'online', null, { timeout: 30000 });
+  const until = (pg, fn, arg, ms = 60000) => pg.waitForFunction(fn, arg, { timeout: ms, polling: 100 });
+  const A = await openPage('comp-A', 'low', { name: 'Kaan', query: q });
+  await online(A);
+  await A.evaluate(() => document.getElementById('btnOnline').click());
+  await until(A, () => !!document.querySelector('.ppMode[data-mode="competitive"]'));
+  await A.evaluate(() => document.querySelector('.ppMode[data-mode="competitive"]').click());
+  await A.evaluate(() => document.getElementById('btnPartyFind').click());
+  await until(A, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'competitive' && window.__game.net.roster.length === 10, null, 180000);
+  // Teçhizat paneli: yalnız tabanca (ana silah parayla)
+  await until(A, () => !document.getElementById('mhPrep').hidden, null, 30000).catch(() => {});
+  const prep = await A.evaluate(() => ({ primaryHidden: document.getElementById('mhPrepPrimarySlot').hidden, sub: document.getElementById('mhPrepSub').textContent, gun: window.__game.weapons.current?.id, slots: window.__game.weapons.slots }));
+  check(prep.primaryHidden && /tabanca/.test(prep.sub) && prep.slots.length === 1, `Rekabetçi teçhizat paneli yalnız tabanca: elde ${prep.slots.join(', ')} ("${prep.sub.slice(0, 40)}…")`);
+  // Teçhizat ve raunt olaylarının izi (denetim mesajlarında)
+  await A.evaluate(() => {
+    const n = window.__game.net;
+    window.__compEv = [];
+    const on = n.onEvent.bind(n);
+    n.onEvent = (e) => {
+      if (e.k === 9 || e.k === 12) window.__compEv.push(e.k === 9 ? `L${e.primary}/${e.frags}${e.now ? '!' : ''}` : `R${e.round}.${e.state}`);
+      return on(e);
+    };
+  });
+  await A.evaluate(() => document.getElementById('btnPrepReady').click());
+  // Satın alma evresi: menü kendiliğinden açılır, 800 $, pahalı silahlar soluk
+  await until(A, () => window.__game.net.phase === 4 && !document.getElementById('mhBuy').hidden, null, 60000).catch(() => {});
+  const buy0 = await A.evaluate(() => ({
+    phase: window.__game.net.phase,
+    open: !document.getElementById('mhBuy').hidden,
+    money: window.__game.net.comp.money,
+    shown: document.getElementById('mhBuyMoney').textContent,
+    cards: document.querySelectorAll('#mhBuyGrid .mhBuyCard').length,
+    poor: document.querySelectorAll('#mhBuyGrid .mhBuyCard.poor').length,
+    role: document.getElementById('mhRole').textContent,
+    round: window.__game.net.comp.round,
+    tags: document.querySelectorAll('.siteTag').length,
+    limit: document.getElementById('mhLimit').textContent,
+  }));
+  check(buy0.phase === 4 && buy0.open && buy0.money === 800 && /800/.test(buy0.shown) && buy0.cards > 10 && buy0.poor > 5 && buy0.round === 1 && /RAUNT 1/.test(buy0.limit),
+    `Satın alma evresi: menü açık, ${buy0.shown}, ${buy0.cards} ürün (${buy0.poor} pahalı), rol ${buy0.role}, ${buy0.limit}`);
+  const t0 = await A.evaluate(() => ({ phase: window.__game.net.phase, left: window.__game.net.timeLeft, ev: window.__compEv.join(' ') }));
+  await A.evaluate(() => document.querySelector('#mhBuyGrid .mhBuyCard[data-item="frag"]').click());
+  await until(A, () => window.__game.net.nades?.frag === 1 && window.__game.net.comp.money === 500, null, 15000).catch(() => {});
+  const buy1 = await A.evaluate(() => ({ frag: window.__game.net.nades?.frag, money: window.__game.net.comp.money, grenades: window.__game.weapons.grenades, own: document.querySelector('#mhBuyGrid .mhBuyCard[data-item="frag"]').classList.contains('own'), ev: window.__compEv.join(' '), phase: window.__game.net.phase }));
+  await A.screenshot({ path: join(shots, '37-comp-buy.png') });
+  check(buy1.frag === 1 && buy1.money === 500 && buy1.grenades === 1 && buy1.own,
+    `El bombası alındı: kalan ${buy1.money} $, elde ${buy1.grenades} bomba, kart ALINDI${buy1.money === 500 ? '' : ` (tıklama evre ${t0.phase}, kalan ${t0.left.toFixed(1)} sn; olaylar ${t0.ev} → ${buy1.ev}; evre ${buy1.phase})`}`);
+  // Raunt başlar: menü kapanır, bölge etiketleri ve bomba satırı
+  await until(A, () => window.__game.net.phase === 1, null, 30000).catch(() => {});
+  await sleep(500);
+  const live = await A.evaluate(() => ({ buyHidden: document.getElementById('mhBuy').hidden, tags: document.querySelectorAll('.siteTag').length, shownTag: [...document.querySelectorAll('.siteTag:not([hidden]) b')].map((b) => b.textContent).join('/'), bomb: document.getElementById('mhBomb').textContent, carrier: window.__game.net.comp.bomb.state, att: window.__game.net.comp.attackSide === window.__game.net.mySide }));
+  // Bomba saldıranlardan birinde (savunan da durum satırını görür)
+  check(live.buyHidden && live.bomb.length > 0 && (live.carrier === 1 || !live.att) && live.tags === 2, `Raunt başladı: menü kapandı, ${live.tags} bölge etiketi (görünen ${live.shownTag || 'yok'}), satır "${live.bomb}" (${live.att ? 'saldıran' : 'savunan'})`);
+  // Kurma/imha çubuğu ve izleme (doğrudan: oyuncunun ölmesi beklenmez). Canlı takım arkadaşının gözünden kamera
+  const view = await A.evaluate(() => {
+    const g = window.__game;
+    const H = g.matchHud.comp;
+    const C = g.net.comp;
+    const keep = { act: C.act, prog: C.actProgress };
+    C.act = 1;
+    C.actProgress = 0.5;
+    H.update(0.016, { pressed: () => false, isDown: () => false });
+    const bar = { shown: !document.getElementById('mhAct').hidden, w: document.getElementById('mhActBar').style.width, label: document.getElementById('mhActLabel').textContent };
+    C.act = keep.act;
+    C.actProgress = keep.prog;
+    const P = g.player;
+    P.alive = false;
+    H.spectator.deadAt = 0;
+    const ok = H.updateCamera(0.016, { pressed: () => false, isDown: () => false });
+    const t = H.spectator.target;
+    const cam = g.camera.position;
+    const spec = { ok, near: t ? Math.hypot(cam.x - t.pos.x, cam.z - t.pos.z) : -1, hidden: t ? !t.model.root.visible : false, name: document.getElementById('mhSpectateName').textContent, friendly: t ? g.net.remotes.isFriendly(t.slot) : false };
+    P.alive = true;
+    H.spectator.release();
+    H.updateCamera(0.016, { pressed: () => false, isDown: () => false });
+    return { bar, spec };
+  });
+  check(view.bar.shown && view.bar.w === '50%' && /KURULUYOR/.test(view.bar.label), `Kurma çubuğu: "${view.bar.label}" ${view.bar.w}`);
+  check(view.spec.ok && view.spec.friendly && view.spec.near < 0.01 && view.spec.hidden && view.spec.name.length > 0, `Ölünce izleme: takım arkadaşı ${view.spec.name} gözünden (kamera ${view.spec.near.toFixed(3)} m, model gizli)`);
+  // Raunt biter (yok etme ya da süre): bant, skor
+  // Raunt 25 sn; bomba kurulursa sayaç bombanın (15 sn) baştan
+  await until(A, () => window.__game.net.comp.state === 2, null, 120000).catch(() => {});
+  const post = await A.evaluate(() => ({ state: window.__game.net.comp.state, banner: document.getElementById('mhBanner').textContent, shown: !document.getElementById('mhBanner').hidden, score: window.__game.net.scoreA + window.__game.net.scoreB, reason: window.__game.net.comp.reason }));
+  check(post.state === 2 && post.shown && /RAUNT/.test(post.banner) && post.score === 1 && post.reason > 0, `Raunt sonu bandı: "${post.banner}", skor toplamı ${post.score}`);
+  // İkinci raunt: kaybeden de 1400+ alır, ana silah satın alınır ve elde
+  await until(A, () => window.__game.net.comp.round === 2 && window.__game.net.phase === 4 && window.__game.player.alive, null, 30000).catch(() => {});
+  const r2 = await A.evaluate(() => ({ money: window.__game.net.comp.money }));
+  await A.evaluate(() => document.querySelector('#mhBuyGrid .mhBuyCard[data-item="smg"]')?.click());
+  await until(A, () => window.__game.weapons.slots[0] === 'smg', null, 15000).catch(() => {});
+  const r2b = await A.evaluate(() => ({ slots: window.__game.weapons.slots, cur: window.__game.weapons.current?.id, money: window.__game.net.comp.money, own: document.querySelector('#mhBuyGrid .mhBuyCard[data-item="smg"]')?.classList.contains('own') }));
+  check(r2.money >= 1400 && r2b.slots.length === 2 && r2b.slots[0] === 'smg' && r2b.cur === 'smg' && r2b.money === r2.money - 1250,
+    `İkinci raunt: ${r2.money} $ → taramalı alındı (${r2b.slots.join(', ')}, elde ${r2b.cur}), kalan ${r2b.money} $`);
+  // Telefon: aynı maça katılır, satın alma menüsü ekrana sığar. A'nın sayfası açık kalır (maç insansız kapanmasın) ama
+  // görünmez: iki sayfa yazılımsal GPU'yu paylaşınca kareler çok yavaşlıyor
+  const roomA = await A.evaluate(() => window.__game.net.welcome.room);
+  await A.evaluate(() => {
+    window.__game.renderFrame = () => {};
+  });
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx, 'Lale');
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[comp-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href + q);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
+  await online(mp);
+  await mp.tap('#btnOnline');
+  await mp.tap('.ppMode[data-mode="competitive"]');
+  await mp.tap('#btnPartyFind');
+  await until(mp, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'competitive', null, 120000);
+  // İz: görülen evreler ve menünün durumu (denetim başarısızsa yazılır)
+  await mp.evaluate(() => {
+    window.__buyTrace = [];
+    setInterval(() => {
+      const g = window.__game;
+      const k = `${g.net?.phase}${g.player.alive ? 'a' : 'd'}${document.getElementById('mhBuy').hidden ? '' : 'M'}`;
+      if (window.__buyTrace.at(-1) !== k) window.__buyTrace.push(k);
+    }, 150);
+  });
+  const same = await mp.evaluate(() => window.__game.net.welcome.room);
+  // Ölçüm menü açıkken yüklemin içinde (sonraki çağrıya kadar satın alma süresi bitebilir)
+  const mfit = await until(
+    mp,
+    () => {
+      const g = window.__game;
+      if (g.net.phase !== 4 || !g.player.alive || document.getElementById('mhBuy').hidden) return null;
+      const b = document.querySelector('#mhBuy .mhBuyBox').getBoundingClientRect();
+      const btn = document.getElementById('btnBuyClose').getBoundingClientRect();
+      return { open: true, fits: b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight + 1, btn: btn.bottom <= innerHeight + 1 && btn.height > 0 };
+    },
+    null,
+    150000
+  )
+    .then((h) => h.jsonValue())
+    .catch(() => ({ open: false }));
+  await mp.screenshot({ path: join(shots, '37b-comp-mobile-buy.png') });
+  const trace = await mp.evaluate(() => window.__buyTrace.slice(-14).join(' '));
+  check(same === roomA && mfit.open && mfit.fits && mfit.btn, `Telefon aynı Rekabetçi maça katıldı (${same}); satın alma menüsü ekrana sığıyor${mfit.open && mfit.fits ? '' : ` ${JSON.stringify(mfit)} iz ${trace}`}`);
+  await mctx.close();
+  await A.close();
   srv.kill();
 }
 

@@ -11,6 +11,7 @@ export const MSG = {
   C_LEAVE: 0x05, // odadan kendi isteğiyle çıkış
   C_LOADOUT: 0x06, // maç öncesi teçhizat seçimi (ana + yan silah) ve "hazırım"
   C_VOTE: 0x07, // maç sonu harita oyu (modes.json → matchmaking.maps dizini)
+  C_BUY: 0x08, // Rekabetçi: satın alma (shared/sim/competitive.js → BUY_ITEMS dizini + silahın eklentileri)
   // Sunucu → istemci
   S_WELCOME: 0x81,
   S_SNAPSHOT: 0x82,
@@ -53,6 +54,8 @@ export const NEV = {
   LOADOUT: 9, // seçene: sunucunun kabul ettiği teçhizat (şimdi kuşanıldı mı, sonraki doğuşta mı)
   NADE: 10, // herkese: el bombası/sis atıldı (yörünge istemcide aynı adımla yürür)
   BLAST: 11, // herkese: bomba patladı / sis açıldı (konum sunucudan)
+  ROUND_STATE: 12, // Rekabetçi: raunt durumu (sayı, satın alma/raunt/sonu, saldıran taraf, kazanan, neden)
+  BOMB: 13, // Rekabetçi: bombanın durumu (taşınıyor, yerde, kuruldu, imha, patladı), kim, bölge, konum
 };
 
 // İsabet türü (SHOT olayı)
@@ -62,7 +65,8 @@ export const HIT_KIND = { NONE: 0, WORLD: 1, FLESH: 2 };
 export const SURFACES = ['concrete', 'metal', 'wood', 'sand', 'sandbag', 'dirt', 'snow', 'glass', 'flesh'];
 
 // Maç evresi
-export const PHASE = { WARMUP: 0, LIVE: 1, ENDED: 2, ROUND_END: 3 };
+// BUY: Rekabetçi raunt başı (satın alma, hareket yok); ROUND_END: raunt sonu
+export const PHASE = { WARMUP: 0, LIVE: 1, ENDED: 2, ROUND_END: 3, BUY: 4 };
 
 // Taraflar (maç içi; arayüzde "Mavi / Kırmızı taraf"). DM'de herkes NONE
 export const SIDE = { BLUE: 0, RED: 1, NONE: 255 };

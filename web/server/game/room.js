@@ -193,7 +193,8 @@ export class Room {
         mode: this.kind === 'sandbox' ? 'sandbox' : this.mode,
         map: this.mapId,
         timeLimit: sim.rules.timeLimit || 0,
-        scoreLimit: sim.rules.scoreLimit || 0,
+        // Rekabetçide kazanmak için gereken raunt (test kısaltmasıyla değişebilir: istemci tablodan değil buradan okur)
+        scoreLimit: sim.comp ? sim.comp.R.toWin : sim.rules.scoreLimit || 0,
         primary: p.loadout[0],
         secondary: p.loadout[1],
       })
@@ -226,7 +227,12 @@ export class Room {
         if (!conn.loaded) {
           conn.loaded = true;
           sim.setReady(conn.slot);
+          // Rekabetçi: raunt ve bomba durumu (sonradan katılan da görsün)
+          sim.comp?.sendStateTo(conn.slot);
         }
+        break;
+      case MSG.C_BUY:
+        if (conn.loaded && sim.comp) sim.comp.buy(sim.players[conn.slot], m.item, m.mods);
         break;
       case MSG.C_LOADOUT:
         if (conn.loaded) sim.chooseLoadout(conn.slot, m.primary, m.secondary, m.ready, m.pmods, m.smods);

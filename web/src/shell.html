@@ -1159,6 +1159,58 @@ body.touch .mhVoteCard small { display: none; }
 body.touch .mhPrepBox { padding: 8px 10px; gap: 6px; }
 body.touch .mhPrepHead h2 { font-size: 18px; }
 body.touch .mhPrepCard { width: 96px; }
+/* Rekabetçi (src/net/compHud.js, buyScreen.js, compWorld.js) */
+.mhBanner.win { color: #7fd38a; }
+.mhBanner.lose { color: var(--red); }
+.mhBanner.bomb { color: #ff6a4a; }
+.mhMid b.bomb { color: #ff5a3c; }
+.mhComp { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mhCompRow { display: flex; gap: 6px; align-items: stretch; }
+.mhRole { padding: 4px 10px; font: 700 11px/1.2 var(--f-ui); letter-spacing: .14em; background: rgba(13,16,19,.75); color: var(--sand); border-bottom: 2px solid var(--sand-dim); }
+.mhRole.att { border-bottom-color: var(--red); }
+.mhRole.def { border-bottom-color: var(--blue); }
+.mhMoney { padding: 4px 10px; font: 700 14px/1.1 var(--f-num); background: rgba(13,16,19,.75); color: #7fd38a; }
+.mhBomb { padding: 4px 12px; max-width: 86vw; font: 600 12px/1.25 var(--f-ui); letter-spacing: .04em; background: rgba(13,16,19,.62); color: var(--sand); text-align: center; }
+.mhBomb.planted { color: #ff7a5a; border-left: 3px solid #ff5a3c; }
+.mhBuyChip { pointer-events: auto; padding: 6px 14px; background: rgba(13,16,19,.82); border: 1px solid #7fd38a; color: var(--sand); font: 700 12px/1 var(--f-ui); letter-spacing: .12em; cursor: pointer; }
+.mhAct { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(13,16,19,.7); font: 700 13px/1 var(--f-ui); letter-spacing: .1em; color: var(--sand); }
+.mhAct i { display: block; width: 240px; height: 8px; background: rgba(231,220,196,.15); }
+.mhAct i b { display: block; height: 100%; width: 0; background: var(--amber); }
+.mhSpectate { position: absolute; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 18px; background: rgba(13,16,19,.72); border: 0; border-top: 2px solid var(--blue); color: var(--sand); font: inherit; cursor: pointer; }
+.mhSpectate small { font: 700 10px/1 var(--f-ui); letter-spacing: .16em; color: var(--blue); }
+.mhSpectate b { font: 700 18px/1.1 var(--f-ui); }
+.mhSpectate span { font: 500 11px/1 var(--f-ui); color: var(--sand-dim); }
+.mhBuy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,7,9,.5); pointer-events: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); }
+.mhBuyBox { box-sizing: border-box; width: min(900px, 100%); max-height: calc(100vh - 18px - env(safe-area-inset-top, 0px)); max-height: calc(100dvh - 18px - env(safe-area-inset-top, 0px)); min-height: 0; overflow: hidden; background: rgba(13,16,19,.95); border: 1px solid var(--line); border-top: 3px solid #7fd38a; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+/* Başlık ve Kapat hep görünür; yalnız ürünler kayar (telefonda yatay ekran kısa) */
+.mhBuyBox > .mhPrepHead, .mhBuyBox > .row { flex: 0 0 auto; }
+.mhBuyBox .mhPrepClock b { color: #7fd38a; }
+.mhBuyGrid { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
+.mhBuyGroup h3 { margin: 0 0 4px; font: 700 11px/1.2 var(--f-ui); letter-spacing: .12em; color: var(--amber); }
+.mhBuyRow { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 3px; overscroll-behavior: contain; }
+.mhBuyCard { flex: 0 0 auto; width: 112px; display: flex; flex-direction: column; gap: 3px; padding: 5px; background: rgba(231,220,196,.05); border: 1px solid var(--line); color: var(--sand); font: inherit; cursor: pointer; text-align: left; }
+.mhBuyCard:hover { background: rgba(231,220,196,.1); }
+.mhBuyCard b { font: 700 12px/1.1 var(--f-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhBuyCard .pr { font: 700 13px/1 var(--f-num); color: #7fd38a; }
+.mhBuyCard .st { min-height: 10px; font: 700 9px/1 var(--f-ui); letter-spacing: .1em; color: var(--sand-dim); }
+.mhBuyCard.own { border-color: #7fd38a; background: rgba(127,211,138,.14); }
+.mhBuyCard.poor { opacity: .42; cursor: not-allowed; }
+.mhBuyCard.poor .pr { color: var(--red); }
+.mhBuyNade { display: block; height: 40px; background: center / 34px no-repeat; }
+.mhBuyNade.frag { background-image: radial-gradient(circle at 50% 58%, #56603d 0 13px, transparent 14px), linear-gradient(#8a8f80, #8a8f80); background-size: 100% 100%, 6px 9px; background-position: center, 50% 6px; }
+.mhBuyNade.smoke { background-image: radial-gradient(circle at 50% 58%, #8e9396 0 12px, transparent 13px), linear-gradient(#c9a23a, #c9a23a); background-size: 100% 100%, 6px 9px; background-position: center, 50% 6px; }
+body.touch .mhBuyBox { padding: 8px 10px; gap: 5px; }
+body.touch .mhBuyBox .mhPrepHead h2 { font-size: 18px; }
+body.touch .mhBuyBox .mhPrepHead small { display: none; }
+body.touch .mhBuyBox .mhPrepClock b { font-size: 20px; }
+body.touch .mhBuyCard { width: 92px; }
+body.touch .mhBuyCard .mhPrepImg { display: none; }
+body.comp .mhInfo { display: none; }
+.siteTag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 2px #000; }
+.siteTag b { font: 800 18px/1 var(--f-ui); color: #ffc04a; padding: 2px 7px; border: 2px solid #ffc04a; background: rgba(13,16,19,.45); }
+.siteTag small { font: 600 11px/1 var(--f-num); color: var(--sand); }
+.siteTag.planted b { color: #ff5a3c; border-color: #ff5a3c; }
+.siteTag[hidden] { display: none; }
 .atag.net.foe { color: var(--red); }
 .atag.net.foe i { border-top-color: var(--red); }
 #netGraph { position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); top: 34%; pointer-events: none; z-index: 4; background: rgba(0,0,0,.55); padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
@@ -1374,20 +1426,39 @@ body.touch #squad { display: none; }
         <span class="mhSide red"><small id="mhLabelB">KIRMIZI</small><b id="mhScoreB">0</b></span>
       </button>
       <div class="mhInfo" id="mhInfo"></div>
+      <!-- Rekabetçi (src/net/compHud.js): rol, para, bomba durumu, satın alma çipi; skor çubuğunun altında akar -->
+      <div class="mhComp" id="mhComp" hidden>
+        <div class="mhCompRow"><span class="mhRole" id="mhRole">SALDIRI</span><b class="mhMoney" id="mhMoney">800 $</b></div>
+        <div class="mhBomb" id="mhBomb" hidden></div>
+        <button class="mhBuyChip" id="mhBuyChip" type="button" hidden>SATIN AL · <b id="mhBuyChipTime">0:15</b></button>
+      </div>
     </div>
     <div class="mhBanner" id="mhBanner" hidden></div>
     <div class="mhFeed" id="mhFeed" aria-live="polite"></div>
     <div class="mhDeath" id="mhDeath" hidden><b id="mhKiller"></b><span id="mhRespawn"></span></div>
+    <!-- Rekabetçi (src/net/compHud.js): kurma/imha çubuğu; izleme şeridi; satın alma (rol/para/bomba üst şeritte) -->
+    <div class="mhAct" id="mhAct" hidden><span id="mhActLabel">BOMBA KURULUYOR</span><i><b id="mhActBar"></b></i></div>
+    <button class="mhSpectate" id="mhSpectate" type="button" hidden><small>İZLİYORSUN</small><b id="mhSpectateName"></b><span>Sol tık / dokun: sıradaki</span></button>
+    <div class="mhBuy" id="mhBuy" hidden>
+      <div class="mhBuyBox" role="dialog" aria-labelledby="mhBuyTitle">
+        <div class="mhPrepHead">
+          <div><h2 id="mhBuyTitle">SATIN AL</h2><small>Satın alma süresi bitince raunt başlar · B ile aç/kapat</small></div>
+          <div class="mhPrepClock"><b id="mhBuyMoney">800 $</b><small id="mhBuyTime">0:15</small></div>
+        </div>
+        <div class="mhBuyGrid" id="mhBuyGrid"></div>
+        <div class="row"><button class="btn primary" id="btnBuyClose" type="button">Kapat</button></div>
+      </div>
+    </div>
     <div class="mhBoard" id="mhBoard" hidden><div class="mhRows" id="mhBoardBody"></div><small>Tab basılı tut · telefonda skora dokun</small></div>
     <!-- Maç öncesi teçhizat (src/net/prepScreen.js): ısınma boyunca ana/yan silah seçimi ve HAZIRIM -->
     <button class="mhPrepChip" id="mhPrepChip" type="button" hidden>TEÇHİZAT · <b id="mhPrepChipTime">1:00</b></button>
     <div class="mhPrep" id="mhPrep" hidden>
       <div class="mhPrepBox" role="dialog" aria-labelledby="mhPrepTitle">
         <div class="mhPrepHead">
-          <div><h2 id="mhPrepTitle">TEÇHİZAT</h2><small>Maç başlayınca seçtiğin silahlarla doğarsın</small></div>
+          <div><h2 id="mhPrepTitle">TEÇHİZAT</h2><small id="mhPrepSub">Maç başlayınca seçtiğin silahlarla doğarsın</small></div>
           <div class="mhPrepClock"><b id="mhPrepTime">1:00</b><small id="mhPrepReady"></small></div>
         </div>
-        <div class="mhPrepSlot"><h3>ANA SİLAH <span id="mhPrepPrimaryName"></span></h3><div class="mhPrepGrid" id="mhPrepPrimary"></div></div>
+        <div class="mhPrepSlot" id="mhPrepPrimarySlot"><h3>ANA SİLAH <span id="mhPrepPrimaryName"></span></h3><div class="mhPrepGrid" id="mhPrepPrimary"></div></div>
         <div class="mhPrepSlot"><h3>YAN SİLAH <span id="mhPrepSecondaryName"></span></h3><div class="mhPrepGrid" id="mhPrepSecondary"></div></div>
         <div class="row"><button class="btn" id="btnPrepHide" type="button">Haritaya bak</button><button class="btn primary" id="btnPrepReady" type="button">HAZIRIM</button></div>
       </div>

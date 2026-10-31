@@ -7,7 +7,7 @@ import { saveSettings } from './settings.js';
 
 export const BINDING_GROUPS = [
   ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
-  ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'weapon3', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'scoreboard', 'pause']],
+  ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'weapon3', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'scoreboard', 'buyMenu', 'pause']],
   ['Tim', ['wheel', 'ping', 'chat', 'voice', 'cmdFollow', 'cmdHold', 'cmdSuppress', 'cmdCover', 'cmdHeal', 'cmdHoldFire', 'cmdFreeFire']],
 ];
 
@@ -17,6 +17,7 @@ const SHARED = [
   ['sprint', 'holdBreath'],
   ['useItem1', 'weapon4'],
   ['useItem2', 'weapon5'],
+  ['fireMode', 'buyMenu'],
 ];
 const sharedOk = (a, b) => SHARED.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
 const MOUSE = { 0: 'Mouse0', 2: 'Mouse2', 3: 'Mouse3' };

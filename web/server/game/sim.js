@@ -6,6 +6,7 @@
 //     süresini doğrular, saçılmayı kendi tohumuyla (hash(gizli, maç, oyuncu, komut, atış)) üretir, vuruşu oyuncunun
 //     gördüğü zamana geri sararak (gecikme telafisi, en çok ONLINE.maxRewindMs) kutularla hesaplar.
 //   - Can, yenilenme, ölüm, doğuş (düşmandan uzak, görüş dışı), skor, evreler (geri sayım → maç → sonuç), botlar.
+//   - Rekabetçi mod (kuralda comp): raunt, bomba ve ekonomi comp.js'te (CompRules); buradaki kancalar onu çağırır.
 // Zaman yalnız tick sayacından; rastgelelik tohumlu (Math.random yok).
 import { TICK_DT, TICK_RATE } from '../../shared/constants.js';
 import { createPlayerState, resetPlayerState, stepPlayer, applyCmdMods, createInputCmd, BTN } from '../../shared/sim/movement.js';
@@ -22,6 +23,7 @@ import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SL
 import { WEAPONS, WEAPON_ORDER, MOVEMENT as M, ONLINE } from '../../src/config.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
 import { BotBrain } from './bot.js';
+import { CompRules } from './comp.js';
 
 export const MAX_SLOTS = 16;
 const HIST = ONLINE.historyTicks;
@@ -99,8 +101,11 @@ export class MatchSim {
     this.result = null; // { winner, reason }
     this.finished = false;
     this.botSeq = (this.rng.next() * BOTS.names.length) | 0;
+    this.inTick = false;
     const R = this.rules;
-    if (R.warmup > 0) this.setPhase(PHASE.WARMUP, SEC(R.warmup));
+    this.comp = R.comp ? new CompRules(this) : null;
+    // Rekabetçide ısınma hep var (bitince ilk raunt başlar: CompRules.onPhaseEnd)
+    if (R.warmup > 0 || this.comp) this.setPhase(PHASE.WARMUP, Math.max(1, SEC(R.warmup || 0)));
     else this.setPhase(PHASE.LIVE, R.timeLimit ? SEC(R.timeLimit) : Infinity);
     this._wh = {};
     this._hh = {};
@@ -171,6 +176,7 @@ export class MatchSim {
       hist: poseStore(),
       brain: null,
     };
+    this.comp?.initPlayer(p);
     p.arms = this.makeArms(p);
     if (p.bot) {
       if (!this.nav) this.nav = new NavGrid(this.world, 0.35, () => this.rng.next());
@@ -181,12 +187,37 @@ export class MatchSim {
   }
 
   makeArms(p) {
+    // Rekabetçi: satın alınan ana silah (varsa) ve tabanca
+    if (this.comp) {
+      const mods = this.comp.armsMods(p);
+      return { weapons: this.comp.armsIds(p).map((id, i) => createArm(id, mods[i])), slot: 0, readyT: 0 };
+    }
     return { weapons: p.loadout.map((id, i) => createArm(id, p.mods?.[i])), slot: 0, readyT: 0 };
+  }
+
+  // Rekabetçi: eldeki silahları ve bombaları yeniden kur, seçene bildir (istemci aynı sırayla kurar). slot: elde
+  // olacak yuva (-1 değişmez)
+  equipComp(p, slot = -1) {
+    const keep = p.arms ? p.arms.slot : 0;
+    p.arms = this.makeArms(p);
+    p.arms.slot = slot >= 0 ? slot : Math.min(keep, p.arms.weapons.length - 1);
+    p.nadeCount[NADE_KIND.FRAG] = p.compNades[0];
+    p.nadeCount[NADE_KIND.SMOKE] = p.compNades[1];
+    this.emitLoadout(p, true);
+  }
+
+  emitLoadout(p, now) {
+    const ids = this.comp ? this.comp.armsIds(p) : p.loadout;
+    const primary = this.comp ? (p.compPrimary ? weaponIndex(p.compPrimary) : WEAPON_NONE) : weaponIndex(ids[0]);
+    const e = { k: NEV.LOADOUT, primary, secondary: weaponIndex(p.loadout[1]), now, frags: p.nadeCount[0], smokes: p.nadeCount[1] };
+    if (this.inTick) this.emit(e, p.slot);
+    else this.lateEvents.push({ ...e, to: p.slot, except: -1 });
   }
 
   removePlayer(slot) {
     const p = this.players[slot];
     if (!p) return;
+    this.comp?.onRemove(p);
     // İstemciler ayrılanı oyuncu listesinden (S_ROSTER) öğrenir
     this.players[slot] = null;
     // Hazır olmayan tek kişi ayrıldıysa kalanlar beklemesin
@@ -214,7 +245,7 @@ export class MatchSim {
     p.mods = mods;
     const now = changed && p.alive && this.phase === PHASE.WARMUP;
     if (now) p.arms = this.makeArms(p);
-    this.lateEvents.push({ k: NEV.LOADOUT, primary: weaponIndex(a), secondary: weaponIndex(b), now, to: slot, except: -1 });
+    this.emitLoadout(p, now);
     if (this.phase === PHASE.WARMUP) {
       p.prepReady = !!ready;
       this.checkAllReady();
@@ -289,6 +320,7 @@ export class MatchSim {
   // --- Tick ---
   step() {
     this.tick++;
+    this.inTick = true;
     this.events.length = 0;
     if (this.lateEvents.length) {
       for (const e of this.lateEvents) this.events.push(e);
@@ -301,12 +333,15 @@ export class MatchSim {
     for (const p of this.players) if (p) this.processQueue(p);
     for (const p of this.players) if (p) this.upkeep(p);
     this.updateNades();
+    this.comp?.update();
     for (const p of this.players) if (p) this.record(p);
+    this.inTick = false;
   }
 
   updatePhase() {
     const R = this.rules;
     if (this.tick < this.phaseEnd) return;
+    if (this.comp) return this.comp.onPhaseEnd();
     if (this.phase === PHASE.WARMUP) {
       this.setPhase(PHASE.LIVE, R.timeLimit ? SEC(R.timeLimit) : Infinity);
       this.scores[0] = this.scores[1] = 0;
@@ -383,6 +418,8 @@ export class MatchSim {
     for (let i = 0; i < cmd.shots.length; i++) this.fire(p, cmd, i);
     if (cmd.buttons & BTN.MELEE && !frozen) this.melee(p, cmd);
     if (cmd.buttons & (BTN.THROW_FRAG | BTN.THROW_SMOKE) && !frozen) this.throwNade(p, cmd, cmd.buttons & BTN.THROW_SMOKE ? NADE_KIND.SMOKE : NADE_KIND.FRAG);
+    // Rekabetçi: E basılıyken bomba kurma / imha (hareketten önceki durumla; istemci o sırada hareketi durdurur)
+    if (this.comp) this.comp.onCmd(p, cmd, !frozen && (cmd.buttons & BTN.USE) !== 0);
     applyCmdMods(p.state.mods, cmd.buttons, a.weapons[cmd.slot]?.d || w.d);
     stepPlayer(p.state, cmd, this.world, TICK_DT);
   }
@@ -682,13 +719,15 @@ export class MatchSim {
     victim.alive = false;
     victim.hp = 0;
     victim.deaths++;
-    victim.respawnAt = this.tick + SEC(this.rules.respawn);
+    victim.respawnAt = this.comp ? Infinity : this.tick + SEC(this.rules.respawn);
     if (killer && killer !== victim) {
       killer.kills++;
       killer.score += 100 + (head ? 25 : 0);
-      if (this.sided) this.scores[killer.side]++;
+      // Rekabetçide skor raunttur (comp.endRound)
+      if (this.sided && !this.comp) this.scores[killer.side]++;
     }
     this.emit({ k: NEV.KILL, killer: killer ? killer.slot : SLOT_NONE, victim: victim.slot, weapon, flags: head ? 1 : 0 });
+    if (this.comp) return this.comp.onKill(victim, killer, weapon);
     const lim = this.rules.scoreLimit;
     if (lim && this.phase === PHASE.LIVE) {
       if (this.sided ? Math.max(...this.scores) >= lim : killer && killer.kills >= lim) this.endMatch(1);
@@ -697,10 +736,16 @@ export class MatchSim {
 
   upkeep(p) {
     if (!p.alive) {
+      // Rekabetçi: raunt içinde doğuş yok (satın almada gelen hemen doğar)
+      if (this.comp) {
+        if (p.ready && this.comp.canSpawn() && p.respawnAt !== Infinity) this.spawn(p);
+        return;
+      }
       if (p.ready && this.tick >= p.respawnAt && this.phase !== PHASE.ENDED) this.spawn(p);
       return;
     }
-    if ((this.tick - p.lastDamageTick) * TICK_DT > ONLINE.regenDelay && p.hp < ONLINE.hp) p.hp = Math.min(ONLINE.hp, p.hp + ONLINE.regenRate * TICK_DT);
+    // Rekabetçide can yenilenmez
+    if (!this.comp && (this.tick - p.lastDamageTick) * TICK_DT > ONLINE.regenDelay && p.hp < ONLINE.hp) p.hp = Math.min(ONLINE.hp, p.hp + ONLINE.regenRate * TICK_DT);
     // Harita dışına düşen (olmaması gerekir) yeniden doğar
     if (p.state.pos.y < -20) this.kill(p, null, WEAPON_NONE, false);
   }
@@ -716,13 +761,20 @@ export class MatchSim {
     st.pitch = 0;
     p.alive = true;
     p.hp = ONLINE.hp;
-    p.protectUntil = this.tick + SEC(ONLINE.protectSec);
+    // Rekabetçide doğuş koruması yok (raunt başında herkes satın alma evresinde zaten durur)
+    p.protectUntil = this.comp ? this.tick : this.tick + SEC(ONLINE.protectSec);
     p.lastDamageTick = -1e9;
-    p.arms = this.makeArms(p);
     p.meleeReadyT = 0;
-    p.nadeCount[NADE_KIND.FRAG] = ONLINE.nades.fragCount;
-    p.nadeCount[NADE_KIND.SMOKE] = ONLINE.nades.smokeCount;
     p.throwReadyT = 0;
+    if (this.comp) {
+      // Eldeki silah ve bombalar raunttan rauntta kalır; istemci doğuştan önce öğrenir (LOADOUT, sonra SPAWN)
+      p.respawnAt = 0;
+      this.equipComp(p, 0);
+    } else {
+      p.arms = this.makeArms(p);
+      p.nadeCount[NADE_KIND.FRAG] = ONLINE.nades.fragCount;
+      p.nadeCount[NADE_KIND.SMOKE] = ONLINE.nades.smokeCount;
+    }
     // Geçmiş yeni konumdan başlar: ölümden önceki pozlara ateş edilemez
     for (const h of p.hist) h.alive = false;
     this.emit({ k: NEV.SPAWN, slot: p.slot, pos: { x, y: 0, z }, yaw });
@@ -732,7 +784,7 @@ export class MatchSim {
   // Doğuş: kendi tarafının (ya da herkesin) noktalarından düşmana en uzak ve görüş dışında olanlardan biri
   pickSpawn(p) {
     const S = this.arena.spawns;
-    const list = this.sided ? (p.side === 0 ? S.blue : S.red) : S.ffa;
+    const list = this.comp ? this.comp.spawnList(p) : this.sided ? (p.side === 0 ? S.blue : S.red) : S.ffa;
     const foes = this.players.filter((q) => q && q !== p && q.alive && !this.friendly(q, p));
     const mates = this.players.filter((q) => q && q !== p && q.alive);
     const eyeA = { x: 0, y: 1.6, z: 0 };
@@ -795,7 +847,16 @@ export class MatchSim {
       phaseLeft: this.phaseLeft,
       scoreA,
       scoreB,
-      me: me ? { alive: me.alive, protect: this.tick < me.protectUntil, hp: me.hp, respawnIn: me.alive ? 0 : Math.max(0, (me.respawnAt - this.tick) * TICK_DT), state: me.alive ? me.state : null } : { alive: false, hp: 0, respawnIn: 0, state: null },
+      me: me
+        ? {
+            alive: me.alive,
+            protect: this.tick < me.protectUntil,
+            hp: me.hp,
+            respawnIn: me.alive || !Number.isFinite(me.respawnAt) ? 0 : Math.max(0, (me.respawnAt - this.tick) * TICK_DT),
+            state: me.alive ? me.state : null,
+            ...(this.comp ? this.comp.meView(me) : null),
+          }
+        : { alive: false, hp: 0, respawnIn: 0, state: null },
       players,
       events: [],
     };

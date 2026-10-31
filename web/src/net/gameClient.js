@@ -9,16 +9,21 @@
 //     sıçrama kısa sürede yumuşatılır (player.netCorr).
 //   - Zaman genişletme: sunucunun komut tamponu azalırsa tick biraz hızlanır, birikirse yavaşlar (tickScale).
 //   - Atış/şarjör/yakın dövüş istemcide görünür, sunucuya komutla bildirilir; isabet, hasar ve ölüm sunucudan.
+//   - Rekabetçi (this.comp): raunt ve bomba durumu olaylardan (NEV.ROUND_STATE, NEV.BOMB), para ve kurma/imha
+//     ilerlemesi anlık görüntüden; satın alma C_BUY. E (etkileşim) basılıyken kurma/imha koşulu tutuyorsa komutun
+//     hareketi sıfırlanır: tahmin, sunucunun saydığı "yerinde durma"yla aynı komutu işler.
 import { PROTOCOL_VERSION, TICK_DT, TICK_RATE } from '../../shared/constants.js';
-import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE, WEAPON_SUPPRESSED } from '../../shared/net/protocol.js';
+import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE, WEAPON_SUPPRESSED, WEAPON_NONE } from '../../shared/net/protocol.js';
 import { modsToIndices } from '../../shared/sim/mods.js';
-import { Writer, encodeHello, encodeLoadout, encodeVote, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
+import { BUY_ITEMS, BOMB, ACT, ROUND_STATE, actionFor } from '../../shared/sim/competitive.js';
+import { Writer, encodeHello, encodeLoadout, encodeVote, encodeBuy, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
 import { lerp } from '../../shared/sim/math.js';
 import { ONLINE, WEAPONS, WEAPON_ORDER, MOVEMENT } from '../config.js';
 import { EV } from '../events.js';
 import NETSIM from '../data/netsim.json' with { type: 'json' };
+import ARENAS from '../data/arenas.json' with { type: 'json' };
 import { WsTransport } from './wsTransport.js';
 import { RemotePlayers } from './remotePlayers.js';
 
@@ -91,7 +96,9 @@ export class GameClient {
     this.clock = new ClockSync(() => performance.now());
     this.remotes = new RemotePlayers(game);
     this.welcome = null;
-    this.loadout = null; // [ana, yan]: sunucunun kuşandırdığı teçhizat (karşılama, sonra NEV.LOADOUT)
+    this.loadout = null; // [ana, yan]: sunucunun kuşandırdığı teçhizat (karşılama, sonra NEV.LOADOUT); Rekabetçide ana silah null olabilir
+    this.nades = null; // { frag, smoke }: doğuştaki bombalar (NEV.LOADOUT); yoksa ONLINE.nades
+    this.comp = null; // Rekabetçi: { round, state, attackSide, winner, reason, bomb, money, act, actProgress }
     this.vote = null; // maç sonu: { left, at, counts, winner, mine }
     this.next = null; // oylamanın sonucu: { room, map, mode }
     this.slot = -1;
@@ -241,6 +248,23 @@ export class GameClient {
         this.welcome = m;
         this.slot = m.slot;
         this.loadout = [m.primary, m.secondary];
+        if (m.mode === 'competitive') {
+          // Ana silah raunt başında satın alınır: sunucunun LOADOUT olayına dek yalnız tabanca
+          this.loadout = [null, m.secondary];
+          this.nades = { frag: 0, smoke: 0 };
+          this.comp = {
+            round: 0,
+            state: ROUND_STATE.BUY,
+            attackSide: SIDE.RED,
+            winner: SIDE.NONE,
+            reason: 0,
+            bomb: { state: BOMB.NONE, slot: SLOT_NONE, site: -1, x: 0, y: 0, z: 0 },
+            money: 0,
+            act: ACT.NONE,
+            actProgress: 0,
+            sites: ARENAS[m.map]?.sites || [],
+          };
+        }
         // Saat kaba başlangıç: sunucu zamanı (gidiş-dönüş ölçülünce düzelir)
         this.clock.offset = m.serverTime - now;
         this.onWelcome?.(m);
@@ -315,6 +339,11 @@ export class GameClient {
     this.me.alive = me.alive;
     this.me.protect = me.protect;
     this.me.respawnIn = me.respawnIn;
+    if (this.comp) {
+      this.comp.money = me.money;
+      this.comp.act = me.act;
+      this.comp.actProgress = me.actProgress;
+    }
     if (me.hp !== this.me.hp) {
       this.me.hp = me.hp;
       P.health.hp = me.hp;
@@ -391,13 +420,44 @@ export class GameClient {
         g.grenades.netBlast(e);
         break;
       case NEV.LOADOUT: {
-        // Sunucunun kabul ettiği teçhizat: ısınmada hemen elde, maç sürerken sonraki doğuşta (onLocalSpawn)
-        const p = WEAPON_ORDER[e.primary];
+        // Sunucunun kabul ettiği teçhizat: ısınmada hemen elde, maç sürerken sonraki doğuşta (onLocalSpawn).
+        // Rekabetçide ana silah yoksa (satın alınmadı) WEAPON_NONE; bombalar her LOADOUT'ta sunucunun saydığı
+        const p = e.primary === WEAPON_NONE ? null : WEAPON_ORDER[e.primary];
         const s = WEAPON_ORDER[e.secondary];
-        if (!WEAPONS[p] || !WEAPONS[s]) break;
+        if ((p && !WEAPONS[p]) || !WEAPONS[s]) break;
         this.loadout = [p, s];
-        if (e.now && g.player.alive) g.weapons.reset(g.onlineLoadout());
+        // Bomba adetleri yalnız Rekabetçide taşınır (satın alınır, raunttan rauntta kalır); diğer modlarda her doğuşta
+        // ONLINE.nades (sonraki doğuş için gelen LOADOUT o anki, belki atılmış, adedi söyler)
+        if (this.comp) this.nades = { frag: e.frags, smoke: e.smokes };
+        if (e.now && g.player.alive) {
+          g.weapons.reset(g.onlineLoadout());
+          g.kit.resetOnline(this.nades?.smoke);
+        }
         g.events.emit(EV.NET_LOADOUT, { primary: p, secondary: s, now: e.now });
+        break;
+      }
+      case NEV.ROUND_STATE: {
+        const C = this.comp;
+        if (!C) break;
+        C.round = e.round;
+        C.state = e.state;
+        C.attackSide = e.attackSide;
+        C.winner = e.winner;
+        C.reason = e.reason;
+        g.events.emit(EV.NET_ROUND_STATE, C);
+        break;
+      }
+      case NEV.BOMB: {
+        const C = this.comp;
+        if (!C) break;
+        const B = C.bomb;
+        B.state = e.state;
+        B.slot = e.slot;
+        B.site = e.site === 255 ? -1 : e.site;
+        B.x = e.pos.x;
+        B.y = e.pos.y;
+        B.z = e.pos.z;
+        g.events.emit(EV.NET_BOMB, { ...B, pos: e.pos });
         break;
       }
       default:
@@ -415,6 +475,25 @@ export class GameClient {
   get voteLeft() {
     if (!this.vote) return 0;
     return Math.max(0, this.vote.left - (performance.now() - this.vote.at) / 1000);
+  }
+
+  // Rekabetçi satın alma (BUY_ITEMS dizini): silahsa kendi eklentileriyle; sunucu doğrular, kabul edince NEV.LOADOUT
+  buy(index) {
+    const it = BUY_ITEMS[index];
+    if (!it || this.state !== 'playing') return;
+    const mods = it.kind === 'weapon' ? modsToIndices(this.game.gunsmith.modsFor(it.id)) : [];
+    this.send(encodeBuy(this.w, { item: index, mods }));
+  }
+
+  // Rekabetçi: şu an E basılıysa ne yapılır (kurma / imha / hiçbiri); sunucu aynı koşulla sayar
+  compAction() {
+    const C = this.comp;
+    if (!C) return ACT.NONE;
+    const st = this.game.player.state;
+    return actionFor(
+      { slot: this.slot, side: this.mySide, alive: this.game.player.alive, x: st.pos.x, z: st.pos.z, grounded: st.grounded },
+      { live: this.phase === PHASE.LIVE && C.state === ROUND_STATE.LIVE, attackSide: C.attackSide, bomb: { state: C.bomb.state, carrier: C.bomb.slot, x: C.bomb.x, z: C.bomb.z }, sites: C.sites }
+    );
   }
 
   // Maç öncesi teçhizat paneli (prepScreen.js): seçim ve "hazırım" sunucuya; silah sunucu onaylayınca değişir
@@ -468,7 +547,7 @@ export class GameClient {
     P.health.hp = ONLINE.hp;
     g.hud.setHealth(ONLINE.hp, P.health.max);
     g.weapons.reset(g.onlineLoadout());
-    g.kit.resetOnline();
+    g.kit.resetOnline(this.nades?.smoke);
     this.me.alive = true;
     this.me.hp = ONLINE.hp;
     this.killedBy = null;
@@ -492,6 +571,10 @@ export class GameClient {
     if (this.frozen || !this.game.player.alive) {
       cmd.moveX = cmd.moveY = 0;
       cmd.buttons &= BTN.CROUCH | BTN.ADS | BTN.NO_ADS | BTN.NO_SPRINT;
+    } else if (this.comp && cmd.buttons & BTN.USE && this.compAction() !== ACT.NONE) {
+      // Bomba kurarken / imha ederken yerinde (sunucu hızlananın ilerlemesini başa döndürür)
+      cmd.moveX = cmd.moveY = 0;
+      cmd.buttons &= ~(BTN.JUMP | BTN.SPRINT);
     }
     cmd.slot = Math.max(0, W.slots.indexOf(W.currentId));
     cmd.fireMode = w ? w.modeIdx : 0;

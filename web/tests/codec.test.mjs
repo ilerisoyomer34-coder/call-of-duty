@@ -87,7 +87,7 @@ test('anlık görüntü: yerel kayıt kayıpsız, uzak oyuncu 1/64 m', () => {
     phaseLeft: 312.4,
     scoreA: 17,
     scoreB: 23,
-    me: { alive: true, protect: true, hp: 73.2, respawnIn: 0, state: st },
+    me: { alive: true, protect: true, hp: 73.2, respawnIn: 0, money: 4350, act: 2, actProgress: 0.5, state: st },
     players: [{ slot: 4, flags: 1 | 4, pos: { x: -20.123, y: 1.5, z: 33.33 }, vel: { x: 3.3, y: 0, z: -1.25 }, yaw: 2.5, pitch: -0.3, crouchT: 0.5, hp: 50, weapon: 9 }],
     events: [
       { k: NEV.SHOT, slot: 4, weapon: 9, end: { x: 1, y: 2, z: 3 }, hit: 2, surface: 8 },
@@ -97,7 +97,9 @@ test('anlık görüntü: yerel kayıt kayıpsız, uzak oyuncu 1/64 m', () => {
       { k: NEV.SPAWN, slot: 4, pos: { x: 3, y: 0, z: -31 }, yaw: Math.PI },
       { k: NEV.RELOAD, slot: 2 },
       { k: NEV.ROUND, code: 2, value: 5 },
-      { k: NEV.LOADOUT, primary: 3, secondary: 17, now: true },
+      { k: NEV.LOADOUT, primary: 3, secondary: 17, now: true, frags: 1, smokes: 2 },
+      { k: NEV.ROUND_STATE, round: 7, state: 2, attackSide: 0, winner: 1, reason: 4 },
+      { k: NEV.BOMB, state: 3, slot: 6, site: 1, pos: { x: 20.5, y: 0, z: 13.5 } },
     ],
   };
   const d = decodeServer(encodeSnapshot(w, s));
@@ -116,8 +118,14 @@ test('anlık görüntü: yerel kayıt kayıpsız, uzak oyuncu 1/64 m', () => {
   assert.ok(Math.abs(p.pos.x - -20.123) <= 1 / 128);
   assert.ok(Math.abs(p.vel.z - -1.25) <= 1 / 256);
   assert.equal(p.weapon, 9);
-  assert.equal(d.events.length, 8);
-  assert.deepEqual(d.events[7], { k: NEV.LOADOUT, primary: 3, secondary: 17, now: true });
+  assert.equal(d.events.length, 10);
+  assert.deepEqual(d.events[7], { k: NEV.LOADOUT, primary: 3, secondary: 17, now: true, frags: 1, smokes: 2 });
+  assert.deepEqual(d.events[8], { k: NEV.ROUND_STATE, round: 7, state: 2, attackSide: 0, winner: 1, reason: 4 });
+  assert.deepEqual(d.events[9], { k: NEV.BOMB, state: 3, slot: 6, site: 1, pos: { x: 20.5, y: 0, z: 13.5 } });
+  // Rekabetçi yerel alanları: para, eylem ve ilerlemesi (1/255)
+  assert.equal(d.me.money, 4350);
+  assert.equal(d.me.act, 2);
+  assert.ok(Math.abs(d.me.actProgress - 0.5) <= 1 / 255);
   assert.deepEqual(d.events[4].pos, { x: 3, y: 0, z: -31 });
   assert.ok(Math.abs(d.events[4].yaw - Math.PI) < 1e-4);
   assert.equal(d.events[1].dmg, 72);
