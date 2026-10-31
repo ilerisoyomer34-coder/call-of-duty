@@ -1,0 +1,22 @@
+{
+  "_": "Çevrim içi oyun modları (çok oyunculu §8.1). available: oynanabilir mi. Sıra: takım panelindeki ve hızlı maçtaki sıra; ilk mod yeni takımın varsayılanı. (Kodda \"party\": arayüzde \"Takım\"; maçtaki iki taraf \"Mavi / Kırmızı taraf\".) rules: sides 2 = iki taraf, 0 = herkes kendine; perSide: taraf başına oyuncu [mavi, kırmızı]; max: herkes kendine modunda oyuncu sayısı; humanSides: insanların konabileceği taraflar; bots: fill = eksik yer yapay zekâyla dolar; scoreLimit: öldürme sınırı (0 = yok); timeLimit sn (0 = yok); respawn sn; warmup sn (başlangıç: teçhizat paneli ve geri sayım, hasar yok; kullanıcı isteği 1 dk, herkes hazırsa ONLINE.readyStartSec); botSkill 0–1 (kullanıcı isteğiyle biraz kolaylaştırıldı: TDM/ÖM 0,6 → 0,45, Co-op 0,45 → 0,35).",
+  "modes": [
+    { "id": "tdm", "name": "Takım Ölüm Maçı", "short": "TÖM", "desc": "Mavi ve Kırmızı taraf; 40 öldürme ya da 8 dakika. Takımın aynı tarafta, eksik oyuncu yerine yapay zekâ", "players": "4v4", "available": true,
+      "rules": { "sides": 2, "perSide": [4, 4], "humanSides": [0, 1], "bots": "fill", "scoreLimit": 40, "timeLimit": 480, "respawn": 4, "warmup": 60, "botSkill": 0.45 } },
+    { "id": "dm", "name": "Ölüm Maçı", "short": "ÖM", "desc": "Herkes herkese karşı; 20 öldürme ya da 6 dakika, eksik oyuncu yerine yapay zekâ", "players": "6", "available": true,
+      "rules": { "sides": 0, "max": 6, "bots": "fill", "scoreLimit": 20, "timeLimit": 360, "respawn": 3, "warmup": 60, "botSkill": 0.45 } },
+    { "id": "coop", "name": "Co-op: Yapay Zekâya Karşı", "short": "CO-OP", "desc": "Takımın Mavi tarafta, karşıda 6 yapay zekâ askeri; 50 öldürme ya da 8 dakika", "players": "1–4", "available": true,
+      "rules": { "sides": 2, "perSide": [4, 6], "humanSides": [0], "bots": "fill", "scoreLimit": 50, "timeLimit": 480, "respawn": 4, "warmup": 60, "botSkill": 0.35 } },
+    { "id": "competitive", "name": "Rekabetçi", "short": "REK", "desc": "Bomba kur / imha et, raunt ekonomisi", "players": "5v5", "available": false }
+  ],
+  "sandbox": {
+    "name": "Deneme odası",
+    "rules": { "sides": 0, "max": 8, "bots": "none", "scoreLimit": 0, "timeLimit": 0, "respawn": 2, "warmup": 0, "botSkill": 0.4 }
+  },
+  "matchmaking": {
+    "_": "searchSec: tek başına kuyrukta bu kadar beklenince maç yapay zekâyla dolarak başlar; joinCutoffSec: süresinin bu kadarından azı kalan maça katılınmaz; maps: yeni maçlarda sırayla, maç sonunda hepsi oylanır (dizin C_VOTE/S_VOTE'ta taşınır; sıra değişirse istemci ve sunucu birlikte güncellenir). Görev haritalarının arena noktaları tools/make-arenas.mjs'ten",
+    "searchSec": 8,
+    "joinCutoffSec": 60,
+    "maps": ["depo", "kizilkum", "harbor", "ruins", "pass", "refinery", "forest", "factory", "coast", "core", "municipality"]
+  }
+}

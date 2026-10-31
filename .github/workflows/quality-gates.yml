@@ -1,0 +1,50 @@
+# Kalite kapısı (v1.2 kalite paketinden): her push'ta birim testleri, derleme ve mağaza yayını ön denetimi.
+# Yalnız denetler; yayın yapmaz (Pages yayını pages.yml'de, mağaza yüklemesi kullanıcıda). Duman testleri
+# (başsız Chromium, 30 dk'yı aşar) burada koşmaz: yerelde `npm test` ya da dört parça halinde.
+name: Kalite kapısı
+
+on:
+  push:
+    branches: [main, claude/war-game-design-yzxvv6]
+  pull_request:
+    branches: [main, claude/war-game-design-yzxvv6]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-and-release-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # Depo herkese açık: anahtar, belirteç ya da imza dosyası gönderildiyse burada durur (Docs/SECURITY_TR.md)
+      - name: Gizli bilgi taraması
+        working-directory: web
+        run: node tools/secret-scan.mjs
+      - name: Bağımlılıklar (kilit dosyasındaki sürümler)
+        working-directory: web
+        run: npm ci
+      # Oyuncuya ve sunucuya giden paketlerde yüksek/kritik bilinen açık varsa durur (geliştirme araçları hariç)
+      - name: Bağımlılık açıkları (oyun ve sunucu)
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
+      - name: Birim testleri
+        working-directory: web
+        run: npm run test:unit
+      - name: Derleme (tarayıcı, PWA, mağaza)
+        working-directory: web
+        run: npm run build
+      - name: Mağaza yayını ön denetimi
+        working-directory: web
+        run: node tools/release-audit.mjs
