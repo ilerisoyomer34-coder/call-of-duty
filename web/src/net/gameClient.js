@@ -348,7 +348,7 @@ export class GameClient {
         const victim = this.rosterOf(e.victim);
         g.events.emit(EV.NET_KILL, { killer, victim, weapon: e.weapon, head: !!(e.flags & 1), mine: e.killer === this.slot, me: e.victim === this.slot });
         if (e.victim === this.slot) this.killedBy = killer;
-        else this.remotes.onKilled(e.victim, e.killer === this.slot ? g.player.pos : this.remotes.posOf(e.killer));
+        else this.remotes.onKilled(e.victim, e.killer === this.slot ? g.player.pos : this.remotes.posOf(e.killer), { weapon: e.weapon, head: !!(e.flags & 1) });
         break;
       }
       case NEV.SPAWN:

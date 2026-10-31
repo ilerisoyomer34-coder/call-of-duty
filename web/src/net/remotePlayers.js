@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { createSoldier } from '../soldier.js';
 import { ALLY, ENEMY_TYPES, ONLINE, WEAPONS, WEAPON_ORDER } from '../config.js';
-import { PF, RF, SIDE } from '../../shared/net/protocol.js';
+import { PF, RF, SIDE, WEAPON_MELEE } from '../../shared/net/protocol.js';
 import { TICK_RATE } from '../../shared/constants.js';
 import { clamp } from '../util.js';
 
@@ -34,6 +34,9 @@ class Remote {
     this.friendly = null;
     this.model = null;
     this.death = { deathT: 0, fallDir: 1, fallSide: 0 };
+    // Ölüm olayı geldi ama çizilen görüntü (ONLINE.interpMs geriden) henüz ölümden önceki "canlı" kareleri gösteriyor:
+    // bu kareler doğuş sanılmasın (sanılınca ragdoll iptal edilip asker ayağa kaldırılıyordu)
+    this.deathPending = false;
     this.reloadT = -1;
     this.info = null;
     this.hasPose = false;
@@ -172,6 +175,7 @@ export class RemotePlayers {
     if (!r) return;
     r.clear();
     r.alive = true;
+    r.deathPending = false;
     r.pos.set(pos.x, pos.y, pos.z);
     r.yaw = yaw;
     if (r.model) {
@@ -180,10 +184,12 @@ export class RemotePlayers {
     }
   }
 
-  onKilled(slot, fromPos) {
+  // info: { weapon (protokol dizini), head } — fizik itmesi silahın hasarına ve vurulan bölgeye göre (tek oyunculuyla aynı)
+  onKilled(slot, fromPos, info = {}) {
     const r = this.map.get(slot);
     if (!r || !r.model) return;
     r.alive = false;
+    r.deathPending = true;
     const D = r.death;
     D.deathT = 0;
     // Atıştan uzağa devrilir
@@ -197,8 +203,17 @@ export class RemotePlayers {
     } else D.fallDir = 1;
     D.fallSide = (Math.random() - 0.5) * 0.6;
     r.model.die({ dir }, this.game);
-    // Fizik motoru varsa ragdoll (yalnız görüntü: maç sunucuda sürer, ceset kimsenin oyununu etkilemez)
-    this.game.physics?.ragdoll(r.model, { vel: r.vel, dir, zone: 'torso' });
+    // Fizik motoru varsa ragdoll (yalnız görüntü: maç sunucuda sürer, ceset kimsenin oyununu etkilemez): koşarken
+    // ölen ileri savrulur, mermi vurduğu yeri iter
+    const melee = info.weapon === WEAPON_MELEE;
+    const w = WEAPONS[WEAPON_ORDER[info.weapon]];
+    this.game.physics?.ragdoll(r.model, {
+      vel: r.vel,
+      dir,
+      zone: info.head ? 'head' : 'torso',
+      damage: w ? w.damage * (w.pellets || 1) : undefined,
+      melee,
+    });
   }
 
   // Ateş eden uzak oyuncu: namlu konumu (iz başlangıcı), görsel tepme
@@ -225,15 +240,19 @@ export class RemotePlayers {
         r.model.root.visible = false;
         continue;
       }
-      if (aliveNow && !r.alive) {
+      // Çizilen görüntü ölüm anına yetişti: bundan sonraki "canlı" kare gerçekten doğuştur
+      if (r.deathPending && !aliveNow) r.deathPending = false;
+      if (aliveNow && !r.alive && !r.deathPending) {
         // Doğuşu kaçırdık (bağlanınca): modeli o konuma kur
         r.alive = true;
         this.game.physics?.release(r.model);
         r.model.reset(r.pos, r.yaw);
       }
       if (!r.alive) {
+        // Ceset yeniden doğuşa dek yerde kalır (ragdoll; motor yoksa canlandırılmış düşüş)
         r.death.deathT += dt;
-        if (r.death.deathT < 3) r.model.updateDeath(dt, r.death, r.pos, r.yaw);
+        r.model.root.visible = true;
+        if (r.death.deathT < ONLINE.corpseSec) r.model.updateDeath(dt, r.death, r.pos, r.yaw);
         else r.model.hide();
         continue;
       }

@@ -78,6 +78,7 @@ export const ONLINE = {
   regenDelay: 5, // sn: hasar almadan sonra can dolmaya başlar
   regenRate: 25, // can / sn
   protectSec: 2, // doğuş koruması (ateş edince biter)
+  corpseSec: 10, // ölen oyuncunun cesedi (ragdoll) en çok bu kadar yerde kalır; yeniden doğunca hemen kalkar
   maxRewindMs: 200, // gecikme telafisinin üst sınırı (daha eski görüntüye ateş edilemez)
   historyTicks: 40, // vuruş kutusu geçmişi (tick)
   creditMax: 8, // komut bütçesi: gecikip biriken komutlar en çok bu kadar tick öne geçebilir

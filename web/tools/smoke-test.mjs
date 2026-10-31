@@ -4112,11 +4112,74 @@ if (run('netplay')) {
     return { bots: n.roster.filter((p) => p.flags & 1).length, sides: n.roster.filter((p) => !(p.flags & 1)).map((p) => p.side), party: n.roster.filter((p) => !(p.flags & 1)).map((p) => p.party), mySide: me.side };
   });
   check(ros.bots === 6 && ros.sides[0] === ros.sides[1] && ros.party[0] && ros.party[0] === ros.party[1], `Hızlı maç 4v4: 2 insan aynı tarafta (takım), 6 yapay zekâ`);
+  // Ölen oyuncu fizikle yere yığılır ve doğana dek yerde kalır: ölüm olayı anında gelir ama rakipler ONLINE.interpMs
+  // geriden çizilir; ölümden önceki "canlı" kareler doğuş sanılıp ragdoll iptal ediliyor, asker ayağa kalkıyordu
+  await A.evaluate(() => {
+    const R = window.__game.net.remotes;
+    window.__deaths = [];
+    const kill = R.onKilled.bind(R);
+    const spawn = R.onSpawn.bind(R);
+    const upd = R.update.bind(R);
+    R.onKilled = (slot, from, info) => {
+      kill(slot, from, info);
+      window.__deaths.push({ slot, frames: 0, rag: 0, stood: false, respawned: false });
+    };
+    R.onSpawn = (slot, pos, yaw) => {
+      for (const d of window.__deaths) if (d.slot === slot) d.respawned = true;
+      spawn(slot, pos, yaw);
+    };
+    R.update = (dt, t) => {
+      upd(dt, t);
+      for (const d of window.__deaths) {
+        if (d.respawned || d.frames >= 6) continue;
+        const r = R.map.get(d.slot);
+        if (!r) continue;
+        d.frames++;
+        if (r.alive) d.stood = true;
+        else if (r.model.ragdoll && r.model.root.visible) d.rag++;
+      }
+    };
+  });
   // Maç başlar, botlar çatışır: skor ve öldürme akışı
   await until(A, () => window.__game.net.phase === 1);
   const fight = await until(A, () => window.__game.net.scoreA + window.__game.net.scoreB >= 2 && document.querySelectorAll('#mhFeed .mhKill').length > 0, null, 120000).then(() => true, () => false);
   const fs = await A.evaluate(() => ({ a: window.__game.net.scoreA, b: window.__game.net.scoreB, feed: document.getElementById('mhFeed').textContent }));
   check(fight, `Maç sürüyor: skor ${fs.a}–${fs.b}, öldürme akışı "${fs.feed.slice(0, 60)}"`);
+  await until(A, () => window.__deaths.some((d) => d.frames >= 3), null, 60000).catch(() => {});
+  const dz = await A.evaluate(() => ({ physics: window.__game.physics.status, deaths: window.__deaths.filter((d) => d.frames >= 3) }));
+  const fell = dz.deaths.filter((d) => !d.stood && d.rag === d.frames);
+  check(dz.physics === 'ready' && dz.deaths.length > 0 && fell.length === dz.deaths.length,
+    `Çevrim içinde ölen oyuncu fizikle yere yığılıp yerde kalıyor (${fell.length}/${dz.deaths.length} ölüm; ayağa kalkan ${dz.deaths.filter((d) => d.stood).length})`);
+  // Aynı durumun zamanlaması kare hızından bağımsız: gerçek cihazda ölüm olayı gelince çizilen görüntü (interpMs
+  // geride) birkaç kare daha ölümden önceki "canlı" kareleri gösterir (yazılımsal GPU'da kareler bunu atlayacak kadar
+  // yavaş). Sahte bir rakibin tamponu kurulup ölüm olayından sonra önce canlı, sonra ölü kareler çizilir
+  const timing = await A.evaluate(() => {
+    const g = window.__game;
+    const R = g.net.remotes;
+    const slot = 250;
+    const r = R.get(slot);
+    r.ensureModel(false);
+    const pose = (alive) => ({ pos: { x: g.player.pos.x + 6, y: 0, z: g.player.pos.z }, vel: { x: 1.5, z: 0 }, yaw: 0, pitch: 0, crouchT: 0, flags: alive ? 1 : 0, weapon: 0, hp: alive ? 100 : 0 });
+    const t0 = 1000000;
+    for (let i = 0; i < 12; i++) r.push(t0 + i, pose(i < 8));
+    R.update(0.016, t0 + 2);
+    R.onKilled(slot, g.player.pos, { weapon: 0, head: false });
+    const out = { ragdoll: !!r.model.ragdoll, steps: [] };
+    for (const t of [t0 + 3, t0 + 5, t0 + 7, t0 + 9, t0 + 11]) {
+      R.update(0.016, t);
+      out.steps.push({ alive: r.alive, ragdoll: !!r.model.ragdoll, visible: r.model.root.visible });
+    }
+    // Doğuş: ceset kalkar, asker yeni yerinde ayakta
+    R.onSpawn(slot, { x: g.player.pos.x + 8, y: 0, z: g.player.pos.z }, 0);
+    r.push(t0 + 20, pose(true));
+    R.update(0.016, t0 + 20);
+    out.respawn = { alive: r.alive, ragdoll: !!r.model.ragdoll };
+    r.dispose();
+    R.map.delete(slot);
+    return out;
+  });
+  check(timing.ragdoll && timing.steps.every((x) => !x.alive && x.ragdoll && x.visible) && timing.respawn.alive && !timing.respawn.ragdoll,
+    `Ölüm olayından sonra gelen eski "canlı" kareler askeri ayağa kaldırmıyor; doğuşta ceset kalkıyor (${JSON.stringify(timing.steps.map((x) => (x.alive ? 'ayakta' : x.ragdoll ? 'yerde' : '?')))})`);
   await A.keyboard.down('Tab');
   await until(A, () => !document.getElementById('mhBoard').hidden && document.querySelectorAll('#mhBoardBody .mhRow:not(.head)').length === 8, null, 30000).catch(() => {});
   const board = await A.evaluate(() => ({ shown: !document.getElementById('mhBoard').hidden, rows: document.querySelectorAll('#mhBoardBody .mhRow:not(.head)').length, yz: document.querySelectorAll('#mhBoardBody .yz').length, team: document.querySelectorAll('#mhBoardBody .pt').length }));
