@@ -4257,12 +4257,15 @@ if (run('netplay')) {
   const shown = await until(A, () => /Sıradaki harita: Liman/.test(document.getElementById('mhVoteNext').textContent), null, 60000).then(() => true, () => false);
   check(counted && shown, `Oylar sayıldı (Liman 2 oy, B oyunu değiştirdi); kazanan duyuruldu`);
   await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'playing' && window.__game.net?.welcome.map === 'harbor' && window.__game.net.state === 'playing', null, 240000).catch(() => {})));
+  // Panel ilk maç arayüzü karesinde açılır
+  await Promise.all([A, B].map((pg) => until(pg, () => !document.getElementById('mhPrep').hidden || window.__game.net?.phase !== 0, null, 30000).catch(() => {})));
   const after = await Promise.all([A, B].map((pg) => pg.evaluate(() => {
     const n = window.__game.net;
     return n ? { room: n.welcome.room, map: n.welcome.map, side: n.mySide, humans: n.roster.filter((p) => !(p.flags & 1)).length, bots: n.roster.filter((p) => p.flags & 1).length, prep: !document.getElementById('mhPrep').hidden || n.phase !== 0 } : null;
   })));
-  check(after.every((x) => x && x.map === 'harbor' && x.room === after[0].room && x.room !== before.room && x.side === before.side && x.humans === 2 && x.bots === 6 && x.prep),
-    `Sıradaki maç: ikisi aynı odada (${after[0]?.room}) Liman'da, aynı tarafta, 6 yapay zekâ, teçhizat paneli açık`);
+  const nextOk = after.every((x) => x && x.map === 'harbor' && x.room === after[0].room && x.room !== before.room && x.side === before.side && x.humans === 2 && x.bots === 6 && x.prep);
+  if (!nextOk) await Promise.all([A, B].map((pg, i) => pg.screenshot({ path: join(shots, `_35c-net-next-${'AB'[i]}.png`) }).catch(() => {})));
+  check(nextOk, `Sıradaki maç: ikisi aynı odada (${after[0]?.room}) Liman'da, aynı tarafta, 6 yapay zekâ, teçhizat paneli açık${nextOk ? '' : ` ${JSON.stringify({ before, after })}`}`);
   await A.close();
   await B.close();
   // Telefon: tek başına Ölüm Maçı, maç arayüzü taşmaz
