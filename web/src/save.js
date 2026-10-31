@@ -29,8 +29,10 @@ export function freshSave(startCredits = STORE.startCredits) {
   return {
     version: SAVE_VERSION,
     credits: startCredits,
-    inventory: { armor: [], helmets: [], consumables: {}, upgrades: [], weapons: [] },
+    inventory: { armor: [], helmets: [], consumables: {}, upgrades: [], weapons: [], attachments: [] },
     loadout: { primary: null, secondary: null, melee: null, armor: null, helmet: null, slots: [null, null] },
+    // Silah eklentileri: silah → { kategori: eklenti } (gunsmith.js)
+    weaponMods: {},
     // Yapılmış bir kerelik geçişler (yeni kayıtta hepsi yapılmış sayılır: seçimine dokunulmaz)
     migrated: { detailedGuns: true, soundOn: true },
     progress: { unlocked: 1, best: {}, campaignOrder: 1 },
@@ -71,7 +73,8 @@ function normalize(raw, startCredits) {
   const s = { ...d, ...raw };
   s.credits = isNum(raw.credits) ? Math.max(0, Math.round(raw.credits)) : d.credits;
   s.inventory = { ...d.inventory, ...(isObj(raw.inventory) ? raw.inventory : {}) };
-  for (const k of ['armor', 'helmets', 'upgrades', 'weapons']) if (!Array.isArray(s.inventory[k])) s.inventory[k] = [];
+  for (const k of ['armor', 'helmets', 'upgrades', 'weapons', 'attachments']) if (!Array.isArray(s.inventory[k])) s.inventory[k] = [];
+  s.weaponMods = isObj(raw.weaponMods) ? raw.weaponMods : {};
   if (!isObj(s.inventory.consumables)) s.inventory.consumables = {};
   s.loadout = { ...d.loadout, ...(isObj(raw.loadout) ? raw.loadout : {}) };
   if (!Array.isArray(s.loadout.slots)) s.loadout.slots = [null, null];

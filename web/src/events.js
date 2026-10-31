@@ -36,6 +36,7 @@ export const EV = Object.freeze({
   QUEUE_CHANGED: 'QUEUE_CHANGED', // { queue: { mode, since } | null }
   MATCH_FOUND: 'MATCH_FOUND', // { room, kind: 'sandbox'|'match', mode, map, side, by? }
   NET_ROSTER: 'NET_ROSTER', // [{ slot, id, name, tag, side, flags, kills, deaths, score, ping, party }]
+  WEAPON_MODS_CHANGED: 'WEAPON_MODS_CHANGED', // { weaponId, mods }: silah eklentisi takıldı/çıkarıldı (gunsmith.js)
   NET_LOADOUT: 'NET_LOADOUT', // { primary, secondary, now }: sunucunun kuşandırdığı çevrim içi teçhizat
   NET_VOTE: 'NET_VOTE', // maç sonu oylaması: { left, counts, winner, mine }
   NET_NEXT: 'NET_NEXT', // sıradaki maç: { room, map, mode }

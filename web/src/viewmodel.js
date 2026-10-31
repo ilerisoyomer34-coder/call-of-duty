@@ -6,8 +6,9 @@ import * as THREE from 'three';
 import { buildWeapon, buildArms, poseArm, buildGrenade, buildSmokeGrenade, buildRocket, mat } from './models.js';
 import { WEAPONS, WEAPON_ORDER, SIGHT_VIEW, HAND_VIEW, DEFAULT_LOADOUT } from './config.js';
 import { rigFor, assetIdFor, loadWeaponAsset } from './assets.js';
-import { sightFor, hasReticle, isScoped, canAim } from './sights.js';
-import { calibrateWeapon, placeWeapon, gripElbow } from './weaponAim.js';
+import { sightFor, hasReticle, isScoped, canAim, setSightOverride, baseSightId, SIGHT_TYPES } from './sights.js';
+import { calibrateWeapon, placeWeapon, gripElbow, sightAlignment } from './weaponAim.js';
+import { applyAttachments } from './attachments3d.js';
 import { reticleMesh, housingMesh, glowDots } from './reticles.js';
 import { clamp, damp, lerp, smoothstep, Spring, rand, warnOnce } from './util.js';
 
@@ -164,6 +165,7 @@ export class Viewmodel {
     this.scene.add(this.holder);
     this.textures = textures;
     this.models = {};
+    this.mods = {}; // silah → takılı eklentiler (applyMods)
     for (const id of WEAPON_ORDER) this.installModel(id, buildWeapon(id));
     // Hazır (GLB) modeller yalnız gerektiğinde yüklenir ve hazır olunca yedek (prosedürel) modelin yerine geçer:
     // teçhizattaki silahlar şimdi, diğerleri ele geçince (update → ensureGlb). Eskiden açılışta 27 silahın hepsi
@@ -250,9 +252,10 @@ export class Viewmodel {
     m.root.add(m.flash);
     m.flash.position.copy(m.muzzle);
     for (const part of Object.values(m.parts)) if (part) part.userData.base = part.position.clone();
-    m.magInfo = this.computeMagInfo(m, WEAPONS[id]);
     m.chargeAt = m.parts.charging ? _box.setFromObject(m.parts.charging).getCenter(new THREE.Vector3()) : null;
-    this.addSight(id, m);
+    // Ayarlanmış nişan noktası (eklenti optiği bunun üstüne çıkar; çıkarınca buraya döner)
+    m.sightBase = m.sight.clone();
+    this.fitAttachments(id, m);
     m.root.traverse((o) => {
       if (o.isMesh) o.frustumCulled = false;
     });
@@ -374,11 +377,49 @@ export class Viewmodel {
     return g;
   }
 
+  // Silah eklentileri (data/attachments.json): oyuncunun silahı kurulurken (weapons.reset) çağrılır. Model henüz
+  // inmediyse kurulunca uygulanır (installModel)
+  applyMods(id, mods) {
+    const key = JSON.stringify(mods || {});
+    if (this.mods[id]?.key === key) return;
+    this.mods[id] = { mods: mods || {}, key };
+    const m = this.models[id];
+    if (m) this.fitAttachments(id, m);
+  }
+
+  // Eklenti parçalarını kur (öncekileri geri alarak), nişan noktasını optiğe göre ayarla, nişangâhı yeniden çiz
+  fitAttachments(id, m) {
+    const mods = this.mods[id]?.mods || {};
+    const att = applyAttachments(
+      { root: m.root, muzzle: m.muzzle, sight: m.sightBase, leftHand: m.leftHand, mag: m.parts.mag, optic: m.parts.optic, ironSight: SIGHT_TYPES[baseSightId(id)]?.kind === 'iron', attGroup: m.attGroup },
+      mods
+    );
+    m.attGroup = m.root.getObjectByName('attachments');
+    // Namlu alevi eklentinin ucunda
+    m.flash.position.copy(m.muzzle);
+    m.flash.position.z -= att.muzzleLen;
+    // Optik: nişan noktası optiğin ortası (demir nişangâhın üstüne çıkılır), gez–arpacık hizası yok
+    setSightOverride(id, att.optic ? att.optic.sight : null);
+    m.sight.copy(m.sightBase);
+    if (att.optic) {
+      m.sight.y += att.sightLift;
+      m.adsAlign = null;
+    } else m.adsAlign = sightAlignment(m.sight, m.front);
+    // Uzatılmış şarjör: şarjör değiştirmenin tutma noktaları yeni geometriden
+    m.magInfo = this.computeMagInfo(m, WEAPONS[id]);
+    this.addSight(id, m);
+  }
+
   // Nişangâh görselleri (data/sights.json → reticles.js): camdaki işaret (kolimatör, holografik, prizmatik),
   // modelin kapalı nişangâh gövdesinin nişan alırken yerine geçen açık gövdesi ve demir nişangâhın ışıklı noktaları
   addSight(id, m) {
     const d = WEAPONS[id];
     const s = sightFor(id);
+    // Yeniden çizimde (eklenti değişti) eskiler kalkar
+    m.reticle?.removeFromParent();
+    m.housing?.removeFromParent();
+    m.glowDots?.removeFromParent();
+    m.glowDots = null;
     m.reticle = null;
     m.housing = null;
     if (s.housing && m.parts.optic) {
@@ -401,6 +442,7 @@ export class Viewmodel {
       m.root.updateMatrixWorld(true);
       dots.applyMatrix4(_m4.copy(host.matrixWorld).invert().multiply(m.root.matrixWorld));
       host.add(dots);
+      m.glowDots = dots;
     }
   }
 
@@ -453,10 +495,12 @@ export class Viewmodel {
     const m = this.models[d.id];
     m.flash.visible = true;
     m.flash.rotation.z = Math.random() * Math.PI;
-    const s = rand(0.8, 1.25);
-    m.flash.scale.set(s, s, rand(0.8, 1.3));
+    // Eklenti (susturucu, alev gizleyici) namlu alevini küçültür: model temel boyla kuruldu
+    const fk = d.flashSize / (WEAPONS[d.id].flashSize || 0.14);
+    const s = rand(0.8, 1.25) * fk;
+    m.flash.scale.set(s, s, rand(0.8, 1.3) * fk);
     m.flash.userData.front.visible = ads < 0.8; // ADS'de merkezde görüşü kapatmasın
-    this.flash.intensity = 1.2;
+    this.flash.intensity = 1.2 * Math.min(1, fk * 1.5);
   }
 
   update(dt) {

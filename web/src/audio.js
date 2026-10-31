@@ -948,6 +948,8 @@ export class Audio {
 // Silah ses profilleri: her silah farklı hissettirsin (master prompt §5)
 const GUN_PROFILES = {
   rifle: { vol: 0.9, crack: 1.0, crackFreq: 2400, crackDur: 0.07, body: 0.9, bodyFreq: 2200, bodyDur: 0.16, thump: 140, thumpGain: 0.9, thumpDur: 0.1, tail: 0.5, tailGain: 0.45, mech: 0.12 },
+  // Susturuculu (eklenti): ses patlaması yok, kısa boğuk "tık" ve mekanizma sesi
+  suppressed: { vol: 0.42, crack: 0.15, crackFreq: 3800, crackDur: 0.03, body: 0.55, bodyFreq: 1400, bodyDur: 0.06, thump: 160, thumpGain: 0.35, thumpDur: 0.05, tail: 0.08, tailGain: 0.12, mech: 0.35 },
   pistol: { vol: 0.8, crack: 1.1, crackFreq: 3000, crackDur: 0.05, body: 0.7, bodyFreq: 2800, bodyDur: 0.11, thump: 180, thumpGain: 0.6, thumpDur: 0.07, tail: 0.35, tailGain: 0.35, mech: 0.25 },
   shotgun: { vol: 1.0, crack: 0.9, crackFreq: 1600, crackDur: 0.09, body: 1.0, bodyFreq: 1500, bodyDur: 0.28, thump: 95, thumpGain: 1.0, thumpDur: 0.2, tail: 0.9, tailGain: 0.6, mech: 0 },
   enemyRifle: { vol: 0.8, crack: 0.8, crackFreq: 2000, crackDur: 0.07, body: 0.85, bodyFreq: 1800, bodyDur: 0.16, thump: 125, thumpGain: 0.7, thumpDur: 0.1, tail: 0.55, tailGain: 0.45, mech: 0 },

@@ -6,7 +6,7 @@
 export const SAVE_BACKUP_KEY = 'demirsafak.save.offlineBackup.v1';
 
 // save.js → freshSave alanları; profile bilerek yok (tests/save-backup-regressions.test.mjs eşliği denetler)
-export const BACKUP_FIELDS = Object.freeze(['version', 'credits', 'inventory', 'loadout', 'migrated', 'progress', 'missions', 'stats', 'settings', 'econLog', 'progression']);
+export const BACKUP_FIELDS = Object.freeze(['version', 'credits', 'inventory', 'loadout', 'weaponMods', 'migrated', 'progress', 'missions', 'stats', 'settings', 'econLog', 'progression']);
 
 // settings.js → DEFAULT_SETTINGS; serverUrl (sunucu adresi/davet) ve onlineMode yazılmaz. Yeni ayar buraya da
 // eklenmeli, yoksa kurtarılan kayıtta varsayılana döner (test hatırlatır)

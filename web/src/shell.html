@@ -822,6 +822,48 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 /* ---------- Teçhizat ---------- */
 /* Teçhizat ekranı (loadoutScreen.js): solda yuvalar, ortada kartlar, sağda ayrıntı + dönen önizleme */
 #loadoutScreen .sheet.loadout { width: min(1240px, 100%); }
+/* Silah modifiye: teçhizatın üstünde aynı boyda */
+#loadoutScreen { position: relative; }
+.gsRoot { position: absolute; inset: 0; margin: auto; z-index: 4; background: var(--ink); max-height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+.gsRoot[hidden] { display: none; }
+.gsBody { display: grid; grid-template-columns: 200px minmax(0, 1fr) minmax(260px, 340px); gap: 12px; min-height: 0; flex: 1; }
+.gsCats { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.gsCat.active { border-color: var(--amber); background: rgba(240,163,58,.14); }
+.gsCat:disabled { opacity: .4; cursor: default; }
+.gsList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; align-content: start; overflow-y: auto; max-height: min(70vh, 700px); }
+.gsCard { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 28px; text-align: left; background: rgba(231,220,196,.04); border: 1px solid var(--line); color: var(--sand); font: inherit; cursor: pointer; min-height: 92px; }
+.gsCard:hover { background: rgba(231,220,196,.08); }
+.gsCard.sel { border-color: var(--amber); background: rgba(240,163,58,.14); }
+.gsCard.equipped { border-left: 3px solid #7fd38a; }
+.gsCard.no_credit { opacity: .65; }
+.gsCard b { font: 700 15px/1.15 var(--f-ui); }
+.gsCard small { color: var(--sand-dim); font: 500 12px/1.3 var(--f-ui); }
+.gsFx { display: flex; flex-wrap: wrap; gap: 4px; }
+.gsFx em { font: 600 11px/1 var(--f-ui); font-style: normal; padding: 3px 5px; background: rgba(231,220,196,.08); color: var(--sand-dim); }
+.gsFx em.up { color: #8fdc96; background: rgba(127,211,138,.12); }
+.gsFx em.down { color: #ef8a7a; background: rgba(224,81,63,.12); }
+.gsState { position: absolute; left: 12px; bottom: 8px; font: 700 11px/1 var(--f-ui); letter-spacing: .1em; color: var(--amber); }
+.gsCard.equipped .gsState { color: #7fd38a; }
+.gsSide { overflow-y: auto; max-height: min(70vh, 700px); }
+.gsStats { display: flex; flex-direction: column; gap: 5px; }
+.gsStat { display: grid; grid-template-columns: 110px 1fr 70px; gap: 8px; align-items: center; font: 600 12px/1 var(--f-ui); color: var(--sand-dim); }
+.gsStat i { position: relative; height: 6px; background: rgba(231,220,196,.1); }
+.gsStat i::before { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--v); background: var(--sand-dim); }
+.gsStat i::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--sand); }
+.gsStat.up i::before { background: #7fd38a; }
+.gsStat.down i::before { background: var(--sand); }
+.gsStat.down i::after { background: #e0513f; width: var(--v); }
+.gsStat em { font-style: normal; text-align: right; font-family: var(--f-num); color: var(--sand); }
+.gsStat.up em { color: #8fdc96; }
+.gsStat.down em { color: #ef8a7a; }
+.loMods { color: var(--amber); }
+@media (max-width: 900px), (max-height: 560px) {
+  .gsBody { grid-template-columns: 140px minmax(0, 1fr) minmax(200px, 260px); gap: 8px; }
+  .gsList { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: calc(100vh - 150px); }
+  .gsSide { max-height: calc(100vh - 150px); }
+  .gsCard { min-height: 70px; padding: 8px 9px 24px; }
+  .gsStat { grid-template-columns: 84px 1fr 56px; }
+}
 .loBody { display: grid; grid-template-columns: 186px minmax(0, 1fr) minmax(270px, 330px); gap: 14px; align-items: start; }
 .loNav { display: flex; flex-direction: column; gap: 6px; }
 .loSlot { appearance: none; text-align: left; background: var(--ink-2); border: 1px solid var(--line); color: var(--sand); padding: 9px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; font-family: var(--f-ui); min-width: 0; }
@@ -1497,6 +1539,8 @@ body.touch #squad { display: none; }
 
   <section id="loadoutScreen" class="screen panelScreen" hidden>
     <div class="sheet loadout" id="loadoutRoot"></div>
+    <!-- Silah modifiye (src/gunsmithScreen.js): teçhizatın üstünde -->
+    <div class="sheet loadout gsRoot" id="gunsmithRoot" hidden></div>
   </section>
 
   <section id="storeScreen" class="screen panelScreen" hidden>

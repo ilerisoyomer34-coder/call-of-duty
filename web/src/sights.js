@@ -8,6 +8,18 @@ export const SIGHT_KINDS = ['iron', 'reflex', 'prism', 'scope', 'none'];
 
 const NONE = Object.freeze({ id: 'none', ...SIGHTS.types.none, housing: null, glow: [], glowPost: 0 });
 const cache = new Map();
+// Eklenti optiği (oyuncunun silahı; viewmodel.js → applyMods): silahın kendi nişangâhının yerine geçer. Gövdesi
+// eklentinin parçası (attachments3d.js), demir nişangâh noktaları çizilmez
+const overrides = new Map();
+
+export function setSightOverride(weaponId, typeId) {
+  if (typeId && SIGHTS.types[typeId]) overrides.set(weaponId, typeId);
+  else overrides.delete(weaponId);
+  cache.delete(weaponId);
+}
+
+// Silahın kendi (katalogdaki) nişangâh türü: eklentiden bağımsız
+export const baseSightId = (weaponId) => SIGHTS.weapons[weaponId]?.sight || 'iron';
 
 // Silahın çözülmüş nişangâhı: tür alanları + silaha özgü gövde/parıltı. Katalogda olmayan silah demir nişangâhlıdır.
 // Sonuç önbellekte tutulur (her karede çağrılabilir, bellek ayırmaz)
@@ -15,10 +27,13 @@ export function sightFor(weaponId) {
   let s = cache.get(weaponId);
   if (s) return s;
   const w = SIGHTS.weapons[weaponId];
-  const typeId = w?.sight || 'iron';
+  const over = overrides.get(weaponId);
+  const typeId = over || w?.sight || 'iron';
   const t = SIGHTS.types[typeId];
   if (!t) throw new Error(`Bilinmeyen nişangâh türü: ${typeId} (${weaponId})`);
-  s = Object.freeze({ id: typeId, ...t, housing: w?.housing || null, glow: w?.glow || [], glowPost: w?.glowPost || 0 });
+  s = over
+    ? Object.freeze({ id: typeId, ...t, housing: null, glow: [], glowPost: 0, attachment: true })
+    : Object.freeze({ id: typeId, ...t, housing: w?.housing || null, glow: w?.glow || [], glowPost: w?.glowPost || 0 });
   if (s.kind === 'none') s = NONE;
   cache.set(weaponId, s);
   return s;

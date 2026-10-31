@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { WEAPONS, GRENADE, MELEE, SCORE } from './config.js';
 import { DEG, clamp, rand } from './util.js';
 import { Rng, inCone } from '../shared/sim/rng.js';
+import { moddedDef } from '../shared/sim/mods.js';
 import { fireInterval, recoverBloom, spreadDeg, triggerShots, recordShot, addBloom, recoilKick, pelletDir } from '../shared/sim/weapon.js';
 import { EV } from './events.js';
 import { CONSUMABLES } from './loadout.js';
@@ -13,10 +14,12 @@ import { penFor } from './armor.js';
 import { allyZoneAt, friendlyBulletDamage } from './friendlyFire.js';
 
 export class Weapon {
-  constructor(id) {
-    const d = WEAPONS[id];
+  // mods: { kategori: eklenti } (oyuncunun kendi silahı); tanım eklentili kopya (shared/sim/mods.js)
+  constructor(id, mods = null) {
+    const d = mods ? moddedDef(id, mods) : WEAPONS[id];
     this.id = id;
     this.data = d;
+    this.mods = d.mods || null;
     this.mag = d.magSize;
     this.reserve = d.reserveStart;
     this.modeIdx = 0;
@@ -89,7 +92,11 @@ export class PlayerWeapons {
     this.slots = (loadout.slots || Object.keys(loadout.weapons)).filter((id) => WEAPONS[id]);
     for (const [id, ammo] of Object.entries(loadout.weapons)) {
       if (!WEAPONS[id]) continue;
-      const w = new Weapon(id);
+      // Kendi teçhizatındaki silah eklentileriyle (çevrim içinde sunucunun onayladığı eklentiler loadout.mods'ta)
+      // Kontrol noktası kaydı silahın kendi eklentilerini taşır (yerden alınan silah eklentisiz kalır)
+      const mods = ammo && 'mods' in ammo ? ammo.mods : loadout.mods ? loadout.mods[id] : this.game.gunsmith?.modsFor(id);
+      const w = new Weapon(id, mods);
+      this.game.viewmodel?.applyMods(id, w.mods);
       if (ammo) {
         w.mag = ammo.mag;
         w.reserve = ammo.reserve;
@@ -110,7 +117,7 @@ export class PlayerWeapons {
 
   snapshot() {
     const weapons = {};
-    for (const [id, w] of Object.entries(this.owned)) weapons[id] = { mag: w.mag, reserve: w.reserve };
+    for (const [id, w] of Object.entries(this.owned)) weapons[id] = { mag: w.mag, reserve: w.reserve, mods: w.mods };
     return { weapons, slots: [...this.slots], grenades: Math.max(0, this.grenades - this.kitFrags), current: this.currentId };
   }
 

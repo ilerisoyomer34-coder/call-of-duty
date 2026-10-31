@@ -11,7 +11,9 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { WEAPONS, WEAPON_VIEW as V } from './config.js';
 import { buildWeapon } from './models.js';
-import { loadWeaponAsset, assetIdFor, assetImageUrl } from './assets.js';
+import { loadWeaponAsset, assetIdFor, assetImageUrl, rigFor } from './assets.js';
+import { applyAttachments } from './attachments3d.js';
+import { SIGHT_TYPES, baseSightId } from './sights.js';
 import { weaponSilhouette } from './weaponInfo.js';
 import { warnOnce } from './util.js';
 
@@ -155,15 +157,25 @@ export function releaseStudio() {
 
 // Modelin kendisi: GLB silah (yüklenemezse oyundaki gibi prosedürel yedek) ya da prosedürel model
 async function modelFor(id) {
+  return (await modelWithAnchors(id)).obj;
+}
+
+// Model ve eklenti bağlanma noktaları (attachments3d.js): GLB'de modelin nokta kayıtlarından, kodla kurulan modelde
+// kurucunun döndürdüğü noktalardan
+async function modelWithAnchors(id) {
   const d = WEAPONS[id];
+  const iron = SIGHT_TYPES[baseSightId(id)]?.kind === 'iron';
   if (d.model === 'glb') {
     try {
-      return await loadWeaponAsset(assetIdFor(d));
+      const obj = await loadWeaponAsset(assetIdFor(d));
+      const r = rigFor(assetIdFor(d));
+      return { obj, anchors: r && { root: obj, muzzle: r.muzzle, sight: r.sight, leftHand: r.leftHand, mag: obj.getObjectByName('mag'), optic: obj.getObjectByName('optic'), ironSight: iron } };
     } catch (e) {
       warnOnce(`icon-glb-${id}`, `${id}: model yüklenemedi, yedek modelle çiziliyor (${e.message})`);
     }
   }
-  return buildWeapon(id).root;
+  const b = buildWeapon(id);
+  return { obj: b.root, anchors: { root: b.root, muzzle: b.muzzle, sight: b.sight, leftHand: b.leftHand, mag: b.parts?.mag, optic: b.parts?.optic, ironSight: iron } };
 }
 
 // Simgeler sırayla, karede bir tane üretilir: ekran açılırken takılma olmasın
@@ -256,14 +268,32 @@ export class WeaponPreview {
     return !!getStudio();
   }
 
-  async show(id) {
+  // mods: silah eklentileri (MODİFİYE ekranı); aynı silahta yalnız eklenti değiştiyse model yeniden yüklenmez, dönüş açısı korunur
+  async show(id, mods = null) {
+    const key = JSON.stringify(mods || {});
+    if (id === this.id && this.anchors && this.obj) {
+      if (key !== this.modsKey) {
+        this.modsKey = key;
+        applyAttachments(this.anchors, mods);
+        this.anchors.attGroup = this.obj.getObjectByName('attachments');
+        this.fitted = false;
+      }
+      this.start();
+      return true;
+    }
     this.id = id;
     const t = ++this.token;
     const S = getStudio();
     if (!S) return false;
-    const obj = await modelFor(id);
+    const { obj, anchors } = await modelWithAnchors(id);
     if (t !== this.token) return true; // bu arada başka silah seçildi
     this.obj = obj;
+    this.anchors = anchors;
+    this.modsKey = key;
+    if (anchors && mods) {
+      applyAttachments(anchors, mods);
+      anchors.attGroup = obj.getObjectByName('attachments');
+    }
     this.yaw = 0;
     this.pitch = 0;
     this.idleT = V.previewResume;
@@ -298,7 +328,7 @@ export class WeaponPreview {
   // Modeli kendi tutucusunda merkezle (tutucu döner, model ekseni merkezden geçer)
   place(S) {
     const h = this.holder || (this.holder = new THREE.Group());
-    if (this.obj.parent !== h) {
+    if (this.obj.parent !== h || !this.fitted) {
       h.clear();
       h.rotation.set(0, 0, 0);
       h.add(this.obj);

@@ -125,8 +125,9 @@ function maxima() {
 const CURVE = { damage: 0.6, range: 0.6 };
 
 // → [{ key, label, value 1–100 }]
-export function weaponStats(id) {
-  const r = raw(WEAPONS[id]);
+// def: eklentili tanım (shared/sim/mods.js → moddedDef); verilmezse silahın kendi tanımı
+export function weaponStats(id, def = null) {
+  const r = raw(def || WEAPONS[id]);
   const max = maxima();
   return STAT_KEYS.map(([key, label]) => {
     const k = Math.min(1, r[key] / max[key]);

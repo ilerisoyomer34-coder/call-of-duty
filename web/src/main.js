@@ -32,6 +32,7 @@ import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, s
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
 import { EconomySystem } from './economy.js';
+import { GunsmithSystem } from './gunsmith.js';
 import { LoadoutSystem } from './loadout.js';
 import { KitSystem } from './kit.js';
 import { setRealNames } from './weaponInfo.js';
@@ -171,6 +172,8 @@ export class Game {
     // Ortak kayıt (kredi, envanter, teçhizat, ilerleme, ayarlar) ve kredi hareketlerinin tek giriş noktası
     this.save = getSave();
     this.economy = new EconomySystem(this.save, this.events);
+    // Silah eklentileri (satın alma, takma); silahın eklentili tanımı shared/sim/mods.js
+    this.gunsmith = new GunsmithSystem(this.save, this.economy, this.events);
     // Rütbe/XP, günlük ödül ve günün görevleri: yalnız görevde ve çevrim içi maçta ilerler (poligon sayılmaz)
     this.progression = new ProgressionSystem({
       save: this.save,

@@ -10,6 +10,8 @@ import { EV } from './events.js';
 import { weaponName, weaponClass, weaponInfoLine, weaponStats, weaponBadges, weaponType, sortByClass, classesOf, WEAPON_META } from './weaponInfo.js';
 import { sightLabel } from './sights.js';
 import { weaponIcon, weaponPlaceholder, WeaponPreview } from './weaponIcons.js';
+import { GunsmithScreen } from './gunsmithScreen.js';
+import { ATTACHMENTS, ATT_CATS, choicesFor, moddedDef } from '../shared/sim/mods.js';
 
 const $ = (id) => document.getElementById(id);
 const SLOTS = [
@@ -53,12 +55,14 @@ export class LoadoutScreen {
     this.cls = 'all'; // silah yuvasında seçili sınıf sekmesi
     this.preview = null;
     this.build();
+    // Silah modifiye: teçhizatın üstünde açılır, kapanınca bu ekran yenilenir (kredi ve eklentiler değişmiş olabilir)
+    this.gunsmith = new GunsmithScreen(game, () => this.refresh());
     game.events.on(EV.CREDITS_CHANGED, (e) => {
       if (this.krVal) this.krVal.textContent = formatKR(e.credits);
     });
     // Esc: geri (onay penceresi yok; menüdeki diğer ekranlar Geri düğmesiyle döner)
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.visible) {
+      if (e.key === 'Escape' && this.visible && !this.gunsmith?.visible) {
         e.preventDefault();
         this.menus.back();
       }
@@ -317,15 +321,20 @@ export class LoadoutScreen {
     if (slot.kind === 'weapon') {
       D.append(this.canvas);
       if (!this.preview) this.preview = new WeaponPreview(this.canvas);
-      this.preview.show(id).then((ok) => {
+      this.preview.show(id, this.game.gunsmith.modsFor(id)).then((ok) => {
         if (!ok) this.canvas.replaceWith(Object.assign(el('img', 'loPreview'), { src: weaponPlaceholder(id), alt: '' }));
       });
+      // Eklentili silah: nişangâh ve çubuklar takılı eklentilerle
+      const mods = this.game.gunsmith.modsFor(id);
+      const optic = mods.optic ? ATTACHMENTS[mods.optic].name : sightLabel(id);
       D.append(
         el('h3', 'stName', weaponName(id)),
         el('div', 'stTag', `${weaponType(id).name.toLocaleUpperCase('tr-TR')} · ${weaponClass(id).toLocaleUpperCase('tr-TR')} · ${weaponInfoLine(id)}`),
-        el('div', 'stSight', `Nişangâh: ${sightLabel(id)}`),
-        bars(weaponStats(id))
+        el('div', 'stSight', `Nişangâh: ${optic}`),
+        bars(weaponStats(id, moddedDef(id, mods)))
       );
+      const names = ATT_CATS.filter((c) => mods[c] && c !== 'optic').map((c) => ATTACHMENTS[mods[c]].name);
+      if (names.length) D.append(el('div', 'stSight loMods', `Eklentiler: ${names.join(' · ')}`));
       const badges = weaponBadges(id);
       if (badges.length) {
         const bx = el('div', 'loBadges');
@@ -359,6 +368,18 @@ export class LoadoutScreen {
       }
     }
     const row = el('div', 'row stActions');
+    // Silah modifiye: sahip olunan ve en az bir eklentisi uyan silahta
+    if (slot.kind === 'weapon' && st !== 'locked' && ATT_CATS.some((c) => choicesFor(id, c).length)) {
+      const mb = el('button', 'btn', 'MODİFİYE');
+      mb.type = 'button';
+      mb.id = 'loModify';
+      mb.addEventListener('click', () => {
+        this.game.audio.uiClick();
+        this.preview?.stop();
+        this.gunsmith.open(id);
+      });
+      row.append(mb);
+    }
     if (st === 'equipped') row.append(el('span', 'stState', slot.kind === 'consumable' && id ? 'YUVADA' : 'KUŞANILDI'));
     else if (st === 'shop') {
       const b = el('button', 'btn primary', 'Mağazada al');
