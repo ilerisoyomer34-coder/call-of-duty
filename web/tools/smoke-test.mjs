@@ -3387,6 +3387,69 @@ console.log('Teçhizat ve sarf malzemeleri');
   check(await mp.evaluate(() => !!window.__game.kit.using), 'Sarf düğmesine dokununca ilk yardım başladı');
   await mp.screenshot({ path: join(shots, '18d-kit-touch.png') });
   await mctx.close();
+
+  // Silah modifiye (kullanıcı isteği "silahları modifiye edebilelim"): teçhizatta MODİFİYE → eklenti al ve tak →
+  // görevde silah eklentili (şarjör, ses, büyütme), görünümde parçalar, nişanda optik
+  const gp = await openPage('standalone');
+  await gp.evaluate(() => {
+    const g = window.__game;
+    g.economy.set(20000);
+    g.save.update((d) => (d.loadout.primary = 'ak74'), { now: true });
+    g.menus.loadoutScreen.open('Teçhizat');
+  });
+  await gp.evaluate(() => document.querySelector('.loSlot[data-slot="primary"]').click());
+  await gp.evaluate(() => document.getElementById('loModify').click());
+  await gp.waitForFunction(() => !document.getElementById('gunsmithRoot').hidden, null, { timeout: 15000 }).catch(() => {});
+  const gs0 = await gp.evaluate(() => ({
+    cats: [...document.querySelectorAll('#gunsmithRoot .gsCat')].map((b) => `${b.dataset.cat}${b.disabled ? '-' : ''}`),
+    cards: document.querySelectorAll('#gunsmithRoot .gsCard').length,
+    stats: document.querySelectorAll('#gunsmithRoot .gsStat').length,
+  }));
+  check(gs0.cats.length === 6 && gs0.cards >= 3 && gs0.stats === 6, `MODİFİYE ekranı: ${gs0.cats.join(', ')}; ${gs0.cards} kart, 6 çubuk`);
+  // Namlu ucu → susturucu: satın al ve tak (düğmeyle)
+  await gp.evaluate(() => document.querySelector('.gsCat[data-cat="muzzle"]').click());
+  await gp.evaluate(() => document.querySelector('.gsCard[data-att="muz_suppressor"]').click());
+  const before = await gp.evaluate(() => ({ kr: window.__game.economy.credits, btn: document.getElementById('gsAct')?.textContent }));
+  await gp.evaluate(() => document.getElementById('gsAct').click());
+  // Kalanlar doğrudan kurallarla (aynı yol)
+  const gs1 = await gp.evaluate(() => {
+    const g = window.__game;
+    for (const id of ['opt_acog', 'mag_extended', 'ub_vertical', 'camo_gold']) g.gunsmith.buyAndEquip('ak74', id);
+    g.menus.loadoutScreen.gunsmith.render();
+    return { kr: g.economy.credits, mods: g.gunsmith.modsFor('ak74'), equipped: document.querySelector('.gsCat[data-cat="muzzle"] b').textContent };
+  });
+  check(/Satın al/.test(before.btn || '') && gs1.kr < before.kr && gs1.mods.muzzle === 'muz_suppressor' && gs1.equipped === 'Susturucu' && Object.keys(gs1.mods).length === 5,
+    `Eklentiler satın alındı ve takıldı (${Object.values(gs1.mods).join(', ')}; ${before.kr} → ${gs1.kr} KR)`);
+  await gp.screenshot({ path: join(shots, '18e-gunsmith.png') });
+  await gp.evaluate(() => document.getElementById('gsBack').click());
+  await gp.evaluate(() => window.__game.startMode('mission', 'easy', 1));
+  await gp.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 });
+  await gp.waitForFunction(() => window.__game.viewmodel.models.ak74?.glb, null, { timeout: 60000, polling: 100 }).catch(() => {});
+  const gs2 = await gp.evaluate(() => {
+    const g = window.__game;
+    const w = g.weapons.owned.ak74;
+    const m = g.viewmodel.models.ak74;
+    const parts = m?.attGroup ? m.attGroup.children.length : 0;
+    const optic = m?.attGroup?.children.find((c) => c.type === 'Group' && c.visible);
+    let gold = false;
+    m?.root.traverse((o) => {
+      if (o.isMesh && o.material?.userData?.camoBase && o.material.metalness > 0.9) gold = true;
+    });
+    return { mag: w.mag, magSize: w.data.magSize, sound: w.data.sound, fov: w.data.ads.fovMult, parts, optic: !!optic, gold, sight: m && +(m.sight.y - m.sightBase.y).toFixed(3) };
+  });
+  check(gs2.magSize === 45 && gs2.mag === 45 && gs2.sound === 'suppressed' && gs2.fov === 0.55 && gs2.parts >= 4 && gs2.optic && gs2.gold,
+    `Görevde eklentili silah: şarjör ${gs2.mag}, ses ${gs2.sound}, büyütme ×${gs2.fov}, görünümde ${gs2.parts} parça, optik ve altın kaplama`);
+  await gp.evaluate(() => {
+    const g = window.__game;
+    g.input.lockFailed = true;
+    g.player.adsT = 1;
+  });
+  await gp.mouse.move(640, 360);
+  await gp.mouse.down({ button: 'right' });
+  await sleep(1500);
+  await gp.screenshot({ path: join(shots, '18f-gunsmith-ads.png') });
+  await gp.mouse.up({ button: 'right' });
+  await gp.close();
 }
 
 // ---------------- Artifact sürümü ----------------

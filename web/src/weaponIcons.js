@@ -169,13 +169,13 @@ async function modelWithAnchors(id) {
     try {
       const obj = await loadWeaponAsset(assetIdFor(d));
       const r = rigFor(assetIdFor(d));
-      return { obj, anchors: r && { root: obj, muzzle: r.muzzle, sight: r.sight, leftHand: r.leftHand, mag: obj.getObjectByName('mag'), optic: obj.getObjectByName('optic'), ironSight: iron } };
+      return { obj, anchors: r && { root: obj, muzzle: r.muzzle, sight: r.sight, fore: r.leftHand, mag: obj.getObjectByName('mag'), optic: obj.getObjectByName('optic'), ironSight: iron } };
     } catch (e) {
       warnOnce(`icon-glb-${id}`, `${id}: model yüklenemedi, yedek modelle çiziliyor (${e.message})`);
     }
   }
   const b = buildWeapon(id);
-  return { obj: b.root, anchors: { root: b.root, muzzle: b.muzzle, sight: b.sight, leftHand: b.leftHand, mag: b.parts?.mag, optic: b.parts?.optic, ironSight: iron } };
+  return { obj: b.root, anchors: { root: b.root, muzzle: b.muzzle, sight: b.sight, fore: b.leftHand, mag: b.parts?.mag, optic: b.parts?.optic, ironSight: iron } };
 }
 
 // Simgeler sırayla, karede bir tane üretilir: ekran açılırken takılma olmasın

@@ -311,7 +311,7 @@ export class RemotePlayers {
 
   weaponOf(slot) {
     const r = this.map.get(slot);
-    const id = r ? WEAPON_ORDER[r.weapon] : null;
+    const id = r ? WEAPON_ORDER[r.weapon & 0x7f] : null;
     return id && WEAPONS[id] ? WEAPONS[id] : WEAPONS.rifle;
   }
 

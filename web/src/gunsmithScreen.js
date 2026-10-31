@@ -100,7 +100,8 @@ export class GunsmithScreen {
     this.stats = el('div', 'gsStats');
     this.desc = el('div', 'gsDesc');
     this.actions = el('div', 'row stActions');
-    side.append(this.canvas, this.stats, this.desc, this.actions);
+    // Eylem düğmesi önizlemenin hemen altında: küçük ekranda kaydırmadan görünür
+    side.append(this.canvas, this.actions, this.desc, this.stats);
     body.append(this.cats, this.list, side);
     const row = el('div', 'row loActions');
     const back = el('button', 'btn', 'Teçhizata dön');
@@ -119,6 +120,9 @@ export class GunsmithScreen {
     this.cat = ATT_CATEGORIES.find((c) => choicesFor(weaponId, c.id).length)?.id || ATT_CATEGORIES[0].id;
     this.sel = this.gs.modsFor(weaponId)[this.cat] || '';
     this.root.hidden = false;
+    const screen = $('loadoutScreen');
+    screen.scrollTop = 0;
+    screen.classList.add('gsOpen');
     this.render();
   }
 
@@ -126,6 +130,7 @@ export class GunsmithScreen {
     if (!this.visible) return;
     this.game.audio.uiClick();
     this.root.hidden = true;
+    $('loadoutScreen').classList.remove('gsOpen');
     this.preview?.stop();
     this.onClose?.();
   }

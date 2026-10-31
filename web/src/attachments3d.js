@@ -63,6 +63,8 @@ function buildOptic(g, att, at, lift) {
   const spec = { ...SIGHT_TYPES[att.sight] };
   const h = { ...att.model };
   const o = housingMesh(h, spec);
+  // Silahın kendi açık gövdesi yalnız nişanda görünür; eklenti optiği her zaman yerinde durur
+  o.visible = true;
   o.position.set(at.x, at.y + lift, at.z);
   g.add(o);
   const M = materials();
@@ -73,24 +75,56 @@ function buildOptic(g, att, at, lift) {
   return o;
 }
 
-// Alt kundak: sol elin kundak noktasının önünde (el tutamağın içine girmesin)
+// Alt kundak: kundağın alt yüzüne (modelin köşelerinden ölçülür), sol elin önüne (el tutamağın içine girmesin).
+// at: { x, z: kundak ekseni ve tutamağın yeri, bottom: kundağın alt yüzü, side: sağ yüz, mid: eksen yüksekliği }
 function buildUnder(g, spec, at) {
   const M = materials();
+  const y = at.bottom;
   if (spec.kind === 'vgrip') {
-    box(g, 0.024, 0.012, 0.05, at.x, at.y - 0.004, at.z - 0.1, M.body); // kızak
-    box(g, 0.026, 0.078, 0.03, at.x, at.y - 0.05, at.z - 0.1, M.polymer);
-    box(g, 0.03, 0.008, 0.034, at.x, at.y - 0.09, at.z - 0.1, M.dark);
+    box(g, 0.024, 0.014, 0.05, at.x, y - 0.004, at.z, M.body); // kızak (kundağa biraz gömülü: boşlukta durmasın)
+    box(g, 0.026, 0.078, 0.03, at.x, y - 0.011 - 0.039, at.z, M.polymer);
+    box(g, 0.03, 0.008, 0.034, at.x, y - 0.011 - 0.078 - 0.003, at.z, M.dark);
   } else if (spec.kind === 'agrip') {
-    box(g, 0.024, 0.012, 0.07, at.x, at.y - 0.004, at.z - 0.095, M.body);
-    box(g, 0.024, 0.03, 0.07, at.x, at.y - 0.024, at.z - 0.1, M.polymer, -0.45);
+    box(g, 0.024, 0.014, 0.07, at.x, y - 0.004, at.z, M.body);
+    box(g, 0.024, 0.03, 0.07, at.x, y - 0.024, at.z - 0.006, M.polymer, -0.45);
   } else if (spec.kind === 'laser') {
-    const x = at.x + 0.03;
-    box(g, 0.018, 0.02, 0.055, x, at.y + 0.012, at.z - 0.11, M.polymer);
+    const x = at.side + 0.009;
+    box(g, 0.018, 0.02, 0.055, x, at.mid, at.z, M.polymer);
     const lens = new THREE.Mesh(new THREE.CircleGeometry(0.004, 12), M.lens);
-    lens.position.set(x, at.y + 0.016, at.z - 0.138);
+    lens.position.set(x, at.mid + 0.004, at.z - 0.0276);
     lens.rotation.y = Math.PI;
     g.add(lens);
   }
+}
+
+// Kundağın bu z'deki kesiti: alt yüz, sağ yüz (modelin köşeleri; şarjör ve eklentiler hariç)
+function foreSection(root, z, x0, mag) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const M = new THREE.Matrix4();
+  const v = new THREE.Vector3();
+  const ys = [];
+  const xs = [];
+  const skip = new Set();
+  mag?.traverse((o) => skip.add(o));
+  root.traverse((o) => {
+    if (!o.isMesh || skip.has(o) || o.userData.attPart || o.parent?.name === 'attachments') return;
+    M.multiplyMatrices(inv, o.matrixWorld);
+    const P = o.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(P.count / 4000));
+    for (let i = 0; i < P.count; i += step) {
+      v.fromBufferAttribute(P, i).applyMatrix4(M);
+      if (Math.abs(v.z - z) > 0.03 || Math.abs(v.x - x0) > 0.05) continue;
+      ys.push(v.y);
+      xs.push(v.x);
+    }
+  });
+  if (ys.length < 8) return null;
+  ys.sort((a, b) => a - b);
+  xs.sort((a, b) => a - b);
+  const q = (arr, k) => arr[Math.min(arr.length - 1, Math.floor(arr.length * k))];
+  // Uç köşeler (askı halkası, vida) yüzeyi aşağı çekmesin: alt yüzün %10 yüzdeliği
+  return { bottom: q(ys, 0.1), top: q(ys, 0.97), side: q(xs, 0.97) };
 }
 
 // Şarjörün köşeleri silah uzayında; üst bandın yüksekliği ve ekseni (alt uç − üst uç)
@@ -149,6 +183,15 @@ function stretchMag(root, mag, k) {
     Mi.copy(M).invert();
     o.userData.attGeo = o.userData.attGeo || o.geometry;
     const geo = o.userData.attGeo.clone();
+    // Sıkıştırılmış (normalize tamsayı) konumlar düz sayıya açılır: yoksa uzatılan köşeler kırpılıp şarjör bozuluyordu
+    const src = geo.attributes.position;
+    const f = new Float32Array(src.count * 3);
+    for (let i = 0; i < src.count; i++) {
+      f[i * 3] = src.getX(i);
+      f[i * 3 + 1] = src.getY(i);
+      f[i * 3 + 2] = src.getZ(i);
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(f, 3));
     const P = geo.attributes.position;
     for (let i = 0; i < P.count; i++) {
       v.fromBufferAttribute(P, i).applyMatrix4(M);
@@ -188,9 +231,14 @@ function paint(root, camo, skip) {
       if (!m || !m.color) return m;
       const base = m.userData.camoBase || m;
       if (!camo) return base;
+      // Cam, ışıklı nokta gibi saydam/ışımalı malzemeye dokunulmaz
+      if (base.transparent || base.isMeshBasicMaterial) return base;
       const c = base.clone();
       c.userData.camoBase = base;
-      c.color.copy(base.color).multiply(new THREE.Color(camo.tint[0], camo.tint[1], camo.tint[2]));
+      // Boya kaplama: renk dokusu yerine düz renk (koyu dokuyla çarpınca renk görünmüyordu); yüzey ayrıntısı
+      // normal ve pürüz dokularından kalır
+      c.map = null;
+      c.color.setRGB(camo.color[0], camo.color[1], camo.color[2]);
       if (camo.metal !== undefined && 'metalness' in c) c.metalness = camo.metal;
       if (camo.rough !== undefined && 'roughness' in c) c.roughness = camo.rough;
       return c;
@@ -219,7 +267,7 @@ export function restoreAttachments(a) {
 }
 
 /**
- * Eklentileri kur. a: { root, muzzle, sight, leftHand, mag?, optic?, ironSight } (silah uzayında noktalar).
+ * Eklentileri kur. a: { root, muzzle, sight, fore (kundak noktası), palmZ?, mag?, optic?, ironSight } (silah uzayında).
  * → { muzzleLen, optic: eklenti | null, sightLift }
  */
 export function applyAttachments(a, mods) {
@@ -240,7 +288,12 @@ export function applyAttachments(a, mods) {
       out.sightLift = a.ironSight ? spec.lift : 0;
       buildOptic(g, att, a.sight, out.sightLift);
       out.optic = att;
-    } else if (cat === 'underbarrel' && a.leftHand) buildUnder(g, spec, a.leftHand);
+    } else if (cat === 'underbarrel' && a.fore) {
+      // Kundak noktasının (ve sol avucun) önü; kesit modelden
+      const z = Math.min(a.fore.z, a.palmZ ?? a.fore.z) - (spec.kind === 'laser' ? 0.06 : 0.075);
+      const sec = foreSection(a.root, z, a.fore.x, a.mag);
+      if (sec) buildUnder(g, spec, { x: a.fore.x, z, bottom: sec.bottom, side: sec.side, mid: (sec.bottom + sec.top) / 2 });
+    }
     else if (cat === 'magazine' && a.mag) {
       if (spec.kind === 'magstretch') stretchMag(a.root, a.mag, spec.k);
       else if (spec.kind === 'magtape') tapeMag(a.mag);

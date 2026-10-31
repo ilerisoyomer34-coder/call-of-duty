@@ -12,6 +12,7 @@ import { mulberry32 } from '../shared/sim/rng.js';
 import { WEAPONS, WEAPON_ORDER, ONLINE } from '../src/config.js';
 import { Room } from '../server/game/room.js';
 import { MatchSim, eyeHeight, seqNewer } from '../server/game/sim.js';
+import { ATT_IDS } from '../shared/sim/mods.js';
 import { modeRules } from '../server/game/rooms.js';
 import ARENAS from '../src/data/arenas.json' with { type: 'json' };
 
@@ -276,6 +277,31 @@ test('maç öncesi teçhizat: ısınmada hemen kuşanılır, geçersiz silah var
   assert.deepEqual(sim.players[a.slot].loadout, ['rifle', 'pistol']);
   room.advance(4);
   assert.equal(loadoutEvent(a).now, false, 'onay: sonraki doğuşta');
+});
+
+test('silah eklentileri çevrim içinde: el sıkışmayla gelir, sunucu doğrular ve silahı eklentili kurar', () => {
+  const room = makeRoom('match', 'tdm', { ...modeRules('tdm'), warmup: 60 });
+  const sim = room.sim;
+  const idx = (ids) => ids.map((id) => ATT_IDS.indexOf(id));
+  room.reserve(['p_m'], '', 0);
+  const c = fakeConn();
+  // Pompalıya uymayan şarjör ve bıçağa bir şey takılmaz; uyanlar kalır
+  room.join(c, { primary: 'ak74', secondary: 'd50', pmods: idx(['muz_suppressor', 'mag_extended', 'opt_acog']), smods: idx(['opt_acog']) }, { id: 'p_m', name: 'm', tag: 1 });
+  room.onMessage(c, { type: MSG.C_LOADED });
+  room.advance(2);
+  const p = sim.players[c.slot];
+  assert.deepEqual(p.mods[0], { optic: 'opt_acog', muzzle: 'muz_suppressor', magazine: 'mag_extended' });
+  assert.deepEqual(p.mods[1], {}, 'tabancaya dürbün takılmaz');
+  const w = p.arms.weapons[0];
+  assert.equal(w.d.magSize, Math.round(WEAPONS.ak74.magSize * 1.5), 'uzatılmış şarjör sunucuda da');
+  assert.equal(w.mag, w.d.magSize);
+  // Isınmada teçhizat değişince eklentiler de değişir; susturuculu atış olayı işaretli
+  room.onMessage(c, { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: false, pmods: idx(['muz_suppressor']), smods: [] });
+  assert.deepEqual(p.mods[0], { muzzle: 'muz_suppressor' });
+  assert.equal(p.arms.weapons[0].d.magSize, WEAPONS.ak74.magSize);
+  // Geçersiz dizin atılır
+  room.onMessage(c, { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: false, pmods: [250, 251], smods: [] });
+  assert.deepEqual(p.mods[0], {});
 });
 
 test('maç sonu oylaması: bütün haritalar oylanır, en çok oy alan haritada aynı oyuncular aynı tarafa ayrılır', () => {

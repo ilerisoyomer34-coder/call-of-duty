@@ -8,7 +8,7 @@ import { mulberry32 } from '../shared/sim/rng.js';
 const w = new Writer(16); // küçük başlar: büyüme de denenir
 
 test('el sıkışma, ping ve basit iletiler gidip gelir', () => {
-  const h = { protocolVersion: 1, buildHash: 'abc123def456', token: 'x'.repeat(64), room: 'K7M2PQ', primary: 'rifle', secondary: 'pistol' };
+  const h = { protocolVersion: 1, buildHash: 'abc123def456', token: 'x'.repeat(64), room: 'K7M2PQ', primary: 'rifle', secondary: 'pistol', pmods: [0, 3, 12], smods: [] };
   assert.deepEqual(decodeClient(encodeHello(w, h)), { type: MSG.C_HELLO, ...h });
   assert.deepEqual(decodeClient(encodePing(w, 123456.789)), { type: MSG.C_PING, clientTime: 123456.789 });
   assert.deepEqual(decodeClient(encodeSimple(w, MSG.C_LOADED)), { type: MSG.C_LOADED });
@@ -17,8 +17,8 @@ test('el sıkışma, ping ve basit iletiler gidip gelir', () => {
   assert.deepEqual(decodeServer(encodeVoteState(w, { left: 12.34, counts: [0, 2, 1, 0], winner: VOTE_NONE })), { type: MSG.S_VOTE, left: 12.3, counts: [0, 2, 1, 0], winner: VOTE_NONE });
   assert.deepEqual(decodeServer(encodeNext(w, { room: 'K7M2PQ', map: 'harbor', mode: 'tdm' })), { type: MSG.S_NEXT, room: 'K7M2PQ', map: 'harbor', mode: 'tdm' });
   // Maç öncesi teçhizat seçimi
-  assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'ak74', secondary: 'd50', ready: true })), { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: true });
-  assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'rifle', secondary: '', ready: false })), { type: MSG.C_LOADOUT, primary: 'rifle', secondary: '', ready: false });
+  assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'ak74', secondary: 'd50', ready: true, pmods: [1, 5], smods: [7] })), { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: true, pmods: [1, 5], smods: [7] });
+  assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'rifle', secondary: '', ready: false })), { type: MSG.C_LOADOUT, primary: 'rifle', secondary: '', ready: false, pmods: [], smods: [] });
   // Türkçe karakterli ad UTF-8 ile taşınır
   const r = decodeServer(encodeRoster(w, [{ slot: 3, id: 'p_0123456789abcdef01234567', name: 'Ömer Işık', tag: 4821, side: 1, flags: 2, kills: 7, deaths: 3, score: 820, ping: 48, party: 'pt_00aa11bb22cc33dd' }]));
   assert.equal(r.players[0].name, 'Ömer Işık');

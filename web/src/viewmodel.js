@@ -246,6 +246,8 @@ export class Viewmodel {
     const old = this.models[id];
     if (old) old.root.removeFromParent();
     m.root.visible = this.currentId === id;
+    // Kundak noktası (modelin kaydı): kalibrasyon leftHand'i sol avucun yerine taşır, eklenti kundağın ortasına takılır
+    m.fore = m.leftHand.clone();
     calibrateWeapon(id, m, fromGlb);
     this.holder.add(m.root);
     m.flash = this.makeFlash(this.textures, WEAPONS[id].flashSize || 0.14);
@@ -391,7 +393,7 @@ export class Viewmodel {
   fitAttachments(id, m) {
     const mods = this.mods[id]?.mods || {};
     const att = applyAttachments(
-      { root: m.root, muzzle: m.muzzle, sight: m.sightBase, leftHand: m.leftHand, mag: m.parts.mag, optic: m.parts.optic, ironSight: SIGHT_TYPES[baseSightId(id)]?.kind === 'iron', attGroup: m.attGroup },
+      { root: m.root, muzzle: m.muzzle, sight: m.sightBase, fore: m.fore, palmZ: m.leftHand.z, mag: m.parts.mag, optic: m.parts.optic, ironSight: SIGHT_TYPES[baseSightId(id)]?.kind === 'iron', attGroup: m.attGroup },
       mods
     );
     m.attGroup = m.root.getObjectByName('attachments');

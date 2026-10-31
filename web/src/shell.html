@@ -822,16 +822,17 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 /* ---------- Teçhizat ---------- */
 /* Teçhizat ekranı (loadoutScreen.js): solda yuvalar, ortada kartlar, sağda ayrıntı + dönen önizleme */
 #loadoutScreen .sheet.loadout { width: min(1240px, 100%); }
-/* Silah modifiye: teçhizatın üstünde aynı boyda */
-#loadoutScreen { position: relative; }
-.gsRoot { position: absolute; inset: 0; margin: auto; z-index: 4; background: var(--ink); max-height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+/* Silah modifiye: teçhizat ekranını tam kaplar (açıkken ekran kaymaz, en üstte), sütunlar kendi içinde kayar:
+   telefonda alttaki düğme ekran dışına taşmasın */
+#loadoutScreen.gsOpen { overflow: hidden; }
+.gsRoot { position: absolute; inset: 0; margin: 0 auto; z-index: 4; background: var(--ink); overflow: hidden; display: flex; flex-direction: column; padding-block: 24px; }
 .gsRoot[hidden] { display: none; }
 .gsBody { display: grid; grid-template-columns: 200px minmax(0, 1fr) minmax(260px, 340px); gap: 12px; min-height: 0; flex: 1; }
-.gsCats { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.gsCats { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
 .gsCat.active { border-color: var(--amber); background: rgba(240,163,58,.14); }
 .gsCat:disabled { opacity: .4; cursor: default; }
-.gsList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; align-content: start; overflow-y: auto; max-height: min(70vh, 700px); }
-.gsCard { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 28px; text-align: left; background: rgba(231,220,196,.04); border: 1px solid var(--line); color: var(--sand); font: inherit; cursor: pointer; min-height: 92px; }
+.gsList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; align-content: start; overflow-y: auto; min-height: 0; }
+.gsCard { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; text-align: left; background: rgba(231,220,196,.04); border: 1px solid var(--line); color: var(--sand); font: inherit; cursor: pointer; min-height: 92px; }
 .gsCard:hover { background: rgba(231,220,196,.08); }
 .gsCard.sel { border-color: var(--amber); background: rgba(240,163,58,.14); }
 .gsCard.equipped { border-left: 3px solid #7fd38a; }
@@ -842,9 +843,10 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .gsFx em { font: 600 11px/1 var(--f-ui); font-style: normal; padding: 3px 5px; background: rgba(231,220,196,.08); color: var(--sand-dim); }
 .gsFx em.up { color: #8fdc96; background: rgba(127,211,138,.12); }
 .gsFx em.down { color: #ef8a7a; background: rgba(224,81,63,.12); }
-.gsState { position: absolute; left: 12px; bottom: 8px; font: 700 11px/1 var(--f-ui); letter-spacing: .1em; color: var(--amber); }
+.gsState { margin-top: auto; padding-top: 2px; font: 700 11px/1 var(--f-ui); letter-spacing: .1em; color: var(--amber); }
 .gsCard.equipped .gsState { color: #7fd38a; }
-.gsSide { overflow-y: auto; max-height: min(70vh, 700px); }
+.gsSide { overflow-y: auto; min-height: 0; }
+.gsSide .stActions { margin: 0; }
 .gsStats { display: flex; flex-direction: column; gap: 5px; }
 .gsStat { display: grid; grid-template-columns: 110px 1fr 70px; gap: 8px; align-items: center; font: 600 12px/1 var(--f-ui); color: var(--sand-dim); }
 .gsStat i { position: relative; height: 6px; background: rgba(231,220,196,.1); }
@@ -858,11 +860,20 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .gsStat.down em { color: #ef8a7a; }
 .loMods { color: var(--amber); }
 @media (max-width: 900px), (max-height: 560px) {
-  .gsBody { grid-template-columns: 140px minmax(0, 1fr) minmax(200px, 260px); gap: 8px; }
-  .gsList { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: calc(100vh - 150px); }
-  .gsSide { max-height: calc(100vh - 150px); }
-  .gsCard { min-height: 70px; padding: 8px 9px 24px; }
-  .gsStat { grid-template-columns: 84px 1fr 56px; }
+  .gsRoot { padding-block: 8px; gap: 8px; }
+  .gsRoot .eyebrow { display: none; }
+  .gsRoot .stHead h2 { font-size: 22px; margin: 0; }
+  .gsRoot .loActions .btn { padding: 6px 14px; font-size: 13px; }
+  .gsBody { grid-template-columns: 120px minmax(0, 1fr) minmax(190px, 250px); gap: 8px; }
+  .gsCats .loSlot { padding: 5px 8px; }
+  .gsList { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+  .gsCard { min-height: 64px; padding: 7px 8px; gap: 4px; }
+  .gsCard b { font-size: 13px; }
+  .gsFx em { font-size: 10px; padding: 2px 4px; }
+  .gsPreview { aspect-ratio: 5 / 2; }
+  .gsSide { gap: 6px; padding: 8px; }
+  .gsSide .stName { font-size: 15px; }
+  .gsStat { grid-template-columns: 76px 1fr 54px; font-size: 11px; }
 }
 .loBody { display: grid; grid-template-columns: 186px minmax(0, 1fr) minmax(270px, 330px); gap: 14px; align-items: start; }
 .loNav { display: flex; flex-direction: column; gap: 6px; }

@@ -65,7 +65,9 @@ Komut:
 Gövdesiz.
 
 ### `0x06 C_LOADOUT`
-`str primary · str secondary · u8 ready (1 hazırım)`
+`str primary · str secondary · u8 ready (1 hazırım) · mods(primary) · mods(secondary)`
+
+`mods`: `u8 n` (en çok 8) + `n × u8` eklenti dizini (`shared/sim/mods.js → ATT_IDS`). `C_HELLO` da `str secondary`'den sonra aynı iki `mods` alanını taşır. Sunucu `modsFromIndices` ile doğrular (uyumsuz eklenti atılır).
 
 Maç öncesi teçhizat paneli (`src/net/prepScreen.js`). Sunucu `shared/sim/loadout.js → validLoadout` ile doğrular (geçersiz yuva varsayılana döner). Isınmada hemen kuşandırır, maç sürerken sonraki doğuşta. Kabul ettiğini `NEV.LOADOUT` ile döner. Isınmada bağlı herkes `ready` ise kalan süre `ONLINE.readyStartSec`'e iner.
 
@@ -95,7 +97,7 @@ Olaylar:
 
 | Tür | Gövde | Kime |
 |---|---|---|
-| `SHOT` 1 | `u8 slot · u8 weapon · i16 end×3 · u8 hit · u8 surface` | atan dışında herkes |
+| `SHOT` 1 | `u8 slot · u8 weapon (üst bit: susturuculu) · i16 end×3 · u8 hit · u8 surface` | atan dışında herkes |
 | `HIT` 2 | `u8 victim · u8 dmg · u8 flags (1 kafa, 2 öldürdü, 4 korumalı) · i16 point×3` | atan |
 | `DAMAGE` 3 | `u8 attacker · u8 dmg · i16 from.x · i16 from.z` | vurulan |
 | `KILL` 4 | `u8 killer (255 dünya) · u8 victim · u8 weapon (254 bıçak) · u8 flags (1 kafa)` | herkes |

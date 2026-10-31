@@ -86,6 +86,8 @@ export const LF = { GROUNDED: 1, CROUCHED: 2, SPRINTING: 4 };
 
 // Öldürme olayında silah yerine özel değerler
 export const WEAPON_MELEE = 254;
+// SHOT olayında silah dizininin üst biti: susturuculu atış (dizin < 128)
+export const WEAPON_SUPPRESSED = 0x80;
 export const WEAPON_NONE = 255;
 export const SLOT_NONE = 255;
 
@@ -95,4 +97,5 @@ export const LIMITS = {
   maxCmdsPerInput: 3,
   maxShotsPerCmd: 4,
   maxStr: 64,
+  maxMods: 8, // silah başına eklenti (kategori sayısı)
 };

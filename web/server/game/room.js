@@ -167,7 +167,7 @@ export class Room {
     }
     let slot = this.slotOf.get(player.id);
     if (slot === undefined || !sim.players[slot] || sim.players[slot].id !== player.id) {
-      slot = sim.addPlayer({ id: player.id, name: player.name, tag: player.tag, side: a.side, party: a.party, primary: hello.primary, secondary: hello.secondary });
+      slot = sim.addPlayer({ id: player.id, name: player.name, tag: player.tag, side: a.side, party: a.party, primary: hello.primary, secondary: hello.secondary, pmods: hello.pmods, smods: hello.smods });
       if (slot < 0) return ERR.ROOM_FULL;
       this.slotOf.set(player.id, slot);
       sim.balanceBots();
@@ -229,7 +229,7 @@ export class Room {
         }
         break;
       case MSG.C_LOADOUT:
-        if (conn.loaded) sim.chooseLoadout(conn.slot, m.primary, m.secondary, m.ready);
+        if (conn.loaded) sim.chooseLoadout(conn.slot, m.primary, m.secondary, m.ready, m.pmods, m.smods);
         break;
       case MSG.C_VOTE:
         this.castVote(conn, m.map);

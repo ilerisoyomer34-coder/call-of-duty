@@ -928,7 +928,8 @@ export class Game {
   // bombası yok)
   onlineLoadout() {
     const [p, s] = this.net?.loadout || [ONLINE.defaultPrimary, ONLINE.defaultSecondary];
-    return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: 0, current: p };
+    // Eklentiler sunucuya gönderilenle aynı (sunucu aynı kuralla doğrular: shared/sim/mods.js)
+    return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: 0, current: p, mods: { [p]: this.gunsmith.modsFor(p), [s]: this.gunsmith.modsFor(s) } };
   }
 
   matchTitle() {

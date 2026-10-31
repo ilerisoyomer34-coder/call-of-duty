@@ -10,7 +10,8 @@
 //   - Zaman genişletme: sunucunun komut tamponu azalırsa tick biraz hızlanır, birikirse yavaşlar (tickScale).
 //   - Atış/şarjör/yakın dövüş istemcide görünür, sunucuya komutla bildirilir; isabet, hasar ve ölüm sunucudan.
 import { PROTOCOL_VERSION, TICK_DT, TICK_RATE } from '../../shared/constants.js';
-import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
+import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE, WEAPON_SUPPRESSED } from '../../shared/net/protocol.js';
+import { modsToIndices } from '../../shared/sim/mods.js';
 import { Writer, encodeHello, encodeLoadout, encodeVote, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
@@ -149,7 +150,8 @@ export class GameClient {
       t.onopen = () => {
         // Teçhizat: son çevrim içi seçimi (maç öncesi paneli), yoksa tek oyunculu teçhizat; sunucu doğrular
         const L = this.game.settings.onlineLoadout || this.game.loadout;
-        t.send(encodeHello(this.w, { protocolVersion: PROTOCOL_VERSION, buildHash: BUILD_HASH, token: this.game.social.profile.token || '', room: this.match.room, primary: L.primary, secondary: L.secondary }));
+        const gs = this.game.gunsmith;
+        t.send(encodeHello(this.w, { protocolVersion: PROTOCOL_VERSION, buildHash: BUILD_HASH, token: this.game.social.profile.token || '', room: this.match.room, primary: L.primary, secondary: L.secondary, pmods: modsToIndices(gs.modsFor(L.primary)), smods: modsToIndices(gs.modsFor(L.secondary)) }));
       };
       this.onWelcome = (m) => {
         clearTimeout(timer);
@@ -412,7 +414,8 @@ export class GameClient {
   // Maç öncesi teçhizat paneli (prepScreen.js): seçim ve "hazırım" sunucuya; silah sunucu onaylayınca değişir
   setLoadout(primary, secondary, ready) {
     if (this.state !== 'playing') return;
-    this.send(encodeLoadout(this.w, { primary, secondary, ready }));
+    const gs = this.game.gunsmith;
+    this.send(encodeLoadout(this.w, { primary, secondary, ready, pmods: modsToIndices(gs.modsFor(primary)), smods: modsToIndices(gs.modsFor(secondary)) }));
   }
 
   rosterOf(slot) {
@@ -424,14 +427,15 @@ export class GameClient {
   remoteShot(e) {
     const g = this.game;
     const d = this.remotes.weaponOf(e.slot);
+    const sup = (e.weapon & WEAPON_SUPPRESSED) !== 0;
     this.muzzle = this.muzzle || g.world.newVec();
     const muzzle = this.remotes.muzzleOf(e.slot, this.muzzle);
     if (!muzzle) return;
     const end = e.end;
     const surface = SURFACES[e.surface] || 'concrete';
     if (Math.hypot(end.x - muzzle.x, end.y - muzzle.y, end.z - muzzle.z) > 2) g.effects.tracer(muzzle, end, 380, 0.014);
-    g.effects.flashLight(muzzle, 0xffb566, 10, 6, 0.05);
-    g.audio.gunshot(d.sound, muzzle);
+    if (!sup) g.effects.flashLight(muzzle, 0xffb566, 10, 6, 0.05);
+    g.audio.gunshot(sup ? 'suppressed' : d.sound, muzzle);
     if (e.hit === HIT_KIND.WORLD) {
       const n = { x: muzzle.x - end.x, y: muzzle.y - end.y, z: muzzle.z - end.z };
       const l = Math.hypot(n.x, n.y, n.z) || 1;

@@ -15,7 +15,8 @@ import { createWeaponState, fireInterval, spreadDeg, recoverBloom, addBloom, rec
 import { lerp } from '../../shared/sim/math.js';
 import { NavGrid } from '../../shared/sim/nav.js';
 import { validLoadout } from '../../shared/sim/loadout.js';
-import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE } from '../../shared/net/protocol.js';
+import { moddedDef, modsFromIndices, modsKey } from '../../shared/sim/mods.js';
+import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE, WEAPON_SUPPRESSED } from '../../shared/net/protocol.js';
 import { WEAPONS, WEAPON_ORDER, MOVEMENT as M, ONLINE } from '../../src/config.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
 import { BotBrain } from './bot.js';
@@ -50,8 +51,9 @@ export function dirFromAngles(yaw, pitch, out) {
 
 export const eyeHeight = (s) => lerp(M.eyeStand, M.eyeCrouch, s.crouchT);
 
-function createArm(id) {
-  const d = WEAPONS[id];
+// mods: silahın eklentileri (shared/sim/mods.js; doğrulanmış)
+function createArm(id, mods = null) {
+  const d = mods ? moddedDef(id, mods) : WEAPONS[id];
   const w = createWeaponState(d);
   w.id = id;
   w.d = d;
@@ -149,6 +151,8 @@ export class MatchSim {
       cmdT: 0,
       bufDepth: 0,
       loadout: [primary, secondary],
+      // Eklentiler ağdan dizinle; sunucu kendi kurallarıyla yeniden doğrular (uyumsuz olan atılır)
+      mods: [modsFromIndices(primary, info.pmods), modsFromIndices(secondary, info.smods)],
       arms: null,
       meleeReadyT: 0,
       lastShotTick: -100,
@@ -170,7 +174,7 @@ export class MatchSim {
   }
 
   makeArms(p) {
-    return { weapons: p.loadout.map(createArm), slot: 0, readyT: 0 };
+    return { weapons: p.loadout.map((id, i) => createArm(id, p.mods?.[i])), slot: 0, readyT: 0 };
   }
 
   removePlayer(slot) {
@@ -193,12 +197,14 @@ export class MatchSim {
   // Maç öncesi teçhizat (C_LOADOUT). Isınmada (geri sayım, ateş yok) hemen kuşanılır; maç sürerken seçilen teçhizat
   // sonraki doğuşta gelir (canlı oyuncunun silahı elinde değişmesin). Kabul edilen teçhizat seçene NEV.LOADOUT ile
   // döner: istemci kendi tahminini ancak sunucunun kuşandırdığıyla kurar (geç gelen seçimde ikisi ayrışmasın).
-  chooseLoadout(slot, primary, secondary, ready) {
+  chooseLoadout(slot, primary, secondary, ready, pmods = null, smods = null) {
     const p = this.players[slot];
     if (!p || p.bot || this.phase === PHASE.ENDED) return false;
     const [a, b] = validLoadout(primary, secondary);
-    const changed = a !== p.loadout[0] || b !== p.loadout[1];
+    const mods = [modsFromIndices(a, pmods), modsFromIndices(b, smods)];
+    const changed = a !== p.loadout[0] || b !== p.loadout[1] || modsKey(mods[0]) !== modsKey(p.mods[0]) || modsKey(mods[1]) !== modsKey(p.mods[1]);
     p.loadout = [a, b];
+    p.mods = mods;
     const now = changed && p.alive && this.phase === PHASE.WARMUP;
     if (now) p.arms = this.makeArms(p);
     this.lateEvents.push({ k: NEV.LOADOUT, primary: weaponIndex(a), secondary: weaponIndex(b), now, to: slot, except: -1 });
@@ -442,7 +448,9 @@ export class MatchSim {
       }
     }
     addBloom(w, d);
-    this.emit({ k: NEV.SHOT, slot: p.slot, weapon: weaponIndex(w.id), end: first.end, hit: first.hit, surface: first.surface }, -1, p.slot);
+    // Susturuculu atış (eklenti): silah dizininin üst biti; uzaktaki oyuncular boğuk ses duyar
+    const weapon = weaponIndex(w.id) | (w.d.sound === 'suppressed' ? WEAPON_SUPPRESSED : 0);
+    this.emit({ k: NEV.SHOT, slot: p.slot, weapon, end: first.end, hit: first.hit, surface: first.surface }, -1, p.slot);
     if (hits) for (const [victim, h] of hits) this.damage(victim, p, h.dmg, weaponIndex(w.id), h.head, h.point);
     return true;
   }

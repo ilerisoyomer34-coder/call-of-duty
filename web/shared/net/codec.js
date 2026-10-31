@@ -204,7 +204,24 @@ export function encodeHello(w, h) {
   w.str(h.room);
   w.str(h.primary || '');
   w.str(h.secondary || '');
+  writeMods(w, h.pmods);
+  writeMods(w, h.smods);
   return w.bytes();
+}
+
+// Silah eklentileri: u8 sayı + her biri u8 dizin (shared/sim/mods.js → ATT_IDS)
+function writeMods(w, list) {
+  const a = (list || []).slice(0, LIMITS.maxMods);
+  w.u8(a.length);
+  for (const i of a) w.u8(i & 0xff);
+}
+
+function readMods(r) {
+  const n = r.u8();
+  if (n > LIMITS.maxMods) throw SHORT;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(r.u8());
+  return out;
 }
 
 // Komut kaydı: seq u16, buttons u16, moveX/moveY i8, yaw u16, pitch i16, weapon u8 (yuva | mod << 4),
@@ -268,6 +285,8 @@ export function encodeLoadout(w, l) {
   w.str(l.primary || '');
   w.str(l.secondary || '');
   w.u8(l.ready ? 1 : 0);
+  writeMods(w, l.pmods);
+  writeMods(w, l.smods);
   return w.bytes();
 }
 
@@ -306,6 +325,8 @@ export function decodeClient(bytes) {
           room: r.str(LIMITS.maxStr),
           primary: r.str(LIMITS.maxStr),
           secondary: r.str(LIMITS.maxStr),
+          pmods: readMods(r),
+          smods: readMods(r),
         };
       case MSG.C_INPUT: {
         const ackTick = r.u32();
@@ -320,7 +341,7 @@ export function decodeClient(bytes) {
       case MSG.C_VOTE:
         return { type, map: r.u8() };
       case MSG.C_LOADOUT:
-        return { type, primary: r.str(LIMITS.maxStr), secondary: r.str(LIMITS.maxStr), ready: r.u8() === 1 };
+        return { type, primary: r.str(LIMITS.maxStr), secondary: r.str(LIMITS.maxStr), ready: r.u8() === 1, pmods: readMods(r), smods: readMods(r) };
       case MSG.C_LOADED:
       case MSG.C_LEAVE:
         return { type };
