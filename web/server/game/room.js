@@ -363,6 +363,8 @@ export class Room {
     v.winner = this.pickWinner(counts);
     const mapId = this.maps[v.winner];
     this.sendVote();
+    // Herkes ayrıldıysa boş oda açılmaz
+    if (![...this.conns].some((c) => c.slot >= 0)) return;
     let next = null;
     try {
       next = this.nextRoom(mapId);
