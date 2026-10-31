@@ -163,7 +163,13 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - Yenilenme `regenDelay` / `regenRate`.
   - Doğuş koruması `protectSec`; ateş edince biter.
 - **Doğuş:** kendi tarafının noktalarından (herkes kendine modunda `ffa`), rakibe en uzak ve görüş dışında olanı.
-- **Evreler:** `WARMUP` (geri sayım, hareket ve atış yok) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır).
+- **Evreler:** `WARMUP` (teçhizat paneli ve geri sayım, hareket ve atış yok; `modes.json → warmup` 60 sn) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır; eşleşme odasında oylama boyunca açık kalır).
+- **Maç öncesi teçhizat (`chooseLoadout`, `C_LOADOUT`):**
+  - Isınmada seçilen ana/yan silah hemen kuşanılır, maç sürerken seçilen sonraki doğuşta.
+  - Kabul edilen teçhizat seçene `NEV.LOADOUT` ile döner; istemci elindeki silahı ancak o zaman değiştirir (geç gelen seçimde tahmin ile sunucu ayrışmasın).
+  - Tick dışında doğan olaylar `lateEvents`'te bekler, sonraki tick'in olaylarına katılır.
+  - Bağlı bütün insanlar "hazırım" derse ısınmanın kalanı `ONLINE.readyStartSec`'e iner; kısalan süre geri uzamaz.
+  - Seçilebilir silahlar `shared/sim/loadout.js` (roket ve `online: false` yok); istemcinin paneli aynı listeyi gösterir.
 - **Botlar:** `rules.bots = 'fill'` ise eksik yerler yapay zekâyla dolar; insan gelince o taraftan bir bot çıkar.
 
 **`bot.js` → `BotBrain`:**
@@ -180,11 +186,17 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 - Liste (`S_ROSTER`) değişince gönderilir.
 - Ping, onaylanan anlık görüntünün gönderilme anından ölçülür.
 - Boş oda 30 sn sonra kapanır.
+- **Maç sonu harita oylaması** (yalnız eşleşme odası; deneme odasında yok):
+  - Maç bitince bütün haritalar (`modes.json → matchmaking.maps`) `ONLINE.voteSec` boyunca oylanır (`C_VOTE`, durum `S_VOTE`).
+  - Kazanan: en çok oy; eşitlikte eşitlerden biri, oy yoksa şimdiki haritadan başka biri.
+  - `RoomManager.create(kind, mode, mapId)` kazanan haritada yeni oda açar; bağlı her insan aynı taraf ve takımla ayrılır, `S_NEXT` gider.
+  - Eski oda `nextLingerSec` daha açık kalır, sonra kapanır.
 
 **`rooms.js`:**
 - `RoomManager`:
   - oda kodu, 31 sembolden 6 karakter;
-  - arena çarpışma verisi `shared/maps/<arena>.collision.json`.
+  - arena çarpışma verisi `shared/maps/<arena>.collision.json`;
+  - yeni maçlar haritaları sırayla gezer (oylamanın kazananı verilirse o).
 - `Matchmaker`:
   - takım (party) birlikte ve aynı tarafa konur;
   - önce yeri olan süren maça katılır: bot yeri insana açılır, oyuncular karışık;
@@ -214,7 +226,11 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 - Görüntü gecikirse en çok `extrapolateMs` ileri tahmin edilir.
 - Aynı taraf mavi görünüm ve ad etiketi, rakip düşman görünümü; rakibin adı yalnız nişangâhtayken.
 
-**`matchHud.js`:** skor çubuğu ve süre, geri sayım, öldürme akışı, puan tablosu (Tab; dokunmatikte skora dokun), ölüm kartı, maç sonu.
+**`matchHud.js`:** skor çubuğu ve süre, geri sayım, öldürme akışı, puan tablosu (Tab; dokunmatikte skora dokun), ölüm kartı, maç sonu ve harita oylaması (kartlar; şerit rengi haritanın ufku).
+
+**`prepScreen.js`:** maç öncesi teçhizat paneli (ısınma boyunca). Ana/yan silah kartları yatay kayar, HAZIRIM, "Haritaya bak" (üstteki TEÇHİZAT çipi geri açar). Esc paneli kapatır, duraklatmaz. Son seçim `settings.onlineLoadout` (el sıkışmada gönderilir). Silah görselleri panel açıkken çizilir, kapanınca stüdyo bağlamı bırakılır.
+
+**Sıradaki maç (`main.nextOnline`):** `S_NEXT` gelince kazanan harita `ONLINE.nextShowSec` gösterilir, sonra eski odadan ayrılıp yeni odaya bağlanılır (menüye dönmeden).
 
 **`wsTransport.js`:** ikili WebSocket. Konsol `net_fakelag` / `net_profile` ya da `?netsim=` iki yönde `NetSim` uygular.
 
@@ -230,7 +246,11 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 | Deneme odası | Botsuz, süresiz |
 | Rekabetçi | Yakında |
 
-Arena: Depo (`src/maps/depo.js`, `data/arenas.json`; nokta simetrik, doğuşlar birbirini görmez).
+Arenalar (`data/arenas.json`):
+- Depo: elle kurulmuş (`src/maps/depo.js`; nokta simetrik, doğuşlar birbirini görmez).
+- Bütün görev haritaları (kullanıcı isteği): harita kodu görevle aynı (`buildMission`), çevrim içinde varil ve ikmal sandığı yok (sunucunun dünyasında değiller).
+  - Doğuş ve bot noktaları `tools/make-arenas.mjs` ile haritanın çarpışma dünyasından üretilir: boş zemin, başlangıçla aynı yürünebilir bölge, iki taraf 80 m arayla.
+  - Harita değişince `export-collision` ve `make-arenas` çalıştırılır; `tests/arenas.test.mjs` eskiyse düşer, her haritada botların doğup dolaştığını da dener.
 
 ## Testler
 

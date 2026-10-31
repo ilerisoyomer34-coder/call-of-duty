@@ -64,6 +64,16 @@ Komut:
 ### `0x04 C_LOADED` · `0x05 C_LEAVE`
 Gövdesiz.
 
+### `0x06 C_LOADOUT`
+`str primary · str secondary · u8 ready (1 hazırım)`
+
+Maç öncesi teçhizat paneli (`src/net/prepScreen.js`). Sunucu `shared/sim/loadout.js → validLoadout` ile doğrular (geçersiz yuva varsayılana döner). Isınmada hemen kuşandırır, maç sürerken sonraki doğuşta. Kabul ettiğini `NEV.LOADOUT` ile döner. Isınmada bağlı herkes `ready` ise kalan süre `ONLINE.readyStartSec`'e iner.
+
+### `0x07 C_VOTE`
+`u8 map` (`modes.json → matchmaking.maps` dizini)
+
+Yalnız maç sonu oylaması sürerken. Oy değiştirilebilir, son oy sayılır.
+
 ## Sunucu → istemci
 
 ### `0x81 S_WELCOME`
@@ -92,13 +102,14 @@ Olaylar:
 | `SPAWN` 5 | `u8 slot · i16 pos×3 · u16 yaw` | herkes |
 | `MELEE` 6 / `RELOAD` 7 | `u8 slot` | diğerleri |
 | `ROUND` 8 | `u8 code (1 maç başladı, 2 bitti) · u8 value` | herkes |
+| `LOADOUT` 9 | `u8 primary · u8 secondary · u8 now (1 şimdi elde, 0 sonraki doğuşta)` | seçen |
 
 - `scoreA/scoreB`: taraflı modda mavi/kırmızı. Herkes kendine modunda kendi öldürme sayın ve en iyi rakibinki.
 - `weapon`: `WEAPON_ORDER` sırası.
 
 ### `0x83 S_ROSTER` (değişince, en sık 4 Hz)
 `u8 n` + her biri:
-`u8 slot · str id · str name · u16 tag · u8 side (0 mavi, 1 kırmızı, 255 yok) · u8 flags (1 YZ, 2 bağlı) · u16 kills · u16 deaths · u16 score · u16 ping · str party`
+`u8 slot · str id · str name · u16 tag · u8 side (0 mavi, 1 kırmızı, 255 yok) · u8 flags (1 YZ, 2 bağlı, 8 teçhizatta hazır) · u16 kills · u16 deaths · u16 score · u16 ping · str party`
 
 ### `0x84 S_PONG`
 `f64 clientTime · f64 serverTime · u32 serverTick`
@@ -123,6 +134,16 @@ Türkçe metinler `src/net/gameClient.js → NET_ERRORS`.
 
 ### `0x86 S_MATCH_END`
 `u8 winner (taraf ya da yuva; 255 berabere) · u8 reason (1 skor sınırı, 2 süre) · i16 scoreA · i16 scoreB`
+
+### `0x87 S_VOTE` (eşleşme odasında maç bitince; her oyda ve sonuçta)
+`u16 left×10 · u8 n · n × u8 oy sayısı · u8 winner (255 sürüyor)`
+
+Oylama `ONLINE.voteSec` sürer, yalnız bağlı oyuncuların oyu sayılır. Kazanan: en çok oy. Eşitlikte aralarından biri, hiç oy yoksa şimdiki haritadan başka biri (odanın tohumlu üreteci).
+
+### `0x88 S_NEXT`
+`str room · str map · str mode`
+
+Kazanan haritada açılan yeni oda. Bağlı her insan aynı taraf ve takımla ayrılmıştır. İstemci `ONLINE.nextShowSec` sonra eski odadan ayrılıp buna bağlanır (`main.nextOnline`). Eski oda `ONLINE.nextLingerSec` daha açık kalır.
 
 ## REST (oda açma ve eşleştirme)
 
