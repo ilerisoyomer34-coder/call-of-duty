@@ -23,7 +23,7 @@ import { VehicleSystem } from './vehicle.js';
 import { PhysicsSystem } from './physics.js';
 import { loadSettings, resolveQuality, saveSettings } from './settings.js';
 import { ProgressionSystem } from './progression.js';
-import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT, POST, FRAME } from './config.js';
+import { DIFFICULTY, SCORE, LEVELS, MAPS, RENDER, WEAPONS, BALANCE, TREES, LOBBY, ALLY, ROBOT, POST, FRAME, ONLINE } from './config.js';
 import { PostFX } from './postfx.js';
 import { FrameLimiter, DynamicResolution, resolveFpsCap, targetFrameMs } from './framePacing.js';
 import { setMaxAnisotropy, setTextureCap, loadPropAsset, PROP_ASSETS } from './assets.js';
@@ -278,7 +278,7 @@ export class Game {
         return;
       }
       // Konsol ve telsiz satırı imleci bilerek serbest bırakır: o zaman duraklatma
-      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active) this.pause();
+      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active && !this.matchHud?.prep.open) this.pause();
     };
     this.clickToPlay = document.getElementById('clickToPlay');
     this.clickToPlay.addEventListener('click', () => {
@@ -914,11 +914,10 @@ export class Game {
     this.startOnline(m);
   }
 
-  // Maçtaki silahlar: sunucunun onayladığı teçhizat (roket ve el bombası yok)
+  // Maçtaki silahlar: sunucunun onayladığı teçhizat (karşılama, sonra maç öncesi panelinin seçimi; roket ve el
+  // bombası yok)
   onlineLoadout() {
-    const W = this.net?.welcome;
-    const p = W?.primary || 'rifle';
-    const s = W?.secondary || 'pistol';
+    const [p, s] = this.net?.loadout || [ONLINE.defaultPrimary, ONLINE.defaultSecondary];
     return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: 0, current: p };
   }
 
@@ -1252,7 +1251,10 @@ export class Game {
     this.time += dt;
     updateWind(this.time);
     this.net?.frame(dt);
-    if (this.state === 'playing' && I.pressed('pause') && !this.console.open) {
+    // Maç öncesi teçhizat paneli açıkken Esc paneli kapatır (haritaya bak), duraklatmaz
+    const prep = this.matchHud.prep;
+    if (prep.open && I.pressed('pause')) prep.close(true);
+    else if (this.state === 'playing' && I.pressed('pause') && !this.console.open) {
       this.pause();
       this.renderFrame();
       return;
@@ -1260,7 +1262,7 @@ export class Game {
     // Kalkış sahnesinde oyuncu helikopterin içinde: kontrol yok, kamera kabinden bakar
     const cine = !!this.mission.takeoff;
     // Telsize yazarken oyuncu durur (tuşlar yazı alanına gider)
-    const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine;
+    const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine && !prep.open;
     if (this.mode === 'mission' && canAct && !this.wheel.open && I.pressed('chat')) this.chat.openChat();
     if (this.console.open || cine) I.consumeLook();
     const driving = this.vehicles.driving;
@@ -1326,7 +1328,7 @@ export class Game {
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
     this.indoor.update(dt);
-    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine;
+    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine && !this.matchHud.prep.open;
     this.clickToPlay.hidden = !lockMissing;
     if (this.state === 'dying') {
       this.deathT += dt;

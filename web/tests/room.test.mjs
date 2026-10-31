@@ -6,10 +6,10 @@ import { readFileSync } from 'node:fs';
 import { CollisionWorld } from '../shared/sim/collision.js';
 import { createPlayerState, clonePlayerState, stepPlayer, applyCmdMods, BTN } from '../shared/sim/movement.js';
 import { TICK_DT } from '../shared/constants.js';
-import { MSG, NEV, PHASE, SIDE } from '../shared/net/protocol.js';
+import { MSG, NEV, PHASE, SIDE, RF } from '../shared/net/protocol.js';
 import { Writer, encodeInput, decodeClient, decodeServer } from '../shared/net/codec.js';
 import { mulberry32 } from '../shared/sim/rng.js';
-import { WEAPONS, ONLINE } from '../src/config.js';
+import { WEAPONS, WEAPON_ORDER, ONLINE } from '../src/config.js';
 import { Room } from '../server/game/room.js';
 import { MatchSim, eyeHeight, seqNewer } from '../server/game/sim.js';
 import { modeRules } from '../server/game/rooms.js';
@@ -231,6 +231,51 @@ test('takım ölüm maçı: botlar doldurur, insan gelince bot çıkar, skor sı
   assert.ok(roster.players.some((p) => p.id === 'p_a' && !(p.flags & 1)));
   room.advance(64 * (ONLINE.endScreenSec + 1));
   assert.ok(room.closed, 'sonuç ekranından sonra oda kapanır');
+});
+
+test('maç öncesi teçhizat: ısınmada hemen kuşanılır, geçersiz silah varsayılana döner, herkes hazırsa geri sayım kısalır', () => {
+  const rules = { ...modeRules('tdm'), warmup: 60 };
+  const room = makeRoom('match', 'tdm', rules);
+  const sim = room.sim;
+  const a = joinHuman(room, 'p_a', 0);
+  const b = joinHuman(room, 'p_b', 1);
+  room.advance(4);
+  const pa = sim.players[a.slot];
+  assert.equal(sim.phase, PHASE.WARMUP);
+  assert.ok(pa.alive, 'ısınmada doğmuş (donuk)');
+  assert.ok(sim.phaseLeft > 55, `ısınma 1 dk (${sim.phaseLeft})`);
+  const loadoutEvent = (c) => c.got.flatMap((m) => (m?.type === MSG.S_SNAPSHOT ? m.events : [])).filter((e) => e.k === NEV.LOADOUT).at(-1);
+  // Geçerli seçim: silahlar hemen değişir, seçene onay olayı
+  room.onMessage(a, { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: false });
+  assert.deepEqual(pa.loadout, ['ak74', 'd50']);
+  assert.equal(pa.arms.weapons[0].id, 'ak74');
+  room.advance(4);
+  const ev = loadoutEvent(a);
+  assert.ok(ev && ev.now, 'onay olayı: şimdi kuşanıldı');
+  assert.equal(ev.primary, WEAPON_ORDER.indexOf('ak74'));
+  assert.equal(loadoutEvent(b), undefined, 'olay yalnız seçene gider');
+  // Çevrim içine kapalı (minigun), roket ve yanlış yuva varsayılana döner
+  room.onMessage(a, { type: MSG.C_LOADOUT, primary: 'minigun', secondary: 'rpg', ready: false });
+  assert.deepEqual(pa.loadout, [ONLINE.defaultPrimary, ONLINE.defaultSecondary]);
+  room.onMessage(a, { type: MSG.C_LOADOUT, primary: 'd50', secondary: 'ak74', ready: false });
+  assert.deepEqual(pa.loadout, [ONLINE.defaultPrimary, ONLINE.defaultSecondary]);
+  // Biri hazır: süre değişmez; ikisi de hazır: kalan readyStartSec'e iner
+  room.onMessage(a, { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: true });
+  assert.ok(sim.phaseLeft > 50);
+  room.advance(ONLINE.snapshotEvery * 40);
+  const ros = a.last(MSG.S_ROSTER);
+  assert.ok(ros.players.find((p) => p.id === 'p_a').flags & RF.READY, 'oyuncu listesinde hazır bayrağı');
+  room.onMessage(b, { type: MSG.C_LOADOUT, primary: 'rifle', secondary: 'pistol', ready: true });
+  assert.ok(sim.phaseLeft <= ONLINE.readyStartSec + 1e-9, `herkes hazır → ${sim.phaseLeft} sn`);
+  room.advance(64 * (ONLINE.readyStartSec + 0.5));
+  assert.equal(sim.phase, PHASE.LIVE);
+  assert.equal(sim.players[a.slot].arms.weapons[0].id, 'ak74', 'maç seçilen silahla başlar');
+  // Maç sürerken seçim sonraki doğuşa kalır
+  room.onMessage(a, { type: MSG.C_LOADOUT, primary: 'rifle', secondary: 'pistol', ready: false });
+  assert.equal(sim.players[a.slot].arms.weapons[0].id, 'ak74', 'canlıyken elindeki silah değişmez');
+  assert.deepEqual(sim.players[a.slot].loadout, ['rifle', 'pistol']);
+  room.advance(4);
+  assert.equal(loadoutEvent(a).now, false, 'onay: sonraki doğuşta');
 });
 
 test('ölüm maçı: herkes kendine, doğuşlar rakipten uzak, öldürme olayı ve yeniden doğma', () => {

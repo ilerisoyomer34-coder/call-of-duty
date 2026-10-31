@@ -11,11 +11,11 @@
 //   - Atış/şarjör/yakın dövüş istemcide görünür, sunucuya komutla bildirilir; isabet, hasar ve ölüm sunucudan.
 import { PROTOCOL_VERSION, TICK_DT, TICK_RATE } from '../../shared/constants.js';
 import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE } from '../../shared/net/protocol.js';
-import { Writer, encodeHello, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
+import { Writer, encodeHello, encodeLoadout, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
 import { lerp } from '../../shared/sim/math.js';
-import { ONLINE, WEAPONS, MOVEMENT } from '../config.js';
+import { ONLINE, WEAPONS, WEAPON_ORDER, MOVEMENT } from '../config.js';
 import { EV } from '../events.js';
 import NETSIM from '../data/netsim.json' with { type: 'json' };
 import { WsTransport } from './wsTransport.js';
@@ -90,6 +90,7 @@ export class GameClient {
     this.clock = new ClockSync(() => performance.now());
     this.remotes = new RemotePlayers(game);
     this.welcome = null;
+    this.loadout = null; // [ana, yan]: sunucunun kuşandırdığı teçhizat (karşılama, sonra NEV.LOADOUT)
     this.slot = -1;
     this.roster = [];
     this.hist = [];
@@ -144,7 +145,8 @@ export class GameClient {
       }, CONNECT_MS);
       this.pumpTimer = setInterval(() => t.pump(), 4);
       t.onopen = () => {
-        const L = this.game.loadout;
+        // Teçhizat: son çevrim içi seçimi (maç öncesi paneli), yoksa tek oyunculu teçhizat; sunucu doğrular
+        const L = this.game.settings.onlineLoadout || this.game.loadout;
         t.send(encodeHello(this.w, { protocolVersion: PROTOCOL_VERSION, buildHash: BUILD_HASH, token: this.game.social.profile.token || '', room: this.match.room, primary: L.primary, secondary: L.secondary }));
       };
       this.onWelcome = (m) => {
@@ -234,6 +236,7 @@ export class GameClient {
       case MSG.S_WELCOME:
         this.welcome = m;
         this.slot = m.slot;
+        this.loadout = [m.primary, m.secondary];
         // Saat kaba başlangıç: sunucu zamanı (gidiş-dönüş ölçülünce düzelir)
         this.clock.offset = m.serverTime - now;
         this.onWelcome?.(m);
@@ -368,9 +371,25 @@ export class GameClient {
       case NEV.ROUND:
         g.events.emit(EV.NET_ROUND, e);
         break;
+      case NEV.LOADOUT: {
+        // Sunucunun kabul ettiği teçhizat: ısınmada hemen elde, maç sürerken sonraki doğuşta (onLocalSpawn)
+        const p = WEAPON_ORDER[e.primary];
+        const s = WEAPON_ORDER[e.secondary];
+        if (!WEAPONS[p] || !WEAPONS[s]) break;
+        this.loadout = [p, s];
+        if (e.now && g.player.alive) g.weapons.reset(g.onlineLoadout());
+        g.events.emit(EV.NET_LOADOUT, { primary: p, secondary: s, now: e.now });
+        break;
+      }
       default:
         break;
     }
+  }
+
+  // Maç öncesi teçhizat paneli (prepScreen.js): seçim ve "hazırım" sunucuya; silah sunucu onaylayınca değişir
+  setLoadout(primary, secondary, ready) {
+    if (this.state !== 'playing') return;
+    this.send(encodeLoadout(this.w, { primary, secondary, ready }));
   }
 
   rosterOf(slot) {

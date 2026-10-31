@@ -1063,6 +1063,31 @@ body.touch .rlPeek { font-size: 12px; max-width: 34vw; }
 .mhEndCard h2.win { color: #7fd38a; }
 .mhEndCard h2.lose { color: var(--red); }
 .mhEndCard p { margin: 0; color: var(--sand-dim); font: 500 14px/1.3 var(--f-ui); }
+/* Maç öncesi teçhizat paneli: telefonda yatay ekrana sığsın diye silahlar yatay kayan sıralarda */
+.mhPrep { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,7,9,.55); pointer-events: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); }
+.mhPrepBox { width: min(860px, 100%); max-height: 100%; overflow-y: auto; background: rgba(13,16,19,.94); border: 1px solid var(--line); border-top: 3px solid var(--amber); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.mhPrepHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mhPrepHead h2 { margin: 0; font: 700 24px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand); }
+.mhPrepHead small { color: var(--sand-dim); font: 500 12px/1.3 var(--f-ui); }
+.mhPrepClock { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.mhPrepClock b { font: 700 28px/1 var(--f-num); color: var(--sand); }
+.mhPrepClock b.warn { color: var(--red); }
+.mhPrepSlot h3 { margin: 0 0 5px; font: 700 12px/1.2 var(--f-ui); letter-spacing: .12em; color: var(--amber); }
+.mhPrepSlot h3 span { margin-left: 8px; color: var(--sand-dim); font-weight: 500; letter-spacing: .02em; }
+.mhPrepGrid { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; overscroll-behavior: contain; }
+.mhPrepCard { flex: 0 0 auto; width: 116px; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 5px; background: rgba(231,220,196,.05); border: 1px solid var(--line); color: var(--sand); font: inherit; cursor: pointer; scroll-snap-align: start; text-align: left; }
+.mhPrepCard:hover { background: rgba(231,220,196,.1); }
+.mhPrepCard.sel { border-color: var(--amber); background: rgba(240,163,58,.18); }
+.mhPrepCard b { font: 700 13px/1.1 var(--f-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhPrepCard small { font: 600 10px/1 var(--f-ui); letter-spacing: .08em; color: var(--sand-dim); }
+.mhPrepImg { width: 100%; aspect-ratio: 2 / 1; object-fit: contain; opacity: .55; }
+.mhPrepImg.ready { opacity: 1; }
+#btnPrepReady.on { background: #3f7d4b; border-color: #7fd38a; }
+.mhPrepChip { position: absolute; top: calc(104px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); pointer-events: auto; padding: 6px 14px; background: rgba(13,16,19,.8); border: 1px solid var(--amber); color: var(--sand); font: 700 12px/1 var(--f-ui); letter-spacing: .12em; cursor: pointer; }
+.mhPrepChip.on { border-color: #7fd38a; }
+body.touch .mhPrepBox { padding: 8px 10px; gap: 6px; }
+body.touch .mhPrepHead h2 { font-size: 18px; }
+body.touch .mhPrepCard { width: 96px; }
 .atag.net.foe { color: var(--red); }
 .atag.net.foe i { border-top-color: var(--red); }
 #netGraph { position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); top: 34%; pointer-events: none; z-index: 4; background: rgba(0,0,0,.55); padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
@@ -1283,6 +1308,19 @@ body.touch #squad { display: none; }
     <div class="mhFeed" id="mhFeed" aria-live="polite"></div>
     <div class="mhDeath" id="mhDeath" hidden><b id="mhKiller"></b><span id="mhRespawn"></span></div>
     <div class="mhBoard" id="mhBoard" hidden><div class="mhRows" id="mhBoardBody"></div><small>Tab basılı tut · telefonda skora dokun</small></div>
+    <!-- Maç öncesi teçhizat (src/net/prepScreen.js): ısınma boyunca ana/yan silah seçimi ve HAZIRIM -->
+    <button class="mhPrepChip" id="mhPrepChip" type="button" hidden>TEÇHİZAT · <b id="mhPrepChipTime">1:00</b></button>
+    <div class="mhPrep" id="mhPrep" hidden>
+      <div class="mhPrepBox" role="dialog" aria-labelledby="mhPrepTitle">
+        <div class="mhPrepHead">
+          <div><h2 id="mhPrepTitle">TEÇHİZAT</h2><small>Maç başlayınca seçtiğin silahlarla doğarsın</small></div>
+          <div class="mhPrepClock"><b id="mhPrepTime">1:00</b><small id="mhPrepReady"></small></div>
+        </div>
+        <div class="mhPrepSlot"><h3>ANA SİLAH <span id="mhPrepPrimaryName"></span></h3><div class="mhPrepGrid" id="mhPrepPrimary"></div></div>
+        <div class="mhPrepSlot"><h3>YAN SİLAH <span id="mhPrepSecondaryName"></span></h3><div class="mhPrepGrid" id="mhPrepSecondary"></div></div>
+        <div class="row"><button class="btn" id="btnPrepHide" type="button">Haritaya bak</button><button class="btn primary" id="btnPrepReady" type="button">HAZIRIM</button></div>
+      </div>
+    </div>
     <div class="mhEnd" id="mhEnd" hidden>
       <div class="mhEndCard">
         <h2 id="mhEndTitle">MAÇ BİTTİ</h2>

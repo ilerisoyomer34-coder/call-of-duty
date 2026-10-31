@@ -14,7 +14,7 @@ export const BACKUP_SETTINGS = Object.freeze([
   'sensitivity', 'adsSensitivity', 'invertY', 'fov', 'adsMode', 'crouchMode', 'sprintMode', 'quality', 'renderScale', 'fpsCap', 'postFx',
   'muted', 'masterVolume', 'sfxVolume', 'ambientVolume', 'cameraShake', 'headBob', 'crosshairColor', 'blood',
   'damageNumbers', 'showFps', 'realNames', 'wheelSlowMo', 'chatSlowMo', 'radioVoice', 'radioVolume', 'commsCam',
-  'physics', 'voiceCommands', 'buttonIcons', 'rerollBonuses', 'bindings',
+  'physics', 'voiceCommands', 'buttonIcons', 'rerollBonuses', 'bindings', 'onlineLoadout',
 ]);
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);

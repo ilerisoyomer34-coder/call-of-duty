@@ -261,6 +261,16 @@ export function encodeInput(w, ackTick, cmds) {
   return w.bytes();
 }
 
+// Teçhizat seçimi: ana ve yan silah kimliği, hazır bayrağı (u8)
+export function encodeLoadout(w, l) {
+  w.reset();
+  w.u8(MSG.C_LOADOUT);
+  w.str(l.primary || '');
+  w.str(l.secondary || '');
+  w.u8(l.ready ? 1 : 0);
+  return w.bytes();
+}
+
 export function encodePing(w, clientTime) {
   w.reset();
   w.u8(MSG.C_PING);
@@ -299,6 +309,8 @@ export function decodeClient(bytes) {
       }
       case MSG.C_PING:
         return { type, clientTime: r.f64() };
+      case MSG.C_LOADOUT:
+        return { type, primary: r.str(LIMITS.maxStr), secondary: r.str(LIMITS.maxStr), ready: r.u8() === 1 };
       case MSG.C_LOADED:
       case MSG.C_LEAVE:
         return { type };
@@ -425,6 +437,11 @@ function writeEvent(w, e) {
       w.u8(e.code);
       w.u8(e.value);
       break;
+    case NEV.LOADOUT:
+      w.u8(e.primary);
+      w.u8(e.secondary);
+      w.u8(e.now ? 1 : 0);
+      break;
     default:
       throw new Error(`bilinmeyen olay ${e.k}`);
   }
@@ -451,6 +468,8 @@ function readEvent(r) {
       return { k, slot: r.u8() };
     case NEV.ROUND:
       return { k, code: r.u8(), value: r.u8() };
+    case NEV.LOADOUT:
+      return { k, primary: r.u8(), secondary: r.u8(), now: r.u8() === 1 };
     default:
       throw SHORT;
   }

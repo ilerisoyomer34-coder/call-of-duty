@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MSG, NEV, ERR, PHASE } from '../shared/net/protocol.js';
-import { Writer, encodeHello, encodeInput, encodePing, encodeSimple, decodeClient, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, decodeServer, encYaw, decYaw, encPitch, decPitch, quantizeCmd } from '../shared/net/codec.js';
+import { Writer, encodeHello, encodeLoadout, encodeInput, encodePing, encodeSimple, decodeClient, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, decodeServer, encYaw, decYaw, encPitch, decPitch, quantizeCmd } from '../shared/net/codec.js';
 import { mulberry32 } from '../shared/sim/rng.js';
 
 const w = new Writer(16); // küçük başlar: büyüme de denenir
@@ -12,6 +12,9 @@ test('el sıkışma, ping ve basit iletiler gidip gelir', () => {
   assert.deepEqual(decodeClient(encodeHello(w, h)), { type: MSG.C_HELLO, ...h });
   assert.deepEqual(decodeClient(encodePing(w, 123456.789)), { type: MSG.C_PING, clientTime: 123456.789 });
   assert.deepEqual(decodeClient(encodeSimple(w, MSG.C_LOADED)), { type: MSG.C_LOADED });
+  // Maç öncesi teçhizat seçimi
+  assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'ak74', secondary: 'd50', ready: true })), { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: true });
+  assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'rifle', secondary: '', ready: false })), { type: MSG.C_LOADOUT, primary: 'rifle', secondary: '', ready: false });
   // Türkçe karakterli ad UTF-8 ile taşınır
   const r = decodeServer(encodeRoster(w, [{ slot: 3, id: 'p_0123456789abcdef01234567', name: 'Ömer Işık', tag: 4821, side: 1, flags: 2, kills: 7, deaths: 3, score: 820, ping: 48, party: 'pt_00aa11bb22cc33dd' }]));
   assert.equal(r.players[0].name, 'Ömer Işık');
@@ -90,6 +93,7 @@ test('anlık görüntü: yerel kayıt kayıpsız, uzak oyuncu 1/64 m', () => {
       { k: NEV.SPAWN, slot: 4, pos: { x: 3, y: 0, z: -31 }, yaw: Math.PI },
       { k: NEV.RELOAD, slot: 2 },
       { k: NEV.ROUND, code: 2, value: 5 },
+      { k: NEV.LOADOUT, primary: 3, secondary: 17, now: true },
     ],
   };
   const d = decodeServer(encodeSnapshot(w, s));
@@ -108,7 +112,8 @@ test('anlık görüntü: yerel kayıt kayıpsız, uzak oyuncu 1/64 m', () => {
   assert.ok(Math.abs(p.pos.x - -20.123) <= 1 / 128);
   assert.ok(Math.abs(p.vel.z - -1.25) <= 1 / 256);
   assert.equal(p.weapon, 9);
-  assert.equal(d.events.length, 7);
+  assert.equal(d.events.length, 8);
+  assert.deepEqual(d.events[7], { k: NEV.LOADOUT, primary: 3, secondary: 17, now: true });
   assert.deepEqual(d.events[4].pos, { x: 3, y: 0, z: -31 });
   assert.ok(Math.abs(d.events[4].yaw - Math.PI) < 1e-4);
   assert.equal(d.events[1].dmg, 72);

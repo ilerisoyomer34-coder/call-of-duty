@@ -1,10 +1,12 @@
-// Çevrim içi maç arayüzü (S6): skor çubuğu ve süre, geri sayım bandı, öldürme akışı, puan tablosu (Tab basılı;
+// Çevrim içi maç arayüzü (S6): skor çubuğu ve süre, maç öncesi teçhizat paneli (prepScreen.js), geri sayım bandı,
+// öldürme akışı, puan tablosu (Tab basılı;
 // dokunmatikte skor çubuğuna dokun), ölüm kartı (kim vurdu, doğuşa kalan), maç sonu ekranı.
 // Veri game.net'ten ve olaylardan (EV.NET_*); adlar sunucudan geldiği için hep textContent.
 import { EV } from '../events.js';
 import { PHASE, SIDE, RF, WEAPON_MELEE, SLOT_NONE } from '../../shared/net/protocol.js';
 import { WEAPON_ORDER, WEAPONS } from '../config.js';
 import { weaponShortName } from '../weaponInfo.js';
+import { PrepScreen } from './prepScreen.js';
 import MODES from '../data/modes.json' with { type: 'json' };
 import ARENAS from '../data/arenas.json' with { type: 'json' };
 
@@ -30,6 +32,7 @@ export class MatchHud {
     this.pinned = false; // dokunmatikte tablo açık kalır
     this.feed = [];
     this.boardSig = '';
+    this.prep = new PrepScreen(game);
     $('mhBar').addEventListener('click', () => {
       if (!this.active) return;
       this.pinned = !this.pinned;
@@ -62,9 +65,11 @@ export class MatchHud {
     $('matchHud').hidden = false;
     $('mhBar').classList.toggle('sandbox', sandbox);
     document.body.classList.add('online');
+    this.prep.start(net);
   }
 
   stop() {
+    this.prep.stop();
     this.active = false;
     this.net = null;
     $('matchHud').hidden = true;
@@ -125,7 +130,9 @@ export class MatchHud {
     $('mhLimit').textContent = limit ? `${limit} öldürme` : '';
     const left = net.timeLeft;
     $('mhTime').textContent = net.phase === PHASE.LIVE && net.welcome.timeLimit ? fmtTime(left) : net.phase === PHASE.WARMUP ? fmtTime(left) : net.phase === PHASE.ENDED ? 'BİTTİ' : '∞';
-    if (net.phase === PHASE.WARMUP) {
+    this.prep.update();
+    // Teçhizat paneli açıkken geri sayım panelin kendi sayacında
+    if (net.phase === PHASE.WARMUP && !this.prep.open) {
       $('mhBanner').textContent = `MAÇ BAŞLIYOR · ${Math.max(1, Math.ceil(left))}`;
       $('mhBanner').hidden = false;
       this.bannerUntil = now + 200;
@@ -136,7 +143,7 @@ export class MatchHud {
       $('mhRespawn').textContent = net.me.respawnIn > 0 ? `Yeniden doğuş: ${Math.ceil(net.me.respawnIn)} sn` : 'Doğuyor…';
     } else if (net.me.alive) $('mhDeath').hidden = true;
     // Puan tablosu
-    const show = input.isDown('scoreboard') || this.pinned;
+    const show = (input.isDown('scoreboard') || this.pinned) && !this.prep.open;
     $('mhBoard').hidden = !show || !$('mhEnd').hidden;
     if (show) this.renderBoard($('mhBoardBody'));
   }

@@ -14,6 +14,7 @@ import { Rng, hashSeed } from '../../shared/sim/rng.js';
 import { createWeaponState, fireInterval, spreadDeg, recoverBloom, addBloom, recordShot, pelletDir } from '../../shared/sim/weapon.js';
 import { lerp } from '../../shared/sim/math.js';
 import { NavGrid } from '../../shared/sim/nav.js';
+import { validLoadout } from '../../shared/sim/loadout.js';
 import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE } from '../../shared/net/protocol.js';
 import { WEAPONS, WEAPON_ORDER, MOVEMENT as M, ONLINE } from '../../src/config.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
@@ -23,20 +24,15 @@ export const MAX_SLOTS = 16;
 const HIST = ONLINE.historyTicks;
 const SEC = (s) => Math.round(s * TICK_RATE);
 // Mermiden geçen dost: taraf modunda aynı taraf vurulmaz (dost ateşi kapalı)
-// Roket ve çevrim içine kapalı silahlar (online: false, ör. minigun) seçilemez
-const ALLOWED = WEAPON_ORDER.filter((id) => WEAPONS[id] && WEAPONS[id].projectile !== 'rocket' && WEAPONS[id].online !== false);
 
 export const weaponIndex = (id) => {
   const i = WEAPON_ORDER.indexOf(id);
   return i < 0 ? WEAPON_NONE : i;
 };
 
-// İstemcinin bildirdiği teçhizat: yalnız mermi atan silahlar (roket ve el bombası çevrim içinde yok)
-export function validLoadout(primary, secondary) {
-  const p = ALLOWED.includes(primary) && WEAPONS[primary].category === 'primary' ? primary : ONLINE.defaultPrimary;
-  const s = ALLOWED.includes(secondary) && WEAPONS[secondary].category === 'secondary' ? secondary : ONLINE.defaultSecondary;
-  return [p, s];
-}
+// İstemcinin bildirdiği teçhizat: yalnız mermi atan silahlar (roket ve el bombası çevrim içinde yok). Kural paylaşılan
+// dosyada: maç öncesi teçhizat paneli aynı listeyi gösterir
+export { validLoadout };
 
 // u16 komut sırası: a, b'den yeni mi (sarmayı hesaba katar)
 export const seqNewer = (a, b) => {
@@ -91,6 +87,7 @@ export class MatchSim {
     this.shotRng = new Rng(1);
     this.nav = null;
     this.events = [];
+    this.lateEvents = []; // tick dışında (ileti işlenirken) doğan olaylar: sonraki tick'in olaylarına katılır
     this.scores = [0, 0];
     this.result = null; // { winner, reason }
     this.finished = false;
@@ -138,6 +135,7 @@ export class MatchSim {
       party: info.party || '',
       connected: !info.bot,
       ready: !!info.bot, // insan C_LOADED gönderince doğar
+      prepReady: false, // teçhizat panelinde "hazırım" (C_LOADOUT)
       state: createPlayerState(),
       alive: false,
       hp: 0,
@@ -180,6 +178,8 @@ export class MatchSim {
     if (!p) return;
     // İstemciler ayrılanı oyuncu listesinden (S_ROSTER) öğrenir
     this.players[slot] = null;
+    // Hazır olmayan tek kişi ayrıldıysa kalanlar beklemesin
+    if (!p.bot) this.checkAllReady();
   }
 
   setReady(slot) {
@@ -188,6 +188,34 @@ export class MatchSim {
       p.ready = true;
       p.respawnAt = this.tick;
     }
+  }
+
+  // Maç öncesi teçhizat (C_LOADOUT). Isınmada (geri sayım, ateş yok) hemen kuşanılır; maç sürerken seçilen teçhizat
+  // sonraki doğuşta gelir (canlı oyuncunun silahı elinde değişmesin). Kabul edilen teçhizat seçene NEV.LOADOUT ile
+  // döner: istemci kendi tahminini ancak sunucunun kuşandırdığıyla kurar (geç gelen seçimde ikisi ayrışmasın).
+  chooseLoadout(slot, primary, secondary, ready) {
+    const p = this.players[slot];
+    if (!p || p.bot || this.phase === PHASE.ENDED) return false;
+    const [a, b] = validLoadout(primary, secondary);
+    const changed = a !== p.loadout[0] || b !== p.loadout[1];
+    p.loadout = [a, b];
+    const now = changed && p.alive && this.phase === PHASE.WARMUP;
+    if (now) p.arms = this.makeArms(p);
+    this.lateEvents.push({ k: NEV.LOADOUT, primary: weaponIndex(a), secondary: weaponIndex(b), now, to: slot, except: -1 });
+    if (this.phase === PHASE.WARMUP) {
+      p.prepReady = !!ready;
+      this.checkAllReady();
+    }
+    return true;
+  }
+
+  // Bağlı bütün insanlar "hazırım" dediyse ısınmanın kalanı ONLINE.readyStartSec'e iner (bir dakika beklenmez).
+  // Kısalan süre geri uzamaz: biri sonradan seçimini değiştirse de sayaç atlamaz
+  checkAllReady() {
+    if (this.phase !== PHASE.WARMUP) return;
+    const hs = this.humans().filter((p) => p.connected);
+    if (!hs.length || !hs.every((p) => p.prepReady)) return;
+    this.phaseEnd = Math.min(this.phaseEnd, this.tick + SEC(ONLINE.readyStartSec));
   }
 
   humans() {
@@ -249,6 +277,10 @@ export class MatchSim {
   step() {
     this.tick++;
     this.events.length = 0;
+    if (this.lateEvents.length) {
+      for (const e of this.lateEvents) this.events.push(e);
+      this.lateEvents.length = 0;
+    }
     this.updatePhase();
     for (const p of this.players) {
       if (p && p.bot && p.brain) p.queue.push(p.brain.think(this, p));

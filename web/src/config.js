@@ -103,6 +103,10 @@ export const ONLINE = {
   inputRedundancy: 3, // her pakette son 3 komut
   reconnectSec: [1, 2, 4, 8],
   endScreenSec: 10,
+  // Maç öncesi teçhizat paneli: ısınma süresi modes.json → warmup (60 sn); bağlı herkes "hazırım" deyince kalanı bu
+  // kadar sn'ye iner
+  readyStartSec: 3,
+  prepWarnSec: 10, // panelde sayaç son bu kadar sn'de kırmızı
 };
 
 // Hazır ağaç modeli (Sketchfab çamı; kit.js pine/palm → World.addTree, tüm ağaçlar InstancedMesh)

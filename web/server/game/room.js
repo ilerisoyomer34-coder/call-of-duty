@@ -222,6 +222,9 @@ export class Room {
           sim.setReady(conn.slot);
         }
         break;
+      case MSG.C_LOADOUT:
+        if (conn.loaded) sim.chooseLoadout(conn.slot, m.primary, m.secondary, m.ready);
+        break;
       case MSG.C_LEAVE:
         this.leave(conn);
         conn.transport.close(1000, 'leave');
@@ -282,7 +285,7 @@ export class Room {
     const out = [];
     for (const p of sim.players) {
       if (!p) continue;
-      out.push({ slot: p.slot, id: p.id, name: p.name, tag: p.tag, side: p.side, flags: (p.bot ? RF.BOT : 0) | (p.connected || p.bot ? RF.CONNECTED : 0), kills: p.kills, deaths: p.deaths, score: p.score, ping: p.bot ? 0 : p.ping, party: p.party });
+      out.push({ slot: p.slot, id: p.id, name: p.name, tag: p.tag, side: p.side, flags: (p.bot ? RF.BOT : 0) | (p.connected || p.bot ? RF.CONNECTED : 0) | (p.prepReady ? RF.READY : 0), kills: p.kills, deaths: p.deaths, score: p.score, ping: p.bot ? 0 : p.ping, party: p.party });
     }
     return out;
   }

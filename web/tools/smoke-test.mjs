@@ -8,6 +8,8 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { dirname, join, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+// Denge ölçümünün beklediği çarpan tablodan (değer değişince test eskimesin)
+import { DIFFICULTY as BAL_DIFF } from '../src/config.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const shots = join(root, 'tools/shots');
@@ -1883,7 +1885,7 @@ console.log('Denge (yere düşme süresi) ve kabul senaryoları');
     for (const e of g.enemies.list) e.dummy = true;
     return { spots: spots.length, first, settled, one, two, armor: P.armor.body?.def.id, mult: g.difficulty.damageMult, log: P.dmgLog.length };
   });
-  check(bal.spots === 2 && bal.armor === 'armor_light' && bal.mult === 0.85, `Ölçüm düzeneği: Asker (hasar ×${bal.mult}), ${bal.armor}, 25 m'de görüş hattı`);
+  check(bal.spots === 2 && bal.armor === 'armor_light' && bal.mult === BAL_DIFF.normal.damageMult, `Ölçüm düzeneği: Asker (hasar ×${bal.mult}), ${bal.armor}, 25 m'de görüş hattı`);
   check(bal.first < bal.settled, `Düşman ilk atışlarda daha çok ıskalar: ilk atış %${Math.round(bal.first * 100)}, oturmuş %${Math.round(bal.settled * 100)} (25 m)`);
   check(bal.one.every((t) => t === null || t >= 4), `Tek düşmana karşı yere düşme ≥ 4 sn (${bal.one.map((t) => (t === null ? '20 sn\'de düşmedi' : `${t} sn`)).join(', ')})`);
   check(bal.two.every((t) => t === null || t >= 2.5), `İki düşmana karşı yere düşme ≥ 2,5 sn (${bal.two.map((t) => (t === null ? '30 sn\'de düşmedi' : `${t} sn`)).join(', ')})`);
@@ -4022,7 +4024,7 @@ if (run('netplay')) {
   console.log('Çevrim içi maç: deneme odası, hızlı maç, botlar');
   const PORT = 8793;
   const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '1' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40' },
     stdio: 'ignore',
   });
   process.on('exit', () => srv.kill());
@@ -4112,6 +4114,32 @@ if (run('netplay')) {
     return { bots: n.roster.filter((p) => p.flags & 1).length, sides: n.roster.filter((p) => !(p.flags & 1)).map((p) => p.side), party: n.roster.filter((p) => !(p.flags & 1)).map((p) => p.party), mySide: me.side };
   });
   check(ros.bots === 6 && ros.sides[0] === ros.sides[1] && ros.party[0] && ros.party[0] === ros.party[1], `Hızlı maç 4v4: 2 insan aynı tarafta (takım), 6 yapay zekâ`);
+  // Maç öncesi teçhizat paneli: ısınma (sunucu MATCH_WARMUP=40) boyunca açık; A silah seçer, ikisi HAZIRIM deyince
+  // geri sayım kısalır ve maç seçilen silahla başlar
+  await Promise.all([A, B].map((pg) => until(pg, () => !document.getElementById('mhPrep').hidden, null, 30000).catch(() => {})));
+  const prep0 = await A.evaluate(() => ({
+    shown: !document.getElementById('mhPrep').hidden,
+    primary: document.querySelectorAll('#mhPrepPrimary .mhPrepCard').length,
+    secondary: document.querySelectorAll('#mhPrepSecondary .mhPrepCard').length,
+    minigun: !!document.querySelector('#mhPrepPrimary [data-id="minigun"], #mhPrepPrimary [data-id="rpg"]'),
+    left: window.__game.net.timeLeft,
+    phase: window.__game.net.phase,
+  }));
+  check(prep0.shown && prep0.phase === 0 && prep0.primary >= 8 && prep0.secondary >= 2 && !prep0.minigun && prep0.left > 20,
+    `Maç öncesi teçhizat paneli açık: ${prep0.primary} ana, ${prep0.secondary} yan silah (minigun/bazuka yok), kalan ${Math.round(prep0.left)} sn`);
+  await A.screenshot({ path: join(shots, '34b-net-prep.png') });
+  await A.evaluate(() => document.querySelector('#mhPrepPrimary .mhPrepCard[data-id="ak74"]').click());
+  await until(A, () => window.__game.net.loadout?.[0] === 'ak74' && window.__game.weapons.current?.id === 'ak74', null, 30000).catch(() => {});
+  await A.evaluate(() => document.getElementById('btnPrepReady').click());
+  await until(B, () => window.__game.net.roster.some((p) => p.flags & 8), null, 30000).catch(() => {});
+  const prep1 = await B.evaluate(() => ({ ready: document.getElementById('mhPrepReady').textContent, left: window.__game.net.timeLeft, phase: window.__game.net.phase }));
+  await B.evaluate(() => document.getElementById('btnPrepReady').click());
+  const t0 = Date.now();
+  await until(A, () => window.__game.net.phase === 1, null, 30000).catch(() => {});
+  const prep2 = await A.evaluate(() => ({ phase: window.__game.net.phase, gun: window.__game.weapons.current?.id, net: window.__game.net.loadout, saved: window.__game.settings.onlineLoadout, open: !document.getElementById('mhPrep').hidden }));
+  check(prep1.phase === 0 && /Hazır 1\/2/.test(prep1.ready) && prep1.left > 15, `HAZIRIM: B'nin panelinde "${prep1.ready}", süre kısalmadı (${Math.round(prep1.left)} sn)`);
+  check(prep2.phase === 1 && prep2.gun === 'ak74' && prep2.net[0] === 'ak74' && prep2.saved?.primary === 'ak74' && !prep2.open,
+    `İkisi de hazır → maç ${((Date.now() - t0) / 1000).toFixed(1)} sn'de başladı; A seçtiği ${prep2.gun} ile doğdu, seçim ayarlarda kaldı`);
   // Ölen oyuncu fizikle yere yığılır ve doğana dek yerde kalır: ölüm olayı anında gelir ama rakipler ONLINE.interpMs
   // geriden çizilir; ölümden önceki "canlı" kareler doğuş sanılıp ragdoll iptal ediliyor, asker ayağa kalkıyordu
   await A.evaluate(() => {
@@ -4232,6 +4260,17 @@ if (run('netplay')) {
   await mp.tap('.ppMode[data-mode="dm"]');
   await mp.tap('#btnPartyFind');
   await until(mp, () => window.__game.state === 'playing' && window.__game.net?.me.alive, null, 120000);
+  // Telefonda teçhizat paneli ekrana sığar; tek insan HAZIRIM deyince maç hemen başlar
+  await until(mp, () => !document.getElementById('mhPrep').hidden, null, 30000).catch(() => {});
+  const mprep = await mp.evaluate(() => {
+    const b = document.querySelector('#mhPrep .mhPrepBox').getBoundingClientRect();
+    const btn = document.getElementById('btnPrepReady').getBoundingClientRect();
+    return { shown: !document.getElementById('mhPrep').hidden, fits: b.left >= 0 && b.right <= innerWidth && b.top >= 0 && btn.bottom <= innerHeight, cards: document.querySelectorAll('#mhPrep .mhPrepCard').length };
+  });
+  await mp.screenshot({ path: join(shots, '36a-net-mobile-prep.png') });
+  await mp.tap('#btnPrepReady');
+  const mstart = await until(mp, () => window.__game.net.phase === 1, null, 30000).then(() => true, () => false);
+  check(mprep.shown && mprep.fits && mprep.cards > 10 && mstart, `Telefonda teçhizat paneli ekrana sığıyor (${mprep.cards} silah), HAZIRIM → maç başladı`);
   await sleep(1500);
   const mfit = await mp.evaluate(() => {
     const bar = document.getElementById('mhBar').getBoundingClientRect();

@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS = {
   rerollBonuses: false, // bitirilmiş bölüm tekrar oynanınca bonus görevler havuzdan rastgele seçilir
   serverUrl: '', // çevrim içi sunucu adresi; boşsa config.js → NET.serverUrl (geliştirme ve test için)
   onlineMode: 'tdm', // takımsızken "Maç ara"nın modu (takımda modu lider seçer)
+  onlineLoadout: null, // { primary, secondary }: maç öncesi teçhizat panelinin son seçimi (net/prepScreen.js)
   bindings: {}, // tuş atamaları: eylem → tuş kodları (input.js → BINDINGS'in üstüne yazılır)
 };
 

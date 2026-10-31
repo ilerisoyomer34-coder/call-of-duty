@@ -9,6 +9,7 @@ export const MSG = {
   C_PING: 0x03, // saat eşitleme
   C_LOADED: 0x04, // harita yüklendi, doğurulabilir
   C_LEAVE: 0x05, // odadan kendi isteğiyle çıkış
+  C_LOADOUT: 0x06, // maç öncesi teçhizat seçimi (ana + yan silah) ve "hazırım"
   // Sunucu → istemci
   S_WELCOME: 0x81,
   S_SNAPSHOT: 0x82,
@@ -43,6 +44,7 @@ export const NEV = {
   MELEE: 6, // yakın dövüş hareketi
   RELOAD: 7, // şarjör değiştirme sesi
   ROUND: 8, // raunt / evre bildirimi (metin anahtarı)
+  LOADOUT: 9, // seçene: sunucunun kabul ettiği teçhizat (şimdi kuşanıldı mı, sonraki doğuşta mı)
 };
 
 // İsabet türü (SHOT olayı)
@@ -70,7 +72,8 @@ export const PF = {
 };
 
 // Roster bayrakları
-export const RF = { BOT: 1, CONNECTED: 2, LEADER: 4 };
+// READY: maç öncesi teçhizat panelinde "hazırım" dedi (herkes hazırsa geri sayım kısalır)
+export const RF = { BOT: 1, CONNECTED: 2, LEADER: 4, READY: 8 };
 
 // Yerel oyuncu durum bayrakları (uzlaştırma kaydı)
 export const LF = { GROUNDED: 1, CROUCHED: 2, SPRINTING: 4 };
