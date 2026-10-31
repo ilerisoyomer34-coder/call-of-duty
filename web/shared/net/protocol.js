@@ -10,6 +10,7 @@ export const MSG = {
   C_LOADED: 0x04, // harita yüklendi, doğurulabilir
   C_LEAVE: 0x05, // odadan kendi isteğiyle çıkış
   C_LOADOUT: 0x06, // maç öncesi teçhizat seçimi (ana + yan silah) ve "hazırım"
+  C_VOTE: 0x07, // maç sonu harita oyu (modes.json → matchmaking.maps dizini)
   // Sunucu → istemci
   S_WELCOME: 0x81,
   S_SNAPSHOT: 0x82,
@@ -17,7 +18,12 @@ export const MSG = {
   S_PONG: 0x84,
   S_ERROR: 0x85,
   S_MATCH_END: 0x86,
+  S_VOTE: 0x87, // maç sonu oylamasının durumu: kalan süre, harita başına oy, kazanan (oylama bitince)
+  S_NEXT: 0x88, // sıradaki maçın odası ve haritası (aynı oyuncular, aynı taraflar)
 };
+
+// S_VOTE: oylama sürerken kazanan yok
+export const VOTE_NONE = 255;
 
 // Bağlantıyı kapatan hata kodları (S_ERROR). Türkçe metinler istemcide (src/net/gameClient.js → NET_ERRORS)
 export const ERR = {

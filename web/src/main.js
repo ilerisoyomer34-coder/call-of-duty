@@ -268,6 +268,13 @@ export class Game {
     this.matchHud = new MatchHud(this);
     this.netGraph = new NetGraph(this);
     this.events.on(EV.MATCH_FOUND, (m) => this.onMatchFound(m));
+    // Maç sonu oylamasının sonucu: kazanan harita kısa süre gösterilir, sonra yeni odaya geçilir (menüye dönmeden)
+    this.events.on(EV.NET_NEXT, (m) => {
+      const net = this.net;
+      setTimeout(() => {
+        if (this.net === net && net) this.nextOnline(m);
+      }, ONLINE.nextShowSec * 1000);
+    });
     this.console = new DevConsole(this);
 
     this.input.onLockChange = (locked, selfExit) => {
@@ -995,6 +1002,17 @@ export class Game {
     this.matchHud.start(net);
     net.ready();
     this.input.requestLock();
+  }
+
+  // Oylamayla açılan sıradaki maç: eski odadan ayrıl, aynı oyuncuların ayrıldığı yeni odaya bağlan
+  nextOnline(m) {
+    const net = this.net;
+    if (!net) return;
+    this.net = null;
+    net.leave();
+    this.matchHud.stop();
+    this.audio.stopAmbient();
+    this.startOnline({ room: m.room, kind: 'match', mode: m.mode, map: m.map });
   }
 
   // Bağlantı koptu ya da oda kapandı. Maç bittiyse sonuç ekranı kalır (oyuncu düğmeyle döner)

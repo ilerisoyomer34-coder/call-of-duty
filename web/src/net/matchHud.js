@@ -3,8 +3,8 @@
 // dokunmatikte skor çubuğuna dokun), ölüm kartı (kim vurdu, doğuşa kalan), maç sonu ekranı.
 // Veri game.net'ten ve olaylardan (EV.NET_*); adlar sunucudan geldiği için hep textContent.
 import { EV } from '../events.js';
-import { PHASE, SIDE, RF, WEAPON_MELEE, SLOT_NONE } from '../../shared/net/protocol.js';
-import { WEAPON_ORDER, WEAPONS } from '../config.js';
+import { PHASE, SIDE, RF, WEAPON_MELEE, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
+import { WEAPON_ORDER, WEAPONS, MAPS } from '../config.js';
 import { weaponShortName } from '../weaponInfo.js';
 import { PrepScreen } from './prepScreen.js';
 import MODES from '../data/modes.json' with { type: 'json' };
@@ -45,6 +45,8 @@ export class MatchHud {
       if (r.code === 1) this.banner('MAÇ BAŞLADI', 1.6);
     });
     ev.on(EV.NET_MATCH_END, () => this.showEnd());
+    ev.on(EV.NET_VOTE, () => this.renderVote());
+    ev.on(EV.NET_NEXT, (m) => this.showNext(m));
     ev.on(EV.NET_SPAWN, () => ($('mhDeath').hidden = true));
   }
 
@@ -58,6 +60,10 @@ export class MatchHud {
     $('mhBoard').hidden = true;
     $('mhDeath').hidden = true;
     $('mhBanner').hidden = true;
+    $('mhVote').hidden = true;
+    $('mhVoteGrid').textContent = '';
+    $('mhVoteNext').hidden = true;
+    this.voteCards = null;
     const W = net.welcome;
     const sandbox = W.mode === 'sandbox';
     const arena = ARENAS[W.map]?.name || W.map;
@@ -142,6 +148,8 @@ export class MatchHud {
       $('mhDeath').hidden = false;
       $('mhRespawn').textContent = net.me.respawnIn > 0 ? `Yeniden doğuş: ${Math.ceil(net.me.respawnIn)} sn` : 'Doğuyor…';
     } else if (net.me.alive) $('mhDeath').hidden = true;
+    // Maç sonu oylamasının sayacı
+    if (net.vote && !$('mhVote').hidden) $('mhVoteTime').textContent = net.vote.winner === VOTE_NONE ? `${Math.ceil(net.voteLeft)} sn` : '';
     // Puan tablosu
     const show = (input.isDown('scoreboard') || this.pinned) && !this.prep.open;
     $('mhBoard').hidden = !show || !$('mhEnd').hidden;
@@ -208,5 +216,59 @@ export class MatchHud {
     $('mhBoard').hidden = true;
     $('mhDeath').hidden = true;
     this.game.input.exitLock();
+    this.renderVote();
+  }
+
+  // --- Maç sonu harita oylaması (kullanıcı isteği "maç sonrası oylansın … bütün hepsi olsun"): bütün haritalar
+  // (modes.json → matchmaking.maps) kart olarak; dokun/tıkla = oy (değiştirilebilir). Kazanan haritada aynı oyuncularla
+  // yeni maç açılır (S_NEXT → main.nextOnline)
+  renderVote() {
+    const net = this.net;
+    if (!this.active || !net?.vote || $('mhEnd').hidden) return;
+    const v = net.vote;
+    const grid = $('mhVoteGrid');
+    if (!this.voteCards) {
+      grid.textContent = '';
+      this.voteCards = MODES.matchmaking.maps.map((id, i) => {
+        const c = el('button', 'mhVoteCard');
+        c.type = 'button';
+        c.dataset.map = id;
+        const sky = MAPS[ARENAS[id]?.env]?.env?.sky;
+        // Kartın şeridi haritanın ufuk rengi (gece haritası koyu, karlı açık): görsel yüklemeden ayırt edilir
+        if (sky) c.style.setProperty('--sky', `#${Number(sky.horizon).toString(16).padStart(6, '0')}`);
+        const n = el('span', 'n', '0');
+        c.append(el('b', null, ARENAS[id]?.name || id), el('small', null, ARENAS[id]?.desc || ''), n);
+        if (id === net.welcome.map) c.append(el('i', 'cur', 'ŞİMDİKİ'));
+        c.addEventListener('click', () => {
+          net.castVote(i);
+          this.game.audio.uiClick?.();
+          this.renderVote();
+        });
+        grid.append(c);
+        return { c, n };
+      });
+    }
+    $('mhVote').hidden = false;
+    const done = v.winner !== VOTE_NONE;
+    this.voteCards.forEach(({ c, n }, i) => {
+      n.textContent = String(v.counts[i] || 0);
+      c.classList.toggle('mine', v.mine === i);
+      c.classList.toggle('win', done && v.winner === i);
+      c.classList.toggle('lost', done && v.winner !== i);
+      c.disabled = done;
+    });
+    $('mhVoteTime').textContent = done ? '' : `${Math.ceil(net.voteLeft)} sn`;
+    if (done && !net.next) {
+      const id = MODES.matchmaking.maps[v.winner];
+      $('mhVoteNext').textContent = `Kazanan: ${ARENAS[id]?.name || id}`;
+      $('mhVoteNext').hidden = false;
+    }
+  }
+
+  showNext(m) {
+    if (!this.active) return;
+    this.renderVote();
+    $('mhVoteNext').textContent = `Sıradaki harita: ${ARENAS[m.map]?.name || m.map} · aynı oyuncularla yeni maç açılıyor…`;
+    $('mhVoteNext').hidden = false;
   }
 }

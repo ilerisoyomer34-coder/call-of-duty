@@ -271,6 +271,14 @@ export function encodeLoadout(w, l) {
   return w.bytes();
 }
 
+// Maç sonu harita oyu: harita dizini (u8)
+export function encodeVote(w, map) {
+  w.reset();
+  w.u8(MSG.C_VOTE);
+  w.u8(map);
+  return w.bytes();
+}
+
 export function encodePing(w, clientTime) {
   w.reset();
   w.u8(MSG.C_PING);
@@ -309,6 +317,8 @@ export function decodeClient(bytes) {
       }
       case MSG.C_PING:
         return { type, clientTime: r.f64() };
+      case MSG.C_VOTE:
+        return { type, map: r.u8() };
       case MSG.C_LOADOUT:
         return { type, primary: r.str(LIMITS.maxStr), secondary: r.str(LIMITS.maxStr), ready: r.u8() === 1 };
       case MSG.C_LOADED:
@@ -374,6 +384,26 @@ export function encodeError(w, code, detail = '') {
   w.u8(MSG.S_ERROR);
   w.u8(code);
   w.str(detail);
+  return w.bytes();
+}
+
+// Oylama: kalan süre (0,1 sn), harita başına oy sayısı, kazanan (VOTE_NONE: sürüyor)
+export function encodeVoteState(w, v) {
+  w.reset();
+  w.u8(MSG.S_VOTE);
+  w.u16(Math.max(0, Math.min(65535, Math.round(v.left * 10))));
+  w.u8(v.counts.length);
+  for (const c of v.counts) w.u8(Math.min(255, c));
+  w.u8(v.winner);
+  return w.bytes();
+}
+
+export function encodeNext(w, m) {
+  w.reset();
+  w.u8(MSG.S_NEXT);
+  w.str(m.room);
+  w.str(m.map);
+  w.str(m.mode);
   return w.bytes();
 }
 
@@ -610,6 +640,15 @@ export function decodeServer(bytes) {
         return { type, code: r.u8(), detail: r.str() };
       case MSG.S_MATCH_END:
         return { type, winner: r.u8(), reason: r.u8(), scoreA: r.i16(), scoreB: r.i16() };
+      case MSG.S_VOTE: {
+        const left = r.u16() / 10;
+        const n = r.u8();
+        const counts = [];
+        for (let i = 0; i < n; i++) counts.push(r.u8());
+        return { type, left, counts, winner: r.u8() };
+      }
+      case MSG.S_NEXT:
+        return { type, room: r.str(), map: r.str(), mode: r.str() };
       default:
         return null;
     }

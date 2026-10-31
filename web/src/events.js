@@ -37,6 +37,8 @@ export const EV = Object.freeze({
   MATCH_FOUND: 'MATCH_FOUND', // { room, kind: 'sandbox'|'match', mode, map, side, by? }
   NET_ROSTER: 'NET_ROSTER', // [{ slot, id, name, tag, side, flags, kills, deaths, score, ping, party }]
   NET_LOADOUT: 'NET_LOADOUT', // { primary, secondary, now }: sunucunun kuşandırdığı çevrim içi teçhizat
+  NET_VOTE: 'NET_VOTE', // maç sonu oylaması: { left, counts, winner, mine }
+  NET_NEXT: 'NET_NEXT', // sıradaki maç: { room, map, mode }
   NET_PHASE: 'NET_PHASE', // { phase, prev }
   NET_KILL: 'NET_KILL', // { killer, victim, weapon, head, mine, me }
   NET_SPAWN: 'NET_SPAWN', // { pos, yaw } (yerel oyuncu)

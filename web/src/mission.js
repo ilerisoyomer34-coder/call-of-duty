@@ -5,7 +5,7 @@ import { TerminalSecurity } from './terminalSecurity.js';
 import * as THREE from 'three';
 import { buildMission, buildRange } from './level.js';
 import { nestRing } from './maps/kit.js';
-import { ARENA_BUILDERS } from './maps/index.js';
+import { ARENA_BUILDERS, MAP_BUILDERS } from './maps/index.js';
 import { buildAAGun, buildFuelPump, buildPowerUnit, buildBarrel, buildLaptop, buildAmmoCrate, buildPouch, buildC4, buildHelicopter, hasHelicopterProp, buildWeapon, mat, bakeStatic } from './models.js';
 import { C4, SCORE, WEAPONS, WEAPON_ORDER, DEFAULT_LOADOUT, LEVELS, HMG, AA_GUN, TANK, EXTRACT } from './config.js';
 import { HeavyNest } from './hmg.js';
@@ -406,7 +406,9 @@ export class Mission {
   build() {
     const g = this.game;
     const W = g.world;
-    if (this.mode === 'online') this.data = (ARENA_BUILDERS[this.arenaId] || ARENA_BUILDERS.depo)(W);
+    // Çevrim içi: elle kurulmuş arena (depo) ya da görev haritasının kendisi (sunucu aynı haritanın
+    // shared/maps/<id>.collision.json'unu yükler; arena noktaları tools/make-arenas.mjs'ten)
+    if (this.mode === 'online') this.data = ARENA_BUILDERS[this.arenaId] ? ARENA_BUILDERS[this.arenaId](W) : MAP_BUILDERS[this.arenaId] ? buildMission(W, this.arenaId) : ARENA_BUILDERS.depo(W);
     else this.data = this.mode === 'range' ? buildRange(W) : buildMission(W, this.level.map);
     // Haritanın kendi çarpıştırıcıları (shared/maps/<harita>.collision.json ile aynı olmalı; sonrakiler görevin)
     W.mapColliders = W.colliders.length;
@@ -422,11 +424,15 @@ export class Mission {
     this.tanks = [...tankDefs, ...freeDefs].map((t, i) => new Tank(g, t, i));
     W.finalize();
     // Çimen öbekleri: haritanın ortamında tanımlıysa (yol, dere gibi alanlardan kaçınarak)
-    if (this.mode !== 'online') W.scatterGrass(g.env?.grass, g.quality, D.grassAvoid);
+    // Çimen yalnız görüntü (çarpışma yok): görev haritası çevrim içinde de çimenli
+    if (this.mode !== 'online' || !ARENA_BUILDERS[this.arenaId]) W.scatterGrass(g.env?.grass, g.quality, D.grassAvoid);
     g.buildNav();
-    g.barrels = (D.barrels || []).map((p) => new Barrel(g, p));
+    // Çevrim içinde patlayan varil ve ikmal sandığı yok: sunucunun çarpışma dünyasında değiller (tahmin bozulur) ve
+    // patlama yalnız bu ekranda olurdu
+    const online = this.mode === 'online';
+    g.barrels = online ? [] : (D.barrels || []).map((p) => new Barrel(g, p));
     // İkmal sandıkları
-    for (const p of D.ammoCrates || []) {
+    for (const p of online ? [] : D.ammoCrates || []) {
       const m = buildAmmoCrate();
       m.position.copy(p);
       g.scene.add(m);

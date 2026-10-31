@@ -107,6 +107,12 @@ export const ONLINE = {
   // kadar sn'ye iner
   readyStartSec: 3,
   prepWarnSec: 10, // panelde sayaç son bu kadar sn'de kırmızı
+  // Maç sonu harita oylaması (kullanıcı isteği "maç sonrası oylansın"): sonuç ekranında bu kadar sn oy verilir;
+  // kazanan haritada aynı oyuncularla (aynı taraf, aynı takım) yeni maç açılır. Oy yoksa şimdiki haritadan başka
+  // biri, eşitlikte aralarından biri rastgele
+  voteSec: 20,
+  nextShowSec: 2.5, // istemci: kazanan harita gösterildikten sonra yeni maça geçiş
+  nextLingerSec: 15, // eski oda geçiş için bu kadar daha açık kalır (oyuncular ayrılınca kapanır)
 };
 
 // Hazır ağaç modeli (Sketchfab çamı; kit.js pine/palm → World.addTree, tüm ağaçlar InstancedMesh)

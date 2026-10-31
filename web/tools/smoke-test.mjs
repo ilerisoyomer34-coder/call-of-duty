@@ -4024,7 +4024,7 @@ if (run('netplay')) {
   console.log('Çevrim içi maç: deneme odası, hızlı maç, botlar');
   const PORT = 8793;
   const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40', MATCH_TIME: '100' },
     stdio: 'ignore',
   });
   process.on('exit', () => srv.kill());
@@ -4107,7 +4107,8 @@ if (run('netplay')) {
   await A.evaluate(() => document.querySelector('.ppMode[data-mode="tdm"]').click());
   await until(B, () => window.__game.social.party?.mode === 'tdm');
   await A.evaluate(() => document.getElementById('btnPartyFind').click());
-  await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'tdm' && window.__game.net.roster.length === 8, null, 90000)));
+  // Maçlar haritaları sırayla gezer: deneme odası Depo'daydı, bu maç görev haritasında (yükleme daha uzun)
+  await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'tdm' && window.__game.net.roster.length === 8, null, 180000)));
   const ros = await A.evaluate(() => {
     const n = window.__game.net;
     const me = n.roster.find((p) => p.slot === n.slot);
@@ -4238,6 +4239,30 @@ if (run('netplay')) {
   await A.screenshot({ path: join(shots, '35-net-scoreboard.png') });
   await A.keyboard.up('Tab');
   check(board.shown && board.rows === 8 && board.yz === 6 && board.team === 1, `Puan tablosu (Tab): ${board.rows} satır, ${board.yz} YZ rozeti, takım arkadaşı işaretli`);
+  // Maç sonu harita oylaması (sunucu MATCH_TIME=100): sonuç ekranında bütün haritalar; ikisi Liman'a oy verir, süre
+  // dolunca aynı oyuncular Liman'daki yeni maça aynı tarafta geçer
+  const before = await A.evaluate(() => ({ room: window.__game.net.welcome.room, map: window.__game.net.welcome.map, side: window.__game.net.mySide }));
+  await Promise.all([A, B].map((pg) => until(pg, () => !document.getElementById('mhVote').hidden && document.querySelectorAll('#mhVoteGrid .mhVoteCard').length > 0, null, 200000).catch(() => {})));
+  const vote0 = await A.evaluate(() => ({
+    end: !document.getElementById('mhEnd').hidden,
+    cards: [...document.querySelectorAll('#mhVoteGrid .mhVoteCard')].map((c) => c.dataset.map),
+    left: window.__game.net?.voteLeft || 0,
+  }));
+  check(vote0.end && vote0.cards.length === 11 && vote0.cards.includes('municipality') && vote0.left > 5, `Maç sonu oylaması: ${vote0.cards.length} harita kartı, ${Math.round(vote0.left)} sn (maç ${before.map} haritasındaydı)`);
+  await A.evaluate(() => document.querySelector('#mhVoteGrid [data-map="harbor"]').click());
+  await B.evaluate(() => document.querySelector('#mhVoteGrid [data-map="ruins"]').click());
+  await B.evaluate(() => document.querySelector('#mhVoteGrid [data-map="harbor"]').click());
+  const counted = await until(A, () => document.querySelector('#mhVoteGrid [data-map="harbor"] .n').textContent === '2', null, 30000).then(() => true, () => false);
+  await A.screenshot({ path: join(shots, '35b-net-vote.png') });
+  const shown = await until(A, () => /Sıradaki harita: Liman/.test(document.getElementById('mhVoteNext').textContent), null, 60000).then(() => true, () => false);
+  check(counted && shown, `Oylar sayıldı (Liman 2 oy, B oyunu değiştirdi); kazanan duyuruldu`);
+  await Promise.all([A, B].map((pg) => until(pg, () => window.__game.state === 'playing' && window.__game.net?.welcome.map === 'harbor' && window.__game.net.state === 'playing', null, 240000).catch(() => {})));
+  const after = await Promise.all([A, B].map((pg) => pg.evaluate(() => {
+    const n = window.__game.net;
+    return n ? { room: n.welcome.room, map: n.welcome.map, side: n.mySide, humans: n.roster.filter((p) => !(p.flags & 1)).length, bots: n.roster.filter((p) => p.flags & 1).length, prep: !document.getElementById('mhPrep').hidden || n.phase !== 0 } : null;
+  })));
+  check(after.every((x) => x && x.map === 'harbor' && x.room === after[0].room && x.room !== before.room && x.side === before.side && x.humans === 2 && x.bots === 6 && x.prep),
+    `Sıradaki maç: ikisi aynı odada (${after[0]?.room}) Liman'da, aynı tarafta, 6 yapay zekâ, teçhizat paneli açık`);
   await A.close();
   await B.close();
   // Telefon: tek başına Ölüm Maçı, maç arayüzü taşmaz

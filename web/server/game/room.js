@@ -1,11 +1,12 @@
 // Oyun odası (S4–S6): bir maçın ağ tarafı. MatchSim'i sabit 64 Hz çalıştırır, istemci iletilerini işler, her
 // iki tick'te bir alıcıya özel anlık görüntü (yerel oyuncunun uzlaştırma kaydı + diğerleri + o aralığın olayları),
-// oyuncu listesi değişince S_ROSTER gönderir. Maç bitince sonucu yollar ve kapanır; boş oda kısa sürede kapanır.
+// oyuncu listesi değişince S_ROSTER gönderir. Maç bitince sonucu yollar; eşleşme odasında sıradaki harita oylanır
+// (S_VOTE), kazanan haritada aynı oyuncularla yeni oda açılır (S_NEXT) ve bu oda kapanır; boş oda kısa sürede kapanır.
 // Zaman: oda açıldığından beri geçen ms (sunucu saati); tick k bu saatte k / 64 sn'de işlenir (istemci ClockSync).
 import { performance } from 'node:perf_hooks';
 import { TICK_RATE, PROTOCOL_VERSION, SNAPSHOT_RATE } from '../../shared/constants.js';
-import { MSG, ERR, RF, PHASE, SIDE } from '../../shared/net/protocol.js';
-import { Writer, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot } from '../../shared/net/codec.js';
+import { MSG, ERR, RF, PHASE, SIDE, VOTE_NONE } from '../../shared/net/protocol.js';
+import { Writer, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, encodeVoteState, encodeNext } from '../../shared/net/codec.js';
 import { ONLINE } from '../../src/config.js';
 import { MatchSim } from './sim.js';
 
@@ -18,8 +19,9 @@ export const RESERVE_MS = 45_000; // eşleşip henüz bağlanmamış oyuncunun y
 
 export class Room {
   /**
-   * @param {{ code, kind: 'sandbox'|'match', mode, rules, mapId, world, arena, secret, log?, now?, manual?, onClose? }} o
+   * @param {{ code, kind: 'sandbox'|'match', mode, rules, mapId, world, arena, secret, log?, now?, manual?, onClose?, maps?, nextRoom? }} o
    *   manual: true → zamanlayıcı yok, testler tick()'i kendisi çağırır
+   *   maps: oylanan haritalar (modes.json → matchmaking.maps); nextRoom(mapId) → yeni Room (oylamanın sonunda)
    */
   constructor(o) {
     this.code = o.code;
@@ -45,6 +47,9 @@ export class Room {
     this.manual = !!o.manual;
     this.cutoffSec = o.cutoffSec ?? 60; // süresinin bu kadarından azı kalan maça yeni oyuncu girmez
     this.timer = null;
+    this.maps = o.maps || [];
+    this.nextRoom = o.nextRoom || null;
+    this.vote = null; // { until (ms), votes: oyuncu → harita dizini, winner, next }
     this.sim.balanceBots();
     if (!this.manual) this.schedule();
   }
@@ -90,6 +95,7 @@ export class Room {
     if (sim.tick % ONLINE.snapshotEvery === 0) this.sendSnapshots();
     if (sim.tick - this.rosterTick >= ROSTER_EVERY) this.sendRoster(false);
     if (sim.phase === PHASE.ENDED && !this.ended) this.onEnded();
+    if (this.vote && this.vote.winner === VOTE_NONE && this.now() >= this.vote.until) this.finishVote();
     const us = (performance.now() - a) * 1000;
     this.tickUs += (us - this.tickUs) * 0.1;
     if (sim.finished) this.close('finished');
@@ -225,6 +231,9 @@ export class Room {
       case MSG.C_LOADOUT:
         if (conn.loaded) sim.chooseLoadout(conn.slot, m.primary, m.secondary, m.ready);
         break;
+      case MSG.C_VOTE:
+        this.castVote(conn, m.map);
+        break;
       case MSG.C_LEAVE:
         this.leave(conn);
         conn.transport.close(1000, 'leave');
@@ -308,6 +317,71 @@ export class Room {
     const bytes = encodeMatchEnd(this.writer, { winner: r.winner, reason: r.reason, scoreA: this.sim.scores[0], scoreB: this.sim.scores[1] });
     for (const c of this.conns) if (c.slot >= 0) this.send(c, bytes);
     this.log(`oda ${this.code}: maç bitti (kazanan ${r.winner}, neden ${r.reason})`);
+    // Sıradaki harita oylaması: sonuç ekranı oylama ve geçiş boyunca açık kalır
+    if (this.kind === 'match' && this.nextRoom && this.maps.length > 1) {
+      this.vote = { until: this.now() + ONLINE.voteSec * 1000, votes: new Map(), winner: VOTE_NONE, next: null };
+      this.sim.phaseEnd = this.sim.tick + Math.round((ONLINE.voteSec + ONLINE.nextLingerSec) * TICK_RATE);
+      this.sendVote();
+    }
+  }
+
+  // --- Maç sonu oylaması ---
+  castVote(conn, map) {
+    const v = this.vote;
+    if (!v || v.winner !== VOTE_NONE || conn.slot < 0 || !conn.playerId) return;
+    if (!Number.isInteger(map) || map < 0 || map >= this.maps.length) return;
+    if (v.votes.get(conn.playerId) === map) return;
+    v.votes.set(conn.playerId, map);
+    this.sendVote();
+  }
+
+  voteCounts() {
+    const counts = this.maps.map(() => 0);
+    // Yalnız hâlâ bağlı oyuncuların oyu sayılır
+    const here = new Set([...this.conns].filter((c) => c.slot >= 0).map((c) => c.playerId));
+    for (const [id, m] of this.vote.votes) if (here.has(id)) counts[m]++;
+    return counts;
+  }
+
+  sendVote() {
+    const v = this.vote;
+    const bytes = encodeVoteState(this.writer, { left: Math.max(0, (v.until - this.now()) / 1000), counts: this.voteCounts(), winner: v.winner });
+    for (const c of this.conns) if (c.slot >= 0) this.send(c, bytes);
+  }
+
+  // Kazanan: en çok oy; eşitlikte aralarından biri, hiç oy yoksa şimdiki haritadan başka biri (odanın tohumlu üreteci)
+  pickWinner(counts) {
+    const top = Math.max(...counts);
+    let pool = counts.map((c, i) => i).filter((i) => counts[i] === top);
+    if (top === 0) pool = pool.filter((i) => this.maps[i] !== this.mapId);
+    return pool[Math.floor(this.sim.rng.next() * pool.length) % pool.length];
+  }
+
+  finishVote() {
+    const v = this.vote;
+    const counts = this.voteCounts();
+    v.winner = this.pickWinner(counts);
+    const mapId = this.maps[v.winner];
+    this.sendVote();
+    let next = null;
+    try {
+      next = this.nextRoom(mapId);
+    } catch (e) {
+      this.log(`oda ${this.code}: sıradaki maç açılamadı (${e.message})`);
+    }
+    if (!next) return;
+    v.next = next;
+    // Aynı oyuncular aynı tarafa ve aynı takımla (takım yoksa kendi başına)
+    const sided = this.sim.sided;
+    for (const c of this.conns) {
+      if (c.slot < 0) continue;
+      const p = this.sim.players[c.slot];
+      if (!p || p.bot) continue;
+      next.reserve([c.playerId], p.party || '', sided ? p.side : SIDE.NONE);
+    }
+    const bytes = encodeNext(this.writer, { room: next.code, map: mapId, mode: this.mode });
+    for (const c of this.conns) if (c.slot >= 0) this.send(c, bytes);
+    this.log(`oda ${this.code}: oylama bitti → ${mapId} (oda ${next.code}, oylar ${counts.join('/')})`);
   }
 
   close(reason = 'closed') {

@@ -10,8 +10,8 @@
 //   - Zaman genişletme: sunucunun komut tamponu azalırsa tick biraz hızlanır, birikirse yavaşlar (tickScale).
 //   - Atış/şarjör/yakın dövüş istemcide görünür, sunucuya komutla bildirilir; isabet, hasar ve ölüm sunucudan.
 import { PROTOCOL_VERSION, TICK_DT, TICK_RATE } from '../../shared/constants.js';
-import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE } from '../../shared/net/protocol.js';
-import { Writer, encodeHello, encodeLoadout, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
+import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
+import { Writer, encodeHello, encodeLoadout, encodeVote, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
 import { lerp } from '../../shared/sim/math.js';
@@ -91,6 +91,8 @@ export class GameClient {
     this.remotes = new RemotePlayers(game);
     this.welcome = null;
     this.loadout = null; // [ana, yan]: sunucunun kuşandırdığı teçhizat (karşılama, sonra NEV.LOADOUT)
+    this.vote = null; // maç sonu: { left, at, counts, winner, mine }
+    this.next = null; // oylamanın sonucu: { room, map, mode }
     this.slot = -1;
     this.roster = [];
     this.hist = [];
@@ -260,6 +262,15 @@ export class GameClient {
         this.state = 'ended';
         this.game.events.emit(EV.NET_MATCH_END, m);
         break;
+      case MSG.S_VOTE:
+        // Maç sonu harita oylaması: kalan süre gelişten sayılır (timeLeft gibi)
+        this.vote = { left: m.left, at: now, counts: m.counts, winner: m.winner, mine: this.vote?.mine ?? -1 };
+        this.game.events.emit(EV.NET_VOTE, this.vote);
+        break;
+      case MSG.S_NEXT:
+        this.next = m;
+        this.game.events.emit(EV.NET_NEXT, m);
+        break;
       case MSG.S_ERROR:
         this.error = this.errorOf(m.code, m.detail);
         if (!this.welcome) this.onFail?.(this.error);
@@ -384,6 +395,18 @@ export class GameClient {
       default:
         break;
     }
+  }
+
+  // Maç sonu oyu (modes.json → matchmaking.maps dizini); oy değiştirilebilir, sunucu son oyu sayar
+  castVote(map) {
+    if (!this.vote || this.vote.winner !== VOTE_NONE) return;
+    this.vote.mine = map;
+    this.send(encodeVote(this.w, map));
+  }
+
+  get voteLeft() {
+    if (!this.vote) return 0;
+    return Math.max(0, this.vote.left - (performance.now() - this.vote.at) / 1000);
   }
 
   // Maç öncesi teçhizat paneli (prepScreen.js): seçim ve "hazırım" sunucuya; silah sunucu onaylayınca değişir

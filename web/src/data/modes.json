@@ -14,9 +14,9 @@
     "rules": { "sides": 0, "max": 8, "bots": "none", "scoreLimit": 0, "timeLimit": 0, "respawn": 2, "warmup": 0, "botSkill": 0.4 }
   },
   "matchmaking": {
-    "_": "searchSec: tek başına kuyrukta bu kadar beklenince maç yapay zekâyla dolarak başlar; joinCutoffSec: süresinin bu kadarından azı kalan maça katılınmaz; maps: sırayla",
+    "_": "searchSec: tek başına kuyrukta bu kadar beklenince maç yapay zekâyla dolarak başlar; joinCutoffSec: süresinin bu kadarından azı kalan maça katılınmaz; maps: yeni maçlarda sırayla, maç sonunda hepsi oylanır (dizin C_VOTE/S_VOTE'ta taşınır; sıra değişirse istemci ve sunucu birlikte güncellenir). Görev haritalarının arena noktaları tools/make-arenas.mjs'ten",
     "searchSec": 8,
     "joinCutoffSec": 60,
-    "maps": ["depo"]
+    "maps": ["depo", "kizilkum", "harbor", "ruins", "pass", "refinery", "forest", "factory", "coast", "core", "municipality"]
   }
 }

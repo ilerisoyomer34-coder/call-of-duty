@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { CollisionWorld } from '../shared/sim/collision.js';
 import { createPlayerState, clonePlayerState, stepPlayer, applyCmdMods, BTN } from '../shared/sim/movement.js';
 import { TICK_DT } from '../shared/constants.js';
-import { MSG, NEV, PHASE, SIDE, RF } from '../shared/net/protocol.js';
+import { MSG, NEV, PHASE, SIDE, RF, VOTE_NONE } from '../shared/net/protocol.js';
 import { Writer, encodeInput, decodeClient, decodeServer } from '../shared/net/codec.js';
 import { mulberry32 } from '../shared/sim/rng.js';
 import { WEAPONS, WEAPON_ORDER, ONLINE } from '../src/config.js';
@@ -24,9 +24,9 @@ function fakeConn() {
   return { got, transport: { send: (b) => got.push(decodeServer(b)), close() {} }, last: (type) => [...got].reverse().find((m) => m?.type === type) };
 }
 
-function makeRoom(kind = 'sandbox', mode = 'sandbox', rules = null) {
+function makeRoom(kind = 'sandbox', mode = 'sandbox', rules = null, extra = {}) {
   let t = 0;
-  const room = new Room({ code: 'TEST01', kind, mode, rules: rules || modeRules(mode === 'sandbox' ? 'sandbox' : mode), mapId: 'depo', world, arena, manual: true, now: () => t });
+  const room = new Room({ code: 'TEST01', kind, mode, rules: rules || modeRules(mode === 'sandbox' ? 'sandbox' : mode), mapId: 'depo', world, arena, manual: true, now: () => t, ...extra });
   room.advance = (n) => {
     for (let i = 0; i < n; i++) {
       t += 1000 / 64;
@@ -276,6 +276,76 @@ test('maç öncesi teçhizat: ısınmada hemen kuşanılır, geçersiz silah var
   assert.deepEqual(sim.players[a.slot].loadout, ['rifle', 'pistol']);
   room.advance(4);
   assert.equal(loadoutEvent(a).now, false, 'onay: sonraki doğuşta');
+});
+
+test('maç sonu oylaması: bütün haritalar oylanır, en çok oy alan haritada aynı oyuncular aynı tarafa ayrılır', () => {
+  const maps = ['depo', 'harbor', 'kizilkum', 'ruins'];
+  const made = [];
+  const nextRoom = (mapId) => {
+    const r = { code: `N${made.length}`, mapId, reserved: [], reserve: (ids, party, side) => r.reserved.push({ ids, party, side }) };
+    made.push(r);
+    return r;
+  };
+  const room = makeRoom('match', 'tdm', { ...modeRules('tdm'), warmup: 0 }, { maps, nextRoom });
+  const sim = room.sim;
+  const a = joinHuman(room, 'p_a', 0);
+  const b = joinHuman(room, 'p_b', 1);
+  const c = joinHuman(room, 'p_c', 0);
+  room.advance(4);
+  // Oylama yalnız maç bitince
+  room.onMessage(a, { type: MSG.C_VOTE, map: 1 });
+  assert.equal(a.last(MSG.S_VOTE), undefined);
+  sim.endMatch(2);
+  room.advance(1);
+  const v0 = a.last(MSG.S_VOTE);
+  assert.ok(v0 && v0.counts.length === maps.length && v0.winner === VOTE_NONE && v0.left > ONLINE.voteSec - 1, 'oylama başladı');
+  assert.ok(a.last(MSG.S_MATCH_END), 'önce sonuç');
+  room.onMessage(a, { type: MSG.C_VOTE, map: 1 });
+  room.onMessage(b, { type: MSG.C_VOTE, map: 3 });
+  room.onMessage(c, { type: MSG.C_VOTE, map: 3 });
+  room.onMessage(a, { type: MSG.C_VOTE, map: 3 }); // oy değiştirilebilir
+  room.onMessage(b, { type: MSG.C_VOTE, map: 99 }); // geçersiz dizin yok sayılır
+  assert.deepEqual(b.last(MSG.S_VOTE).counts, [0, 0, 0, 3]);
+  // Süre dolana dek maç kapanmaz; dolunca kazanan ve sıradaki oda
+  room.advance(64 * (ONLINE.voteSec - 1));
+  assert.equal(made.length, 0);
+  room.advance(64 * 2);
+  assert.equal(made.length, 1);
+  assert.equal(made[0].mapId, 'ruins');
+  assert.equal(c.last(MSG.S_VOTE).winner, 3);
+  const nx = a.last(MSG.S_NEXT);
+  assert.deepEqual(nx, { type: MSG.S_NEXT, room: 'N0', map: 'ruins', mode: 'tdm' });
+  const sideOf = (id) => made[0].reserved.find((r) => r.ids.includes(id)).side;
+  assert.equal(made[0].reserved.length, 3, 'üç insan ayrıldı (botlar değil)');
+  assert.equal(sideOf('p_a'), 0);
+  assert.equal(sideOf('p_b'), 1);
+  assert.equal(sideOf('p_c'), 0);
+  // Oylama bittikten sonra oy yok; oda geçiş süresince açık, sonra kapanır
+  room.onMessage(b, { type: MSG.C_VOTE, map: 0 });
+  assert.equal(b.last(MSG.S_VOTE).winner, 3);
+  assert.ok(!room.closed);
+  room.advance(64 * (ONLINE.nextLingerSec + 1));
+  assert.ok(room.closed);
+});
+
+test('maç sonu oylaması: hiç oy yoksa şimdiki haritadan başkası, eşitlikte eşitlerden biri', () => {
+  const maps = ['depo', 'harbor', 'kizilkum'];
+  for (let seed = 1; seed <= 12; seed++) {
+    const room = makeRoom('match', 'tdm', { ...modeRules('tdm'), warmup: 0 }, { maps, nextRoom: () => null, seed });
+    room.vote = { until: 0, votes: new Map(), winner: VOTE_NONE, next: null };
+    const w0 = room.pickWinner([0, 0, 0]);
+    assert.notEqual(maps[w0], 'depo', 'oy yoksa şimdiki harita (depo) seçilmez');
+    assert.ok([0, 2].includes(room.pickWinner([2, 1, 2])), 'eşitlikte en çok oy alanlardan biri');
+    assert.equal(room.pickWinner([0, 3, 1]), 1);
+  }
+});
+
+test('deneme odasında oylama yok', () => {
+  const room = makeRoom('sandbox', 'sandbox', null, { maps: ['depo', 'harbor'], nextRoom: () => assert.fail('açılmamalı') });
+  const a = joinHuman(room, 'p_a');
+  room.sim.endMatch(2);
+  room.advance(2);
+  assert.equal(a.last(MSG.S_VOTE), undefined);
 });
 
 test('ölüm maçı: herkes kendine, doğuşlar rakipten uzak, öldürme olayı ve yeniden doğma', () => {

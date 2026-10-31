@@ -1,8 +1,8 @@
 // İkili ileti kodlayıcı (shared/net/codec.js): gidiş-dönüş eşitliği, nicemleme hata sınırları, bozuk ileti.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MSG, NEV, ERR, PHASE } from '../shared/net/protocol.js';
-import { Writer, encodeHello, encodeLoadout, encodeInput, encodePing, encodeSimple, decodeClient, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, decodeServer, encYaw, decYaw, encPitch, decPitch, quantizeCmd } from '../shared/net/codec.js';
+import { MSG, NEV, ERR, PHASE, VOTE_NONE } from '../shared/net/protocol.js';
+import { Writer, encodeHello, encodeLoadout, encodeVote, encodeVoteState, encodeNext, encodeInput, encodePing, encodeSimple, decodeClient, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, decodeServer, encYaw, decYaw, encPitch, decPitch, quantizeCmd } from '../shared/net/codec.js';
 import { mulberry32 } from '../shared/sim/rng.js';
 
 const w = new Writer(16); // küçük başlar: büyüme de denenir
@@ -12,6 +12,10 @@ test('el sıkışma, ping ve basit iletiler gidip gelir', () => {
   assert.deepEqual(decodeClient(encodeHello(w, h)), { type: MSG.C_HELLO, ...h });
   assert.deepEqual(decodeClient(encodePing(w, 123456.789)), { type: MSG.C_PING, clientTime: 123456.789 });
   assert.deepEqual(decodeClient(encodeSimple(w, MSG.C_LOADED)), { type: MSG.C_LOADED });
+  // Maç sonu harita oyu, oylama durumu ve sıradaki maç
+  assert.deepEqual(decodeClient(encodeVote(w, 7)), { type: MSG.C_VOTE, map: 7 });
+  assert.deepEqual(decodeServer(encodeVoteState(w, { left: 12.34, counts: [0, 2, 1, 0], winner: VOTE_NONE })), { type: MSG.S_VOTE, left: 12.3, counts: [0, 2, 1, 0], winner: VOTE_NONE });
+  assert.deepEqual(decodeServer(encodeNext(w, { room: 'K7M2PQ', map: 'harbor', mode: 'tdm' })), { type: MSG.S_NEXT, room: 'K7M2PQ', map: 'harbor', mode: 'tdm' });
   // Maç öncesi teçhizat seçimi
   assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'ak74', secondary: 'd50', ready: true })), { type: MSG.C_LOADOUT, primary: 'ak74', secondary: 'd50', ready: true });
   assert.deepEqual(decodeClient(encodeLoadout(w, { primary: 'rifle', secondary: '', ready: false })), { type: MSG.C_LOADOUT, primary: 'rifle', secondary: '', ready: false });

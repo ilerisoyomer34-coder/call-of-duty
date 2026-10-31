@@ -1063,6 +1063,24 @@ body.touch .rlPeek { font-size: 12px; max-width: 34vw; }
 .mhEndCard h2.win { color: #7fd38a; }
 .mhEndCard h2.lose { color: var(--red); }
 .mhEndCard p { margin: 0; color: var(--sand-dim); font: 500 14px/1.3 var(--f-ui); }
+/* Maç sonu harita oylaması: bütün haritalar; şerit rengi haritanın ufku */
+.mhVote h3 { margin: 4px 0 6px; font: 700 12px/1.2 var(--f-ui); letter-spacing: .12em; color: var(--amber); }
+.mhVote h3 span { margin-left: 8px; color: var(--sand); font-family: var(--f-num); }
+.mhVoteGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.mhVoteCard { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 7px 34px 7px 10px; text-align: left; background: rgba(231,220,196,.05); border: 1px solid var(--line); border-left: 4px solid var(--sky, var(--sand-dim)); color: var(--sand); font: inherit; cursor: pointer; }
+.mhVoteCard:hover:not(:disabled) { background: rgba(231,220,196,.1); }
+.mhVoteCard b { font: 700 13px/1.15 var(--f-ui); }
+.mhVoteCard small { font: 500 10px/1.25 var(--f-ui); color: var(--sand-dim); }
+.mhVoteCard .n { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font: 700 18px/1 var(--f-num); color: var(--sand-dim); }
+.mhVoteCard .cur { font: 700 9px/1 var(--f-ui); font-style: normal; letter-spacing: .1em; color: var(--sand-dim); }
+.mhVoteCard.mine { border-color: var(--amber); border-left-color: var(--sky, var(--amber)); background: rgba(240,163,58,.16); }
+.mhVoteCard.mine .n { color: var(--amber); }
+.mhVoteCard.win { border-color: #7fd38a; background: rgba(127,211,138,.18); }
+.mhVoteCard.lost { opacity: .45; }
+.mhVoteCard:disabled { cursor: default; }
+.mhVoteNext { margin: 6px 0 0 !important; color: var(--sand) !important; font-weight: 700 !important; }
+body.touch .mhVoteGrid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
+body.touch .mhVoteCard small { display: none; }
 /* Maç öncesi teçhizat paneli: telefonda yatay ekrana sığsın diye silahlar yatay kayan sıralarda */
 .mhPrep { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,7,9,.55); pointer-events: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); }
 .mhPrepBox { width: min(860px, 100%); max-height: 100%; overflow-y: auto; background: rgba(13,16,19,.94); border: 1px solid var(--line); border-top: 3px solid var(--amber); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -1326,6 +1344,12 @@ body.touch #squad { display: none; }
         <h2 id="mhEndTitle">MAÇ BİTTİ</h2>
         <p id="mhEndSub"></p>
         <div class="mhRows" id="mhEndBody"></div>
+        <!-- Maç sonu harita oylaması (matchHud.renderVote) -->
+        <div class="mhVote" id="mhVote" hidden>
+          <h3>SIRADAKİ HARİTA · OY VER <span id="mhVoteTime"></span></h3>
+          <div class="mhVoteGrid" id="mhVoteGrid"></div>
+          <p class="mhVoteNext" id="mhVoteNext" hidden></p>
+        </div>
         <div class="row"><button class="btn primary" id="btnMhMenu" type="button">Ana menüye dön</button></div>
       </div>
     </div>

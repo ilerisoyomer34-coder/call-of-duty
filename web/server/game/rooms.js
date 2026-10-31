@@ -52,9 +52,10 @@ export class RoomManager {
     }
   }
 
-  create(kind, mode) {
+  // mapId: maç sonu oylamasının kazananı (verilmezse haritalar sırayla döner)
+  create(kind, mode, mapId = null) {
     const rules = kind === 'sandbox' ? { ...modeRules('sandbox') } : { ...modeRules(mode), ...this.overrides };
-    const mapId = MM.maps[this.mapTurn++ % MM.maps.length];
+    if (!mapId || !ARENAS[mapId]) mapId = MM.maps[this.mapTurn++ % MM.maps.length];
     const code = this.newCode();
     const room = new Room({
       code,
@@ -69,6 +70,8 @@ export class RoomManager {
       now: this.now,
       seed: randomInt(1 << 30),
       cutoffSec: MM.joinCutoffSec,
+      maps: MM.maps,
+      nextRoom: kind === 'match' ? (next) => this.create(kind, mode, next) : null,
       onClose: (r) => this.rooms.delete(r.code),
     });
     this.rooms.set(code, room);
