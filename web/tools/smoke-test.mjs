@@ -4145,6 +4145,30 @@ if (run('netplay')) {
   const fight = await until(A, () => window.__game.net.scoreA + window.__game.net.scoreB >= 2 && document.querySelectorAll('#mhFeed .mhKill').length > 0, null, 120000).then(() => true, () => false);
   const fs = await A.evaluate(() => ({ a: window.__game.net.scoreA, b: window.__game.net.scoreB, feed: document.getElementById('mhFeed').textContent }));
   check(fight, `Maç sürüyor: skor ${fs.a}–${fs.b}, öldürme akışı "${fs.feed.slice(0, 60)}"`);
+  // Radar: diğer oyuncular her zaman görünür (takım arkadaşı mavi, rakip kırmızı; config.js → RADAR.showAll)
+  const radar = await A.evaluate(() => {
+    const g = window.__game;
+    const RP = g.net.remotes;
+    const P = g.player;
+    const near = { friend: 0, foe: 0 };
+    for (const r of RP.map.values()) {
+      if (!r.alive || !r.hasPose || r.pos.distanceTo(P.pos) > 50) continue;
+      if (RP.isFriendly(r.slot)) near.friend++;
+      else near.foe++;
+    }
+    g.hud.drawMinimap([]);
+    const cv = document.getElementById('minimap');
+    const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let red = 0;
+    let blue = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i] > 200 && px[i + 1] < 110 && px[i + 2] < 100) red++;
+      else if (px[i] < 140 && px[i + 1] > 150 && px[i + 2] > 230) blue++;
+    }
+    return { near, red, blue };
+  });
+  check((radar.near.foe === 0 || radar.red > 20) && (radar.near.friend === 0 || radar.blue > 20) && radar.near.foe + radar.near.friend > 0,
+    `Radarda herkes: yakındaki ${radar.near.friend} takım arkadaşı mavi, ${radar.near.foe} rakip kırmızı (${radar.blue}/${radar.red} piksel)`);
   await until(A, () => window.__deaths.some((d) => d.frames >= 3), null, 60000).catch(() => {});
   const dz = await A.evaluate(() => ({ physics: window.__game.physics.status, deaths: window.__deaths.filter((d) => d.frames >= 3) }));
   const fell = dz.deaths.filter((d) => !d.stood && d.rag === d.frames);

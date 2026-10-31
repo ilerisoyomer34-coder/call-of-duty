@@ -3,7 +3,8 @@ import {levelLabel} from './campaign.js';
 // konuma bağlı öğeler (nişangah, pusula, işaretçiler, mini harita, hasar yönü, düşman farkındalık ikonları).
 import * as THREE from 'three';
 import { DEG, clamp } from './util.js';
-import { WEAPONS, MAPS, ALLY_TIERS, BALANCE, ENEMY_TYPES } from './config.js';
+import { WEAPONS, MAPS, ALLY_TIERS, BALANCE, ENEMY_TYPES, RADAR } from './config.js';
+import { PF } from '../shared/net/protocol.js';
 import { weaponName, weaponShortName } from './weaponInfo.js';
 import { itemIcon } from './storeIcons.js';
 import { BINDINGS, keyName } from './input.js';
@@ -883,8 +884,7 @@ export class HUD {
     const R = S / 2;
     const P = g.player;
     const B = g.world.bounds;
-    const range = 55; // metre (yarıçap)
-    const k = R / range;
+    const k = R / RADAR.range;
     ctx.clearRect(0, 0, S, S);
     ctx.save();
     ctx.beginPath();
@@ -906,20 +906,35 @@ export class HUD {
       ctx.arc(x, z, 4.5, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Ateş eden düşmanlar kırmızı nokta (radar)
+    // Düşmanlar kırmızı nokta: hepsi her zaman (RADAR.showAll), ateş eden büyük
     for (const e of g.enemies.list) {
       if (!e.alive || e.dummy) continue;
-      const recent = g.time - e.lastFired < 2.2;
-      if (!recent) continue;
+      const recent = g.time - e.lastFired < RADAR.firedSec;
+      if (!recent && !RADAR.showAll) continue;
       const [x, z] = toMap(e.pos.x, e.pos.z);
       ctx.fillStyle = '#e0513f';
       ctx.beginPath();
-      ctx.arc(x, z, 5, 0, Math.PI * 2);
+      ctx.arc(x, z, recent ? RADAR.firedDot : RADAR.dot, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Kendini belli etmiş ağır makineli mevzileri: kırmızı üçgen (susturulunca kaybolur)
+    // Çevrim içi: diğer oyuncular (takım arkadaşı mavi, rakip kırmızı; ateş eden büyük)
+    if (g.net) {
+      const RP = g.net.remotes;
+      for (const r of RP.map.values()) {
+        if (!r.alive || !r.hasPose) continue;
+        const friendly = RP.isFriendly(r.slot);
+        const firing = !!(r.flags & PF.FIRING);
+        if (!friendly && !firing && !RADAR.showAll) continue;
+        const [x, z] = toMap(r.pos.x, r.pos.z);
+        ctx.fillStyle = friendly ? '#6fb0ff' : '#e0513f';
+        ctx.beginPath();
+        ctx.arc(x, z, firing ? RADAR.firedDot : friendly ? 4.5 : RADAR.dot, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Ağır makineli mevzileri: kırmızı üçgen (susturulunca kaybolur; RADAR.showAll kapalıysa yalnız kendini belli edince)
     for (const n of g.mission?.mounts || []) {
-      if (!n.warned || n.wrecked || !n.gunner.alive || n.gunner.mount !== n) continue;
+      if ((!n.warned && !RADAR.showAll) || n.wrecked || !n.gunner.alive || n.gunner.mount !== n) continue;
       const [x, z] = toMap(n.pos.x, n.pos.z);
       ctx.save();
       ctx.translate(x, z);
@@ -933,14 +948,17 @@ export class HUD {
       ctx.fill();
       ctx.restore();
     }
-    // Kendini göstermiş tank: kırmızı gövde ve taretin baktığı yönde namlu
+    // Tank: gövde ve taretin baktığı yönde namlu. Düşman kırmızı (RADAR.showAll kapalıysa yalnız kendini gösterince),
+    // boş (binilebilir) kum rengi; oyuncunun sürdüğü tank zaten ortadaki ok
     for (const t of g.mission?.tanks || []) {
-      if (!t.warned || t.destroyed) continue;
+      if (t.destroyed || t.side === 'player') continue;
+      const enemy = t.side === 'enemy';
+      if (enemy && !t.warned && !RADAR.showAll) continue;
       const [x, z] = toMap(t.pos.x, t.pos.z);
       ctx.save();
       ctx.translate(x, z);
       ctx.rotate(-t.yaw);
-      ctx.fillStyle = '#ff5a3c';
+      ctx.fillStyle = enemy ? '#ff5a3c' : '#c9b27a';
       ctx.fillRect(-4.5, -6.5, 9, 13);
       ctx.rotate(-t.aimYaw);
       ctx.fillRect(-1, -12, 2, 11);

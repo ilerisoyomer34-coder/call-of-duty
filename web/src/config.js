@@ -1961,6 +1961,16 @@ export const RENDER = {
   touchTextureCap: 1024,
 };
 
+// Mini harita (radar, hud.js → drawMinimap). Kullanıcı isteği "radardan herkes gözüksün": bütün düşman askerleri,
+// tanklar ve mevziler, çevrim içinde bütün oyuncular (dost mavi, rakip kırmızı) her zaman görünür
+export const RADAR = {
+  range: 55, // radarın yarıçapı (m)
+  showAll: true, // false: düşman yalnız ateş edince görünür (eski davranış)
+  firedSec: 2.2, // ateş eden düşman bu kadar süre büyük noktayla
+  dot: 4, // nokta yarıçapı (px, 336 px'lik tuvalde)
+  firedDot: 5.5,
+};
+
 // Görüntü son işlemi (src/postfx.js): dünya HDR hedefinden tuvale. Ayarlar → "Görüntü efektleri" kapalıyken ya da
 // düşük kalitede yalnız ton eşleme (ve dünya büyütülüyorsa keskinleştirme)
 export const POST = {
@@ -2056,20 +2066,22 @@ export const PWA = {
 };
 
 // Zorluk ayarları (DA_Difficulty karşılığı).
+// Kullanıcı isteği "yapay zekâlar biraz daha kolay olsun": her zorlukta tepki daha geç, isabet daha düşük (aimMult büyük =
+// daha çok sapma), hasar biraz az. Eski değerler: tepki 0,9/0,6/0,4, aimMult 1,7/1,0/0,72, hasar 0,6/0,85/1,0
 export const DIFFICULTY = {
   easy: {
     label: 'Acemi', desc: 'Düşmanlar yavaş fark eder, az isabet ettirir.',
-    reaction: 0.9, aimMult: 1.7, damageMult: 0.6, perception: 0.8, awarenessRate: 0.65,
+    reaction: 1.0, aimMult: 1.9, damageMult: 0.5, perception: 0.8, awarenessRate: 0.6,
     maxAttackers: 1, grenades: false, regenDelay: 5, dpsCap: 32,
   },
   normal: {
     label: 'Asker', desc: 'Dengeli çatışma. İlk oynayış için önerilir.',
-    reaction: 0.6, aimMult: 1.0, damageMult: 0.85, perception: 1.0, awarenessRate: 1.0,
+    reaction: 0.7, aimMult: 1.15, damageMult: 0.75, perception: 1.0, awarenessRate: 0.9,
     maxAttackers: 2, grenades: true, regenDelay: 6, dpsCap: 40,
   },
   hard: {
     label: 'Gazi', desc: 'Hızlı tepki, sert isabet, bol el bombası.',
-    reaction: 0.4, aimMult: 0.72, damageMult: 1.0, perception: 1.15, awarenessRate: 1.45,
+    reaction: 0.45, aimMult: 0.8, damageMult: 0.9, perception: 1.15, awarenessRate: 1.35,
     maxAttackers: 3, grenades: true, regenDelay: 7, dpsCap: 75,
   },
 };
