@@ -16,7 +16,9 @@ import { lerp } from '../../shared/sim/math.js';
 import { NavGrid } from '../../shared/sim/nav.js';
 import { validLoadout } from '../../shared/sim/loadout.js';
 import { moddedDef, modsFromIndices, modsKey } from '../../shared/sim/mods.js';
-import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE, WEAPON_SUPPRESSED } from '../../shared/net/protocol.js';
+import { createThrow, stepGrenade, blastFactor, smokeBlocksLine, NADE_KIND } from '../../shared/sim/grenade.js';
+import { quantizeNade } from '../../shared/net/codec.js';
+import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE, WEAPON_SUPPRESSED, WEAPON_FRAG } from '../../shared/net/protocol.js';
 import { WEAPONS, WEAPON_ORDER, MOVEMENT as M, ONLINE } from '../../src/config.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
 import { BotBrain } from './bot.js';
@@ -90,6 +92,9 @@ export class MatchSim {
     this.nav = null;
     this.events = [];
     this.lateEvents = []; // tick dışında (ileti işlenirken) doğan olaylar: sonraki tick'in olaylarına katılır
+    this.nades = []; // uçan bombalar { id, kind, owner, pos, vel, fuse, rest }
+    this.smokes = []; // açık sis bulutları { x, y, z, age } (görüş: canSee)
+    this.nadeSeq = 0;
     this.scores = [0, 0];
     this.result = null; // { winner, reason }
     this.finished = false;
@@ -155,6 +160,8 @@ export class MatchSim {
       mods: [modsFromIndices(primary, info.pmods), modsFromIndices(secondary, info.smods)],
       arms: null,
       meleeReadyT: 0,
+      nadeCount: [0, 0], // [frag, sis]: doğuşta dolar
+      throwReadyT: 0,
       lastShotTick: -100,
       kills: 0,
       deaths: 0,
@@ -293,6 +300,7 @@ export class MatchSim {
     }
     for (const p of this.players) if (p) this.processQueue(p);
     for (const p of this.players) if (p) this.upkeep(p);
+    this.updateNades();
     for (const p of this.players) if (p) this.record(p);
   }
 
@@ -374,6 +382,7 @@ export class MatchSim {
     // Atışlar hareketten önce: istemci atışı önceki tick'in sonundaki konumdan yaptı
     for (let i = 0; i < cmd.shots.length; i++) this.fire(p, cmd, i);
     if (cmd.buttons & BTN.MELEE && !frozen) this.melee(p, cmd);
+    if (cmd.buttons & (BTN.THROW_FRAG | BTN.THROW_SMOKE) && !frozen) this.throwNade(p, cmd, cmd.buttons & BTN.THROW_SMOKE ? NADE_KIND.SMOKE : NADE_KIND.FRAG);
     applyCmdMods(p.state.mods, cmd.buttons, a.weapons[cmd.slot]?.d || w.d);
     stepPlayer(p.state, cmd, this.world, TICK_DT);
   }
@@ -584,19 +593,89 @@ export class MatchSim {
     if (best) this.damage(best, p, MEL.damage, WEAPON_MELEE, false, { x: best.state.pos.x, y: best.state.pos.y + 1.2, z: best.state.pos.z });
   }
 
-  damage(victim, attacker, amount, weapon, head, point) {
+  // attacker null olabilir (bombayı atan oyundan ayrıldı); from: hasarın geldiği yer (patlamada bombanın yeri)
+  damage(victim, attacker, amount, weapon, head, point, from = null) {
     if (!victim.alive || this.frozen) return;
     const prot = this.tick < victim.protectUntil;
     const dealt = prot ? 0 : Math.min(victim.hp, amount);
     const killed = !prot && victim.hp - amount <= 0;
-    // Atana isabet işareti (koruma altındaysa hasarsız işaret)
-    this.emit({ k: NEV.HIT, victim: victim.slot, dmg: dealt, flags: (head ? 1 : 0) | (killed ? 2 : 0) | (prot ? 4 : 0), point }, attacker.slot);
+    // Atana isabet işareti (koruma altındaysa hasarsız işaret); kendine verdiği hasarda işaret yok
+    if (attacker && attacker !== victim) this.emit({ k: NEV.HIT, victim: victim.slot, dmg: dealt, flags: (head ? 1 : 0) | (killed ? 2 : 0) | (prot ? 4 : 0), point }, attacker.slot);
     if (prot) return;
     victim.hp -= amount;
     victim.lastDamageTick = this.tick;
-    this.emit({ k: NEV.DAMAGE, attacker: attacker.slot, dmg: dealt, from: { x: attacker.state.pos.x, y: 0, z: attacker.state.pos.z } }, victim.slot);
-    victim.brain?.onDamaged(attacker);
+    const src = from || attacker?.state.pos || victim.state.pos;
+    this.emit({ k: NEV.DAMAGE, attacker: attacker ? attacker.slot : SLOT_NONE, dmg: dealt, from: { x: src.x, y: 0, z: src.z } }, victim.slot);
+    if (attacker && attacker !== victim) victim.brain?.onDamaged(attacker);
     if (killed) this.kill(victim, attacker, weapon, head);
+  }
+
+  // --- El bombası ve sis (shared/sim/grenade.js) ---
+  // Komutun bakışıyla atılır: göz hizasından, oyuncunun hareketinden önceki konumdan (atışlar gibi)
+  throwNade(p, cmd, kind) {
+    const N = ONLINE.nades;
+    if (p.nadeCount[kind] <= 0 || p.cmdT < p.throwReadyT) return false;
+    p.nadeCount[kind]--;
+    p.throwReadyT = p.cmdT + N.cooldown * N.tolerance;
+    // Atış animasyonu boyunca ateş yok
+    p.arms.readyT = Math.max(p.arms.readyT, p.cmdT + N.lockSec * N.tolerance);
+    p.protectUntil = 0;
+    const st = p.state;
+    const eye = { x: st.pos.x, y: st.pos.y + eyeHeight(st), z: st.pos.z };
+    const g = quantizeNade(createThrow(eye, cmd.yaw, cmd.pitch, st.vel, kind));
+    g.id = this.nadeSeq = (this.nadeSeq + 1) & 0xffff;
+    g.owner = p;
+    this.nades.push(g);
+    this.emit({ k: NEV.NADE, id: g.id, kind, slot: p.slot, pos: { ...g.pos }, vel: { ...g.vel } });
+    return true;
+  }
+
+  updateNades() {
+    for (let i = this.smokes.length - 1; i >= 0; i--) {
+      const s = this.smokes[i];
+      s.age += TICK_DT;
+      if (s.age >= ONLINE.nades.smoke.duration) this.smokes.splice(i, 1);
+    }
+    for (let i = this.nades.length - 1; i >= 0; i--) {
+      const g = this.nades[i];
+      stepGrenade(g, this.world, TICK_DT);
+      if (g.fuse > 0) continue;
+      this.nades.splice(i, 1);
+      const pos = { x: g.pos.x, y: g.pos.y, z: g.pos.z };
+      this.emit({ k: NEV.BLAST, id: g.id, kind: g.kind, pos });
+      if (g.kind === NADE_KIND.SMOKE) this.smokes.push({ x: pos.x, y: Math.max(pos.y, 0) + ONLINE.nades.smoke.height, z: pos.z, age: 0 });
+      else this.blast(g, pos);
+    }
+  }
+
+  // Patlama: yarıçap içindeki herkese uzaklık ve siperle azalan hasar; takım arkadaşına yok, atana azaltılmış
+  blast(g, pos) {
+    const N = ONLINE.nades;
+    // Atan oyundan ayrıldıysa (yuvası boşaldı ya da başkası aldı) öldürme kimseye yazılmaz
+    const owner = this.players[g.owner.slot] === g.owner ? g.owner : null;
+    const o = { x: pos.x, y: pos.y + 0.3, z: pos.z };
+    const chest = { x: 0, y: 0, z: 0 };
+    const head = { x: 0, y: 0, z: 0 };
+    for (const q of this.players) {
+      if (!q || !q.alive) continue;
+      if (owner && q !== owner && this.friendly(q, owner)) continue;
+      const st = q.state;
+      chest.x = head.x = st.pos.x;
+      chest.z = head.z = st.pos.z;
+      chest.y = st.pos.y + st.height * 0.6;
+      head.y = st.pos.y + st.height * 0.9;
+      const d = Math.hypot(chest.x - o.x, chest.y - o.y, chest.z - o.z);
+      const f = blastFactor(d, this.world.lineOfSight(o, chest) || this.world.lineOfSight(o, head));
+      if (f <= 0.01) continue;
+      const dmg = N.damage * f * (q === owner ? N.selfMult : 1);
+      this.damage(q, owner, dmg, WEAPON_FRAG, false, { ...chest }, pos);
+    }
+  }
+
+  // Görüş: duvar ve sis (botların algısı); mermi ve patlama yalnız duvara bakar (lineOfSight)
+  canSee(a, b) {
+    if (this.smokes.length && smokeBlocksLine(this.smokes, a, b)) return false;
+    return this.world.lineOfSight(a, b);
   }
 
   kill(victim, killer, weapon, head) {
@@ -641,6 +720,9 @@ export class MatchSim {
     p.lastDamageTick = -1e9;
     p.arms = this.makeArms(p);
     p.meleeReadyT = 0;
+    p.nadeCount[NADE_KIND.FRAG] = ONLINE.nades.fragCount;
+    p.nadeCount[NADE_KIND.SMOKE] = ONLINE.nades.smokeCount;
+    p.throwReadyT = 0;
     // Geçmiş yeni konumdan başlar: ölümden önceki pozlara ateş edilemez
     for (const h of p.hist) h.alive = false;
     this.emit({ k: NEV.SPAWN, slot: p.slot, pos: { x, y: 0, z }, yaw });

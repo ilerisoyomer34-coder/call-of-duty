@@ -6,6 +6,9 @@ import { clamp, rand, rayCylinder } from './util.js';
 import { ARMOR_DATA } from './armor.js';
 import { CONSUMABLES } from './loadout.js';
 import { friendlyBlastDamage, friendlyBulletDamage } from './friendlyFire.js';
+import { stepGrenade, NADE_KIND } from '../shared/sim/grenade.js';
+import { TICK_DT } from '../shared/constants.js';
+import { ONLINE } from './config.js';
 
 // Sis bombası ayarları (data/store.json → consumables.smoke)
 const SMOKE = CONSUMABLES.get('smoke');
@@ -20,6 +23,53 @@ export class GrenadeSystem {
     this.game = game;
     this.list = [];
     this.rockets = [];
+    this.net = []; // çevrim içi: sunucunun bombaları (NEV.NADE → netSpawn, NEV.BLAST → netBlast)
+  }
+
+  // Çevrim içi bomba: yörünge paylaşılan adımla (sunucuyla aynı dünya, aynı başlangıç); patlamayı sunucu söyler
+  netSpawn(e) {
+    const smoke = e.kind === NADE_KIND.SMOKE;
+    const mesh = smoke ? buildSmokeGrenade() : buildGrenade();
+    mesh.position.set(e.pos.x, e.pos.y, e.pos.z);
+    mesh.traverse((o) => o.isMesh && (o.castShadow = true));
+    this.game.scene.add(mesh);
+    const sim = { kind: e.kind, pos: { ...e.pos }, vel: { ...e.vel }, fuse: Infinity, rest: false };
+    this.net.push({ id: e.id, mesh, sim, acc: 0, age: 0, spin: new THREE.Vector3(Math.random() * 10, Math.random() * 10, 0) });
+  }
+
+  netBlast(e) {
+    const i = this.net.findIndex((n) => n.id === e.id);
+    if (i >= 0) {
+      this.net[i].mesh.removeFromParent();
+      this.net.splice(i, 1);
+    }
+    _v.set(e.pos.x, e.pos.y, e.pos.z);
+    if (e.kind === NADE_KIND.SMOKE) this.popSmoke(_v);
+    else this.game.blastFx(_v.clone().setY(_v.y + 0.1), ONLINE.nades.radius);
+  }
+
+  updateNet(dt) {
+    const W = this.game.world;
+    for (let i = this.net.length - 1; i >= 0; i--) {
+      const n = this.net[i];
+      n.age += dt;
+      // Patlama olayı kaybolduysa bomba sonsuza dek durmasın
+      if (n.age > ONLINE.nades.fuse + 3) {
+        n.mesh.removeFromParent();
+        this.net.splice(i, 1);
+        continue;
+      }
+      n.acc += dt;
+      while (n.acc >= TICK_DT) {
+        n.acc -= TICK_DT;
+        if (stepGrenade(n.sim, W, TICK_DT)) this.game.audio.mech('bounce', n.mesh.position);
+      }
+      n.mesh.position.set(n.sim.pos.x, n.sim.pos.y, n.sim.pos.z);
+      if (!n.sim.rest) {
+        n.mesh.rotation.x += n.spin.x * dt;
+        n.mesh.rotation.y += n.spin.y * dt;
+      }
+    }
   }
 
   // Roket: hafif yerçekimli hızlı cisim; dünyaya ya da düşmana çarpınca patlar
@@ -121,8 +171,10 @@ export class GrenadeSystem {
   clear() {
     for (const g of this.list) g.mesh.removeFromParent();
     for (const r of this.rockets) r.mesh.removeFromParent();
+    for (const n of this.net) n.mesh.removeFromParent();
     this.list = [];
     this.rockets = [];
+    this.net = [];
     this.game.world.smokes.length = 0;
   }
 
@@ -159,6 +211,7 @@ export class GrenadeSystem {
 
   update(dt) {
     this.updateRockets(dt);
+    if (this.net.length) this.updateNet(dt);
     if (this.game.world.smokes.length) this.updateSmokes(dt);
     const W = this.game.world;
     for (let i = this.list.length - 1; i >= 0; i--) {

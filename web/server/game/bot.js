@@ -12,8 +12,35 @@ import { createInputCmd, BTN } from '../../shared/sim/movement.js';
 import { Rng, hashSeed } from '../../shared/sim/rng.js';
 import { lerp, clamp } from '../../shared/sim/math.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
+import { ONLINE } from '../../src/config.js';
+import { createThrow } from '../../shared/sim/grenade.js';
 
 const DEG = Math.PI / 180;
+
+// El bombası nişanı: düz zeminde menzil → bakış eğimi tablosu (atışla aynı fizik, çarpışmasız); alçak yay seçilir
+const NADE_TABLE = (() => {
+  const N = ONLINE.nades;
+  const out = [];
+  for (let pitch = -0.2; pitch <= 0.9; pitch += 0.025) {
+    const g = createThrow({ x: 0, y: 1.6, z: 0 }, 0, pitch, { x: 0, y: 0, z: 0 }, 0);
+    let t = 0;
+    while (t < 4 && !(g.vel.y < 0 && g.pos.y <= 0.1)) {
+      g.vel.y -= N.gravity * TICK_DT;
+      g.pos.x += g.vel.x * TICK_DT;
+      g.pos.y += g.vel.y * TICK_DT;
+      g.pos.z += g.vel.z * TICK_DT;
+      t += TICK_DT;
+    }
+    out.push({ pitch, dist: Math.hypot(g.pos.x, g.pos.z) });
+  }
+  return out;
+})();
+
+function nadePitch(dist) {
+  let best = NADE_TABLE[0];
+  for (const e of NADE_TABLE) if (Math.abs(e.dist - dist) < Math.abs(best.dist - dist)) best = e;
+  return best.pitch;
+}
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const THINK_EVERY = 4; // algı her 4 tick'te (yuvaya göre kaydırılır)
 
@@ -161,6 +188,14 @@ export class BotBrain {
           this.fireAcc = 0;
         }
       } else this.fireAcc = Math.min(this.fireAcc, w.interval);
+      // El bombası: uygun mesafedeki rakibe ara sıra (bu tick'in bakışı atış eğimi; iç nişan durumu bozulmaz)
+      if (p.nadeCount[0] > 0 && t >= (this.nadeAt || 0) && dist >= BOTS.nadeDist[0] && dist <= BOTS.nadeDist[1] && this.rng.next() < BOTS.nadeChancePerSec * TICK_DT) {
+        c.yaw = wantYaw + this.errYaw * 0.5;
+        c.pitch = nadePitch(dist) + this.rng.range(-0.03, 0.03);
+        c.shots.length = 0;
+        c.buttons |= BTN.THROW_FRAG;
+        this.nadeAt = t + BOTS.nadeCooldownSec;
+      }
     } else if (!engaged && w.mag < w.d.magSize * 0.35 && w.reserve > 0 && !w.reload && t > this.reloadUntil) {
       c.buttons |= BTN.RELOAD;
       this.reloadUntil = t + (w.d.reloadEmpty || 2.5);
@@ -243,7 +278,8 @@ export class BotBrain {
       head.x = qp.x;
       head.y = qp.y + q.state.height * 0.85;
       head.z = qp.z;
-      if (!sim.world.lineOfSight(eye, head)) continue;
+      // Sis bulutunun ardındaki rakip görülmez (sim.canSee)
+      if (!sim.canSee(eye, head)) continue;
       best = q;
       bestD = d;
     }

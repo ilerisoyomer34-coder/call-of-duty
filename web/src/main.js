@@ -929,7 +929,7 @@ export class Game {
   onlineLoadout() {
     const [p, s] = this.net?.loadout || [ONLINE.defaultPrimary, ONLINE.defaultSecondary];
     // Eklentiler sunucuya gönderilenle aynı (sunucu aynı kuralla doğrular: shared/sim/mods.js)
-    return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: 0, current: p, mods: { [p]: this.gunsmith.modsFor(p), [s]: this.gunsmith.modsFor(s) } };
+    return { weapons: { [p]: null, [s]: null }, slots: [p, s], grenades: ONLINE.nades.fragCount, current: p, mods: { [p]: this.gunsmith.modsFor(p), [s]: this.gunsmith.modsFor(s) } };
   }
 
   matchTitle() {
@@ -973,7 +973,7 @@ export class Game {
       this.buildScene('online');
       this.mission.build();
       this.physics.setMap(this.world);
-      this.kit.reset(null);
+      this.kit.resetOnline();
       this.weapons.reset(this.onlineLoadout());
       this.hud.bakeMinimap();
       this.player.applyCamera(this.camera, 0);
@@ -1060,6 +1060,16 @@ export class Game {
     this.mission?.onExplosion?.(pos, radius, damage, owner);
     this.makeNoise(pos, 90, 'explosion');
     // Yakındaki patlama görüşü beyazlatır
+    const d = pos.distanceTo(this.player.pos);
+    if (d < radius * 2.5) this.player.shake(clamp(1 - d / (radius * 2.5), 0, 1));
+  }
+
+  // Patlamanın görüntüsü, sesi ve fiziği (hasarsız): çevrim içinde hasar sunucudan gelir (grenades.netBlast)
+  blastFx(pos, radius, scale = 1) {
+    this.effects.explosion(pos, scale);
+    this.audio.explosion(pos, scale);
+    this.physics.blast(pos, radius);
+    this.effects.blastChunks(pos, scale, this.world.groundSurface(pos.x, pos.z));
     const d = pos.distanceTo(this.player.pos);
     if (d < radius * 2.5) this.player.shake(clamp(1 - d / (radius * 2.5), 0, 1));
   }
@@ -1313,7 +1323,9 @@ export class Game {
     this.viewFrustum.setFromProjectionMatrix(_projView);
     const wheelOpen = this.wheel.open;
     // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur); çark açıkken 3/4 muhatap seçer
-    this.kit.update(dt, canAct && !wheelOpen && !driving ? I : NULL_INPUT, canAct && !driving);
+    // Çevrim içinde geri sayım ve maç sonunda sis de atılmaz (sunucu kabul etmez; yuvadaki adet boşa düşmesin)
+    const netHold = !!(this.net && (this.net.frozen || this.net.state !== 'playing'));
+    this.kit.update(dt, canAct && !wheelOpen && !driving && !netHold ? I : NULL_INPUT, canAct && !driving);
     if (canAct && this.mode === 'mission' && !wheelOpen) {
       for (const action in SHORTCUTS) if (I.pressed(action)) this.commands.issue(SHORTCUTS[action], this.commands.addressee, { inputMethod: 'shortcut' });
       // Bağlamsal işaret (Z): nişangâhın baktığı şeye göre saldır / git / kaldır / temizle; çift basış iptal
@@ -1328,7 +1340,7 @@ export class Game {
     this.commands.update();
     this.ping.update(dt);
     // Çevrim içinde geri sayım ve maç sonunda silah kullanılmaz (sunucu da kabul etmez)
-    const armed = canAct && !driving && !this.kit.using && !wheelOpen && !(this.net && (this.net.frozen || this.net.state !== 'playing'));
+    const armed = canAct && !driving && !this.kit.using && !wheelOpen && !netHold;
     this.weapons.update(dt, armed ? I : NULL_INPUT, armed);
     this.enemies.update(dt);
     this.allies.update(dt);

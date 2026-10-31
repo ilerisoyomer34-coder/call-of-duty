@@ -1,5 +1,5 @@
 {
-  "_": "Sunucu botları (S6). Ad listesi sırayla kullanılır; adın yanında arayüzde YZ rozeti çıkar. weapons: botların ana silahı (rastgele). skill 0–1 değerleri aşağıdaki aralıklarda doğrusal: [kolay, zor].",
+  "_": "Sunucu botları (S6). Ad listesi sırayla kullanılır; adın yanında arayüzde YZ rozeti çıkar. weapons: botların ana silahı (rastgele). skill 0–1 değerleri aşağıdaki aralıklarda doğrusal: [kolay, zor]. nade*: çatışmadaki rakip bu mesafedeyse saniyede bu olasılıkla el bombası (en sık nadeCooldownSec).",
   "names": ["Kartal", "Bora", "Tuna", "Poyraz", "Atlas", "Doruk", "Kaan", "Toprak", "Alp", "Rüzgâr", "Çelik", "Akın", "Yiğit", "Tolga", "Ozan", "Serhat"],
   "weapons": ["rifle", "mar556", "smg", "k8", "kr4", "mk4"],
   "secondary": "pistol",
@@ -21,5 +21,8 @@
   "tooCloseDist": 5,
   "repathSec": 1.2,
   "stuckSec": 0.9,
-  "seekSec": 6
+  "seekSec": 6,
+  "nadeChancePerSec": 0.12,
+  "nadeDist": [9, 24],
+  "nadeCooldownSec": 9
 }

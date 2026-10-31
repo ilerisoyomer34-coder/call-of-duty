@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { createSoldier } from '../soldier.js';
 import { ALLY, ENEMY_TYPES, ONLINE, WEAPONS, WEAPON_ORDER } from '../config.js';
-import { PF, RF, SIDE, WEAPON_MELEE } from '../../shared/net/protocol.js';
+import { PF, RF, SIDE, WEAPON_MELEE, WEAPON_FRAG } from '../../shared/net/protocol.js';
 import { TICK_RATE } from '../../shared/constants.js';
 import { clamp } from '../util.js';
 
@@ -206,12 +206,14 @@ export class RemotePlayers {
     // Fizik motoru varsa ragdoll (yalnız görüntü: maç sunucuda sürer, ceset kimsenin oyununu etkilemez): koşarken
     // ölen ileri savrulur, mermi vurduğu yeri iter
     const melee = info.weapon === WEAPON_MELEE;
+    const frag = info.weapon === WEAPON_FRAG;
     const w = WEAPONS[WEAPON_ORDER[info.weapon]];
     this.game.physics?.ragdoll(r.model, {
       vel: r.vel,
       dir,
       zone: info.head ? 'head' : 'torso',
-      damage: w ? w.damage * (w.pellets || 1) : undefined,
+      // El bombası güçlü iter (patlama hasarı kadar)
+      damage: frag ? ONLINE.nades.damage : w ? w.damage * (w.pellets || 1) : undefined,
       melee,
     });
   }

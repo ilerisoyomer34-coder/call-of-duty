@@ -145,7 +145,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - Komut yoksa oyuncu o tick durur (son komut tekrarlanmaz). Böylece istemci tahmini ile sunucu aynı komut dizisini işler.
 - **Hareket:**
   - `stepPlayer`, modlar `applyCmdMods(md, buttons, silah)`.
-  - Zırh, etkileşim ve sarf malzemesi çevrim içinde yok.
+  - Zırh, etkileşim ve sarf malzemesi çevrim içinde yok (el bombası ve sis dışında, aşağıda).
 - **Atış:**
   - İstemci atış anını ve nişan yönünü komutla bildirir (`shots`). Sunucu doğrular:
     - tempo kredisi (`fireTolerance`);
@@ -162,6 +162,12 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - 100.
   - Yenilenme `regenDelay` / `regenRate`.
   - Doğuş koruması `protectSec`; ateş edince biter.
+- **El bombası ve sis** (`shared/sim/grenade.js`, ayarlar `ONLINE.nades`):
+  - Her doğuşta 1 el bombası + 1 sis (`fragCount/smokeCount`). Atış komutun `THROW_FRAG/THROW_SMOKE` bitiyle gelir; yön komutun bakışı, çıkış oyuncunun bu komuttan önceki göz hizası (atışlar gibi). İki atış arası `cooldown`, atıştan sonra `lockSec` ateş yok (ikisi de `tolerance` paylı); atmak doğuş korumasını bitirir.
+  - Yörünge paylaşılan `stepGrenade` (yerçekimi, sekme, `CollisionWorld.raycast`): sunucu başlangıcı ağ nicemlemesine yuvarlar (`quantizeNade`) ve onunla yürütür; `NEV.NADE` aynı sayıları taşır, istemci aynı dünyada aynı adımla çizer.
+  - Patlama (`NEV.BLAST`): yarıçap içindeki herkese `damage × (1 − d/r)^falloff`; göğüs ya da baştan görüş hattı yoksa `coverMult`. Takım arkadaşına hasar yok, atana `selfMult`. Öldürme `WEAPON_FRAG` (253) ile atana yazılır; atan oyundan ayrıldıysa kimseye.
+  - Sis: patlama yerinde bulut (`smoke.duration`); `MatchSim.canSee` (botların algısı) bulutun içinden geçen hattı keser (`smokeBlocksLine`), mermi ve patlama yalnız duvara bakar.
+  - Botlar çatışmada `bots.json → nadeDist` aralığındaki rakibe `nadeChancePerSec` olasılıkla atar (`nadeCooldownSec`).
 - **Doğuş:** kendi tarafının noktalarından (herkes kendine modunda `ffa`), rakibe en uzak ve görüş dışında olanı.
 - **Evreler:** `WARMUP` (teçhizat paneli ve geri sayım, hareket ve atış yok; `modes.json → warmup` 60 sn) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır; eşleşme odasında oylama boyunca açık kalır).
 - **Maç öncesi teçhizat (`chooseLoadout`, `C_LOADOUT`):**
@@ -220,6 +226,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 - **Atış, şarjör, yakın dövüş:**
   - İstemcide görünür; `weapons.js` `net.onShot / onReload / onMelee` ile komuta ekler.
   - İsabet işareti, kan, hasar yönü ve ölüm sunucu olaylarından gelir.
+- **El bombası ve sis:** G (el bombası) ve sarf yuvasındaki sis (4; `kit.resetOnline`) yerel atış görünümünü oynatır, bırakınca `net.onThrow` komuta biti ekler; bomba ancak sunucunun `NADE` olayıyla sahneye girer (`grenades.netSpawn`, paylaşılan adım), `BLAST` ile patlar (`netBlast`: görüntü, ses, fizik itmesi; hasar sunucudan). Geri sayımda ve maç sonunda atılmaz (`netHold`).
 
 **`remotePlayers.js`:**
 - Uzak oyuncular sunucu saatinin `interpMs` gerisinde çizilir (titreşime göre 60–250 ms) ve iki görüntü arası aralanır.
@@ -268,13 +275,14 @@ Arenalar (`data/arenas.json`):
   - `tests/clock.test.mjs` (saat farkı < 5 ms; ağ benzetimi sıra ve gecikme)
   - `tests/room.test.mjs` (sunucu hareketi tahminle bit düzeyinde aynı, komut bütçesi, gecikme telafisi, atış doğrulaması, botlu TDM/ÖM)
   - `tests/game-server.test.mjs` (gerçek sunucu: el sıkışma ve retler, deneme odası, hızlı maç)
+  - `tests/grenade.test.mjs` (atış sınırı, patlama hasarı ve öldürme yazımı, kendi bombası, takım arkadaşı, siper, sisin görüşü kesmesi, istemcide aynı yörünge)
 - Duman `online`: sunucu alt süreçte; iki sayfa arasında arama, istek, kart, kabul, "Oyunda" durumu, davet, mod, çevrim dışı istek ve telefon görünümü.
 - Duman `netplay`:
   - takım kurulur; deneme odasına üye kendiliğinden katılır;
   - hareket öbür ekranda < 0,3 m farkla izlenir; tahmin farkı < 1 cm;
   - net_graph ve Orta benzetim;
   - olmayan oda için hata ekranı;
-  - hızlı TDM: takım aynı tarafta, 6 YZ, skor, öldürme akışı, puan tablosu;
+  - hızlı TDM: takım aynı tarafta, 6 YZ, skor, öldürme akışı, el bombası ve sis (sunucu olayları, adet, bulut), puan tablosu;
   - telefonda ÖM.
 - Duman `determinism`: `shared/sim/replay.js` esbuild ile paketlenip Chromium'da koşar. Kızılkum ve Yıkık Şehir'de 10.000 komut sonrası konum Node ile karşılaştırılır (≤ 1 mm) ve her 1000 tick'in özeti eşleşmelidir.
 - Davranış referansı: `Docs/BASELINE.md` (`node tools/baseline.mjs --compare`).

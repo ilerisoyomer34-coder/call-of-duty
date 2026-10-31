@@ -384,6 +384,12 @@ export class GameClient {
       case NEV.ROUND:
         g.events.emit(EV.NET_ROUND, e);
         break;
+      case NEV.NADE:
+        g.grenades.netSpawn(e);
+        break;
+      case NEV.BLAST:
+        g.grenades.netBlast(e);
+        break;
       case NEV.LOADOUT: {
         // Sunucunun kabul ettiği teçhizat: ısınmada hemen elde, maç sürerken sonraki doğuşta (onLocalSpawn)
         const p = WEAPON_ORDER[e.primary];
@@ -462,6 +468,7 @@ export class GameClient {
     P.health.hp = ONLINE.hp;
     g.hud.setHealth(ONLINE.hp, P.health.max);
     g.weapons.reset(g.onlineLoadout());
+    g.kit.resetOnline();
     this.me.alive = true;
     this.me.hp = ONLINE.hp;
     this.killedBy = null;
@@ -525,6 +532,11 @@ export class GameClient {
   onReload() {
     this.pendingButtons |= BTN.RELOAD;
   }
+  // El bombası / sis: atış bu tick'in komutunda (bakış yön); sunucu sayar ve doğrular
+  onThrow(kind) {
+    this.pendingButtons |= kind === 'smoke' ? BTN.THROW_SMOKE : BTN.THROW_FRAG;
+  }
+
   onMelee() {
     this.pendingButtons |= BTN.MELEE;
     this.shotViewTick = this.remotes.renderTick;
@@ -562,8 +574,9 @@ export class GameClient {
     while (s !== end && n < HIST) {
       const h = this.hist[s % HIST];
       if (h.seq !== s) break;
+      // Eklentili tanım (hareket çarpanı eklentiyle değişir): tahmin ve sunucu da bunu kullanır
       const id = W.slots[h.slot];
-      applyCmdMods(t.mods, h.buttons, id ? WEAPONS[id] : null);
+      applyCmdMods(t.mods, h.buttons, W.owned[id]?.data || (id ? WEAPONS[id] : null));
       stepPlayer(t, h, this.game.world, TICK_DT);
       saveState(h.st, t);
       s = (s + 1) & 0xffff;

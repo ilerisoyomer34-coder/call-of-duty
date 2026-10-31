@@ -54,6 +54,7 @@ Komut:
 - `buttons`: `BTN` (`shared/sim/movement.js`):
   - `RELOAD`: şarjör değiştirme bu komutta başladı.
   - `MELEE`: yakın dövüş isabet anı.
+  - `THROW_FRAG` / `THROW_SMOKE`: el bombası / sis bu komutta bırakıldı. Yön komutun `yaw/pitch`'i, çıkış noktası oyuncunun bu komuttan önceki göz hizası. Sunucu doğuştaki adedi (`ONLINE.nades.fragCount/smokeCount`) ve iki atış arasını (`cooldown × tolerance`) denetler.
   - `NO_SPRINT` / `NO_ADS`: istemcinin silah durumundan gelen kısıtlar.
 - `viewTick`: oyuncunun o an gördüğü sunucu zamanı (tick, kesirli). Gecikme telafisi buna geri sarar; en çok `ONLINE.maxRewindMs`.
 - `shots`: bu komuttaki atışların nişan yönü (en çok 4). Saçılmayı ve isabeti sunucu hesaplar.
@@ -100,11 +101,15 @@ Olaylar:
 | `SHOT` 1 | `u8 slot · u8 weapon (üst bit: susturuculu) · i16 end×3 · u8 hit · u8 surface` | atan dışında herkes |
 | `HIT` 2 | `u8 victim · u8 dmg · u8 flags (1 kafa, 2 öldürdü, 4 korumalı) · i16 point×3` | atan |
 | `DAMAGE` 3 | `u8 attacker · u8 dmg · i16 from.x · i16 from.z` | vurulan |
-| `KILL` 4 | `u8 killer (255 dünya) · u8 victim · u8 weapon (254 bıçak) · u8 flags (1 kafa)` | herkes |
+| `KILL` 4 | `u8 killer (255 dünya) · u8 victim · u8 weapon (254 bıçak, 253 el bombası) · u8 flags (1 kafa)` | herkes |
 | `SPAWN` 5 | `u8 slot · i16 pos×3 · u16 yaw` | herkes |
 | `MELEE` 6 / `RELOAD` 7 | `u8 slot` | diğerleri |
 | `ROUND` 8 | `u8 code (1 maç başladı, 2 bitti) · u8 value` | herkes |
 | `LOADOUT` 9 | `u8 primary · u8 secondary · u8 now (1 şimdi elde, 0 sonraki doğuşta)` | seçen |
+| `NADE` 10 | `u16 id · u8 kind (0 el bombası, 1 sis) · u8 slot · i16 pos×3 (1/64 m) · i16 vel×3 (1/512 m/s)` | herkes |
+| `BLAST` 11 | `u16 id · u8 kind · i16 pos×3` | herkes |
+
+- `NADE`: sunucu bombanın başlangıcını bu nicemlemeye yuvarlayıp (`codec.js → quantizeNade`) onunla yürütür; istemci aynı sayılarla `shared/sim/grenade.js → stepGrenade`'i aynı çarpışma dünyasında koşturur, yörünge birebir aynı. Patlamayı ve hasarı yalnız sunucu belirler (`BLAST`); `BLAST` gelmezse istemci bombayı `fuse + 3` sn sonra siler.
 
 - `scoreA/scoreB`: taraflı modda mavi/kırmızı. Herkes kendine modunda kendi öldürme sayın ve en iyi rakibinki.
 - `weapon`: `WEAPON_ORDER` sırası.

@@ -37,6 +37,21 @@ export const decMove = (q) => q / QUANT.move;
 const i16 = (v) => (v > 32767 ? 32767 : v < -32767 ? -32767 : v);
 const encPos = (v) => i16(Math.round(v * POS_Q));
 const decPos = (q) => q / POS_Q;
+// Bomba hızı: 1/512 m/s, ±64 m/s
+const NADE_VEL_Q = 512;
+const encVel = (v) => i16(Math.round(v * NADE_VEL_Q));
+const decVel = (q) => q / NADE_VEL_Q;
+
+// Bombanın başlangıcını ağ biçimine yuvarla (yerinde): sunucu yuvarlanmış değerle yürütür, istemci aynısını çözer
+export function quantizeNade(g) {
+  g.pos.x = decPos(encPos(g.pos.x));
+  g.pos.y = decPos(encPos(g.pos.y));
+  g.pos.z = decPos(encPos(g.pos.z));
+  g.vel.x = decVel(encVel(g.vel.x));
+  g.vel.y = decVel(encVel(g.vel.y));
+  g.vel.z = decVel(encVel(g.vel.z));
+  return g;
+}
 
 // Komutun ağda taşınan biçimine yuvarla (yerinde): istemci tahmini sunucuyla aynı girdiyi kullansın
 export function quantizeCmd(cmd) {
@@ -493,6 +508,21 @@ function writeEvent(w, e) {
       w.u8(e.secondary);
       w.u8(e.now ? 1 : 0);
       break;
+    case NEV.NADE:
+      // Konum ve hız sunucuda bu nicemlemeyle yuvarlanmış (quantizeNade): istemcinin yörüngesi birebir aynı
+      w.u16(e.id & 0xffff);
+      w.u8(e.kind);
+      w.u8(e.slot);
+      writeVec16(w, e.pos);
+      w.i16(encVel(e.vel.x));
+      w.i16(encVel(e.vel.y));
+      w.i16(encVel(e.vel.z));
+      break;
+    case NEV.BLAST:
+      w.u16(e.id & 0xffff);
+      w.u8(e.kind);
+      writeVec16(w, e.pos);
+      break;
     default:
       throw new Error(`bilinmeyen olay ${e.k}`);
   }
@@ -521,6 +551,10 @@ function readEvent(r) {
       return { k, code: r.u8(), value: r.u8() };
     case NEV.LOADOUT:
       return { k, primary: r.u8(), secondary: r.u8(), now: r.u8() === 1 };
+    case NEV.NADE:
+      return { k, id: r.u16(), kind: r.u8(), slot: r.u8(), pos: readVec16(r), vel: { x: decVel(r.i16()), y: decVel(r.i16()), z: decVel(r.i16()) } };
+    case NEV.BLAST:
+      return { k, id: r.u16(), kind: r.u8(), pos: readVec16(r) };
     default:
       throw SHORT;
   }

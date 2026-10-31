@@ -51,6 +51,8 @@ export const NEV = {
   RELOAD: 7, // şarjör değiştirme sesi
   ROUND: 8, // raunt / evre bildirimi (metin anahtarı)
   LOADOUT: 9, // seçene: sunucunun kabul ettiği teçhizat (şimdi kuşanıldı mı, sonraki doğuşta mı)
+  NADE: 10, // herkese: el bombası/sis atıldı (yörünge istemcide aynı adımla yürür)
+  BLAST: 11, // herkese: bomba patladı / sis açıldı (konum sunucudan)
 };
 
 // İsabet türü (SHOT olayı)
@@ -86,6 +88,7 @@ export const LF = { GROUNDED: 1, CROUCHED: 2, SPRINTING: 4 };
 
 // Öldürme olayında silah yerine özel değerler
 export const WEAPON_MELEE = 254;
+export const WEAPON_FRAG = 253; // öldürme akışında el bombası
 // SHOT olayında silah dizininin üst biti: susturuculu atış (dizin < 128)
 export const WEAPON_SUPPRESSED = 0x80;
 export const WEAPON_NONE = 255;

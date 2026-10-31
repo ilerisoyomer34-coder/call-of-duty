@@ -113,6 +113,29 @@ export const ONLINE = {
   voteSec: 20,
   nextShowSec: 2.5, // istemci: kazanan harita gösterildikten sonra yeni maça geçiş
   nextLingerSec: 15, // eski oda geçiş için bu kadar daha açık kalır (oyuncular ayrılınca kapanır)
+  // El bombası ve sis (shared/sim/grenade.js; sunucu yetkili, istemci aynı yörüngeyi çizer). Her doğuşta frag/smoke
+  // kadar; atış GRENADE ile aynı his (hız, yukarı itiş, oyuncu hızının payı), pişirme yok (fitil sabit)
+  nades: {
+    fragCount: 1, // doğuşta el bombası
+    smokeCount: 1, // doğuşta sis bombası
+    fuse: 2.6, // sn: atıştan patlamaya
+    throwSpeed: 17,
+    upBoost: 4.5,
+    inherit: 0.6, // oyuncunun yatay hızından bombaya geçen pay
+    spawnAhead: 0.4, // m: gözün önünden çıkar
+    gravity: 15,
+    bounce: 0.35,
+    bounceKeep: 0.6, // sekmede hızın kalan payı
+    radius: 7, // m: patlama yarıçapı
+    damage: 150, // merkezde (100 can: 2,7 m içi öldürür)
+    falloff: 1.4, // hasar = damage × (1 − d/r)^falloff
+    coverMult: 0.2, // siper arkasında (görüş hattı yok) hasar payı
+    selfMult: 0.7, // kendi bombası
+    cooldown: 0.8, // sn: iki atış arası en az
+    lockSec: 0.45, // sn: atıştan sonra ateş yok (istemcide atış animasyonu)
+    tolerance: 0.7, // süre denetimlerinde pay (ağ titreşimi)
+    smoke: { fuse: 1.6, duration: 15, grow: 1.8, fade: 3, radius: 5.5, height: 1.6 }, // değerler sarf sis bombasıyla aynı
+  },
 };
 
 // Hazır ağaç modeli (Sketchfab çamı; kit.js pine/palm → World.addTree, tüm ağaçlar InstancedMesh)

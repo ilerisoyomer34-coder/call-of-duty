@@ -4105,7 +4105,7 @@ if (run('netplay')) {
   console.log('Çevrim içi maç: deneme odası, hızlı maç, botlar');
   const PORT = 8793;
   const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40', MATCH_TIME: '100' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40', MATCH_TIME: '130' },
     stdio: 'ignore',
   });
   process.on('exit', () => srv.kill());
@@ -4219,7 +4219,8 @@ if (run('netplay')) {
   const t0 = Date.now();
   await until(A, () => window.__game.net.phase === 1, null, 30000).catch(() => {});
   const prep2 = await A.evaluate(() => ({ phase: window.__game.net.phase, gun: window.__game.weapons.current?.id, net: window.__game.net.loadout, saved: window.__game.settings.onlineLoadout, open: !document.getElementById('mhPrep').hidden }));
-  check(prep1.phase === 0 && /Hazır 1\/2/.test(prep1.ready) && prep1.left > 15, `HAZIRIM: B'nin panelinde "${prep1.ready}", süre kısalmadı (${Math.round(prep1.left)} sn)`);
+  // Yalnız biri hazırken kalan süre ONLINE.readyStartSec'e (3 sn) inmez; yazılımsal GPU'da panel geç açıldığından pay geniş
+  check(prep1.phase === 0 && /Hazır 1\/2/.test(prep1.ready) && prep1.left > 6, `HAZIRIM: B'nin panelinde "${prep1.ready}", süre kısalmadı (${Math.round(prep1.left)} sn)`);
   check(prep2.phase === 1 && prep2.gun === 'ak74' && prep2.net[0] === 'ak74' && prep2.saved?.primary === 'ak74' && !prep2.open,
     `İkisi de hazır → maç ${((Date.now() - t0) / 1000).toFixed(1)} sn'de başladı; A seçtiği ${prep2.gun} ile doğdu, seçim ayarlarda kaldı`);
   // Ölen oyuncu fizikle yere yığılır ve doğana dek yerde kalır: ölüm olayı anında gelir ama rakipler ONLINE.interpMs
@@ -4279,6 +4280,44 @@ if (run('netplay')) {
   });
   check((radar.near.foe === 0 || radar.red > 20) && (radar.near.friend === 0 || radar.blue > 20) && radar.near.foe + radar.near.friend > 0,
     `Radarda herkes: yakındaki ${radar.near.friend} takım arkadaşı mavi, ${radar.near.foe} rakip kırmızı (${radar.blue}/${radar.red} piksel)`);
+  // El bombası ve sis (çevrim içi): atış komutla sunucuya gider; bomba sunucunun NADE olayıyla görünür, paylaşılan
+  // yörüngeyle uçar, BLAST olayıyla patlar (sis bulutu dünyaya eklenir); doğuştaki adet düşer
+  await A.evaluate(() => {
+    const G = window.__game.grenades;
+    const g = window.__game;
+    // Yalnız bu oyuncunun bombaları (botlar da atar); adetler olay anında (sonradan ölüp doğarsa dolar)
+    window.__nades = { mine: [], blast: [] };
+    const sp = G.netSpawn.bind(G);
+    const bl = G.netBlast.bind(G);
+    G.netSpawn = (e) => {
+      if (e.slot === g.net.slot) window.__nades.mine.push({ id: e.id, kind: e.kind, frags: g.weapons.grenades, smoke: g.kit.count('smoke') });
+      return sp(e);
+    };
+    G.netBlast = (e) => (window.__nades.blast.push(e.id), bl(e));
+  });
+  // Botlar A'yı atışlar arasında vurabilir (doğunca adetler dolar): her tür için en çok üç deneme, olay gelene dek
+  // Yüklem sayfada çalışır: tür argümanla gider (kapanıştaki değişken sayfada yok)
+  const mine = (k) => window.__nades.mine.some((m) => m.kind === k && window.__nades.blast.includes(m.id));
+  const throwKind = async (kind) => {
+    for (let i = 0; i < 3; i++) {
+      await until(A, () => window.__game.player.alive && window.__game.weapons.state === 'idle' && window.__game.net.phase === 1, null, 60000).catch(() => {});
+      await A.evaluate((k) => {
+        const g = window.__game;
+        if (k === 1) g.kit.use(g.kit.slots.findIndex((s) => s?.id === 'smoke'));
+        else g.weapons.startThrow('frag', 'grenade');
+      }, kind);
+      if (await until(A, mine, kind, 20000).then(() => true, () => false)) return true;
+    }
+    return false;
+  };
+  const nade0 = await A.evaluate(() => ({ frags: window.__game.weapons.grenades, smoke: window.__game.kit.count('smoke'), btn: getComputedStyle(document.getElementById('tbNade')).display }));
+  await throwKind(0);
+  await throwKind(1);
+  const nade1 = await A.evaluate(() => ({ ...window.__nades, clouds: window.__game.world.smokes.length, alive: window.__game.player.alive, state: window.__game.weapons.state, kit: window.__game.kit.count('smoke') }));
+  const myFrag = nade1.mine.find((m) => m.kind === 0 && nade1.blast.includes(m.id));
+  const mySmoke = nade1.mine.find((m) => m.kind === 1 && nade1.blast.includes(m.id));
+  check(nade0.frags === 1 && nade0.smoke === 1 && nade0.btn !== 'none' && myFrag?.frags === 0 && mySmoke?.smoke === 0 && nade1.clouds > 0,
+    `Çevrim içi el bombası ve sis: doğuşta ${nade0.frags} bomba + ${nade0.smoke} sis (BOMBA düğmesi ${nade0.btn}), sunucunun olayları ${JSON.stringify(nade1.mine.map((m) => m.kind))} patladı, sis bulutu ${nade1.clouds}, atınca kalan ${myFrag?.frags}/${mySmoke?.smoke} (canlı ${nade1.alive}, silah ${nade1.state}, sis ${nade1.kit})`);
   await until(A, () => window.__deaths.some((d) => d.frames >= 3), null, 60000).catch(() => {});
   const dz = await A.evaluate(() => ({ physics: window.__game.physics.status, deaths: window.__deaths.filter((d) => d.frames >= 3) }));
   const fell = dz.deaths.filter((d) => !d.stood && d.rag === d.frames);
@@ -4320,7 +4359,7 @@ if (run('netplay')) {
   await A.screenshot({ path: join(shots, '35-net-scoreboard.png') });
   await A.keyboard.up('Tab');
   check(board.shown && board.rows === 8 && board.yz === 6 && board.team === 1, `Puan tablosu (Tab): ${board.rows} satır, ${board.yz} YZ rozeti, takım arkadaşı işaretli`);
-  // Maç sonu harita oylaması (sunucu MATCH_TIME=100): sonuç ekranında bütün haritalar; ikisi Liman'a oy verir, süre
+  // Maç sonu harita oylaması (sunucu MATCH_TIME=130): sonuç ekranında bütün haritalar; ikisi Liman'a oy verir, süre
   // dolunca aynı oyuncular Liman'daki yeni maça aynı tarafta geçer
   const before = await A.evaluate(() => ({ room: window.__game.net.welcome.room, map: window.__game.net.welcome.map, side: window.__game.net.mySide }));
   await Promise.all([A, B].map((pg) => until(pg, () => !document.getElementById('mhVote').hidden && document.querySelectorAll('#mhVoteGrid .mhVoteCard').length > 0, null, 200000).catch(() => {})));

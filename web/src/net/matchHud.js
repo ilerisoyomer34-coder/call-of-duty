@@ -3,7 +3,7 @@
 // dokunmatikte skor çubuğuna dokun), ölüm kartı (kim vurdu, doğuşa kalan), maç sonu ekranı.
 // Veri game.net'ten ve olaylardan (EV.NET_*); adlar sunucudan geldiği için hep textContent.
 import { EV } from '../events.js';
-import { PHASE, SIDE, RF, WEAPON_MELEE, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
+import { PHASE, SIDE, RF, WEAPON_MELEE, WEAPON_FRAG, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
 import { WEAPON_ORDER, WEAPONS, MAPS } from '../config.js';
 import { weaponShortName } from '../weaponInfo.js';
 import { PrepScreen } from './prepScreen.js';
@@ -99,7 +99,7 @@ export class MatchHud {
       return s;
     };
     const wid = WEAPON_ORDER[k.weapon];
-    const wname = k.weapon === WEAPON_MELEE ? 'Bıçak' : wid && WEAPONS[wid] ? weaponShortName(wid) : '';
+    const wname = k.weapon === WEAPON_MELEE ? 'Bıçak' : k.weapon === WEAPON_FRAG ? 'El bombası' : wid && WEAPONS[wid] ? weaponShortName(wid) : '';
     if (k.killer && k.killer.slot !== k.victim?.slot) row.append(who(k.killer), el('span', 'w', `${wname}${k.head ? ' ✛' : ''}`), who(k.victim));
     else row.append(who(k.victim), el('span', 'w', 'düştü'));
     $('mhFeed').prepend(row);

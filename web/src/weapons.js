@@ -902,7 +902,15 @@ export class PlayerWeapons {
     vel.y += GRENADE.upBoost;
     vel.x += g.player.vel.x * 0.6;
     vel.z += g.player.vel.z * 0.6;
-    if (this.throwKind === 'smoke') {
+    if (g.net) {
+      // Çevrim içi: atış komutla sunucuya gider (komutun bakışı yön), bomba sunucunun olayıyla görünür (NEV.NADE)
+      g.net.onThrow(this.throwKind);
+      if (this.throwKind === 'smoke') g.events.emit(EV.ITEM_USED, { id: 'smoke' });
+      else {
+        this.grenades--;
+        g.events.emit('grenades', this.grenades);
+      }
+    } else if (this.throwKind === 'smoke') {
       // Sis bombası pişirilmez: fitili yere düştükten sonra açılacak kadar
       g.grenades.spawn(_o, vel, CONSUMABLES.get('smoke').fuse, 'player', 'smoke');
       g.events.emit(EV.ITEM_USED, { id: 'smoke' });

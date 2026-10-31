@@ -7,6 +7,7 @@
 //  - Adrenalin yalnız yere düşünce kullanılır (Modül D).
 // Her kullanılan adet ITEM_USED olayıyla duyurulur ve envanterden hemen düşer; kullanılmayan envanterde kalır.
 import { CONSUMABLES } from './loadout.js';
+import { ONLINE } from './config.js';
 import { EV } from './events.js';
 
 export const KIT_ACTIONS = ['useItem1', 'useItem2'];
@@ -22,12 +23,26 @@ export class KitSystem {
 
   // Görev başında teçhizattan: kit = [{ id, count } | null] (poligonda yuva yok)
   reset(kit) {
+    this.online = false;
     this.active = !!kit;
     this.slots = (kit || []).map((s) => (s ? { id: s.id, def: CONSUMABLES.get(s.id), left: s.count } : null));
     this.using = null;
     this.adrenalineUsed = 0;
     this.game.player.usingItem = false;
     this.game.weapons.kitFrags = this.count('frag');
+    this.emit();
+  }
+
+  // Çevrim içi maç: yuvada her doğuşta sis bombası (ONLINE.nades.smokeCount); envanterden düşmez, sunucu sayar
+  resetOnline() {
+    this.active = true;
+    this.online = true;
+    const n = ONLINE.nades.smokeCount;
+    this.slots = [n > 0 ? { id: 'smoke', def: CONSUMABLES.get('smoke'), left: n } : null, null];
+    this.using = null;
+    this.adrenalineUsed = 0;
+    this.game.player.usingItem = false;
+    this.game.weapons.kitFrags = 0;
     this.emit();
   }
 
@@ -46,7 +61,7 @@ export class KitSystem {
     const s = this.slots.find((x) => x?.id === id && x.left > 0);
     if (!s) return;
     s.left--;
-    this.game.loadouts.consume(id);
+    if (!this.online) this.game.loadouts.consume(id);
     this.game.stats.itemsUsed = (this.game.stats.itemsUsed || 0) + 1;
     this.emit();
   }

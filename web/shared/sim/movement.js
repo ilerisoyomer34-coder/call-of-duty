@@ -22,6 +22,9 @@ export const BTN = {
   // Hareket modlarını sunucu bunlardan doldurur (applyCmdMods): tahmin ile sunucu aynı değerleri kullanır
   NO_SPRINT: 1024,
   NO_ADS: 2048,
+  // Çevrim içi el bombası / sis atışı (komutun bakışı yöndür; sunucu doğrular, shared/sim/grenade.js)
+  THROW_FRAG: 4096,
+  THROW_SMOKE: 8192,
 };
 
 // stepPlayer'ın döndürdüğü olay bitleri
