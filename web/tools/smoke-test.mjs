@@ -888,6 +888,24 @@ console.log('Alfa Timi ve komutlar');
   check(id.gun.join(',') === '30,30,100', `Role göre silah: şarjör ${id.gun.join('/')} (makineli tüfekçide 100)`);
   check(id.armor.every((a) => a === 50), `Tim Zırhı Sv. 1: her askerde ${id.armor[0]} ZP`);
   check(id.roster.length === 3 && id.label === 'Takip', `HUD tim listesi (${id.roster.join(', ')} · ${id.label})`);
+  // Elde silah gövdeye girmez (kullanıcı: "silahlar askerin içinde duruyor, eli içine giriyor"): her tim askeri ve bir
+  // düşman askeri üç duruşta; silahın örnek noktaları gövde önünün ve bacakların dışında, nişanda dipçik omuz cebinde
+  await page.waitForFunction(() => window.__game.allies.list.every((a) => a.model.gunAsset), null, { timeout: 60000, polling: 100 }).catch(() => {});
+  const hold = await page.evaluate(() => {
+    const g = window.__game;
+    const subjects = [...g.allies.list.map((a) => a.model), g.enemies.list.find((e) => e.alive && !e.robot && !e.mounted)?.model].filter(Boolean);
+    const out = [];
+    for (const m of subjects) {
+      const pos = m.root.position.clone();
+      for (const stance of ['aim', 'ready', 'relaxed']) {
+        for (let i = 0; i < 25; i++) m.animate(0.08, { pos, yaw: m.root.rotation.y, vel: { x: 0, z: 0 }, crouch: false, aimPitch: 0, stance, reload: -1, throw: -1, dist: 2, mount: null });
+        out.push({ who: m.gunAsset || m.type, stance, body: !!m.T.body, pen: m.gunPenetration(stance === 'aim' ? 1 : 0) });
+      }
+    }
+    return out;
+  });
+  const worst = hold.reduce((a, b) => (b.pen > a.pen ? b : a), hold[0]);
+  check(hold.length >= 9 && hold.every((h) => h.body && h.pen <= 0.01), `Elde silah gövdenin dışında: ${hold.length} asker × duruş, en derin ${(Math.max(0, worst.pen) * 100).toFixed(1)} cm (${worst.who}, ${worst.stance})`);
   // Sıfır süreli kare (Safari aynı zaman damgasını iki kez verebilir) askeri bozmaz; bozuk durum kendini onarır;
   // NaN konumlu ses oyunu durdurmaz (iPad'de "The provided value is non-finite" ile döngü duruyordu)
   const nan = await page.evaluate(() => {

@@ -1602,6 +1602,25 @@ export const SOLDIER_ANIM = {
   // Elde gerçek silah modeli (Alfa Timi): bileğin kabzaya göre yeri, sol bileğin kundak noktasına göre kayması,
   // şarjör yuvası yüksekliği ve dipçik ucunun omuza gömülme payı (m, silah uzayında)
   heldGun: { grip: [0.025, -0.035, 0.1], fore: [-0.03, -0.045, 0.02], magY: -0.07, stockPad: 0.01 },
+  // Silah gövdeye ve bacaklara girmesin (kullanıcı: "silahlar askerin içinde duruyor, eli içine giriyor"): her
+  // modelin gövde önü ve bacak kalınlığı bağlanma pozunda ölçülür (soldier.js → measureBody: gövde kemiklerine
+  // bağlı köşeler, yan × yükseklik hücrelerinde ön yüzün yüzdeliği), her karede silahın örnek noktaları (dipçik,
+  // kabza, şarjör, kundak, namlu) gövdenin önüne itilir. Ölçüler omuz genişliğine oranla saklanır (ölçek bağımsız)
+  bodyFit: {
+    lateralBins: 8, // yan hücre (sol omuz dışı → sağ omuz dışı, ±1,4 yarım omuz)
+    heightBins: 6, // kalça → boyun
+    frontPct: 0.92, // ön yüz: hücredeki köşelerin bu yüzdeliği (tek tük çıkıntı köşesi silahı itmesin)
+    legPct: 0.9, // uyluk ve baldır yarıçapı
+    // Omuz cebi: sağ omuz ekleminin yanında (yan ±pocketSide, yükseklik ±pocketHeight omuz genişliği) gövde yüzeyinin
+    // eklemden öndeliği; nişanda dipçik buraya, hazır duruşta bu kadarın pocketReady oranına dayanır
+    pocketSide: 0.18,
+    pocketHeight: 0.22,
+    pocketPct: 0.85,
+    pocketReady: 0.6,
+    gunPad: 0.025, // m: silahın yarı kalınlığı (gövde yüzeyiyle arası)
+    maxPush: 0.35, // m: tek karede en çok bu kadar öne
+    vertexBudget: 60000, // ölçümde en çok bu kadar köşe (fazlası atlanarak)
+  },
   // Silah duruşları (omuz eklemine göre, gövde uzayında): stok konumu ve silah açıları
   stances: {
     aim: { stock: [-0.09, -0.03, 0.0], pitch: 0, yaw: 0.02, roll: 0 },

@@ -136,6 +136,7 @@ const _y2 = new THREE.Vector3();
 const _z2 = new THREE.Vector3();
 const Y = new THREE.Vector3(0, 1, 0);
 const clamp01 = (v) => clamp(v, 0, 1);
+const _k = Array.from({ length: 9 }, () => new THREE.Vector3()); // keepGunOutside geçicileri
 const SPINE_SHARE = [0.3, 0.3, 0.4]; // omurga dönüşünün kemiklere dağılımı (alt → üst)
 const AXES = ['x', 'y', 'z'];
 
@@ -327,7 +328,125 @@ function prepareTemplate({ scene, animations }, opts = {}) {
     sp.radius *= 1.35;
     spheres.set(o.name, sp);
   });
-  return { scene, clips, hands, headFwd, fingers, strike, spheres, looks: new Map(), natural: !!opts.natural };
+  return { scene, clips, hands, headFwd, fingers, strike, spheres, looks: new Map(), natural: !!opts.natural, body: measureBody(scene, bones) };
+}
+
+// Gövdenin ön yüzü ve bacak kalınlığı (bağlanma pozunda, omuz genişliğine oranla). front[yan][yükseklik]: kalça →
+// boyun ekseninden ileri uzaklık; upLeg/lowLeg: uyluk ve baldır yarıçapı. Silah her karede bunun dışına itilir
+// (keepGunOutside). Yelekli tim askerinin göğsü ince düşman askerinden kalın: tek bir sabit ikisine de uymuyordu
+export function measureBody(scene, bones) {
+  const F = A.bodyFit;
+  const need = ['Hips', 'Neck', 'RightArm', 'LeftArm', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot'];
+  if (need.some((n) => !bones[n])) return null;
+  scene.updateMatrixWorld(true);
+  const P = (n) => new THREE.Vector3().setFromMatrixPosition(bones[n].matrixWorld);
+  const hips = P('Hips');
+  const up = P('Neck').sub(hips);
+  const H = up.length();
+  up.normalize();
+  const right = P('RightArm').sub(P('LeftArm'));
+  const sw = right.length();
+  right.addScaledVector(up, -right.dot(up)).normalize();
+  const fwd = new THREE.Vector3().crossVectors(up, right); // -Z: model ileri bakar
+  const LB = F.lateralBins;
+  const HB = F.heightBins;
+  const cells = Array.from({ length: LB * HB }, () => []);
+  const legUp = [];
+  const legLow = [];
+  const segs = {
+    LeftUpLeg: [P('LeftUpLeg'), P('LeftLeg'), legUp],
+    RightUpLeg: [P('RightUpLeg'), P('RightLeg'), legUp],
+    LeftLeg: [P('LeftLeg'), P('LeftFoot'), legLow],
+    RightLeg: [P('RightLeg'), P('RightFoot'), legLow],
+  };
+  const torso = new Set(['Spine', 'Spine1', 'Spine2']);
+  // Omuz cebi: sağ omuz ekleminin çevresindeki gövde yüzeyi eklemden ne kadar önde (dipçik buraya dayanır)
+  const joint = P('RightArm');
+  const pocket = [];
+  const v = new THREE.Vector3();
+  const w = new THREE.Vector3();
+  let total = 0;
+  scene.traverse((o) => {
+    if (o.isSkinnedMesh) total += o.geometry.attributes.position.count;
+  });
+  const stride = Math.max(1, Math.ceil(total / F.vertexBudget));
+  scene.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    const g = o.geometry;
+    const si = g.attributes.skinIndex;
+    const wt = g.attributes.skinWeight;
+    if (!si || !wt) return;
+    const names = o.skeleton.bones.map((b) => b.name);
+    for (let i = 0; i < g.attributes.position.count; i += stride) {
+      let best = 0;
+      for (let k = 1; k < 4; k++) if (wt.getComponent(i, k) > wt.getComponent(i, best)) best = k;
+      const name = names[si.getComponent(i, best)];
+      const seg = segs[name];
+      o.getVertexPosition(i, v).applyMatrix4(o.matrixWorld);
+      // Omuz cebi her kemikten (köprücük, omuz, yelek askısı): yalnız gövde kemiklerine bakınca bazı modellerde boş kalıyordu
+      w.subVectors(v, joint);
+      if (Math.abs(w.dot(right)) < F.pocketSide * sw && Math.abs(w.dot(up)) < F.pocketHeight * sw && Math.abs(w.dot(fwd)) < sw) pocket.push(w.dot(fwd) / sw);
+      if (!torso.has(name) && !seg) continue;
+      if (seg) {
+        seg[2].push(distToSegment(v, seg[0], seg[1]) / sw);
+        continue;
+      }
+      v.sub(hips);
+      const t = v.dot(up) / H;
+      const x = v.dot(right) / (sw / 2);
+      if (t < 0 || t > 1 || Math.abs(x) > 1.4) continue;
+      const li = Math.min(LB - 1, Math.floor(((x + 1.4) / 2.8) * LB));
+      const hi = Math.min(HB - 1, Math.floor(t * HB));
+      cells[li * HB + hi].push(v.dot(fwd) / sw);
+    }
+  });
+  const pct = (arr, q) => {
+    if (!arr.length) return null;
+    arr.sort((a, b) => a - b);
+    return arr[Math.min(arr.length - 1, Math.floor(arr.length * q))];
+  };
+  const front = cells.map((c) => pct(c, F.frontPct));
+  // Boş hücre (omuz dışı gibi) komşusundan: yoksa en yakın dolu hücre
+  for (let i = 0; i < front.length; i++) {
+    if (front[i] !== null) continue;
+    let bestD = Infinity;
+    for (let j = 0; j < front.length; j++) {
+      if (front[j] === null) continue;
+      const d = Math.abs(((i / HB) | 0) - ((j / HB) | 0)) + Math.abs((i % HB) - (j % HB));
+      if (d < bestD) {
+        bestD = d;
+        front[i] = front[j];
+      }
+    }
+  }
+  if (front.some((f) => f === null)) return null;
+  return { front, upLeg: pct(legUp, F.legPct) || 0.25, lowLeg: pct(legLow, F.legPct) || 0.18, pocket: Math.max(0, pct(pocket, F.pocketPct) || 0) };
+}
+
+// Silahın gövdeyle çakışma denetimi için örnek noktaları (silah uzayı, -Z namlu): dipçik ucu ve ortası, kabza,
+// şarjör yuvası, kundak, kundak–namlu arası, namlu. Şarjörün alt ucu alınmaz: nişanda yelek ceplerinin önüne itince
+// silah kol boyuna dek öne kayıyor, asker tüfeği kolları gergin tutuyordu
+function gunSamples(gp) {
+  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const m = gp.muzzle;
+  const f = gp.fore;
+  return [
+    v(0, 0, gp.stock),
+    v(0, 0, gp.stock * 0.55),
+    gp.grip.clone(),
+    gp.magWell.clone(),
+    f.clone(),
+    f.clone().lerp(m, 0.5),
+    m.clone(),
+  ];
+}
+
+function distToSegment(p, a, b) {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const abz = b.z - a.z;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / (abx * abx + aby * aby + abz * abz || 1)));
+  return Math.hypot(p.x - a.x - abx * t, p.y - a.y - aby * t, p.z - a.z - abz * t);
 }
 
 // Türün görünümü: düşman askerinde dokuyu renkle çarparak birlik farkı. Kendi kamuflajı olan model (natural:
@@ -489,6 +608,7 @@ class SkinnedSoldier {
     const P = ENEMY_GUN_POINTS[kind];
     const v = (a) => new THREE.Vector3(a[0], a[1], a[2]);
     this.gp = { muzzle: v(P.muzzle), grip: v(P.grip), fore: v(P.fore), magWell: v(P.magWell), stock: P.stock };
+    this.gp.samples = gunSamples(this.gp);
     this.gun = mergeGroup(buildEnemyGun(kind), gunMat);
     this.gun.castShadow = true;
     this.root.add(this.gun);
@@ -543,6 +663,7 @@ class SkinnedSoldier {
           magWell: v([0, H.magY, p.leftHand[2] * 0.45]),
           stock: r.bounds.max[2] + H.stockPad,
         };
+        this.gp.samples = gunSamples(this.gp);
         gun.visible = this.gun.visible;
         gun.position.copy(this.gun.position);
         gun.quaternion.copy(this.gun.quaternion);
@@ -769,6 +890,9 @@ class SkinnedSoldier {
     const sh = this.root.worldToLocal(bonePos(B.RightArm, _t1));
     for (let i = 0; i < 3; i++) sh[AXES[i]] += stanceMix('stock', lowK, aimK, i);
     sh.x += A.runCarry.side * carry;
+    // Dipçik omuz ekleminin içine değil, gövdenin önündeki omuz cebine dayanır (yelekli askerde göğüs kalın)
+    const pocket = (this.T.body?.pocket || 0) * this.shoulderWidth() * Math.max(aimK, lowK * A.bodyFit.pocketReady);
+    if (pocket > 0) sh.addScaledVector(this.chestForwardLocal(_t2), pocket / this.root.scale.x);
     _fwd.set(0, 0, -1).applyQuaternion(this.gun.quaternion);
     this.gun.position.copy(sh).addScaledVector(_fwd, this.gp.stock - kick);
     this.gun.updateMatrixWorld();
@@ -780,6 +904,8 @@ class SkinnedSoldier {
       this.gun.position.addScaledVector(_fwd, -Math.min(over / s, 0.25));
       this.gun.updateMatrixWorld();
     }
+    // Mevzide eller düzeneğin tutamaklarında, silah gizli: itme yok
+    if (!st.mount) this.keepGunOutside(aimK);
 
     this.gun.visible = !st.hideGun;
 
@@ -827,6 +953,82 @@ class SkinnedSoldier {
       rotateBoneAxis(B.Head, _right, (Math.sin(t * 7.1) * 0.6 + Math.sin(t * 3.3 + 1) * 0.4) * k);
       rotateBoneAxis(B.Head, _up, Math.sin(t * 2.1 + 0.5) * k * 0.7);
     }
+  }
+
+  // Silahın örnek noktaları gövdenin ön yüzünün ve bacakların dışında kalsın: en derin batan nokta kadar silah gövdenin
+  // ileri yönünde itilir (ellerin IK'sı ardından silahı izler). Gövde çerçevesi bu karenin kemiklerinden (eğilme,
+  // çömelme ve nişan eğimi hesaba girer); ölçüler omuz genişliğiyle ölçeklenir
+  keepGunOutside(aimK = 0) {
+    const push = this.gunPenetration(aimK);
+    if (push <= 0) return;
+    // _k[4]: gunPenetration'ın bıraktığı gövde ileri yönü (dünya)
+    const p = this.gun.getWorldPosition(_k[5]).addScaledVector(_k[4], Math.min(push, A.bodyFit.maxPush));
+    this.gun.position.copy(this.root.worldToLocal(p));
+    this.gun.updateMatrixWorld();
+  }
+
+  // En derine batan örnek noktanın gövde dışına çıkması için gereken ileri itme (m; ≤ 0 çakışma yok). Duman testi de
+  // bunu okur: itmeden sonra sıfıra inmeli
+  gunPenetration(aimK = 0) {
+    const body = this.T.body;
+    const S = this.gp?.samples;
+    if (!body || !S) return 0;
+    const F = A.bodyFit;
+    const B = this.bones;
+    const hips = bonePos(B.Hips, _k[0]);
+    const up = bonePos(B.Neck, _k[1]).sub(hips);
+    const H = up.length();
+    if (!(H > 1e-4)) return;
+    up.multiplyScalar(1 / H);
+    const right = bonePos(B.RightArm, _k[2]).sub(bonePos(B.LeftArm, _k[3]));
+    const sw = right.length();
+    right.addScaledVector(up, -right.dot(up)).normalize();
+    const fwd = _k[4].crossVectors(up, right);
+    const LB = F.lateralBins;
+    const HB = F.heightBins;
+    const pad = F.gunPad;
+    const legs = [
+      [B.LeftUpLeg, B.LeftLeg, body.upLeg],
+      [B.RightUpLeg, B.RightLeg, body.upLeg],
+      [B.LeftLeg, B.LeftFoot, body.lowLeg],
+      [B.RightLeg, B.RightFoot, body.lowLeg],
+    ];
+    let push = 0;
+    // Nişanda dipçik (ilk iki nokta) omuz cebine dayalı: gövdeye değmesi doğru, itilmez
+    for (let i = aimK > 0.5 ? 2 : 0; i < S.length; i++) {
+      const w = this.gun.localToWorld(_k[5].copy(S[i]));
+      const rel = _k[6].subVectors(w, hips);
+      const t = rel.dot(up) / H;
+      const x = rel.dot(right) / (sw / 2);
+      if (t > -0.05 && t < 1.05 && Math.abs(x) < 1.4) {
+        const li = clamp(Math.floor(((x + 1.4) / 2.8) * LB), 0, LB - 1);
+        const hi = clamp(Math.floor(clamp(t, 0, 0.999) * HB), 0, HB - 1);
+        const need = body.front[li * HB + hi] * sw + pad - rel.dot(fwd);
+        if (need > push) push = need;
+      }
+      // Bacaklar: kemik doğrusuna yarıçaptan yakın nokta öne çıkar
+      for (const [a, b, r] of legs) {
+        const d = distToSegment(w, bonePos(a, _k[7]), bonePos(b, _k[8]));
+        const need = r * sw + pad - d;
+        if (need > push) push = need;
+      }
+    }
+    return push;
+  }
+
+  shoulderWidth() {
+    return bonePos(this.bones.RightArm, _k[0]).distanceTo(bonePos(this.bones.LeftArm, _k[1]));
+  }
+
+  // Göğsün ileri yönü (omuz çizgisine ve kalça → boyun eksenine dik), kök uzayında
+  chestForwardLocal(out) {
+    const B = this.bones;
+    const up = bonePos(B.Neck, _k[0]).sub(bonePos(B.Hips, _k[1])).normalize();
+    const right = bonePos(B.RightArm, _k[2]).sub(bonePos(B.LeftArm, _k[3]));
+    right.addScaledVector(up, -right.dot(up)).normalize();
+    out.crossVectors(up, right);
+    this.root.getWorldQuaternion(_q);
+    return out.applyQuaternion(_q.invert());
   }
 
   // El bombası: sol el kundaktan omuz arkasına kalkar, öne-yukarı savrulur, kundağa döner
