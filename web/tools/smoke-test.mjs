@@ -643,8 +643,10 @@ console.log('Seviyeler ve dost manga');
   const hpBefore = await aimAtAlly();
   check(await page.evaluate(() => [...document.querySelectorAll('.atag')].some((e) => !e.hidden && /ALFA-\d|Alfa-\d/.test(e.textContent))), 'Dostların üstünde mavi isim etiketi');
   await page.screenshot({ path: join(shots, '09-allies.png') });
-  // Dost yürürken tek mermi ıskalayabilir: dost dursun, en çok üç deneme
+  // Dost yürürken tek mermi ıskalayabilir: dost dursun, en çok üç deneme. Manga oyuncuyu izlerken toplu durur: mermi
+  // nişan alınan dostun önündeki başka bir dosta da gelebilir, bu yüzden canı düşen dost aranır
   await page.evaluate(() => window.__game.allies.list[0].vel.set(0, 0, 0));
+  const hpAll = await page.evaluate(() => window.__game.allies.list.map((a) => a.health.hp));
   let ff = null;
   for (let k = 0; k < 3; k++) {
     await aimAtAlly();
@@ -652,15 +654,16 @@ console.log('Seviyeler ve dost manga');
     await waitGame(page, 0.05);
     await page.mouse.up();
     await waitGame(page, 0.3);
-    ff = await page.evaluate(() => {
+    ff = await page.evaluate((before) => {
       const g = window.__game;
-      const a = g.allies.list[0];
-      return { hp: a.health.hp, msg: document.getElementById('message').textContent, dealt: g.stats.friendlyDamage, complained: a.complainAt > 0 };
-    });
+      const i = g.allies.list.findIndex((a, j) => a.health.hp < before[j]);
+      const a = g.allies.list[Math.max(0, i)];
+      return { who: i, before: before[Math.max(0, i)], hp: a.health.hp, msg: document.getElementById('message').textContent, dealt: g.stats.friendlyDamage, complained: a.complainAt > 0 };
+    }, hpAll);
     if (/DOST/.test(ff.msg)) break;
     await page.waitForFunction(() => window.__game.weapons.state === 'idle', null, { timeout: 30000 });
   }
-  check(ff.hp < hpBefore && ff.dealt > 0 && ff.complained && /DOST/.test(ff.msg), `Dost ateşi: dost yaralandı (${Math.round(hpBefore)} → ${Math.round(ff.hp)} can), telsizden uyardı, HUD uyarısı ("${ff.msg}")`);
+  check(ff.who >= 0 && ff.hp < ff.before && ff.dealt > 0 && ff.complained && /DOST/.test(ff.msg), `Dost ateşi: dost ${ff.who + 1} yaralandı (${Math.round(ff.before)} → ${Math.round(ff.hp)} can, ilk nişan ${Math.round(hpBefore)}), telsizden uyardı, HUD uyarısı ("${ff.msg}")`);
   // Sonraki denetimler tam canlı timle sürsün
   await page.evaluate(() => {
     const a = window.__game.allies.list[0];
@@ -3842,10 +3845,13 @@ if (run('profile')) {
   await page.press('#nameInput', 'Enter');
   const after = await page.evaluate(() => ({ menu: !document.getElementById('menu').hidden, hello: document.getElementById('menuHelloName').textContent, saved: window.__game.save.data.profile.name }));
   check(after.menu && after.hello === 'Kartal 07' && after.saved === 'Kartal 07', `Ad kaydedildi, menüde selam: "${after.hello}"`);
+  // Chromium localStorage yazımını tarayıcı sürecine eşzamansız iletir: kayıttan milisaniyeler sonra yenilenen sayfa
+  // (yük altında) eski kopyayı okuyabiliyordu. Oyuncu bu kadar hızlı yenilemez; kısa bekleme
+  await page.waitForTimeout(400);
   await page.reload();
   await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
-  const re = await page.evaluate(() => ({ screen: !document.getElementById('nameScreen').hidden, hello: document.getElementById('menuHelloName').textContent }));
-  check(!re.screen && re.hello === 'Kartal 07', 'Sayfa yenilenince ad sürdü, ad ekranı yeniden çıkmadı');
+  const re = await page.evaluate(() => ({ screen: !document.getElementById('nameScreen').hidden, hello: document.getElementById('menuHelloName').textContent, menu: !document.getElementById('menu').hidden, saved: window.__game.save.data.profile?.name, visible: [...document.querySelectorAll('body > div, #app > div')].filter((e) => !e.hidden && e.offsetParent !== null && getComputedStyle(e).position === 'fixed').map((e) => e.id).filter(Boolean).slice(0, 8) }));
+  check(!re.screen && re.hello === 'Kartal 07', `Sayfa yenilenince ad sürdü, ad ekranı yeniden çıkmadı${!re.screen && re.hello === 'Kartal 07' ? '' : ` ${JSON.stringify(re)}`}`);
   // Menüdeki "değiştir": vazgeç düğmesi var, yeni ad kaydedilir
   await page.click('#btnMenuName');
   const ch = await page.evaluate(() => ({ cancel: !document.getElementById('btnNameCancel').hidden, val: document.getElementById('nameInput').value }));
