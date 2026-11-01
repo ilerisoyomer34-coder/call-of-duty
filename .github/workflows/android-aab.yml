@@ -1,0 +1,166 @@
+# Google Play paketi (.aab): GitHub'ın sunucusunda derlenir (bulut geliştirme ortamı Google'ın Android SDK sunucusuna
+# erişemiyor). Elle çalıştırılır: Actions → "Android paketi (AAB)" → Run workflow. Çıktı çalıştırmanın Artifacts
+# bölümünde. Ayrıntı: Docs/STORE_RELEASE.md → "GitHub'da derleme".
+#
+# İmza (Play yalnız yükleme anahtarıyla imzalı paketi kabul eder):
+#   - ANDROID_KEYSTORE_PASSWORD (zorunlu, en az 12 karakter): yükleme anahtarının şifresi. Kullanıcı GitHub'da
+#     Settings → Secrets and variables → Actions'a kendisi yazar; sohbete ya da depoya girmez.
+#   - ANDROID_KEYSTORE_BASE64 (ilk derlemeden sonra): anahtar dosyasının base64'ü. Yoksa iş yeni anahtar üretir ve
+#     şifreli dosyayı 1 günlük ayrı bir pakete koyar; kullanıcı onu indirip bu gizli değere yazar (sonraki
+#     güncellemeler aynı anahtarla imzalanmalı). Depo herkese açık: paket indirilebilir, anahtar şifresiz açılmaz.
+name: Android paketi (AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Sürüm kodu (boş: çalıştırma numarası; her yüklemede büyümeli)'
+        required: false
+        default: ''
+      version_name:
+        description: 'Görünen sürüm'
+        required: false
+        default: '1.0'
+      unsigned:
+        description: 'İmzasız deneme derlemesi (Play kabul etmez; yalnız derlemenin çalıştığını denemek için)'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-aab
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            mobile/package-lock.json
+      # Capacitor 8 ve AGP 8.13 Java 21 ister
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Gizli bilgi taraması
+        working-directory: web
+        run: node tools/secret-scan.mjs
+      - name: Android SDK (API 36)
+        # Lisanslar sunucuda kabul edilmiş; "yes" sdkmanager bitince SIGPIPE ile düşer (pipefail'i bozmasın diye || true)
+        run: (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" > /dev/null
+      - name: Bağımlılıklar
+        run: |
+          npm ci --prefix web
+          npm ci --prefix mobile
+      # web/dist/app (mağaza sürümü) → android/app/src/main/assets/public
+      - name: Oyunu derle ve Android projesine kopyala
+        working-directory: mobile
+        run: |
+          npm run build:web
+          npx cap sync android
+      - name: Mağaza yayını ön denetimi
+        working-directory: web
+        run: node tools/release-audit.mjs --built
+      - name: Yükleme anahtarı
+        id: key
+        if: ${{ !inputs.unsigned }}
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS_PASS" ]; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD gizli değeri yok. GitHub → Settings → Secrets and variables → Actions → New repository secret ile ekle (en az 12 karakter)."
+            exit 1
+          fi
+          if [ "${#KS_PASS}" -lt 12 ]; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD en az 12 karakter olmalı."
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/upload-key"
+          mkdir -p "$dir"
+          chmod 700 "$dir"
+          if [ -n "$KS_B64" ]; then
+            printf '%s' "$KS_B64" | base64 -d > "$dir/upload-keystore.p12"
+            echo "new=0" >> "$GITHUB_OUTPUT"
+          else
+            # İlk derleme: yeni yükleme anahtarı (RSA 4096, ~27 yıl). Şifre komut satırına değil ortamdan verilir
+            keytool -genkeypair -storetype PKCS12 -keystore "$dir/upload-keystore.p12" -alias upload \
+              -keyalg RSA -keysize 4096 -validity 10000 -storepass:env KS_PASS -keypass:env KS_PASS \
+              -dname "CN=Demir Safak, O=Demir Safak, C=TR"
+            base64 -w0 "$dir/upload-keystore.p12" > "$dir/ANDROID_KEYSTORE_BASE64.txt"
+            printf '%s\n' \
+              'Demir Şafak yükleme anahtarı (Google Play upload key).' \
+              '1) upload-keystore.p12 dosyasını güvenli bir yere yedekle (şifresi ANDROID_KEYSTORE_PASSWORD).' \
+              '2) GitHub → Settings → Secrets and variables → Actions → New repository secret:' \
+              '   adı ANDROID_KEYSTORE_BASE64, değeri ANDROID_KEYSTORE_BASE64.txt dosyasının içeriği.' \
+              '   Sonraki her derleme aynı anahtarla imzalanır; Play başka anahtarla imzalı güncellemeyi kabul etmez.' \
+              '3) Bu dosyaları depoya koyma, kimseyle paylaşma.' > "$dir/OKU-BENI.txt"
+            echo "new=1" >> "$GITHUB_OUTPUT"
+          fi
+          echo "file=$dir/upload-keystore.p12" >> "$GITHUB_OUTPUT"
+      - name: AAB derle
+        working-directory: mobile/android
+        env:
+          DS_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
+          DS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ inputs.version_code || github.run_number }}
+          VERSION_NAME: ${{ inputs.version_name || '1.0' }}
+        run: ./gradlew --no-daemon bundleRelease "-PdsVersionCode=$VERSION_CODE" "-PdsVersionName=$VERSION_NAME"
+      - name: Paketi adlandır ve imzayı denetle
+        id: out
+        env:
+          VERSION_CODE: ${{ inputs.version_code || github.run_number }}
+          VERSION_NAME: ${{ inputs.version_name || '1.0' }}
+          UNSIGNED: ${{ inputs.unsigned }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          suffix=$([ "$UNSIGNED" = "true" ] && echo "-imzasiz" || echo "")
+          name="demir-safak-$VERSION_NAME-$VERSION_CODE$suffix.aab"
+          cp mobile/android/app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/out/$name"
+          if [ "$UNSIGNED" != "true" ]; then
+            jarsigner -verify "$RUNNER_TEMP/out/$name" | tee "$RUNNER_TEMP/verify.txt"
+            grep -q "jar verified" "$RUNNER_TEMP/verify.txt"
+            # Hata ayıklama anahtarıyla imzalı paketi Play reddeder
+            if keytool -printcert -jarfile "$RUNNER_TEMP/out/$name" | grep -q "CN=Android Debug"; then echo "::error::Paket hata ayıklama anahtarıyla imzalı"; exit 1; fi
+          fi
+          ls -l "$RUNNER_TEMP/out"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Demir Şafak AAB"
+            echo "- Dosya: \`$name\` (sürüm kodu $VERSION_CODE, sürüm $VERSION_NAME)"
+            echo "- Boyut: $(du -h "$RUNNER_TEMP/out/$name" | cut -f1)"
+            [ "$UNSIGNED" = "true" ] && echo "- **İmzasız deneme derlemesi: Play'e yüklenemez.**"
+            [ "${{ steps.key.outputs.new }}" = "1" ] && echo "- **Yeni yükleme anahtarı üretildi:** \`yukleme-anahtari\` paketini 1 gün içinde indir, OKU-BENI.txt'deki adımları yap."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.out.outputs.name }}
+          path: ${{ runner.temp }}/out/${{ steps.out.outputs.name }}
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0
+      # Yalnız ilk derlemede: şifreli anahtar dosyası, kısa süreli
+      - uses: actions/upload-artifact@v4
+        if: ${{ steps.key.outputs.new == '1' }}
+        with:
+          name: yukleme-anahtari
+          path: |
+            ${{ runner.temp }}/upload-key/upload-keystore.p12
+            ${{ runner.temp }}/upload-key/ANDROID_KEYSTORE_BASE64.txt
+            ${{ runner.temp }}/upload-key/OKU-BENI.txt
+          retention-days: 1
+          if-no-files-found: error
+      - name: Anahtar dosyasını sil
+        if: ${{ always() }}
+        run: rm -rf "$RUNNER_TEMP/upload-key"

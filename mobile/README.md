@@ -16,5 +16,6 @@ Elle yapılan ayarlar (Capacitor şablonunun üstüne). `cap add` yeniden çalı
 - `android/app/src/main/AndroidManifest.xml`: `screenOrientation="sensorLandscape"`, OpenGL ES 3.0 zorunlu (WebGL 2), `allowBackup="false"` (yerel kayıttaki hesap belirteci Google yedeğine girmesin; `web/tools/release-audit.mjs` denetler).
 - `android/.../MainActivity.java`: sistem çubukları gizli (tam ekran), ekran kararmaz.
 - `android/app/src/main/res/values/ic_launcher_background.xml`: simge zemini `#0D1013`.
+- `android/app/build.gradle`: `-PdsVersionCode/-PdsVersionName` sürüm geçersiz kılma ve ortam değişkeninden (`DS_KEYSTORE_FILE`, `DS_KEYSTORE_PASSWORD`) yükleme anahtarı imzası (GitHub'daki AAB derlemesi `.github/workflows/android-aab.yml`; anahtar depoya girmez).
 - `ios/App/App/Info.plist`: yalnız yatay, `UIRequiresFullScreen`, durum çubuğu gizli, mikrofon / konuşma tanıma gerekçeleri, `ITSAppUsesNonExemptEncryption = false`, bölge `tr`.
 - `ios/App/App/AppDelegate.swift`: ekran kararmaz (`isIdleTimerDisabled`).

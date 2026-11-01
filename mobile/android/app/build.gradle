@@ -16,8 +16,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Sürüm: GitHub'daki AAB derlemesi her çalıştırmada artan sürüm kodu verir (-PdsVersionCode, -PdsVersionName);
+    // Android Studio'da yukarıdaki değerler geçerli. Play aynı sürüm kodunu ikinci kez kabul etmez
+    if (project.hasProperty('dsVersionCode')) defaultConfig.versionCode = project.property('dsVersionCode') as Integer
+    if (project.hasProperty('dsVersionName')) defaultConfig.versionName = project.property('dsVersionName')
+    // Yükleme anahtarı yalnız ortam değişkeninden (.github/workflows/android-aab.yml, anahtar GitHub gizli değerinde).
+    // Anahtar ve şifre depoya girmez; değişken yoksa (Android Studio) imza "Generate Signed App Bundle" ile verilir
+    def uploadStore = System.getenv('DS_KEYSTORE_FILE')
+    signingConfigs {
+        if (uploadStore) {
+            upload {
+                storeFile file(uploadStore)
+                storeType 'pkcs12'
+                storePassword System.getenv('DS_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('DS_KEY_ALIAS') ?: 'upload'
+                keyPassword System.getenv('DS_KEY_PASSWORD') ?: System.getenv('DS_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (uploadStore) signingConfig signingConfigs.upload
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
