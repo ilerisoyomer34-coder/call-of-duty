@@ -2,5 +2,5 @@
   "_": "Google Play sürümü. Bu dosya değişip gönderilince GitHub AAB'yi derler (.github/workflows/android-aab.yml). versionCode her Play yüklemesinde büyümeli; versionName oyuncunun gördüğü sürüm; build: aynı sürümü yeniden derletmek için artırılır (Play'e yüklenmemiş paket).",
   "versionCode": 1,
   "versionName": "1.0",
-  "build": 2
+  "build": 3
 }
