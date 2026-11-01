@@ -100,6 +100,15 @@ jobs:
             echo "new=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # PKCS12 anahtar dosyası yalnız ASCII şifre kabul eder: Türkçe harfler İngilizce karşılığına çevrilir
+          # (ş→s, ğ→g, ı→i, İ→I, ö→o, ü→u, ç→c); dosyanın şifresi bu hâlidir. Türetilen değer günlükte gizlenir
+          KS_PASS=$(printf '%s' "$KS_PASS" | sed -e 's/ş/s/g; s/Ş/S/g; s/ğ/g/g; s/Ğ/G/g; s/ı/i/g; s/İ/I/g; s/ö/o/g; s/Ö/O/g; s/ü/u/g; s/Ü/U/g; s/ç/c/g; s/Ç/C/g')
+          echo "::add-mask::$KS_PASS"
+          export KS_PASS
+          if printf '%s' "$KS_PASS" | LC_ALL=C grep -q '[^ -~]'; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD'da İngilizce harf, rakam ve işaret dışında karakter var (Türkçe harfler kendiliğinden çevrilir; emoji vb. olmaz)."
+            exit 1
+          fi
           if [ "${#KS_PASS}" -lt 12 ]; then
             echo "::error::ANDROID_KEYSTORE_PASSWORD en az 12 karakter olmalı."
             exit 1
@@ -107,6 +116,8 @@ jobs:
           dir="$RUNNER_TEMP/upload-key"
           mkdir -p "$dir"
           chmod 700 "$dir"
+          # Derleme adımı aynı (çevrilmiş) şifreyi buradan okur
+          (umask 077; printf '%s' "$KS_PASS" > "$dir/.pass")
           if [ -n "$KS_B64" ]; then
             printf '%s' "$KS_B64" | base64 -d > "$dir/upload-keystore.p12"
             echo "new=0" >> "$GITHUB_OUTPUT"
@@ -118,7 +129,8 @@ jobs:
             base64 -w0 "$dir/upload-keystore.p12" > "$dir/ANDROID_KEYSTORE_BASE64.txt"
             printf '%s\n' \
               'Demir Şafak yükleme anahtarı (Google Play upload key).' \
-              '1) upload-keystore.p12 dosyasını güvenli bir yere yedekle (şifresi ANDROID_KEYSTORE_PASSWORD).' \
+              '1) upload-keystore.p12 dosyasını güvenli bir yere yedekle. Şifresi ANDROID_KEYSTORE_PASSWORD;' \
+              '   içinde Türkçe harf varsa İngilizce karşılığıyla (ş→s, ğ→g, ı→i, İ→I, ö→o, ü→u, ç→c).' \
               '2) GitHub → Settings → Secrets and variables → Actions → New repository secret:' \
               '   adı ANDROID_KEYSTORE_BASE64, değeri ANDROID_KEYSTORE_BASE64.txt dosyasının içeriği.' \
               '   Sonraki her derleme aynı anahtarla imzalanır; Play başka anahtarla imzalı güncellemeyi kabul etmez.' \
@@ -130,10 +142,14 @@ jobs:
         working-directory: mobile/android
         env:
           DS_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
-          DS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           VERSION_CODE: ${{ steps.ver.outputs.code }}
           VERSION_NAME: ${{ steps.ver.outputs.name }}
-        run: ./gradlew --no-daemon bundleRelease "-PdsVersionCode=$VERSION_CODE" "-PdsVersionName=$VERSION_NAME"
+        run: |
+          if [ -n "$DS_KEYSTORE_FILE" ]; then
+            DS_KEYSTORE_PASSWORD=$(cat "$RUNNER_TEMP/upload-key/.pass")
+            export DS_KEYSTORE_PASSWORD
+          fi
+          ./gradlew --no-daemon bundleRelease "-PdsVersionCode=$VERSION_CODE" "-PdsVersionName=$VERSION_NAME"
       - name: Paketi adlandır ve imzayı denetle
         id: out
         env:
