@@ -7,6 +7,7 @@ import { ATTACHMENTS, ATT_CATEGORIES, choicesFor, moddedDef } from '../shared/si
 import { MOD_RESULT } from './gunsmith.js';
 import { weaponName, weaponStats } from './weaponInfo.js';
 import { WeaponPreview } from './weaponIcons.js';
+import { SIGHT_TYPES } from './sights.js';
 import { formatKR } from './economy.js';
 import { EV } from './events.js';
 
@@ -35,7 +36,10 @@ const EFFECTS = [
 
 export function effectLines(att) {
   const out = [];
-  if (att.mods?.fov) out.push({ text: `Büyütme ${(1 / att.mods.fov).toFixed(1).replace('.', ',')}×`, good: true });
+  // Büyütme: nişangâhın adındaki değer (3×, 8×); yoksa görüş açısından
+  const zoom = SIGHT_TYPES[att.sight]?.zoom;
+  if (zoom || att.mods?.fov) out.push({ text: `Büyütme ${zoom || `${(1 / att.mods.fov).toFixed(1).replace('.', ',')}×`}`, good: true });
+  else if (att.sight) out.push({ text: SIGHT_TYPES[att.sight]?.kind === 'reflex' ? 'Kolimatör' : 'Nişangâh', good: null });
   for (const [k, label, lower] of EFFECTS) {
     const v = att.mods?.[k];
     if (v === undefined || v === 1) continue;

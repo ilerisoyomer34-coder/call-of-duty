@@ -393,7 +393,7 @@ export class Viewmodel {
   fitAttachments(id, m) {
     const mods = this.mods[id]?.mods || {};
     const att = applyAttachments(
-      { root: m.root, muzzle: m.muzzle, sight: m.sightBase, fore: m.fore, palmZ: m.leftHand.z, mag: m.parts.mag, optic: m.parts.optic, ironSight: SIGHT_TYPES[baseSightId(id)]?.kind === 'iron', attGroup: m.attGroup },
+      { root: m.root, muzzle: m.muzzle, sight: m.sightBase, fore: m.fore, palmZ: m.leftHand.z, mag: m.parts.mag, optic: m.parts.optic, ironSight: SIGHT_TYPES[baseSightId(id)]?.kind === 'iron', scopedBase: SIGHT_TYPES[baseSightId(id)]?.kind === 'scope', attGroup: m.attGroup },
       mods
     );
     m.attGroup = m.root.getObjectByName('attachments');

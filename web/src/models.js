@@ -198,21 +198,24 @@ export function buildRifle() {
   B(root, 0.03, 0.07, 0.035, tan, 0, -0.018, -0.46, 0.2); // ön tutamak
   B(root, 0.004, 0.035, 0.07, blk2, 0.03, 0.045, -0.08); // kovan penceresi
   // Kobra tipi kolimatör: sol yan kızağa bağlanan ayak, kutu gövde, üstte siper; pencere ortası gez noktası.
-  // İşaret (kırmızı ok) görünüm modelinde çizilir (reticles.js)
-  B(root, 0.01, 0.05, 0.07, blk, -0.033, 0.072, -0.075); // yan kızak ayağı
-  B(root, 0.052, 0.01, 0.075, blk, -0.005, 0.101, -0.08); // taban
-  B(root, 0.034, 0.006, 0.06, blk2, 0, 0.109, -0.083); // pencere altı
-  B(root, 0.007, 0.042, 0.064, blk, -0.0205, 0.131, -0.083); // sol duvar (pil ve parlaklık düğmesi tarafı)
-  B(root, 0.005, 0.042, 0.064, blk, 0.0195, 0.131, -0.083); // sağ duvar
-  B(root, 0.046, 0.006, 0.07, blk, 0, 0.1545, -0.086); // üst siper
-  B(root, 0.014, 0.026, 0.03, blk2, -0.031, 0.12, -0.105); // pil yuvası (önde: nişan alırken görüşü kapatmaz)
-  cylZ(root, 0.006, 0.01, blk2, -0.029, 0.14, -0.1, 10); // parlaklık düğmesi
+  // İşaret (kırmızı ok) görünüm modelinde çizilir (reticles.js). Ayrı parça: eklenti optiği takılınca gizlenir
+  const optic = new THREE.Group();
+  optic.name = 'optic';
+  root.add(optic);
+  B(optic, 0.01, 0.05, 0.07, blk, -0.033, 0.072, -0.075); // yan kızak ayağı
+  B(optic, 0.052, 0.01, 0.075, blk, -0.005, 0.101, -0.08); // taban
+  B(optic, 0.034, 0.006, 0.06, blk2, 0, 0.109, -0.083); // pencere altı
+  B(optic, 0.007, 0.042, 0.064, blk, -0.0205, 0.131, -0.083); // sol duvar (pil ve parlaklık düğmesi tarafı)
+  B(optic, 0.005, 0.042, 0.064, blk, 0.0195, 0.131, -0.083); // sağ duvar
+  B(optic, 0.046, 0.006, 0.07, blk, 0, 0.1545, -0.086); // üst siper
+  B(optic, 0.014, 0.026, 0.03, blk2, -0.031, 0.12, -0.105); // pil yuvası (önde: nişan alırken görüşü kapatmaz)
+  cylZ(optic, 0.006, 0.01, blk2, -0.029, 0.14, -0.1, 10); // parlaklık düğmesi
   const lens = new THREE.Mesh(
     new THREE.PlaneGeometry(0.034, 0.035),
     new THREE.MeshBasicMaterial({ color: 0xd8a04a, transparent: true, opacity: 0.1, depthWrite: false })
   );
   lens.position.set(0, 0.133, -0.114);
-  root.add(lens);
+  optic.add(lens);
   const mag = new THREE.Group();
   mag.position.set(0, -0.07, -0.145);
   B(mag, 0.03, 0.17, 0.065, tan, 0, -0.06, 0.012, 0.25);
@@ -223,7 +226,7 @@ export function buildRifle() {
   root.add(charging);
   return {
     root,
-    parts: { mag, charging },
+    parts: { mag, charging, optic },
     muzzle: new THREE.Vector3(0, 0.045, -0.77),
     sight: new THREE.Vector3(0, 0.13, -0.08),
     leftHand: new THREE.Vector3(-0.005, -0.03, -0.45),
@@ -320,18 +323,21 @@ export function buildSMG() {
   B(root, 0.008, 0.008, 0.22, metal, 0.02, 0.03, 0.13);
   B(root, 0.008, 0.008, 0.22, metal, -0.02, 0.01, 0.13);
   B(root, 0.05, 0.09, 0.014, poly, 0, 0.012, 0.245);
-  // Refleks nişangah: açık çerçeve
+  // Refleks nişangah: açık çerçeve (ayrı parça: eklenti optiği takılınca gizlenir)
   const sy = 0.108;
-  B(root, 0.032, 0.012, 0.05, metal, 0, 0.088, -0.06);
-  B(root, 0.004, 0.034, 0.008, metal, -0.02, sy, -0.075);
-  B(root, 0.004, 0.034, 0.008, metal, 0.02, sy, -0.075);
-  B(root, 0.044, 0.004, 0.008, metal, 0, sy + 0.017, -0.075);
+  const optic = new THREE.Group();
+  optic.name = 'optic';
+  root.add(optic);
+  B(optic, 0.032, 0.012, 0.05, metal, 0, 0.088, -0.06);
+  B(optic, 0.004, 0.034, 0.008, metal, -0.02, sy, -0.075);
+  B(optic, 0.004, 0.034, 0.008, metal, 0.02, sy, -0.075);
+  B(optic, 0.044, 0.004, 0.008, metal, 0, sy + 0.017, -0.075);
   const lens = new THREE.Mesh(
     new THREE.PlaneGeometry(0.036, 0.03),
     new THREE.MeshBasicMaterial({ color: 0x7fb0a0, transparent: true, opacity: 0.12, depthWrite: false })
   );
   lens.position.set(0, sy, -0.075);
-  root.add(lens);
+  optic.add(lens);
   const mag = new THREE.Group();
   mag.position.set(0, -0.02, -0.1);
   B(mag, 0.028, 0.17, 0.045, poly, 0, -0.08, 0, 0.06);
@@ -342,7 +348,7 @@ export function buildSMG() {
   root.add(charging);
   return {
     root,
-    parts: { mag, charging },
+    parts: { mag, charging, optic },
     muzzle: new THREE.Vector3(0, 0.034, -0.39),
     sight: new THREE.Vector3(0, sy, -0.04),
     leftHand: new THREE.Vector3(0, -0.02, -0.25),

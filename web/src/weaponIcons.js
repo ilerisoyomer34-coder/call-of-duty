@@ -165,17 +165,18 @@ async function modelFor(id) {
 async function modelWithAnchors(id) {
   const d = WEAPONS[id];
   const iron = SIGHT_TYPES[baseSightId(id)]?.kind === 'iron';
+  const scoped = SIGHT_TYPES[baseSightId(id)]?.kind === 'scope';
   if (d.model === 'glb') {
     try {
       const obj = await loadWeaponAsset(assetIdFor(d));
       const r = rigFor(assetIdFor(d));
-      return { obj, anchors: r && { root: obj, muzzle: r.muzzle, sight: r.sight, fore: r.leftHand, mag: obj.getObjectByName('mag'), optic: obj.getObjectByName('optic'), ironSight: iron } };
+      return { obj, anchors: r && { root: obj, muzzle: r.muzzle, sight: r.sight, fore: r.leftHand, mag: obj.getObjectByName('mag'), optic: obj.getObjectByName('optic'), ironSight: iron, scopedBase: scoped } };
     } catch (e) {
       warnOnce(`icon-glb-${id}`, `${id}: model yüklenemedi, yedek modelle çiziliyor (${e.message})`);
     }
   }
   const b = buildWeapon(id);
-  return { obj: b.root, anchors: { root: b.root, muzzle: b.muzzle, sight: b.sight, fore: b.leftHand, mag: b.parts?.mag, optic: b.parts?.optic, ironSight: iron } };
+  return { obj: b.root, anchors: { root: b.root, muzzle: b.muzzle, sight: b.sight, fore: b.leftHand, mag: b.parts?.mag, optic: b.parts?.optic, ironSight: iron, scopedBase: scoped } };
 }
 
 // Simgeler sırayla, karede bir tane üretilir: ekran açılırken takılma olmasın

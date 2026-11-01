@@ -3408,7 +3408,8 @@ console.log('Teçhizat ve sarf malzemeleri');
     cards: document.querySelectorAll('#gunsmithRoot .gsCard').length,
     stats: document.querySelectorAll('#gunsmithRoot .gsStat').length,
   }));
-  check(gs0.cats.length === 6 && gs0.cards >= 3 && gs0.stats === 6, `MODİFİYE ekranı: ${gs0.cats.join(', ')}; ${gs0.cards} kart, 6 çubuk`);
+  // İlk kategori nişangâh: kolimatörler, prizma ve dürbünler (kullanıcı isteği "bir sürü dürbün olsun")
+  check(gs0.cats.length === 6 && gs0.cards >= 13 && gs0.stats === 6, `MODİFİYE ekranı: ${gs0.cats.join(', ')}; nişangâhta ${gs0.cards} kart, 6 çubuk`);
   // Namlu ucu → susturucu: satın al ve tak (düğmeyle)
   await gp.evaluate(() => document.querySelector('.gsCat[data-cat="muzzle"]').click());
   await gp.evaluate(() => document.querySelector('.gsCard[data-att="muz_suppressor"]').click());
@@ -3438,10 +3439,18 @@ console.log('Teçhizat ve sarf malzemeleri');
     m?.root.traverse((o) => {
       if (o.isMesh && o.material?.userData?.camoBase && o.material.metalness > 0.9) gold = true;
     });
-    return { mag: w.mag, magSize: w.data.magSize, sound: w.data.sound, fov: w.data.ads.fovMult, parts, optic: !!optic, gold, sight: m && +(m.sight.y - m.sightBase.y).toFixed(3) };
+    // Kamuflaj eklentilere de sürülür (lastik ve cam hariç)
+    let attGold = 0;
+    let attRubber = 0;
+    m?.attGroup?.traverse((o) => {
+      if (!o.isMesh) return;
+      if (o.material?.userData?.camoBase && o.material.metalness > 0.9) attGold++;
+      if (o.material?.userData?.noCamo) attRubber++;
+    });
+    return { mag: w.mag, magSize: w.data.magSize, sound: w.data.sound, fov: w.data.ads.fovMult, parts, optic: !!optic, gold, attGold, attRubber, sight: m && +(m.sight.y - m.sightBase.y).toFixed(3) };
   });
-  check(gs2.magSize === 45 && gs2.mag === 45 && gs2.sound === 'suppressed' && gs2.fov === 0.55 && gs2.parts >= 4 && gs2.optic && gs2.gold,
-    `Görevde eklentili silah: şarjör ${gs2.mag}, ses ${gs2.sound}, büyütme ×${gs2.fov}, görünümde ${gs2.parts} parça, optik ve altın kaplama`);
+  check(gs2.magSize === 45 && gs2.mag === 45 && gs2.sound === 'suppressed' && gs2.fov === 0.55 && gs2.parts >= 4 && gs2.optic && gs2.gold && gs2.attGold >= 5 && gs2.attRubber >= 1,
+    `Görevde eklentili silah: şarjör ${gs2.mag}, ses ${gs2.sound}, büyütme ×${gs2.fov}, görünümde ${gs2.parts} parça, optik ve altın kaplama (eklentilerde ${gs2.attGold} boyalı, ${gs2.attRubber} lastik/vida boyasız)`);
   await gp.evaluate(() => {
     const g = window.__game;
     g.input.lockFailed = true;
@@ -3452,6 +3461,20 @@ console.log('Teçhizat ve sarf malzemeleri');
   await sleep(1500);
   await gp.screenshot({ path: join(shots, '18f-gunsmith-ads.png') });
   await gp.mouse.up({ button: 'right' });
+  // Dürbün eklentisi: aynı silahta ACOG → 4× dürbün; nişanda dürbün kaplaması (model gizli) ve duplex işaret
+  await gp.evaluate(() => {
+    const g = window.__game;
+    g.gunsmith.buyAndEquip('ak74', 'opt_scope4');
+    g.weapons.reset(g.mission.defaultLoadout());
+    g.player.adsT = 1;
+  });
+  await gp.mouse.down({ button: 'right' });
+  const sc = await gp.waitForFunction(() => window.__game.viewmodel.scoped && !document.getElementById('scope').hidden, null, { timeout: 30000, polling: 100 })
+    .then(() => gp.evaluate(() => ({ fov: window.__game.weapons.owned.ak74.data.ads.fovMult, lines: document.querySelectorAll('#scopeSvg line').length })))
+    .catch(() => ({ fov: 0, lines: 0 }));
+  await gp.screenshot({ path: join(shots, '18g-gunsmith-scope.png') });
+  await gp.mouse.up({ button: 'right' });
+  check(sc.fov === 0.31 && sc.lines >= 4, `Dürbün eklentisi: nişanda 4× kaplama (görüş ×${sc.fov}, ${sc.lines} kıl çizgisi)`);
   await gp.close();
 }
 

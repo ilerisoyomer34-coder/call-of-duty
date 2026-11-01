@@ -2118,6 +2118,12 @@ export const LOBBY = {
 };
 
 // Nişangâh görünümü (data/sights.json türleri, reticles.js çizimleri)
+// Eklenti optiğinin yerleşimi (attachments3d.js → buildOptic; m): optik silahın gövdesine girmeyecek kadar yükselir
+// (gövde nişan ekseninin iki yanında halfW bandında, step adımla ölçülür), arada clear payı; montaj ayağı gövdeye sink
+// kadar gömülür, en çok maxFoot uzar; demir nişangâhlı silahta en az minIronLift; iki halkalı montajda halkalar
+// plateW × plateH plakayla birleşir
+export const OPTIC_FIT = { clear: 0.0025, sink: 0.0015, maxFoot: 0.07, minIronLift: 0.006, halfW: 0.016, step: 0.005, plateW: 0.02, plateH: 0.006 };
+
 export const SIGHT_VIEW = {
   reticleZ: 0.03, // açık gövdesi olmayan (prosedürel) kolimatörde işaretin gez noktasından ilerisi (m)
   housingGap: 0.004, // açık gövdede işaret gövde ortasından bu kadar ileride

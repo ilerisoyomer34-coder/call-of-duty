@@ -13,9 +13,12 @@ export const ATT_CATS = ATT.categories.map((c) => c.id);
 // Ağda taşınan dizin sırası: katalogdaki sıra (yeni eklenti sona eklenir; derleme özeti iki tarafı eşler)
 export const ATT_IDS = Object.keys(ATT.items);
 
-const baseSightKind = (weaponId) => SIGHTS.types[SIGHTS.weapons[weaponId]?.sight || 'iron']?.kind || 'iron';
+export const baseSightKind = (weaponId) => SIGHTS.types[SIGHTS.weapons[weaponId]?.sight || 'iron']?.kind || 'iron';
+// Eklentinin nişangâh türü (iron/reflex/prism/scope; optik değilse null)
+export const opticKind = (attId) => SIGHTS.types[ATTACHMENTS[attId]?.sight]?.kind || null;
 
-// Eklenti bu silaha takılabilir mi? (sınıf, şarjörlü mü, dürbünlü/nişansız silaha optik yok)
+// Eklenti bu silaha takılabilir mi? (sınıf, şarjörlü mü; dürbünlü silaha yalnız dürbün, nişan alınamayan silaha optik
+// yok)
 export function compatible(weaponId, attId) {
   const a = ATTACHMENTS[attId];
   const d = WEAPONS[weaponId];
@@ -23,7 +26,7 @@ export function compatible(weaponId, attId) {
   if (!a.types.includes(META[weaponId]?.type)) return false;
   if (a.needsMag && d.reloadType !== 'mag') return false;
   const kind = baseSightKind(weaponId);
-  if (a.cat === 'optic' && (kind === 'scope' || kind === 'none')) return false;
+  if (a.cat === 'optic' && (kind === 'none' || (kind === 'scope' && opticKind(attId) !== 'scope'))) return false;
   return true;
 }
 
@@ -58,7 +61,7 @@ export function modsFromIndices(weaponId, list) {
 
 // Bütün eklentilerin çarpanları bir arada (gösterim için de: gunsmithScreen ▲/▼)
 export function modFactors(mods) {
-  const k = { recoil: 1, hip: 1, adsTime: 1, mobility: 1, mag: 1, reload: 1, range: 1, noise: 1, flash: 1, adsMove: 1, fov: null, sound: null, sight: null };
+  const k = { recoil: 1, hip: 1, adsTime: 1, mobility: 1, mag: 1, reload: 1, range: 1, noise: 1, flash: 1, adsMove: 1, fov: null, sound: null, sight: null, optic: null };
   for (const id of Object.values(mods || {})) {
     const a = ATTACHMENTS[id];
     if (!a) continue;
@@ -67,7 +70,10 @@ export function modFactors(mods) {
       else if (x in k) k[x] *= v;
     }
     if (a.sound) k.sound = a.sound;
-    if (a.sight) k.sight = a.sight;
+    if (a.sight) {
+      k.sight = a.sight;
+      k.optic = id;
+    }
   }
   return k;
 }
@@ -98,7 +104,10 @@ export function moddedDef(weaponId, mods) {
   }
   if (base.ads) {
     d.ads = { ...base.ads, time: base.ads.time * k.adsTime, moveMult: Math.min(1, base.ads.moveMult * k.adsMove) };
-    if (k.fov !== null) d.ads.fovMult = Math.min(base.ads.fovMult, k.fov);
+    // Büyütmeyi optik belirler (silahın kendi nişangâhının yerine geçer). Büyütmesiz optik, büyütmeli bir nişangâhın
+    // (prizma, dürbün) yerine takıldıysa büyütme refleks düzeyine iner
+    if (k.fov !== null) d.ads.fovMult = k.fov;
+    else if (k.optic && baseSightKind(weaponId) !== 'iron' && baseSightKind(weaponId) !== 'reflex') d.ads.fovMult = Math.max(base.ads.fovMult, ATT.reflexFov);
   }
   d.mobility = (base.mobility || 1) * k.mobility;
   if (k.mag !== 1 && base.magSize) {

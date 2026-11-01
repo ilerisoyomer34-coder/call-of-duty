@@ -637,8 +637,10 @@ export class HUD {
 
     // Dürbün kaplaması ve nefes göstergesi. İşaret ve cam rengi silahın dürbününe göre (data/sights.json)
     const scoped = g.viewmodel.scoped && P.alive;
-    if (scoped && w && this.scopeId !== w.id) {
-      this.scopeId = w.id;
+    // Anahtar silah + nişangâh türü: dürbün eklentisi değişince (aynı silah) kaplama yeniden yazılır
+    const scopeKey = scoped && w ? `${w.id}:${sightFor(w.id).id}` : '';
+    if (scoped && w && this.scopeId !== scopeKey) {
+      this.scopeId = scopeKey;
       const s = sightFor(w.id);
       this.el.scopeSvg.innerHTML = scopeSvg(s);
       this.el.scope.style.setProperty('--lens', `${s.lens || '#284038'}10`);

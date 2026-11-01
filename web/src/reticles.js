@@ -95,6 +95,14 @@ const DRAW = {
     c.stroke();
     disc(c, 0, 0, 0.02 * u);
   },
+  // Prizmatik 2×: altı açık at nalı + orta nokta (hızlı yakalama, nokta uzağa)
+  horseshoe(c, u) {
+    c.lineWidth = 0.07 * u;
+    c.beginPath();
+    c.arc(0, 0, 0.62 * u, Math.PI * 0.62, Math.PI * 2.38);
+    c.stroke();
+    disc(c, 0, 0, 0.09 * u);
+  },
 };
 
 // Testler katalogdaki her işaretin bir çizimi olduğunu denetler
@@ -331,6 +339,31 @@ const SCOPE = {
     o += `<circle cx="0" cy="0" r="2.4" fill="${s.accent}" opacity="0.3"/>`;
     return o + dotAt(0, 0, 0.95, s.accent || '#4dff5c');
   },
+};
+
+// Hızlı nişan (3×): kalın dış direkler, ince artı yok; aydınlatmalı halka ve orta nokta (yakında hızlı yakalanır)
+SCOPE.ring = (s) => {
+  const c = s.color;
+  let o = lineH(-100, -46, 0, 5, c) + lineH(46, 100, 0, 5, c) + lineV(0, 46, 100, 5, c) + lineV(0, -100, -46, 5, c);
+  o += `<circle cx="0" cy="0" r="22" fill="none" stroke="${s.accent}" stroke-width="1.4" opacity="0.9"/>`;
+  o += `<circle cx="0" cy="0" r="22" fill="none" stroke="${s.accent}" stroke-width="4" opacity="0.18"/>`;
+  return o + dotAt(0, 0, 1.4, s.accent);
+};
+// Uzun menzil (12×): baştan başa ince artı, her 8 birimde çentik (uzunlar 5'te bir), alt kılda rüzgâr payı
+// noktaları; aydınlatmalı küçük kırmızı orta nokta
+SCOPE.longRange = (s) => {
+  const c = s.color;
+  let o = lineH(-100, -60, 0, 3.4, c) + lineH(60, 100, 0, 3.4, c) + lineV(0, 60, 100, 3.4, c);
+  o += lineH(-60, 60, 0, 0.35, c) + lineV(0, -100, 60, 0.35, c);
+  for (let k = 1; k <= 7; k++) {
+    const v = k * 8;
+    const w = k % 5 === 0 ? 3.2 : 1.6;
+    o += lineV(-v, -w, w, 0.35, c) + lineV(v, -w, w, 0.35, c) + lineH(-w, w, v, 0.35, c);
+    if (v <= 48) o += lineH(-w, w, -v, 0.35, c);
+  }
+  for (const [y, n] of [[16, 1], [32, 2], [48, 3]]) for (let i = 1; i <= n; i++) o += dotAt(-i * 6, y, 0.7, c) + dotAt(i * 6, y, 0.7, c);
+  o += `<circle cx="0" cy="0" r="2" fill="${s.accent}" opacity="0.25"/>`;
+  return o + dotAt(0, 0, 0.7, s.accent);
 };
 
 export const SCOPE_RETICLES = Object.keys(SCOPE);

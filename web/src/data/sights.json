@@ -16,7 +16,12 @@
     "classic": {"name": "Klasik dürbün (ince artı + halka)", "kind": "scope", "reticle": "classic", "color": "#0a0806", "accent": "#0a0806", "lens": "#4a3a1e", "zoom": "6×"},
     "none": {"name": "Nişan alınmaz", "kind": "none"},
     "stmDot": {"name": "Nokta kolimatör", "kind": "reflex", "reticle": "dot", "color": "#ff8c26", "size": 0.06, "lens": "#4f86d8"},
-    "bdc": {"name": "Muharebe dürbünü (menzil çizgili)", "kind": "scope", "reticle": "bdc", "color": "#080808", "accent": "#4dff5c", "lens": "#2e3a2a", "zoom": "5×"}
+    "bdc": {"name": "Muharebe dürbünü (menzil çizgili)", "kind": "scope", "reticle": "bdc", "color": "#080808", "accent": "#4dff5c", "lens": "#2e3a2a", "zoom": "5×"},
+    "microdot": {"name": "Mikro nokta", "kind": "reflex", "reticle": "dot", "color": "#ff6a1a", "size": 0.045, "lens": "#6f8fd0"},
+    "greenHolo": {"name": "Yeşil holografik", "kind": "reflex", "reticle": "holo", "color": "#3cff74", "size": 0.12, "lens": "#a0c8ff"},
+    "prism2": {"name": "Prizmatik dürbün", "kind": "prism", "reticle": "horseshoe", "color": "#ff3a2a", "size": 0.16, "lens": "#d6a85a", "zoom": "2×"},
+    "ringScope": {"name": "Hızlı nişan dürbünü", "kind": "scope", "reticle": "ring", "color": "#070707", "accent": "#ff3424", "lens": "#2c3644", "zoom": "3×"},
+    "longRange": {"name": "Uzun menzil dürbünü", "kind": "scope", "reticle": "longRange", "color": "#050505", "accent": "#ff2a18", "lens": "#1e2e36", "zoom": "12×"}
   },
   "weapons": {
     "rifle": {"sight": "kobra"},
