@@ -7,6 +7,7 @@ import { ARMOR_DATA } from './armor.js';
 import { CONSUMABLES } from './loadout.js';
 import { friendlyBlastDamage, friendlyBulletDamage } from './friendlyFire.js';
 import { stepGrenade, NADE_KIND } from '../shared/sim/grenade.js';
+import { BLAST_STRIKE } from '../shared/net/protocol.js';
 import { TICK_DT } from '../shared/constants.js';
 import { ONLINE } from './config.js';
 
@@ -45,6 +46,7 @@ export class GrenadeSystem {
     }
     _v.set(e.pos.x, e.pos.y, e.pos.z);
     if (e.kind === NADE_KIND.SMOKE) this.popSmoke(_v);
+    else if (e.kind === BLAST_STRIKE) this.game.blastFx(_v.clone().setY(_v.y + 0.2), ONLINE.strikeFx.radius, ONLINE.strikeFx.scale);
     else this.game.blastFx(_v.clone().setY(_v.y + 0.1), ONLINE.nades.radius);
   }
 

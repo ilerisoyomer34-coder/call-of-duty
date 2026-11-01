@@ -175,6 +175,11 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - Bitiş: saldıranlar yok edildi (kurulmadıysa) ya da süre doldu → savunan; savunanlar yok edildi ya da bomba patladı → saldıran; imha → savunan.
   - Para: başlangıç, öldürme (silah sınıfına göre), raunt (kazanan sabit, kaybeden art arda kayba göre), kurma/imha payı, tavan. Satın alma `C_BUY`; botlar raunt başında parasına göre alır.
   - Can yenilenmez, doğuş koruması yok. Botlar: bombacı rauntun bölgesine gidip kurar, diğerleri eşlik eder, yerdeki bombayı en yakını alır; savunanlar bölgelere dağılır, kurulunca imhaya gider.
+- **Seri ödülleri** (`shared/sim/streaks.js`, `src/data/streaks.json`; Rekabetçide yok):
+  - Ölmeden art arda öldürme 3 → İHA taraması (takımına rakipler duvar ardından işaretli, yalnız görüntü: konumlar zaten anlık görüntüde), 5 → hava saldırısı (nişangâhın gösterdiği yere bakış yönünde 5 patlama), 8 → topçu (hedef çevresine 6 sn boyunca 10 mermi, tohumlu). Ödül öldürmeleri seriyi büyütmez; ölünce seri sıfırlanır, hazır ödül kalır.
+  - Kullanım komutun `STREAK` bitleriyle; hedef gözden bakışla ışın (`streakTarget`). Patlamalar planla zamanında (`strikes`), her biri `NEV.BLAST` (tür 2) ve el bombası kuralıyla hasar (siper, takım arkadaşı yok, kendine azaltılmış); öldürme 252/251.
+  - Botlar hazır ödülün en güçlüsünü bildikleri rakibe kullanır (`bot.js → useStreak`).
+- **Kalıcı istatistik ve çevrim içi rütbe:** eşleşme maçı bitince `Room.results()` insanların sonucunu (kazanma, öldürme, ölüm, kafadan, puan, en iyi seri, kullanılan ödül, XP = puan + `ONLINE.xpMatch` + galibiyette `xpWin`) `store.recordMatch`'e verir (`stats`, `match_history` tabloları; oyuncu başına son 20 maç; hesap silinince gider). `GET /api/stats[?id=]` toplamlar, son maçlar ve rütbe (`src/progression.js → levelFromXp/rankFor`, kampanyayla aynı eğri ve rütbe adları).
 - **Doğuş:** kendi tarafının noktalarından (herkes kendine modunda `ffa`), rakibe en uzak ve görüş dışında olanı.
 - **Evreler:** `WARMUP` (teçhizat paneli ve geri sayım, hareket ve atış yok; `modes.json → warmup` 60 sn) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır; eşleşme odasında oylama boyunca açık kalır).
 - **Maç öncesi teçhizat (`chooseLoadout`, `C_LOADOUT`):**
@@ -248,6 +253,8 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 
 **Rekabetçi istemcisi:** `gameClient.comp` (raunt/bomba olaylardan, para ve eylem anlık görüntüden), `compHud.js` (rol, para, bomba satırı, kurma/imha çubuğu, raunt bantları), `buyScreen.js` (satın alma evresinde kendiliğinden açılır; B), `compWorld.js` (bölge halkaları ve etiketleri, bomba modeli ve bip, radar), `spectate.js` (ölünce canlı takım arkadaşının gözünden; sol tık sıradaki).
 
+**Seri ödülleri ve istatistik istemcisi:** `streakHud.js` (skor çubuğunun altında İHA/HAVA/TOPÇU rozetleri, ilerleme ve hazır; 7/8/9 ya da dokun; İHA işaretleri), `onlineScreen.js` Profil sekmesi (rütbe amblemi, toplamlar, son maçlar), maç sonu kartında kazanılan XP ve terfi (`matchHud.showXp`: maç başı ve sonu istatistik farkı). Maç öncesi panelde kayıtlı 5 teçhizat sınıfı (`settings.onlineClasses`, sekme).
+
 **`wsTransport.js`:** ikili WebSocket. Konsol `net_fakelag` / `net_profile` ya da `?netsim=` iki yönde `NetSim` uygular.
 
 **Konsol:** `net_graph 0|1|2`, `net_profile`, `net_fakelag`, `net_fakejitter`, `net_fakeloss`, `net_status`.
@@ -284,6 +291,7 @@ Arenalar (`data/arenas.json`):
   - `tests/clock.test.mjs` (saat farkı < 5 ms; ağ benzetimi sıra ve gecikme)
   - `tests/room.test.mjs` (sunucu hareketi tahminle bit düzeyinde aynı, komut bütçesi, gecikme telafisi, atış doğrulaması, botlu TDM/ÖM)
   - `tests/game-server.test.mjs` (gerçek sunucu: el sıkışma ve retler, deneme odası, hızlı maç)
+  - `tests/streaks.test.mjs` (eşikler, ölümde sıfırlanma, hava saldırısı hedef/hasar/takım arkadaşı, Rekabetçide yok, maç sonucu → kalıcı istatistik)
   - `tests/competitive.test.mjs` (kurallar, raunt akışı, satın alma, kurma/imha/patlama, yok etme, süre, para, yarı değişimi, maç sonu, botlarla 5v5)
   - `tests/grenade.test.mjs` (atış sınırı, patlama hasarı ve öldürme yazımı, kendi bombası, takım arkadaşı, siper, sisin görüşü kesmesi, istemcide aynı yörünge)
 - Duman `online`: sunucu alt süreçte; iki sayfa arasında arama, istek, kart, kabul, "Oyunda" durumu, davet, mod, çevrim dışı istek ve telefon görünümü.

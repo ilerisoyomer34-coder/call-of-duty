@@ -4,6 +4,7 @@ import { validateName } from '../shared/names.js';
 import { LIMITS } from './limits.js';
 import { makeIpOf } from './config.js';
 import { AiError } from './ai.js';
+import { levelFromXp, rankFor } from '../src/progression.js';
 
 const DEFAULT_SERVER_NAME = 'Demir Şafak sunucusu';
 import { SIDE } from '../shared/net/protocol.js';
@@ -139,6 +140,17 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       const q = str(url.searchParams.get('q')).trim();
       if (q.replace('#', '').length < LIMITS.searchMin) throw new HttpError(400, 'query_short');
       return { players: store.search(p.id, q).map((x) => ({ ...x, status: hub.statusOf(x.id), relation: store.relation(p.id, x.id) })) };
+    },
+    // Çevrim içi istatistikler ve rütbe (çevrim içi XP: maç sonunda sunucu yazar). id verilmezse kendisi; başka
+    // oyuncununki engelleşmiş değilse (profil kartı, arkadaş listesi)
+    'GET /api/stats': async (req, body, url) => {
+      const p = auth(req);
+      const id = str(url.searchParams.get('id')) || p.id;
+      if (id !== p.id && (store.isBlocked(p.id, id) || !store.player(id))) throw new HttpError(404, 'not_found');
+      const t = store.stats(id);
+      const L = levelFromXp(t.xp);
+      const r = rankFor(L.level);
+      return { id, ...t, level: L.level, frac: L.frac, rank: r.name, rankShort: r.short, rankIndex: r.index };
     },
     'GET /api/friends': async (req) => friendsOf(auth(req).id),
     'POST /api/friends/request': async (req, body) => {

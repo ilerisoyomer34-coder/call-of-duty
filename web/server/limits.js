@@ -1,6 +1,7 @@
 // Sunucu sınırları tek yerde (belge Ek B, §13.3). Değer değişikliği kod değil buradaki tablodur.
 export const LIMITS = {
   bodyBytes: 4096, // REST gövdesi
+  historyKeep: 20, // oyuncu başına saklanan çevrim içi maç geçmişi
   wsPayloadBytes: 2048, // WebSocket iletisi
   helloTimeoutMs: 5000, // bağlanınca kimlik bu sürede gelmezse kapat
   wsMsgPerSec: 20,

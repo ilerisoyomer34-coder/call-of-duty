@@ -19,6 +19,7 @@ import { ONLINE } from '../../src/config.js';
 import { createThrow } from '../../shared/sim/grenade.js';
 import { BUY_ITEMS, BOMB, ACT, ROUND_STATE, COMP_RULES, actionFor } from '../../shared/sim/competitive.js';
 import { PHASE } from '../../shared/net/protocol.js';
+import { STREAKS, streakBits } from '../../shared/sim/streaks.js';
 
 const DEG = Math.PI / 180;
 
@@ -280,6 +281,12 @@ export class BotBrain {
       this.reloadUntil = t + (w.d.reloadEmpty || 2.5);
     }
 
+    // --- Seri ödülü: hazır olanın en güçlüsü; hedef gördüğü ya da bildiği rakip (yoksa rastgele bir rakibin yeri) ---
+    if (p.streakReady && sim.streaksOn && !sim.frozen && t >= (this.streakAt || 0) && !c.shots.length && !(c.buttons & (BTN.THROW_FRAG | BTN.THROW_SMOKE))) {
+      this.useStreak(sim, p, c, tgt && tgt.alive ? tgt.state.pos : this.lastKnown);
+      this.streakAt = t + BOTS.streakDelaySec;
+    }
+
     // --- Hareket ---
     let dirX = 0;
     let dirZ = 0;
@@ -344,6 +351,32 @@ export class BotBrain {
     }
     if (engaged && c.moveY > 0.35) c.moveY = 0.35; // çatışmada koşmaz
     return c;
+  }
+
+  // Seri ödülünü bu tick'in komutuyla kullan: bakış hedefin zeminine (istemci de nişangâhla aynı yolu izler)
+  useStreak(sim, p, c, known) {
+    let i = -1;
+    for (let k = STREAKS.length - 1; k >= 0; k--) if (p.streakReady & (1 << k)) {
+      i = k;
+      break;
+    }
+    if (i < 0) return;
+    let aim = known;
+    if (!aim && STREAKS[i].range) {
+      const foes = sim.players.filter((q) => q && q.alive && q !== p && !sim.friendly(q, p));
+      if (!foes.length) return;
+      aim = this.rng.pick(foes).state.pos;
+    }
+    if (aim) {
+      const st = p.state;
+      const dx = aim.x - st.pos.x;
+      const dz = aim.z - st.pos.z;
+      const d = Math.max(1, Math.hypot(dx, dz));
+      if (STREAKS[i].range && d > STREAKS[i].range * 0.9) return;
+      c.yaw = Math.atan2(-dx, -dz);
+      c.pitch = Math.atan2(-lerp(1.65, 1.02, st.crouchT), d);
+    }
+    c.buttons |= streakBits(i);
   }
 
   // Görünür rakip: görüş açısı ve mesafesi içinde, duvar arkasında değil; yakında ateş eden duyulur

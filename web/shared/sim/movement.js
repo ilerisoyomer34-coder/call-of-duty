@@ -25,6 +25,9 @@ export const BTN = {
   // Çevrim içi el bombası / sis atışı (komutun bakışı yöndür; sunucu doğrular, shared/sim/grenade.js)
   THROW_FRAG: 4096,
   THROW_SMOKE: 8192,
+  // Seri ödülü kullanımı: iki bit, ödülün dizini + 1 (shared/sim/streaks.js → streakBits; hedef komutun bakışı)
+  STREAK_LO: 16384,
+  STREAK_HI: 32768,
 };
 
 // stepPlayer'ın döndürdüğü olay bitleri

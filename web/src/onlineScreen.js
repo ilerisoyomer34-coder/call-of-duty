@@ -5,6 +5,8 @@ import { NET } from './config.js';
 import { EV } from './events.js';
 import { displayName } from '../shared/names.js';
 import { errorText } from './net/social.js';
+import { rankEmblem } from './lobby.js';
+import ARENAS from './data/arenas.json' with { type: 'json' };
 import { inviteUrl, probeServer, serverInputError } from './net/servers.js';
 import { saveSettings } from './settings.js';
 import MODES from './data/modes.json' with { type: 'json' };
@@ -124,6 +126,67 @@ export class OnlineScreen {
     for (const p of document.querySelectorAll('.onPane')) p.hidden = p.dataset.pane !== tab;
     if (tab === 'search' && !this.game.input.touch.active) setTimeout(() => $('onSearchInput').focus({ preventScroll: true }), 30);
     if (tab === 'requests') this.social.markSeen();
+    if (tab === 'profile') this.renderProfile();
+  }
+
+  // Çevrim içi rütbe (sunucunun yazdığı çevrim içi XP), toplamlar ve son maçlar (GET /api/stats)
+  async renderProfile() {
+    const root = $('onProfile');
+    if (this.social.status !== 'online') {
+      root.textContent = 'İstatistikler için sunucuya bağlan.';
+      return;
+    }
+    root.textContent = 'Yükleniyor…';
+    let s;
+    try {
+      s = await this.social.stats();
+    } catch (e) {
+      root.textContent = errorText(e.code);
+      return;
+    }
+    root.textContent = '';
+    const el = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    };
+    const head = el('div', 'opHead');
+    const who = el('div');
+    const xp = el('div', 'opXp');
+    const bar = el('i');
+    bar.style.width = `${Math.round(s.frac * 100)}%`;
+    xp.append(bar);
+    who.append(el('b', null, `${s.rank} · Seviye ${s.level}`), el('small', null, `Çevrim içi rütbe · ${s.xp.toLocaleString('tr-TR')} XP`), xp);
+    head.append(rankEmblem(s.rankIndex), who);
+    const kd = s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills.toFixed(2);
+    const grid = el('div', 'opGrid');
+    const winPct = s.matches ? Math.round((s.wins / s.matches) * 100) : 0;
+    for (const [v, label] of [
+      [s.matches, 'MAÇ'],
+      [`%${winPct}`, 'GALİBİYET'],
+      [s.kills, 'ÖLDÜRME'],
+      [s.deaths, 'ÖLÜM'],
+      [kd.replace('.', ','), 'Ö/Ö ORANI'],
+      [s.headshots, 'KAFADAN'],
+      [s.best_streak, 'EN İYİ SERİ'],
+      [s.streaks_used, 'SERİ ÖDÜLÜ'],
+    ]) {
+      const c = el('div');
+      c.append(el('b', null, String(v)), el('small', null, label));
+      grid.append(c);
+    }
+    const hist = el('div', 'opHist');
+    hist.append(el('h3', null, 'SON MAÇLAR'));
+    if (!s.history.length) hist.append(el('p', 'tip', 'Henüz çevrim içi maç yok.'));
+    const RES = { win: 'ZAFER', loss: 'YENİLGİ', draw: 'BERABERE' };
+    for (const h of s.history) {
+      const r = el('div', 'opRow');
+      const mode = MODES.modes.find((m) => m.id === h.mode)?.short || h.mode;
+      r.append(el('span', h.result, RES[h.result] || h.result), el('span', null, `${mode} · ${ARENAS[h.map]?.name || h.map}`), el('span', null, `${h.kills}/${h.deaths}`), el('span', null, `+${h.xp} XP`));
+      hist.append(r);
+    }
+    root.append(head, grid, hist);
   }
 
   msg(text, kind = '') {

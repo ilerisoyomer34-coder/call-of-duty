@@ -30,7 +30,11 @@ export async function startServer(overrides = {}) {
   if (config.warmupSec !== null && config.warmupSec !== undefined) ruleOverrides.warmup = config.warmupSec;
   if (config.timeLimitSec) ruleOverrides.timeLimit = config.timeLimitSec;
   if (Object.keys(config.compRounds || {}).length || Object.keys(config.compBomb || {}).length) ruleOverrides.compOverrides = { rounds: config.compRounds || {}, bomb: config.compBomb || {} };
-  const rooms = new RoomManager({ log, secret: config.serverSecret || randomBytes(16).toString('hex'), overrides: ruleOverrides });
+  // Maç sonu: insanların sonucu kalıcı istatistiğe (çevrim içi rütbe, geçmiş: GET /api/stats)
+  const onResults = (list) => {
+    for (const { id, record } of list) store.recordMatch(id, record);
+  };
+  const rooms = new RoomManager({ log, secret: config.serverSecret || randomBytes(16).toString('hex'), overrides: ruleOverrides, onResults });
   const matchmaker = new Matchmaker({ rooms, hub, parties, log, searchSec: config.searchSec ?? MM.searchSec });
   const buildHash = config.buildCheck ? computeBuildHash() : '';
   // Yapay zekâlı telsiz: anahtar ortamdan (testler sahte istemci verir: config.aiClient)

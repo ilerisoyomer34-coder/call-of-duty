@@ -4,11 +4,12 @@
 // bomba, satın alma ve izleme compHud.js'te; skor çubuğu raunt sayısını gösterir.
 // Veri game.net'ten ve olaylardan (EV.NET_*); adlar sunucudan geldiği için hep textContent.
 import { EV } from '../events.js';
-import { PHASE, SIDE, RF, WEAPON_MELEE, WEAPON_FRAG, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
+import { PHASE, SIDE, RF, WEAPON_MELEE, WEAPON_FRAG, WEAPON_AIRSTRIKE, WEAPON_ARTILLERY, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
 import { WEAPON_ORDER, WEAPONS, MAPS } from '../config.js';
 import { weaponShortName } from '../weaponInfo.js';
 import { PrepScreen } from './prepScreen.js';
 import { CompHud } from './compHud.js';
+import { StreakHud } from './streakHud.js';
 import { COMP_RULES, BOMB } from '../../shared/sim/competitive.js';
 import MODES from '../data/modes.json' with { type: 'json' };
 import ARENAS from '../data/arenas.json' with { type: 'json' };
@@ -37,6 +38,7 @@ export class MatchHud {
     this.boardSig = '';
     this.prep = new PrepScreen(game);
     this.comp = new CompHud(game, this);
+    this.streaks = new StreakHud(game, this);
     $('mhBar').addEventListener('click', () => {
       if (!this.active) return;
       this.pinned = !this.pinned;
@@ -77,6 +79,11 @@ export class MatchHud {
     document.body.classList.add('online');
     this.prep.start(net);
     this.comp.start(net);
+    this.streaks.start(net);
+    // Maç başındaki çevrim içi istatistik: sonda kazanılan XP ve terfi bunun farkıyla (sunucu maç sonunda yazar)
+    this.statsBefore = null;
+    $('mhEndXp').hidden = true;
+    if (!sandbox) this.game.social.stats().then((s) => (this.statsBefore = s), () => {});
   }
 
   // Maç öncesi teçhizat paneli ya da Rekabetçi satın alma menüsü açık (imleç serbest, Esc onu kapatır)
@@ -87,6 +94,7 @@ export class MatchHud {
   stop() {
     this.prep.stop();
     this.comp.stop();
+    this.streaks.stop();
     this.active = false;
     this.net = null;
     $('matchHud').hidden = true;
@@ -112,7 +120,8 @@ export class MatchHud {
       return s;
     };
     const wid = WEAPON_ORDER[k.weapon];
-    const wname = k.weapon === WEAPON_MELEE ? 'Bıçak' : k.weapon === WEAPON_FRAG ? 'El bombası' : wid && WEAPONS[wid] ? weaponShortName(wid) : '';
+    const special = { [WEAPON_MELEE]: 'Bıçak', [WEAPON_FRAG]: 'El bombası', [WEAPON_AIRSTRIKE]: 'Hava saldırısı', [WEAPON_ARTILLERY]: 'Topçu' };
+    const wname = special[k.weapon] || (wid && WEAPONS[wid] ? weaponShortName(wid) : '');
     if (k.killer && k.killer.slot !== k.victim?.slot) row.append(who(k.killer), el('span', 'w', `${wname}${k.head ? ' ✛' : ''}`), who(k.victim));
     else row.append(who(k.victim), el('span', 'w', 'düştü'));
     $('mhFeed').prepend(row);
@@ -158,6 +167,7 @@ export class MatchHud {
     $('mhTime').textContent = timed ? fmtTime(left) : net.phase === PHASE.ENDED ? 'BİTTİ' : '∞';
     $('mhTime').classList.toggle('bomb', !!C && C.bomb.state === BOMB.PLANTED);
     this.comp.update(dt, input);
+    this.streaks.update(net.state === 'playing' && !this.overlayOpen ? input : { pressed: () => false });
     this.prep.update();
     // Teçhizat paneli açıkken geri sayım panelin kendi sayacında
     if (net.phase === PHASE.WARMUP && !this.prep.open) {
@@ -242,6 +252,7 @@ export class MatchHud {
           : 'Süre doldu';
     this.boardSig = '';
     this.renderBoard($('mhEndBody'));
+    this.showXp();
     $('mhEnd').hidden = false;
     $('mhBoard').hidden = true;
     $('mhDeath').hidden = true;
@@ -249,6 +260,25 @@ export class MatchHud {
     $('mhSpectate').hidden = true;
     this.game.input.exitLock();
     this.renderVote();
+  }
+
+  // Kazanılan çevrim içi XP ve terfi (deneme odasında yok)
+  async showXp() {
+    const before = this.statsBefore;
+    const net = this.net;
+    if (!before || net?.welcome.mode === 'sandbox') return;
+    let after;
+    try {
+      after = await this.game.social.stats();
+    } catch {
+      return;
+    }
+    if (this.net !== net) return;
+    const gained = after.xp - before.xp;
+    if (gained <= 0) return;
+    const up = after.level > before.level ? ` · TERFİ: ${after.rank} (Seviye ${after.level})` : ` · ${after.rank} · Seviye ${after.level}`;
+    $('mhEndXp').textContent = `+${gained.toLocaleString('tr-TR')} çevrim içi XP${up}`;
+    $('mhEndXp').hidden = false;
   }
 
   // --- Maç sonu harita oylaması (kullanıcı isteği "maç sonrası oylansın … bütün hepsi olsun"): bütün haritalar

@@ -494,6 +494,11 @@ export class SocialClient {
     return this.fetch('POST', '/api/party/mode', { mode });
   }
 
+  // Çevrim içi istatistik ve rütbe (sunucu maç sonunda yazar); id verilmezse kendisi
+  async stats(id = '') {
+    return this.fetch('GET', `/api/stats${id ? `?id=${encodeURIComponent(id)}` : ''}`);
+  }
+
   // --- Maç (S4–S6) ---
   // Deneme odası: lider (ya da takımsız oyuncu) açar; takım üyelerine sunucu bildirir, açan kendisi katılır
   async openSandbox() {

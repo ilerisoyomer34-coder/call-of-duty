@@ -1,0 +1,8 @@
+{
+  "_": "Çevrim içi seri ödülleri (kullanıcı isteği \"çevrim içini baya geliştir\" → rütbe, istatistik, sınıflar, seri ödülleri). Ölmeden art arda öldürme sayısı (kills) dolunca ödül hazır olur; ölünce seri sıfırlanır, hazır ödül kalır (kullanılana dek). Kurallar shared/sim/streaks.js, sunucu server/game/sim.js (useStreak), istemci src/net/streakHud.js. Sıra ağdaki dizindir (komutun STREAK bitleri, NEV.STREAK). uav: takımına rakipleri duvar ardından işaretler (duration sn). airstrike: nişangâhın gösterdiği yere delay sn sonra bakış yönünde count patlama (spacing m arayla). artillery: hedef çevresinde (spread m) duration sn boyunca count mermi (tohumlu). Patlamalar: radius, damage (merkez), falloff, takım arkadaşına yok, kendine selfMult; öldürme atana. range: hedef ışınının en uzun menzili. Rekabetçide seri ödülü yok (modes.json kuralı streaks: false).",
+  "list": [
+    { "id": "uav", "name": "İHA Taraması", "short": "İHA", "kills": 3, "duration": 20, "desc": "Rakipler 20 sn boyunca duvar ardından işaretli (takımına)" },
+    { "id": "airstrike", "name": "Hava Saldırısı", "short": "HAVA", "kills": 5, "delay": 2.5, "count": 5, "spacing": 6, "radius": 8, "damage": 220, "falloff": 1.2, "selfMult": 0.5, "range": 160, "desc": "Nişangâhın gösterdiği yere bakış yönünde bomba hattı" },
+    { "id": "artillery", "name": "Topçu Atışı", "short": "TOPÇU", "kills": 8, "delay": 2, "duration": 6, "count": 10, "spread": 11, "radius": 7, "damage": 200, "falloff": 1.3, "selfMult": 0.5, "range": 160, "desc": "Hedef bölgeye 6 sn boyunca topçu mermisi yağar" }
+  ]
+}

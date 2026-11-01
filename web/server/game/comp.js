@@ -70,7 +70,7 @@ export class CompRules {
     const sim = this.sim;
     if (sim.phase === PHASE.WARMUP) {
       sim.scores[0] = sim.scores[1] = 0;
-      for (const p of sim.players) if (p) p.kills = p.deaths = p.score = 0;
+      for (const p of sim.players) if (p) p.kills = p.deaths = p.score = p.headshots = p.streak = p.bestStreak = 0;
       sim.emit({ k: NEV.ROUND, code: 1, value: 0 });
       this.startRound();
     } else if (sim.phase === PHASE.BUY) {

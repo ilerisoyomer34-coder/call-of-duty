@@ -702,6 +702,24 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .onSrvState.bad { color: #ff6b5e; }
 .onOff b { color: #ffcf5c; }
 .onTabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+/* Profil sekmesi: çevrim içi rütbe, istatistik, maç geçmişi */
+.onProfile { display: flex; flex-direction: column; gap: 10px; padding: 6px 0; }
+.opHead { display: flex; gap: 12px; align-items: center; }
+.opHead svg { width: 54px; height: 54px; flex: 0 0 auto; }
+.opHead b { display: block; font: 700 18px/1.1 var(--f-ui); color: var(--sand); }
+.opHead small { display: block; font: 500 12px/1.3 var(--f-ui); color: var(--sand-dim); }
+.opXp { height: 6px; background: rgba(231,220,196,.12); margin-top: 5px; }
+.opXp i { display: block; height: 100%; background: var(--amber); }
+.opGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.opGrid div { padding: 6px 8px; background: rgba(231,220,196,.05); border: 1px solid var(--line); }
+.opGrid b { display: block; font: 700 18px/1.1 var(--f-num); color: var(--sand); }
+.opGrid small { font: 600 10px/1.2 var(--f-ui); letter-spacing: .08em; color: var(--sand-dim); }
+.opHist { display: flex; flex-direction: column; gap: 2px; }
+.opHist h3 { margin: 4px 0; font: 700 12px/1 var(--f-ui); letter-spacing: .12em; color: var(--amber); }
+.opRow { display: grid; grid-template-columns: 54px 1fr 70px 62px; gap: 6px; padding: 5px 8px; font: 600 12px/1.2 var(--f-ui); color: var(--sand); background: rgba(231,220,196,.04); }
+.opRow .win { color: #7fd38a; }
+.opRow .loss { color: var(--red); }
+.opRow span:nth-child(n+3) { text-align: right; font-family: var(--f-num); }
 .onTab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--sand-dim); font: 600 16px/1 var(--f-ui); padding: 12px 14px; cursor: pointer; min-height: 44px; }
 .onTab.on { color: var(--sand); border-bottom-color: #5ee7ff; }
 .onPane[hidden] { display: none; }
@@ -1116,6 +1134,7 @@ body.touch .rlPeek { font-size: 12px; max-width: 34vw; }
 .mhEndCard h2.win { color: #7fd38a; }
 .mhEndCard h2.lose { color: var(--red); }
 .mhEndCard p { margin: 0; color: var(--sand-dim); font: 500 14px/1.3 var(--f-ui); }
+.mhEndCard p.mhEndXp { color: var(--amber); font-weight: 700; letter-spacing: .04em; }
 /* Maç sonu harita oylaması: bütün haritalar; şerit rengi haritanın ufku */
 .mhVote h3 { margin: 4px 0 6px; font: 700 12px/1.2 var(--f-ui); letter-spacing: .12em; color: var(--amber); }
 .mhVote h3 span { margin-left: 8px; color: var(--sand); font-family: var(--f-num); }
@@ -1136,7 +1155,7 @@ body.touch .mhVoteGrid { grid-template-columns: repeat(auto-fill, minmax(124px, 
 body.touch .mhVoteCard small { display: none; }
 /* Maç öncesi teçhizat paneli: telefonda yatay ekrana sığsın diye silahlar yatay kayan sıralarda */
 .mhPrep { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,7,9,.55); pointer-events: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); }
-.mhPrepBox { width: min(860px, 100%); max-height: 100%; overflow-y: auto; background: rgba(13,16,19,.94); border: 1px solid var(--line); border-top: 3px solid var(--amber); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.mhPrepBox { box-sizing: border-box; width: min(860px, 100%); max-height: 100%; overflow-y: auto; background: rgba(13,16,19,.94); border: 1px solid var(--line); border-top: 3px solid var(--amber); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
 .mhPrepHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .mhPrepHead h2 { margin: 0; font: 700 24px/1 var(--f-ui); letter-spacing: .16em; color: var(--sand); }
 .mhPrepHead small { color: var(--sand-dim); font: 500 12px/1.3 var(--f-ui); }
@@ -1156,6 +1175,15 @@ body.touch .mhVoteCard small { display: none; }
 #btnPrepReady.on { background: #3f7d4b; border-color: #7fd38a; }
 .mhPrepChip { position: absolute; top: calc(104px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); pointer-events: auto; padding: 6px 14px; background: rgba(13,16,19,.8); border: 1px solid var(--amber); color: var(--sand); font: 700 12px/1 var(--f-ui); letter-spacing: .12em; cursor: pointer; }
 .mhPrepChip.on { border-color: #7fd38a; }
+/* Kayıtlı teçhizat sınıfları: sekme = sınıf, silah seçimi seçili sınıfa yazılır */
+.mhPrepClasses { display: flex; gap: 4px; overflow-x: auto; }
+.mhPrepClass { flex: 1 0 auto; min-width: 104px; display: flex; flex-direction: column; gap: 2px; padding: 5px 8px; text-align: left; background: rgba(231,220,196,.05); border: 1px solid var(--line); color: var(--sand-dim); font: inherit; cursor: pointer; }
+.mhPrepClass b { font: 700 11px/1 var(--f-ui); letter-spacing: .12em; color: var(--sand); }
+.mhPrepClass small { font: 500 10px/1.2 var(--f-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhPrepClass.on { border-color: var(--amber); background: rgba(240,163,58,.16); }
+.mhPrepClass.on b { color: var(--amber); }
+body.touch .mhPrepClass { min-width: 86px; padding: 4px 6px; flex-direction: row; align-items: baseline; gap: 6px; }
+body.touch #mhPrepSub { display: none; }
 body.touch .mhPrepBox { padding: 8px 10px; gap: 6px; }
 body.touch .mhPrepHead h2 { font-size: 18px; }
 body.touch .mhPrepCard { width: 96px; }
@@ -1211,6 +1239,16 @@ body.comp .mhInfo { display: none; }
 .siteTag small { font: 600 11px/1 var(--f-num); color: var(--sand); }
 .siteTag.planted b { color: #ff5a3c; border-color: #ff5a3c; }
 .siteTag[hidden] { display: none; }
+.mhStreaks { display: flex; gap: 4px; }
+.mhStreak { pointer-events: auto; display: flex; align-items: center; gap: 5px; padding: 3px 8px; background: rgba(13,16,19,.62); border: 1px solid var(--line); color: var(--sand-dim); font: 600 11px/1 var(--f-ui); letter-spacing: .08em; cursor: pointer; }
+.mhStreak b { color: var(--sand-dim); font-weight: 700; }
+.mhStreak .n { font: 600 11px/1 var(--f-num); }
+.mhStreak kbd { font: 600 9px/1 var(--f-num); padding: 2px 4px; border: 1px solid var(--line); border-radius: 2px; color: var(--sand-dim); }
+.mhStreak.ready { border-color: #ffc04a; background: rgba(255,192,74,.18); color: #ffc04a; }
+.mhStreak.ready b { color: #ffd780; }
+body.touch .mhStreak kbd { display: none; }
+.uavMark { position: absolute; left: 0; top: 0; width: 11px; height: 11px; border: 2px solid #ff4b3a; background: rgba(255,75,58,.25); box-shadow: 0 0 6px rgba(255,75,58,.6); pointer-events: none; }
+.uavMark[hidden] { display: none; }
 .atag.net.foe { color: var(--red); }
 .atag.net.foe i { border-top-color: var(--red); }
 #netGraph { position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); top: 34%; pointer-events: none; z-index: 4; background: rgba(0,0,0,.55); padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
@@ -1432,6 +1470,8 @@ body.touch #squad { display: none; }
         <div class="mhBomb" id="mhBomb" hidden></div>
         <button class="mhBuyChip" id="mhBuyChip" type="button" hidden>SATIN AL · <b id="mhBuyChipTime">0:15</b></button>
       </div>
+      <!-- Seri ödülleri (src/net/streakHud.js): ilerleme ve hazır olanı kullan (7/8/9 ya da dokun) -->
+      <div class="mhStreaks" id="mhStreaks" hidden></div>
     </div>
     <div class="mhBanner" id="mhBanner" hidden></div>
     <div class="mhFeed" id="mhFeed" aria-live="polite"></div>
@@ -1458,6 +1498,7 @@ body.touch #squad { display: none; }
           <div><h2 id="mhPrepTitle">TEÇHİZAT</h2><small id="mhPrepSub">Maç başlayınca seçtiğin silahlarla doğarsın</small></div>
           <div class="mhPrepClock"><b id="mhPrepTime">1:00</b><small id="mhPrepReady"></small></div>
         </div>
+        <div class="mhPrepClasses" id="mhPrepClasses" role="tablist" aria-label="Teçhizat sınıfları"></div>
         <div class="mhPrepSlot" id="mhPrepPrimarySlot"><h3>ANA SİLAH <span id="mhPrepPrimaryName"></span></h3><div class="mhPrepGrid" id="mhPrepPrimary"></div></div>
         <div class="mhPrepSlot"><h3>YAN SİLAH <span id="mhPrepSecondaryName"></span></h3><div class="mhPrepGrid" id="mhPrepSecondary"></div></div>
         <div class="row"><button class="btn" id="btnPrepHide" type="button">Haritaya bak</button><button class="btn primary" id="btnPrepReady" type="button">HAZIRIM</button></div>
@@ -1467,6 +1508,7 @@ body.touch #squad { display: none; }
       <div class="mhEndCard">
         <h2 id="mhEndTitle">MAÇ BİTTİ</h2>
         <p id="mhEndSub"></p>
+        <p class="mhEndXp" id="mhEndXp" hidden></p>
         <!-- Maç sonu harita oylaması (matchHud.renderVote): puan tablosunun üstünde, kaydırmadan görünsün -->
         <div class="mhVote" id="mhVote" hidden>
           <h3>SIRADAKİ HARİTA · OY VER <span id="mhVoteTime"></span></h3>
@@ -1589,6 +1631,7 @@ body.touch #squad { display: none; }
         <button class="onTab" type="button" data-tab="friends">Arkadaşlar <span class="cnt" id="cntFriends"></span></button>
         <button class="onTab" type="button" data-tab="search">Oyuncu ara</button>
         <button class="onTab" type="button" data-tab="requests">İstekler <span class="badge" id="cntRequests" hidden></span></button>
+        <button class="onTab" type="button" data-tab="profile">Profil</button>
       </div>
       <div class="onPane" data-pane="friends"><div class="onList" id="onFriends"></div></div>
       <div class="onPane" data-pane="search" hidden>
@@ -1596,6 +1639,8 @@ body.touch #squad { display: none; }
         <div class="onList" id="onResults"></div>
       </div>
       <div class="onPane" data-pane="requests" hidden><div class="onList" id="onRequests"></div></div>
+      <!-- Çevrim içi rütbe, istatistik ve maç geçmişi (onlineScreen.renderProfile, GET /api/stats) -->
+      <div class="onPane" data-pane="profile" hidden><div class="onProfile" id="onProfile"></div></div>
       <div class="onMsg" id="onMsg" aria-live="polite"></div>
       <div class="row"><button class="btn" data-back>Geri</button></div>
     </div>

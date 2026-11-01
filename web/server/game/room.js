@@ -22,6 +22,7 @@ export class Room {
    * @param {{ code, kind: 'sandbox'|'match', mode, rules, mapId, world, arena, secret, log?, now?, manual?, onClose?, maps?, nextRoom? }} o
    *   manual: true → zamanlayıcı yok, testler tick()'i kendisi çağırır
    *   maps: oylanan haritalar (modes.json → matchmaking.maps); nextRoom(mapId) → yeni Room (oylamanın sonunda)
+   *   onResults(list): eşleşme maçı bitince insanların sonucu [{ id, record }] (kalıcı istatistik: store.recordMatch)
    */
   constructor(o) {
     this.code = o.code;
@@ -49,6 +50,7 @@ export class Room {
     this.timer = null;
     this.maps = o.maps || [];
     this.nextRoom = o.nextRoom || null;
+    this.onResults = o.onResults || null;
     this.vote = null; // { until (ms), votes: oyuncu → harita dizini, winner, next }
     this.sim.balanceBots();
     if (!this.manual) this.schedule();
@@ -316,9 +318,31 @@ export class Room {
     for (const c of this.conns) if (c.slot >= 0) this.send(c, bytes);
   }
 
+  // Maç sonucu oyuncu başına (istatistik ve çevrim içi XP): taraflı modda kazanan taraf, herkes kendine modunda birinci
+  results() {
+    const sim = this.sim;
+    const r = sim.result;
+    const out = [];
+    for (const p of sim.players) {
+      if (!p || p.bot || !p.id) continue;
+      const result = sim.sided ? (r.winner === SIDE.NONE ? 'draw' : p.side === r.winner ? 'win' : 'loss') : p.slot === r.winner ? 'win' : 'loss';
+      const xp = Math.max(0, Math.round(p.score + ONLINE.xpMatch + (result === 'win' ? ONLINE.xpWin : 0)));
+      out.push({ id: p.id, record: { mode: this.mode, map: this.mapId, result, kills: p.kills, deaths: p.deaths, headshots: p.headshots, score: p.score, bestStreak: p.bestStreak, streaksUsed: p.streaksUsed, xp } });
+    }
+    return out;
+  }
+
   onEnded() {
     this.ended = true;
     const r = this.sim.result;
+    // Kalıcı istatistik maç sonu iletisinden önce: istemci sonucu görünce istediği istatistikler güncel olsun
+    if (this.kind === 'match' && this.onResults) {
+      try {
+        this.onResults(this.results());
+      } catch (e) {
+        this.log(`oda ${this.code}: istatistik yazılamadı (${e.message})`);
+      }
+    }
     this.sendRoster(true);
     const bytes = encodeMatchEnd(this.writer, { winner: r.winner, reason: r.reason, scoreA: this.sim.scores[0], scoreB: this.sim.scores[1] });
     for (const c of this.conns) if (c.slot >= 0) this.send(c, bytes);

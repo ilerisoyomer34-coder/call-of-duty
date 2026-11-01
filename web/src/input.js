@@ -46,6 +46,10 @@ export const BINDINGS = {
   // paylaşılır, o sırada silah kullanılmaz)
   scoreboard: ['Tab'],
   buyMenu: ['KeyB'],
+  // Çevrim içi seri ödülleri (İHA, hava saldırısı, topçu): poligonun 7–9 silah tuşlarıyla paylaşılır (orada ödül yok)
+  streak1: ['Digit7'],
+  streak2: ['Digit8'],
+  streak3: ['Digit9'],
   // Tim komutları (Operasyon Güncellemesi §8.2): F6/F7 bazı tarayıcılarda engellenemediği için F8/F9
   cmdFollow: ['F1'],
   cmdHold: ['F2'],
@@ -94,6 +98,7 @@ export const ACTION_LABELS = {
   chat: 'Telsiz: yazılı komut', voice: 'Sesli komut (basılı tut)', talk: 'Konuşma kipi (eller serbest, aç/kapat)',
   scoreboard: 'Puan tablosu (çevrim içi, basılı tut)',
   buyMenu: 'Satın alma (Rekabetçi, raunt başında)',
+  streak1: 'Seri ödülü: İHA taraması', streak2: 'Seri ödülü: hava saldırısı (nişangâha)', streak3: 'Seri ödülü: topçu atışı (nişangâha)',
 };
 
 const KEY_NAMES = {

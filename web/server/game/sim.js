@@ -7,6 +7,8 @@
 //     gördüğü zamana geri sararak (gecikme telafisi, en çok ONLINE.maxRewindMs) kutularla hesaplar.
 //   - Can, yenilenme, ölüm, doğuş (düşmandan uzak, görüş dışı), skor, evreler (geri sayım → maç → sonuç), botlar.
 //   - Rekabetçi mod (kuralda comp): raunt, bomba ve ekonomi comp.js'te (CompRules); buradaki kancalar onu çağırır.
+//   - Seri ödülleri (shared/sim/streaks.js): ölmeden art arda öldürmeyle hazır olur, komutun STREAK bitleriyle
+//     kullanılır; hedef komutun bakışından ışınla, patlamalar tohumlu planla zamanında (Rekabetçide yok).
 // Zaman yalnız tick sayacından; rastgelelik tohumlu (Math.random yok).
 import { TICK_DT, TICK_RATE } from '../../shared/constants.js';
 import { createPlayerState, resetPlayerState, stepPlayer, applyCmdMods, createInputCmd, BTN } from '../../shared/sim/movement.js';
@@ -18,8 +20,9 @@ import { NavGrid } from '../../shared/sim/nav.js';
 import { validLoadout } from '../../shared/sim/loadout.js';
 import { moddedDef, modsFromIndices, modsKey } from '../../shared/sim/mods.js';
 import { createThrow, stepGrenade, blastFactor, smokeBlocksLine, NADE_KIND } from '../../shared/sim/grenade.js';
+import { STREAKS, earnedAt, strikePlan, strikeFactor, streakFromBits } from '../../shared/sim/streaks.js';
 import { quantizeNade } from '../../shared/net/codec.js';
-import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE, WEAPON_SUPPRESSED, WEAPON_FRAG } from '../../shared/net/protocol.js';
+import { NEV, HIT_KIND, SURFACES, PHASE, SIDE, PF, WEAPON_MELEE, WEAPON_NONE, SLOT_NONE, WEAPON_SUPPRESSED, WEAPON_FRAG, WEAPON_AIRSTRIKE, WEAPON_ARTILLERY, BLAST_STRIKE } from '../../shared/net/protocol.js';
 import { WEAPONS, WEAPON_ORDER, MOVEMENT as M, ONLINE } from '../../src/config.js';
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
 import { BotBrain } from './bot.js';
@@ -97,6 +100,7 @@ export class MatchSim {
     this.nades = []; // uçan bombalar { id, kind, owner, pos, vel, fuse, rest }
     this.smokes = []; // açık sis bulutları { x, y, z, age } (görüş: canSee)
     this.nadeSeq = 0;
+    this.strikes = []; // zamanı gelince patlayacak seri ödülü mermileri { owner, kind, tick, x, z }
     this.scores = [0, 0];
     this.result = null; // { winner, reason }
     this.finished = false;
@@ -104,6 +108,8 @@ export class MatchSim {
     this.inTick = false;
     const R = this.rules;
     this.comp = R.comp ? new CompRules(this) : null;
+    // Seri ödülleri: kural kapatmadıkça açık, Rekabetçide yok
+    this.streaksOn = R.streaks !== false && !this.comp;
     // Rekabetçide ısınma hep var (bitince ilk raunt başlar: CompRules.onPhaseEnd)
     if (R.warmup > 0 || this.comp) this.setPhase(PHASE.WARMUP, Math.max(1, SEC(R.warmup || 0)));
     else this.setPhase(PHASE.LIVE, R.timeLimit ? SEC(R.timeLimit) : Infinity);
@@ -171,6 +177,11 @@ export class MatchSim {
       kills: 0,
       deaths: 0,
       score: 0,
+      headshots: 0,
+      streak: 0, // bu canda art arda öldürme
+      bestStreak: 0,
+      streakReady: 0, // hazır seri ödülleri (bit maskesi; ölünce kalır)
+      streaksUsed: 0,
       ping: 0,
       boxes: createHitboxes(),
       hist: poseStore(),
@@ -333,6 +344,7 @@ export class MatchSim {
     for (const p of this.players) if (p) this.processQueue(p);
     for (const p of this.players) if (p) this.upkeep(p);
     this.updateNades();
+    if (this.strikes.length) this.updateStrikes();
     this.comp?.update();
     for (const p of this.players) if (p) this.record(p);
     this.inTick = false;
@@ -347,7 +359,7 @@ export class MatchSim {
       this.scores[0] = this.scores[1] = 0;
       for (const p of this.players) {
         if (!p) continue;
-        p.kills = p.deaths = p.score = 0;
+        p.kills = p.deaths = p.score = p.headshots = p.streak = p.bestStreak = p.streakReady = p.streaksUsed = 0;
         if (p.ready) this.spawn(p);
       }
       this.emit({ k: NEV.ROUND, code: 1, value: 0 });
@@ -418,6 +430,9 @@ export class MatchSim {
     for (let i = 0; i < cmd.shots.length; i++) this.fire(p, cmd, i);
     if (cmd.buttons & BTN.MELEE && !frozen) this.melee(p, cmd);
     if (cmd.buttons & (BTN.THROW_FRAG | BTN.THROW_SMOKE) && !frozen) this.throwNade(p, cmd, cmd.buttons & BTN.THROW_SMOKE ? NADE_KIND.SMOKE : NADE_KIND.FRAG);
+    // Seri ödülü (atışlar gibi hareketten önceki konum ve komutun bakışıyla)
+    const si = streakFromBits(cmd.buttons);
+    if (si >= 0 && !frozen) this.useStreak(p, cmd, si);
     // Rekabetçi: E basılıyken bomba kurma / imha (hareketten önceki durumla; istemci o sırada hareketi durdurur)
     if (this.comp) this.comp.onCmd(p, cmd, !frozen && (cmd.buttons & BTN.USE) !== 0);
     applyCmdMods(p.state.mods, cmd.buttons, a.weapons[cmd.slot]?.d || w.d);
@@ -709,6 +724,65 @@ export class MatchSim {
     }
   }
 
+  // --- Seri ödülleri ---
+  // Hedef: gözden komutun bakışıyla ışın (dünya ya da zemin), en çok ödülün menzili; hiçbir şeye çarpmazsa menzil
+  // ucunun zemindeki izdüşümü
+  streakTarget(p, cmd, range) {
+    const st = p.state;
+    const eye = { x: st.pos.x, y: st.pos.y + eyeHeight(st), z: st.pos.z };
+    const d = dirFromAngles(cmd.yaw, cmd.pitch, this._dir);
+    const hit = this.world.raycast(eye, d, range);
+    if (hit) return { x: hit.point.x, y: hit.point.y, z: hit.point.z };
+    return { x: eye.x + d.x * range, y: 0, z: eye.z + d.z * range };
+  }
+
+  useStreak(p, cmd, i) {
+    const s = STREAKS[i];
+    const bit = 1 << i;
+    if (!this.streaksOn || !s || !(p.streakReady & bit)) return false;
+    p.streakReady &= ~bit;
+    p.streaksUsed++;
+    const target = s.range ? this.streakTarget(p, cmd, s.range) : { x: p.state.pos.x, y: 0, z: p.state.pos.z };
+    this.emit({ k: NEV.STREAK, slot: p.slot, kind: i, state: 1, pos: target, yaw: cmd.yaw });
+    for (const b of strikePlan(i, target, cmd.yaw, this.rng)) this.strikes.push({ owner: p, kind: i, tick: this.tick + SEC(b.t), x: b.x, z: b.z });
+    return true;
+  }
+
+  updateStrikes() {
+    for (let i = this.strikes.length - 1; i >= 0; i--) {
+      const b = this.strikes[i];
+      if (this.tick < b.tick) continue;
+      this.strikes.splice(i, 1);
+      // Yerin yüksekliği: yukarıdan aşağı ışın (çatıya düşen çatıda patlar)
+      const hit = this.world.raycast({ x: b.x, y: 60, z: b.z }, { x: 0, y: -1, z: 0 }, 80);
+      const pos = { x: b.x, y: hit ? hit.point.y : 0, z: b.z };
+      this.emit({ k: NEV.BLAST, id: 0, kind: BLAST_STRIKE, pos });
+      this.strikeBlast(b, pos);
+    }
+  }
+
+  // Seri ödülü patlaması: el bombası gibi (siper, takım arkadaşı yok, kendine azaltılmış) kendi yarıçap ve hasarıyla
+  strikeBlast(b, pos) {
+    const s = STREAKS[b.kind];
+    const owner = this.players[b.owner.slot] === b.owner ? b.owner : null;
+    const weapon = s.id === 'airstrike' ? WEAPON_AIRSTRIKE : WEAPON_ARTILLERY;
+    const o = { x: pos.x, y: pos.y + 0.4, z: pos.z };
+    const chest = { x: 0, y: 0, z: 0 };
+    for (const q of this.players) {
+      if (!q || !q.alive) continue;
+      if (owner && q !== owner && this.friendly(q, owner)) continue;
+      const st = q.state;
+      chest.x = st.pos.x;
+      chest.y = st.pos.y + st.height * 0.6;
+      chest.z = st.pos.z;
+      const d = Math.hypot(chest.x - o.x, chest.y - o.y, chest.z - o.z);
+      let f = strikeFactor(b.kind, d);
+      if (f <= 0.01) continue;
+      if (!this.world.lineOfSight(o, chest)) f *= ONLINE.nades.coverMult;
+      this.damage(q, owner, s.damage * f * (q === owner ? s.selfMult : 1), weapon, false, { ...chest }, pos);
+    }
+  }
+
   // Görüş: duvar ve sis (botların algısı); mermi ve patlama yalnız duvara bakar (lineOfSight)
   canSee(a, b) {
     if (this.smokes.length && smokeBlocksLine(this.smokes, a, b)) return false;
@@ -720,9 +794,23 @@ export class MatchSim {
     victim.hp = 0;
     victim.deaths++;
     victim.respawnAt = this.comp ? Infinity : this.tick + SEC(this.rules.respawn);
+    victim.streak = 0;
     if (killer && killer !== victim) {
       killer.kills++;
       killer.score += 100 + (head ? 25 : 0);
+      if (head) killer.headshots++;
+      // Seri (istatistik her modda; ödül Rekabetçi dışında): ödül öldürmeleri seriyi büyütmez (ödül ödülü doğurmaz)
+      if (weapon !== WEAPON_AIRSTRIKE && weapon !== WEAPON_ARTILLERY) {
+        killer.streak++;
+        killer.bestStreak = Math.max(killer.bestStreak, killer.streak);
+        if (this.streaksOn) {
+          for (const i of earnedAt(killer.streak)) {
+            if (killer.streakReady & (1 << i)) continue;
+            killer.streakReady |= 1 << i;
+            this.emit({ k: NEV.STREAK, slot: killer.slot, kind: i, state: 0, pos: killer.state.pos, yaw: 0 }, killer.slot);
+          }
+        }
+      }
       // Rekabetçide skor raunttur (comp.endRound)
       if (this.sided && !this.comp) this.scores[killer.side]++;
     }
@@ -854,6 +942,8 @@ export class MatchSim {
             hp: me.hp,
             respawnIn: me.alive || !Number.isFinite(me.respawnAt) ? 0 : Math.max(0, (me.respawnAt - this.tick) * TICK_DT),
             state: me.alive ? me.state : null,
+            streak: me.streak,
+            streakReady: me.streakReady,
             ...(this.comp ? this.comp.meView(me) : null),
           }
         : { alive: false, hp: 0, respawnIn: 0, state: null },

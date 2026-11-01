@@ -534,6 +534,13 @@ function writeEvent(w, e) {
       w.u8(e.site);
       writeVec16(w, e.pos);
       break;
+    case NEV.STREAK:
+      w.u8(e.slot);
+      w.u8(e.kind);
+      w.u8(e.state);
+      writeVec16(w, e.pos);
+      w.u16(encYaw(e.yaw || 0));
+      break;
     case NEV.NADE:
       // Konum ve hız sunucuda bu nicemlemeyle yuvarlanmış (quantizeNade): istemcinin yörüngesi birebir aynı
       w.u16(e.id & 0xffff);
@@ -586,6 +593,8 @@ function readEvent(r) {
       return { k, round: r.u8(), state: r.u8(), attackSide: r.u8(), winner: r.u8(), reason: r.u8() };
     case NEV.BOMB:
       return { k, state: r.u8(), slot: r.u8(), site: r.u8(), pos: readVec16(r) };
+    case NEV.STREAK:
+      return { k, slot: r.u8(), kind: r.u8(), state: r.u8(), pos: readVec16(r), yaw: decYaw(r.u16()) };
     case NEV.NADE:
       return { k, id: r.u16(), kind: r.u8(), slot: r.u8(), pos: readVec16(r), vel: { x: decVel(r.i16()), y: decVel(r.i16()), z: decVel(r.i16()) } };
     case NEV.BLAST:
@@ -599,6 +608,7 @@ function readEvent(r) {
  * Anlık görüntü.
  * s = { tick, ackSeq, bufDepth, tickUs, phase, phaseLeft (sn), scoreA, scoreB,
  *       me: { alive, respawnIn, hp, protect, money?, act?, actProgress? (Rekabetçi: para, kurma/imha ve ilerlemesi 0–1),
+ *             streak?, streakReady? (seri ödülü: art arda öldürme, hazır ödüllerin bit maskesi),
  *             state? (yaşıyorsa uzlaştırma kaydı) },
  *       players: [{ slot, flags, pos, vel, yaw, pitch, crouchT, hp, weapon }], events: [...] }
  */
@@ -620,6 +630,9 @@ export function encodeSnapshot(w, s) {
   w.u16(Math.min(65535, Math.max(0, Math.round(me.money || 0))));
   w.u8(me.act || 0);
   w.u8(Math.round(Math.max(0, Math.min(1, me.actProgress || 0)) * 255));
+  // Seri ödülü: ölmeden art arda öldürme, hazır ödüller (bit maskesi)
+  w.u8(Math.min(255, me.streak || 0));
+  w.u8(me.streakReady || 0);
   if (me.state) {
     const st = me.state;
     w.f32(st.pos.x);
@@ -670,7 +683,7 @@ function readSnapshot(r, type) {
     events: [],
   };
   const mf = r.u8();
-  const me = { alive: !!(mf & 1), protect: !!(mf & 4), hp: r.u8(), respawnIn: r.u16() / 10, money: r.u16(), act: r.u8(), actProgress: r.u8() / 255, state: null };
+  const me = { alive: !!(mf & 1), protect: !!(mf & 4), hp: r.u8(), respawnIn: r.u16() / 10, money: r.u16(), act: r.u8(), actProgress: r.u8() / 255, streak: r.u8(), streakReady: r.u8(), state: null };
   if (mf & 2) {
     const st = { pos: { x: r.f32(), y: r.f32(), z: r.f32() }, vel: { x: r.f32(), y: r.f32(), z: r.f32() } };
     st.crouchT = r.u16() / FRAC_Q;

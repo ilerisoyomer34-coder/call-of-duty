@@ -16,6 +16,7 @@ import { PROTOCOL_VERSION, TICK_DT, TICK_RATE } from '../../shared/constants.js'
 import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE, WEAPON_SUPPRESSED, WEAPON_NONE } from '../../shared/net/protocol.js';
 import { modsToIndices } from '../../shared/sim/mods.js';
 import { BUY_ITEMS, BOMB, ACT, ROUND_STATE, actionFor } from '../../shared/sim/competitive.js';
+import { streakBits } from '../../shared/sim/streaks.js';
 import { Writer, encodeHello, encodeLoadout, encodeVote, encodeBuy, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
@@ -99,6 +100,8 @@ export class GameClient {
     this.loadout = null; // [ana, yan]: sunucunun kuşandırdığı teçhizat (karşılama, sonra NEV.LOADOUT); Rekabetçide ana silah null olabilir
     this.nades = null; // { frag, smoke }: doğuştaki bombalar (NEV.LOADOUT); yoksa ONLINE.nades
     this.comp = null; // Rekabetçi: { round, state, attackSide, winner, reason, bomb, money, act, actProgress }
+    this.streaks = true; // seri ödülleri açık mı (Rekabetçide yok)
+    this.streak = { kills: 0, ready: 0 }; // anlık görüntüden: bu canda art arda öldürme, hazır ödüller (bit)
     this.vote = null; // maç sonu: { left, at, counts, winner, mine }
     this.next = null; // oylamanın sonucu: { room, map, mode }
     this.slot = -1;
@@ -248,6 +251,7 @@ export class GameClient {
         this.welcome = m;
         this.slot = m.slot;
         this.loadout = [m.primary, m.secondary];
+        this.streaks = m.mode !== 'competitive';
         if (m.mode === 'competitive') {
           // Ana silah raunt başında satın alınır: sunucunun LOADOUT olayına dek yalnız tabanca
           this.loadout = [null, m.secondary];
@@ -339,6 +343,8 @@ export class GameClient {
     this.me.alive = me.alive;
     this.me.protect = me.protect;
     this.me.respawnIn = me.respawnIn;
+    this.streak.kills = me.streak;
+    this.streak.ready = me.streakReady;
     if (this.comp) {
       this.comp.money = me.money;
       this.comp.act = me.act;
@@ -447,6 +453,9 @@ export class GameClient {
         g.events.emit(EV.NET_ROUND_STATE, C);
         break;
       }
+      case NEV.STREAK:
+        g.events.emit(EV.NET_STREAK, e);
+        break;
       case NEV.BOMB: {
         const C = this.comp;
         if (!C) break;
@@ -618,6 +627,11 @@ export class GameClient {
   // El bombası / sis: atış bu tick'in komutunda (bakış yön); sunucu sayar ve doğrular
   onThrow(kind) {
     this.pendingButtons |= kind === 'smoke' ? BTN.THROW_SMOKE : BTN.THROW_FRAG;
+  }
+
+  // Seri ödülü: bu tick'in komutunda (hedef bakışın gösterdiği yer); sunucu hazır mı diye bakar
+  useStreak(i) {
+    this.pendingButtons |= streakBits(i);
   }
 
   onMelee() {

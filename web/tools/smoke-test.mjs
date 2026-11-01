@@ -4210,6 +4210,17 @@ if (run('netplay')) {
   check(prep0.shown && prep0.phase === 0 && prep0.primary >= 8 && prep0.secondary >= 2 && !prep0.minigun && prep0.left > 20,
     `Maç öncesi teçhizat paneli açık: ${prep0.primary} ana, ${prep0.secondary} yan silah (minigun/bazuka yok), kalan ${Math.round(prep0.left)} sn`);
   await A.screenshot({ path: join(shots, '34b-net-prep.png') });
+  // Kayıtlı sınıflar: 2. sınıfa geçip silah seçmek o sınıfa yazılır, 1. sınıfa dönmek onun silahlarını kuşanır
+  const cls = await A.evaluate(() => {
+    const g = window.__game;
+    const tabs = document.querySelectorAll('#mhPrepClasses .mhPrepClass');
+    tabs[1].click();
+    document.querySelector('#mhPrepPrimary .mhPrepCard[data-id="mp7"]').click();
+    const c2 = { ...g.settings.onlineClasses[1] };
+    tabs[0].click();
+    return { n: tabs.length, c2, sel1: g.matchHud.prep.sel.primary, active: g.settings.onlineClass, label: tabs[1].querySelector('small').textContent };
+  });
+  check(cls.n === 5 && cls.c2.primary === 'mp7' && cls.sel1 !== 'mp7' && cls.active === 0 && /MP7/.test(cls.label), `Teçhizat sınıfları: ${cls.n} sekme, SINIF 2 = ${cls.label}, SINIF 1'e dönünce ${cls.sel1}`);
   await A.evaluate(() => document.querySelector('#mhPrepPrimary .mhPrepCard[data-id="ak74"]').click());
   await until(A, () => window.__game.net.loadout?.[0] === 'ak74' && window.__game.weapons.current?.id === 'ak74', null, 30000).catch(() => {});
   await A.evaluate(() => document.getElementById('btnPrepReady').click());
@@ -4318,6 +4329,28 @@ if (run('netplay')) {
   const mySmoke = nade1.mine.find((m) => m.kind === 1 && nade1.blast.includes(m.id));
   check(nade0.frags === 1 && nade0.smoke === 1 && nade0.btn !== 'none' && myFrag?.frags === 0 && mySmoke?.smoke === 0 && nade1.clouds > 0,
     `Çevrim içi el bombası ve sis: doğuşta ${nade0.frags} bomba + ${nade0.smoke} sis (BOMBA düğmesi ${nade0.btn}), sunucunun olayları ${JSON.stringify(nade1.mine.map((m) => m.kind))} patladı, sis bulutu ${nade1.clouds}, atınca kalan ${myFrag?.frags}/${mySmoke?.smoke} (canlı ${nade1.alive}, silah ${nade1.state}, sis ${nade1.kit})`);
+  // Seri ödülleri: rozetler (İHA/HAVA/TOPÇU, ilerleme), hazır olan parlar; takımın İHA'sı rakipleri işaretler
+  const streak = await A.evaluate(() => {
+    const g = window.__game;
+    const H = g.matchHud.streaks;
+    const shown = !document.getElementById('mhStreaks').hidden;
+    const badges = [...document.querySelectorAll('#mhStreaks .mhStreak')].map((b) => b.querySelector('b').textContent);
+    const keep = { ...g.net.streak };
+    g.net.streak.ready = 0b010;
+    g.net.streak.kills = 2;
+    H.update({ pressed: () => false });
+    const ready = [...document.querySelectorAll('#mhStreaks .mhStreak')].map((b) => b.classList.contains('ready'));
+    const prog = document.querySelector('#mhStreaks .mhStreak .n').textContent;
+    Object.assign(g.net.streak, keep);
+    H.update({ pressed: () => false });
+    const mate = g.net.roster.find((p) => p.slot !== g.net.slot && g.net.remotes.isFriendly(p.slot));
+    g.events.emit('NET_STREAK', { slot: mate ? mate.slot : g.net.slot, kind: 0, state: 1, pos: { x: 0, y: 0, z: 0 }, yaw: 0 });
+    const uav = H.uavUntil > performance.now();
+    H.uavUntil = 0;
+    return { shown, badges, ready, prog, uav };
+  });
+  check(streak.shown && streak.badges.join() === 'İHA,HAVA,TOPÇU' && streak.ready.join() === 'false,true,false' && streak.prog === '2/3' && streak.uav,
+    `Seri ödülleri: ${streak.badges.join(' / ')}, ilerleme ${streak.prog}, hazır olan parlıyor, takımın İHA'sı açıldı`);
   await until(A, () => window.__deaths.some((d) => d.frames >= 3), null, 60000).catch(() => {});
   const dz = await A.evaluate(() => ({ physics: window.__game.physics.status, deaths: window.__deaths.filter((d) => d.frames >= 3) }));
   const fell = dz.deaths.filter((d) => !d.stood && d.rag === d.frames);
@@ -4369,6 +4402,10 @@ if (run('netplay')) {
     left: window.__game.net?.voteLeft || 0,
   }));
   check(vote0.end && vote0.cards.length === 11 && vote0.cards.includes('municipality') && vote0.left > 5, `Maç sonu oylaması: ${vote0.cards.length} harita kartı, ${Math.round(vote0.left)} sn (maç ${before.map} haritasındaydı)`);
+  // Kalıcı istatistik: sonuç kartında kazanılan çevrim içi XP ve rütbe (sunucu maç sonunda yazar)
+  await until(A, () => !document.getElementById('mhEndXp').hidden, null, 15000).catch(() => {});
+  const xpLine = await A.evaluate(() => (document.getElementById('mhEndXp').hidden ? '' : document.getElementById('mhEndXp').textContent));
+  check(/^\+[\d.]+ çevrim içi XP · .*Seviye \d+/.test(xpLine), `Maç sonu: "${xpLine}"`);
   await A.evaluate(() => document.querySelector('#mhVoteGrid [data-map="harbor"]').click());
   await B.evaluate(() => document.querySelector('#mhVoteGrid [data-map="ruins"]').click());
   await B.evaluate(() => document.querySelector('#mhVoteGrid [data-map="harbor"]').click());
@@ -4386,6 +4423,21 @@ if (run('netplay')) {
   const nextOk = after.every((x) => x && x.map === 'harbor' && x.room === after[0].room && x.room !== before.room && x.side === before.side && x.humans === 2 && x.bots === 6 && x.prep);
   if (!nextOk) await Promise.all([A, B].map((pg, i) => pg.screenshot({ path: join(shots, `_35c-net-next-${'AB'[i]}.png`) }).catch(() => {})));
   check(nextOk, `Sıradaki maç: ikisi aynı odada (${after[0]?.room}) Liman'da, aynı tarafta, 6 yapay zekâ, teçhizat paneli açık${nextOk ? '' : ` ${JSON.stringify({ before, after })}`}`);
+  // Profil sekmesi: çevrim içi rütbe, toplamlar ve biten maç geçmişte
+  await A.evaluate(() => window.__game.leaveOnline());
+  await until(A, () => window.__game.state === 'menu', null, 30000).catch(() => {});
+  await A.evaluate(() => document.getElementById('btnOnline').click());
+  await until(A, () => !!document.querySelector('.onTab[data-tab="profile"]'));
+  await A.evaluate(() => document.querySelector('.onTab[data-tab="profile"]').click());
+  await until(A, () => document.querySelectorAll('#onProfile .opRow').length > 0, null, 20000).catch(() => {});
+  const prof = await A.evaluate(() => ({
+    head: document.querySelector('#onProfile .opHead b')?.textContent || '',
+    emblem: !!document.querySelector('#onProfile .opHead svg'),
+    cells: document.querySelectorAll('#onProfile .opGrid div').length,
+    rows: [...document.querySelectorAll('#onProfile .opRow')].map((r) => r.textContent),
+  }));
+  await A.screenshot({ path: join(shots, '35d-net-profile.png') });
+  check(/Seviye \d+/.test(prof.head) && prof.emblem && prof.cells === 8 && prof.rows.length >= 1 && /XP/.test(prof.rows[0]), `Profil: "${prof.head}", ${prof.cells} istatistik, son maç "${prof.rows[0] || ''}"`);
   await A.close();
   await B.close();
   // Telefon: tek başına Ölüm Maçı, maç arayüzü taşmaz

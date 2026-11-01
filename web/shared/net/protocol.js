@@ -56,7 +56,11 @@ export const NEV = {
   BLAST: 11, // herkese: bomba patladı / sis açıldı (konum sunucudan)
   ROUND_STATE: 12, // Rekabetçi: raunt durumu (sayı, satın alma/raunt/sonu, saldıran taraf, kazanan, neden)
   BOMB: 13, // Rekabetçi: bombanın durumu (taşınıyor, yerde, kuruldu, imha, patladı), kim, bölge, konum
+  STREAK: 14, // seri ödülü: hazır (yalnız sahibine) ya da kullanıldı (herkese: tür, hedef, bakış yönü)
 };
+
+// BLAST olayının türü: el bombası / sis (shared/sim/grenade.js → NADE_KIND) ve seri ödülü patlaması
+export const BLAST_STRIKE = 2;
 
 // İsabet türü (SHOT olayı)
 export const HIT_KIND = { NONE: 0, WORLD: 1, FLESH: 2 };
@@ -93,6 +97,8 @@ export const LF = { GROUNDED: 1, CROUCHED: 2, SPRINTING: 4 };
 // Öldürme olayında silah yerine özel değerler
 export const WEAPON_MELEE = 254;
 export const WEAPON_FRAG = 253; // öldürme akışında el bombası
+export const WEAPON_AIRSTRIKE = 252; // seri ödülü: hava saldırısı
+export const WEAPON_ARTILLERY = 251; // seri ödülü: topçu
 // SHOT olayında silah dizininin üst biti: susturuculu atış (dizin < 128)
 export const WEAPON_SUPPRESSED = 0x80;
 export const WEAPON_NONE = 255;

@@ -24,8 +24,9 @@ export function partyCap(mode) {
 }
 
 export class RoomManager {
-  constructor({ log = () => {}, secret = 'dev', now, overrides = {} } = {}) {
+  constructor({ log = () => {}, secret = 'dev', now, overrides = {}, onResults = null } = {}) {
     this.log = log;
+    this.onResults = onResults; // maç sonucu → kalıcı istatistik (server/index.js → store.recordMatch)
     this.secret = secret;
     this.now = now;
     this.overrides = overrides; // testler: { warmup, timeLimit, ... } kurallara yazılır
@@ -72,6 +73,7 @@ export class RoomManager {
       cutoffSec: MM.joinCutoffSec,
       maps: MM.maps,
       nextRoom: kind === 'match' ? (next) => this.create(kind, mode, next) : null,
+      onResults: this.onResults,
       onClose: (r) => this.rooms.delete(r.code),
     });
     this.rooms.set(code, room);

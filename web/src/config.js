@@ -106,6 +106,12 @@ export const ONLINE = {
   // Maç öncesi teçhizat paneli: ısınma süresi modes.json → warmup (60 sn); bağlı herkes "hazırım" deyince kalanı bu
   // kadar sn'ye iner
   readyStartSec: 3,
+  // Çevrim içi rütbe XP'si (sunucu maç sonunda yazar: server/game/room.js → results): maç puanı + katılım + galibiyet
+  xpMatch: 300,
+  xpWin: 400,
+  classes: 5, // maç öncesi panelde kayıtlı teçhizat sınıfı sayısı (settings.onlineClasses)
+  // Seri ödülü patlamasının görüntüsü (hava saldırısı/topçu; hasar sunucuda data/streaks.json): sarsıntı yarıçapı, boy
+  strikeFx: { radius: 9, scale: 1.7 },
   prepWarnSec: 10, // panelde sayaç son bu kadar sn'de kırmızı
   // Maç sonu harita oylaması (kullanıcı isteği "maç sonrası oylansın"): sonuç ekranında bu kadar sn oy verilir;
   // kazanan haritada aynı oyuncularla (aynı taraf, aynı takım) yeni maç açılır. Oy yoksa şimdiki haritadan başka

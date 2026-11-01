@@ -70,7 +70,7 @@ function clearAt(W, x, z) {
 }
 
 // Başlangıçla aynı yürünebilir bölgedeki boş hücreler
-function region(W, nav, start) {
+export function region(W, nav, start) {
   const [sx, sz] = nav.nearestFree(...nav.cellOf(start.x, start.z), 8) || [];
   if (sx === undefined) throw new Error('başlangıç yürünebilir değil');
   const seen = new Uint8Array(nav.w * nav.h);
@@ -103,7 +103,7 @@ function region(W, nav, start) {
 }
 
 // En uzak nokta örneklemesi: ilk nokta seed'e en yakın aday, sonra seçilenlere en uzak olan (aralık en az spacing)
-function farthest(cands, n, seed, spacing) {
+export function farthest(cands, n, seed, spacing) {
   if (!cands.length) return [];
   const d2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
   let first = cands[0];

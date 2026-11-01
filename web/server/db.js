@@ -58,6 +58,37 @@ CREATE TABLE IF NOT EXISTS reports (
   reason TEXT NOT NULL,
   created INTEGER NOT NULL
 );
+-- Çevrim içi istatistikler (maç sonunda server/game/room.js → recordMatch): toplamlar ve çevrim içi XP (rütbe)
+CREATE TABLE IF NOT EXISTS stats (
+  player_id TEXT PRIMARY KEY,
+  xp INTEGER NOT NULL DEFAULT 0,
+  matches INTEGER NOT NULL DEFAULT 0,
+  wins INTEGER NOT NULL DEFAULT 0,
+  losses INTEGER NOT NULL DEFAULT 0,
+  kills INTEGER NOT NULL DEFAULT 0,
+  deaths INTEGER NOT NULL DEFAULT 0,
+  headshots INTEGER NOT NULL DEFAULT 0,
+  score INTEGER NOT NULL DEFAULT 0,
+  best_streak INTEGER NOT NULL DEFAULT 0,
+  streaks_used INTEGER NOT NULL DEFAULT 0,
+  updated INTEGER NOT NULL DEFAULT 0
+);
+-- Maç geçmişi: oyuncu başına son HISTORY_KEEP maç
+CREATE TABLE IF NOT EXISTS match_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  mode TEXT NOT NULL,
+  map TEXT NOT NULL,
+  result TEXT NOT NULL,
+  kills INTEGER NOT NULL,
+  deaths INTEGER NOT NULL,
+  headshots INTEGER NOT NULL,
+  score INTEGER NOT NULL,
+  best_streak INTEGER NOT NULL,
+  xp INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS match_history_player ON match_history (player_id, id);
 -- Sunucunun kendi kalıcı değerleri (serverId: bir kez üretilir, veritabanı yaşadıkça aynı kalır)
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
@@ -119,6 +150,16 @@ export class Store {
       addReport: q('INSERT INTO reports (by_id, target, target_name, reason, created) VALUES (?, ?, ?, ?, ?)'),
       reportsAll: q('SELECT * FROM reports ORDER BY id DESC LIMIT ?'),
       reportCount: q('SELECT COUNT(*) AS n FROM reports WHERE target = ?'),
+      getStats: q('SELECT * FROM stats WHERE player_id = ?'),
+      ensureStats: q('INSERT OR IGNORE INTO stats (player_id) VALUES (?)'),
+      addStats: q(
+        'UPDATE stats SET xp = xp + ?, matches = matches + 1, wins = wins + ?, losses = losses + ?, kills = kills + ?, deaths = deaths + ?, headshots = headshots + ?, score = score + ?, best_streak = MAX(best_streak, ?), streaks_used = streaks_used + ?, updated = ? WHERE player_id = ?'
+      ),
+      addHistory: q('INSERT INTO match_history (player_id, at, mode, map, result, kills, deaths, headshots, score, best_streak, xp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'),
+      history: q('SELECT at, mode, map, result, kills, deaths, headshots, score, best_streak, xp FROM match_history WHERE player_id = ? ORDER BY id DESC LIMIT ?'),
+      trimHistory: q('DELETE FROM match_history WHERE player_id = ? AND id NOT IN (SELECT id FROM match_history WHERE player_id = ? ORDER BY id DESC LIMIT ?)'),
+      delStatsOf: q('DELETE FROM stats WHERE player_id = ?'),
+      delHistoryOf: q('DELETE FROM match_history WHERE player_id = ?'),
       getMeta: q('SELECT value FROM meta WHERE key = ?'),
       setMeta: q('INSERT INTO meta (key, value) VALUES (?, ?)'),
     };
@@ -309,6 +350,35 @@ export class Store {
     return this.q.reportsAll.all(limit).map((r) => ({ ...r, total: this.q.reportCount.get(r.target).n, exists: !!this.q.byId.get(r.target) }));
   }
 
+  // Maç sonucu (server/game/room.js): toplamlara eklenir, geçmişe yazılır (son LIMITS.historyKeep maç kalır).
+  // r: { mode, map, result: 'win'|'loss'|'draw', kills, deaths, headshots, score, bestStreak, streaksUsed, xp }
+  recordMatch(id, r, now = Date.now()) {
+    if (!this.q.byId.get(id)) return null;
+    const n = (v) => Math.max(0, Math.round(Number(v) || 0));
+    this.db.exec('BEGIN');
+    try {
+      this.q.ensureStats.run(id);
+      this.q.addStats.run(n(r.xp), r.result === 'win' ? 1 : 0, r.result === 'loss' ? 1 : 0, n(r.kills), n(r.deaths), n(r.headshots), n(r.score), n(r.bestStreak), n(r.streaksUsed), now, id);
+      this.q.addHistory.run(id, now, String(r.mode), String(r.map), String(r.result), n(r.kills), n(r.deaths), n(r.headshots), n(r.score), n(r.bestStreak), n(r.xp));
+      this.q.trimHistory.run(id, id, LIMITS.historyKeep);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+    return this.stats(id);
+  }
+
+  // Toplamlar (hiç maç yoksa sıfırlar) ve son maçlar
+  stats(id) {
+    const s = this.q.getStats.get(id);
+    const zero = { xp: 0, matches: 0, wins: 0, losses: 0, kills: 0, deaths: 0, headshots: 0, score: 0, best_streak: 0, streaks_used: 0 };
+    const t = s ? { ...zero, ...s } : zero;
+    delete t.player_id;
+    delete t.updated;
+    return { ...t, history: this.q.history.all(id, LIMITS.historyKeep) };
+  }
+
   // Hesap silme (mağaza kuralı: oyuncu hesabını oyunun içinden silebilmeli). Ad, etiket, belirteç, arkadaşlıklar ve
   // kendisine giden ya da ondan gelen bildirimler tek işlemde gider; yarım silinmiş hesap kalmaz
   deletePlayer(id) {
@@ -318,6 +388,8 @@ export class Store {
       this.q.delFriendshipsOf.run(id, id);
       this.q.delBlocksOf.run(id, id);
       this.q.delReportsBy.run(id);
+      this.q.delStatsOf.run(id);
+      this.q.delHistoryOf.run(id);
       const r = this.q.delPlayer.run(id);
       this.db.exec('COMMIT');
       return r.changes > 0;

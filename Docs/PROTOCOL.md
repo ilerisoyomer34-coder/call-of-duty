@@ -54,6 +54,7 @@ Komut:
 - `buttons`: `BTN` (`shared/sim/movement.js`):
   - `RELOAD`: şarjör değiştirme bu komutta başladı.
   - `MELEE`: yakın dövüş isabet anı.
+  - `STREAK_LO` / `STREAK_HI` (bit 14–15): seri ödülü dizini + 1 (`shared/sim/streaks.js → streakBits`); hedef komutun bakışından ışınla.
   - `THROW_FRAG` / `THROW_SMOKE`: el bombası / sis bu komutta bırakıldı. Yön komutun `yaw/pitch`'i, çıkış noktası oyuncunun bu komuttan önceki göz hizası. Sunucu doğuştaki adedi (`ONLINE.nades.fragCount/smokeCount`) ve iki atış arasını (`cooldown × tolerance`) denetler.
   - `NO_SPRINT` / `NO_ADS`: istemcinin silah durumundan gelen kısıtlar.
 - `viewTick`: oyuncunun o an gördüğü sunucu zamanı (tick, kesirli). Gecikme telafisi buna geri sarar; en çok `ONLINE.maxRewindMs`.
@@ -92,7 +93,7 @@ Başlık:
 `u32 tick · u16 ackSeq · u8 bufDepth · u16 tickUs · u8 phase · u16 phaseLeft×10 · i16 scoreA · i16 scoreB`
 
 Yerel oyuncu:
-`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10 · u16 money · u8 act (0 yok, 1 bomba kuruyor, 2 imha ediyor) · u8 actProgress×255`, kayıt varsa:
+`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10 · u16 money · u8 act (0 yok, 1 bomba kuruyor, 2 imha ediyor) · u8 actProgress×255 · u8 streak (bu canda art arda öldürme) · u8 streakReady (hazır seri ödülleri, bit)`, kayıt varsa:
 `f32 pos×3 · f32 vel×3 · u16 crouchT×1024 · u16 adsT×1024 · f32 sprintOut · u16 buttons · u8 (1 yerde, 2 çömelik, 4 koşuyor)`
 
 Diğer oyuncular:
@@ -106,14 +107,15 @@ Olaylar:
 | `SHOT` 1 | `u8 slot · u8 weapon (üst bit: susturuculu) · i16 end×3 · u8 hit · u8 surface` | atan dışında herkes |
 | `HIT` 2 | `u8 victim · u8 dmg · u8 flags (1 kafa, 2 öldürdü, 4 korumalı) · i16 point×3` | atan |
 | `DAMAGE` 3 | `u8 attacker · u8 dmg · i16 from.x · i16 from.z` | vurulan |
-| `KILL` 4 | `u8 killer (255 dünya) · u8 victim · u8 weapon (254 bıçak, 253 el bombası) · u8 flags (1 kafa)` | herkes |
+| `KILL` 4 | `u8 killer (255 dünya) · u8 victim · u8 weapon (254 bıçak, 253 el bombası, 252 hava saldırısı, 251 topçu) · u8 flags (1 kafa)` | herkes |
 | `SPAWN` 5 | `u8 slot · i16 pos×3 · u16 yaw` | herkes |
 | `MELEE` 6 / `RELOAD` 7 | `u8 slot` | diğerleri |
 | `ROUND` 8 | `u8 code (1 maç başladı, 2 bitti) · u8 value` | herkes |
 | `LOADOUT` 9 | `u8 primary (255: ana silah yok) · u8 secondary · u8 now (1 şimdi elde, 0 sonraki doğuşta) · u8 nades (alt 4 bit el bombası, üst 4 sis)` | seçen |
 | `NADE` 10 | `u16 id · u8 kind (0 el bombası, 1 sis) · u8 slot · i16 pos×3 (1/64 m) · i16 vel×3 (1/512 m/s)` | herkes |
-| `BLAST` 11 | `u16 id · u8 kind · i16 pos×3` | herkes |
+| `BLAST` 11 | `u16 id · u8 kind (0 el bombası, 1 sis, 2 seri ödülü patlaması) · i16 pos×3` | herkes |
 | `ROUND_STATE` 12 | `u8 round · u8 state (0 satın alma, 1 raunt, 2 raunt sonu) · u8 attackSide · u8 winner (255 yok) · u8 reason (1 yok etme, 2 süre, 3 bomba patladı, 4 imha)` | herkes (katılana bir kez) |
+| `STREAK` 14 | `u8 slot · u8 kind (data/streaks.json sırası) · u8 state (0 hazır, 1 kullanıldı) · i16 pos×3 (hedef) · u16 yaw` | hazır: sahibi; kullanıldı: herkes |
 | `BOMB` 13 | `u8 state (0 yok, 1 taşınıyor, 2 yerde, 3 kuruldu, 4 imha, 5 patladı) · u8 slot (taşıyan / kuran / imha eden) · u8 site (255 yok) · i16 pos×3` | herkes (katılana bir kez) |
 
 - Rekabetçi: evre `PHASE.BUY` 4 (satın alma, hareket yok) ve `PHASE.ROUND_END` 3 (raunt sonu); `scoreA/scoreB` kazanılan raunt; `phaseLeft` o evrenin süresi (bomba kurulunca bombanın). Raunt başında doğuştan önce `LOADOUT` gelir (eldeki silah ve bombalar raunttan rauntta kalır).

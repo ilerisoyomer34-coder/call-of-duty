@@ -4,7 +4,8 @@
 // HAZIRIM: bağlı bütün oyuncular hazırsa maç ONLINE.readyStartSec içinde başlar. Süre dolunca panel kendiliğinden
 // kapanır, son seçim geçerlidir. "Haritaya bak" paneli gizler, üstteki TEÇHİZAT çipi geri açar.
 // Seçilebilir silahlar sunucunun doğrulamasıyla aynı listeden (shared/sim/loadout.js). Son seçim ayarlarda kalır
-// (settings.onlineLoadout): sonraki maçta el sıkışmayla gönderilir.
+// (settings.onlineLoadout): sonraki maçta el sıkışmayla gönderilir. Kayıtlı sınıflar (settings.onlineClasses,
+// ONLINE.classes adet): üstteki sekmeler; sekme seçmek sınıfın silahlarını kuşanır, silah seçmek seçili sınıfa yazılır.
 import { PHASE, RF } from '../../shared/net/protocol.js';
 import { onlineChoices, validLoadout } from '../../shared/sim/loadout.js';
 import { ONLINE } from '../config.js';
@@ -53,8 +54,10 @@ export class PrepScreen {
     const comp = !!net.comp;
     this.sel.primary = p || this.game.settings.onlineLoadout?.primary || ONLINE.defaultPrimary;
     this.sel.secondary = s;
+    this.ensureClasses();
     // Gerçek/kurgusal ad ayarı maçtan maça değişebilir: kartlar her maçta yeniden kurulur
     for (const S of SLOTS) this.build(S);
+    this.buildClasses();
     $('mhPrepPrimarySlot').hidden = comp;
     $('mhPrepSub').textContent = comp ? 'Rekabetçi: tabancanı seç; ana silahı her raunt başında parayla alırsın' : 'Maç başlayınca seçtiğin silahlarla doğarsın';
     $('mhPrep').hidden = true;
@@ -65,6 +68,60 @@ export class PrepScreen {
     this.close(false);
     this.net = null;
     $('mhPrepChip').hidden = true;
+  }
+
+  // Kayıtlı sınıflar: yoksa (ya da eksikse) son seçimle doldurulur; geçersiz silah doğrulamayla düzelir
+  ensureClasses() {
+    const S = this.game.settings;
+    const list = Array.isArray(S.onlineClasses) ? S.onlineClasses : [];
+    const out = [];
+    for (let i = 0; i < ONLINE.classes; i++) {
+      const c = list[i] || { primary: this.sel.primary, secondary: this.sel.secondary };
+      const [p, s] = validLoadout(c.primary, c.secondary);
+      out.push({ primary: p, secondary: s });
+    }
+    S.onlineClasses = out;
+    S.onlineClass = Math.max(0, Math.min(ONLINE.classes - 1, S.onlineClass | 0));
+  }
+
+  buildClasses() {
+    const root = $('mhPrepClasses');
+    root.textContent = '';
+    this.classTabs = this.game.settings.onlineClasses.map((c, i) => {
+      const b = el('button', 'mhPrepClass');
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.dataset.cls = String(i);
+      const info = el('small');
+      b.append(el('b', null, `SINIF ${i + 1}`), info);
+      b.addEventListener('click', () => this.pickClass(i));
+      root.append(b);
+      return { b, info };
+    });
+    this.markClasses();
+  }
+
+  markClasses() {
+    const S = this.game.settings;
+    const comp = !!this.net?.comp;
+    this.classTabs.forEach(({ b, info }, i) => {
+      const c = S.onlineClasses[i];
+      b.classList.toggle('on', i === S.onlineClass);
+      b.setAttribute('aria-selected', String(i === S.onlineClass));
+      info.textContent = comp ? weaponShortName(c.secondary) : `${weaponShortName(c.primary)} · ${weaponShortName(c.secondary)}`;
+    });
+  }
+
+  pickClass(i) {
+    const S = this.game.settings;
+    S.onlineClass = i;
+    const c = S.onlineClasses[i];
+    this.sel.primary = c.primary;
+    this.sel.secondary = c.secondary;
+    for (const x of SLOTS) this.mark(x);
+    this.markClasses();
+    this.game.audio.uiClick?.();
+    this.send();
   }
 
   build(S) {
@@ -129,7 +186,10 @@ export class PrepScreen {
     this.net?.setLoadout(p, s, this.ready);
     const S = this.game.settings;
     S.onlineLoadout = { primary: p, secondary: s };
+    // Seçim seçili sınıfa yazılır
+    if (S.onlineClasses?.[S.onlineClass]) S.onlineClasses[S.onlineClass] = { primary: p, secondary: s };
     saveSettings(S);
+    if (this.classTabs) this.markClasses();
   }
 
   show() {

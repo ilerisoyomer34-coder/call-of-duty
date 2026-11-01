@@ -1368,6 +1368,7 @@ export class Game {
     if (this.net) {
       this.net.remotes.updateTags(this.hud, this.width, this.height);
       this.matchHud.comp.updateTags(this.hud, this.width, this.height);
+      this.matchHud.streaks.updateMarks(this.hud, this.width, this.height);
       this.matchHud.update(dt, this.console.open ? NULL_INPUT : I);
     }
     this.netGraph.update(dt);

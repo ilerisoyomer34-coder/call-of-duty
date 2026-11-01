@@ -47,6 +47,7 @@ export const EV = Object.freeze({
   NET_ROUND: 'NET_ROUND', // { code: 1 maç başladı | 2 maç bitti, value }
   NET_ROUND_STATE: 'NET_ROUND_STATE', // Rekabetçi: { round, state (satın alma/raunt/sonu), attackSide, winner, reason }
   NET_BOMB: 'NET_BOMB', // Rekabetçi: { state, slot, site, pos } bombanın durumu değişti
+  NET_STREAK: 'NET_STREAK', // seri ödülü: { slot, kind, state (0 hazır, 1 kullanıldı), pos, yaw }
   NET_MATCH_END: 'NET_MATCH_END', // { winner, reason, scoreA, scoreB }
   // Oyuncu ilerlemesi (progression.js)
   XP_GAINED: 'XP_GAINED', // { amount, reason, level, frac }

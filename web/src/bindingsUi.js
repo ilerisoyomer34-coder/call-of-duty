@@ -7,7 +7,7 @@ import { saveSettings } from './settings.js';
 
 export const BINDING_GROUPS = [
   ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
-  ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'weapon3', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'scoreboard', 'buyMenu', 'pause']],
+  ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'weapon3', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'scoreboard', 'buyMenu', 'streak1', 'streak2', 'streak3', 'pause']],
   ['Tim', ['wheel', 'ping', 'chat', 'voice', 'cmdFollow', 'cmdHold', 'cmdSuppress', 'cmdCover', 'cmdHeal', 'cmdHoldFire', 'cmdFreeFire']],
 ];
 
@@ -18,6 +18,9 @@ const SHARED = [
   ['useItem1', 'weapon4'],
   ['useItem2', 'weapon5'],
   ['fireMode', 'buyMenu'],
+  ['weapon7', 'streak1'],
+  ['weapon8', 'streak2'],
+  ['weapon9', 'streak3'],
 ];
 const sharedOk = (a, b) => SHARED.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
 const MOUSE = { 0: 'Mouse0', 2: 'Mouse2', 3: 'Mouse3' };
