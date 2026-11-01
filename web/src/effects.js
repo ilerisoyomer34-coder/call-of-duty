@@ -761,6 +761,8 @@ export class Effects {
           continue;
         }
       }
+      // Kendi çizimini yöneten yayıcı (yağmur çizgileri): her karede kameranın yeriyle
+      if (e.tick) e.tick(dt, camPos);
       e.acc += dt * e.rate;
       while (e.acc >= 1) {
         e.acc -= 1;

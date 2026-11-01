@@ -354,7 +354,7 @@ export class Menus {
         const squad = document.createElement('em');
         squad.textContent = `${L.allies} × ${tier.rank}`;
         m.append('Harita: ', map, ' · Manga: ', squad);
-        const hmg = L.enemies.hmg || 0;
+        const hmg = Array.isArray(L.enemies.hmg) ? L.enemies.hmg.length : L.enemies.hmg || 0; // liste: seçilen yuvalar
         if (hmg) {
           const h = document.createElement('strong');
           h.className = 'hmg';

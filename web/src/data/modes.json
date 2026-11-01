@@ -20,6 +20,6 @@
     "_": "searchSec: tek başına kuyrukta bu kadar beklenince maç yapay zekâyla dolarak başlar; joinCutoffSec: süresinin bu kadarından azı kalan maça katılınmaz; maps: yeni maçlarda sırayla, maç sonunda hepsi oylanır (dizin C_VOTE/S_VOTE'ta taşınır; sıra değişirse istemci ve sunucu birlikte güncellenir). Görev haritalarının arena noktaları tools/make-arenas.mjs'ten",
     "searchSec": 8,
     "joinCutoffSec": 60,
-    "maps": ["depo", "kizilkum", "harbor", "ruins", "pass", "refinery", "forest", "factory", "coast", "core", "municipality"]
+    "maps": ["depo", "kizilkum", "harbor", "ruins", "pass", "refinery", "forest", "factory", "coast", "core", "municipality", "airbase", "dam", "railyard"]
   }
 }

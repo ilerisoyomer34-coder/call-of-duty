@@ -609,8 +609,9 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .lvl .n { grid-row: span 3; font: 900 44px/1 var(--f-display); color: var(--amber); letter-spacing: .02em; }
 .lvl .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .lvl b { font: 700 21px/1.1 var(--f-ui); letter-spacing: .06em; text-transform: uppercase; }
-.lvl .meter { display: inline-flex; align-items: center; gap: 3px; font: 600 11px/1 var(--f-ui); letter-spacing: .14em; color: var(--sand-dim); text-transform: uppercase; white-space: nowrap; }
-.lvl .meter i { display: block; width: 9px; height: 9px; background: rgba(231,220,196,.14); }
+/* 19 görevde 9 px'lik bölmeler telefonda kartı taşırıyordu: incelttik */
+.lvl .meter { display: inline-flex; align-items: center; gap: 2px; font: 600 11px/1 var(--f-ui); letter-spacing: .14em; color: var(--sand-dim); text-transform: uppercase; white-space: nowrap; }
+.lvl .meter i { display: block; width: 5px; height: 9px; background: rgba(231,220,196,.14); }
 .lvl .meter i.on { background: var(--amber); }
 .lvl .meter span { margin-left: 6px; }
 .lvl .d { font: 400 15px/1.35 var(--f-ui); color: var(--sand-dim); }
@@ -659,6 +660,15 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .brMap.map-ruins { background: linear-gradient(160deg, #6f6d68, #262624 70%); }
 .brMap.map-pass { background: linear-gradient(160deg, #c9d4dc, #3b4652 70%); }
 .brMap.map-refinery { background: linear-gradient(160deg, #1f2a44, #0b0e16 70%); }
+.brMap.map-forest { background: linear-gradient(160deg, #5c7050, #1c2418 70%); }
+.brMap.map-factory, .brMap.map-railyard { background: linear-gradient(160deg, #2c2238, #0a0a10 70%); }
+.brMap.map-coast { background: linear-gradient(160deg, #c99a6e, #2a3440 70%); }
+.brMap.map-core { background: linear-gradient(160deg, #a8482e, #24100c 70%); }
+.brMap.map-airbase { background: linear-gradient(160deg, #b8a882, #3a3628 70%); }
+.brMap.map-dam { background: linear-gradient(160deg, #6a747a, #1e2428 70%); }
+.brMap.map-kizilkumNight, .brMap.map-coastNight, .brMap.map-passNight { background: linear-gradient(160deg, #26324c, #080a12 70%); }
+.brMap.map-harborStorm { background: linear-gradient(160deg, #3e4a58, #0e1218 70%); }
+.brMap.map-forestFire { background: linear-gradient(160deg, #a0502a, #1c120c 70%); }
 .brMap b { font: 700 24px/1 var(--f-ui); letter-spacing: .08em; text-transform: uppercase; text-shadow: 0 2px 6px #000; }
 .brMap span { font: 600 12px/1 var(--f-ui); letter-spacing: .16em; color: var(--amber); text-transform: uppercase; margin-top: 4px; }
 .brMain h3, .brBonus h3 { margin: 12px 0 6px; }

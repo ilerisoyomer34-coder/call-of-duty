@@ -413,9 +413,11 @@ export class Mission {
     // Haritanın kendi çarpıştırıcıları (shared/maps/<harita>.collision.json ile aynı olmalı; sonrakiler görevin)
     W.mapColliders = W.colliders.length;
     const D = this.data;
-    // Ağır makineli mevzileri: seviyenin istediği kadarı, haritanın listesinden sırayla (kum torbaları dünyaya
-    // birleştirilmeden önce eklenmeli)
-    const nestDefs = this.mode !== 'mission' ? [] : (D.hmg || []).slice(0, this.level.enemies?.hmg || 0);
+    // Ağır makineli mevzileri: seviyenin istediği kadarı, haritanın listesinden sırayla; liste verilirse o sıradaki
+    // yuvalar (aynı haritanın başka hedef sırasında arkada kalan yuva kurulmasın). Kum torbaları dünyaya
+    // birleştirilmeden önce eklenmeli
+    const hmgPick = this.level.enemies?.hmg || 0;
+    const nestDefs = this.mode !== 'mission' ? [] : Array.isArray(hmgPick) ? hmgPick.map((i) => D.hmg?.[i]).filter(Boolean) : (D.hmg || []).slice(0, hmgPick);
     for (const n of nestDefs) nestRing(W, n.pos.x, n.pos.z, n.yaw);
     // Tanklar: çarpıştırıcıları gezinme ağından önce eklenmeli (askerler etrafından dolansın)
     const tankDefs = this.mode !== 'mission' ? [] : (D.tanks || []).slice(0, this.level.enemies?.tanks || 0);

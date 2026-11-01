@@ -310,7 +310,7 @@ Arenalar (`data/arenas.json`):
   - olmayan oda için hata ekranı;
   - hızlı TDM: takım aynı tarafta, 6 YZ, skor, öldürme akışı, el bombası ve sis (sunucu olayları, adet, bulut), puan tablosu;
   - telefonda ÖM.
-- Duman `coop`: görev seçici (11 görev, telefonda sığar), kampanya odası (seviye, harita, aşama sayısı), ilk aşamanın satırı, Alfa botları, hedef etiketleri, C4 çubuğu, süre dolunca "GÖREV BAŞARISIZ" kartı (oylama yok).
+- Duman `coop`: görev seçici (19 görev, telefonda sığar), kampanya odası (seviye, harita, aşama sayısı), ilk aşamanın satırı, Alfa botları, hedef etiketleri, C4 çubuğu, süre dolunca "GÖREV BAŞARISIZ" kartı (oylama yok).
 - Duman `comp`: tek oyuncu + 9 YZ, kısa süreler (`COMP_BUY/ROUND/POST/WIN`): yalnız tabancalı teçhizat paneli, satın alma menüsü (800 $, el bombası), raunt başı/sonu bandı, bölge etiketleri, kurma çubuğu, izleme kamerası, ikinci rauntta silah satın alma, telefonda menü.
 - Duman `determinism`: `shared/sim/replay.js` esbuild ile paketlenip Chromium'da koşar. Kızılkum ve Yıkık Şehir'de 10.000 komut sonrası konum Node ile karşılaştırılır (≤ 1 mm) ve her 1000 tick'in özeti eşleşmelidir.
 - Davranış referansı: `Docs/BASELINE.md` (`node tools/baseline.mjs --compare`).

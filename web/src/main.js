@@ -28,6 +28,7 @@ import { PostFX } from './postfx.js';
 import { FrameLimiter, DynamicResolution, resolveFpsCap, targetFrameMs } from './framePacing.js';
 import { setMaxAnisotropy, setTextureCap, loadPropAsset, PROP_ASSETS } from './assets.js';
 import { AllyManager } from './ally.js';
+import { rainStreaks } from './rain.js';
 import { setHelicopterProp, setPropEnvironment, setTreeProp, setContainerProp, setFpsArmProp, setMunicipalityProp, updateWind } from './models.js';
 import { warnOnce } from './util.js';
 import { getSave } from './save.js';
@@ -145,7 +146,8 @@ function loadProgress(save) {
 function levelDifficulty(base, level) {
   const t = level?.tuning;
   if (!t) return base;
-  const seeing = MAPS[level.map]?.env.perception ?? 1;
+  // Seviyenin ortamı (gece/fırtına çeşitlemesi level.env) görüşü kısaltır
+  const seeing = MAPS[level.env || level.map]?.env.perception ?? 1;
   return {
     ...base,
     reaction: base.reaction * t.reaction,
@@ -596,7 +598,8 @@ export class Game {
   // Menü ve poligon Kızılkum'u kullanır; görev seviyesi kendi haritasının ortamını
   mapKey(mode) {
     if (mode === 'online') return ARENAS[this.net?.welcome?.map]?.env || 'harbor';
-    return mode === 'mission' ? this.level.map || 'kizilkum' : 'kizilkum';
+    // Seviye aynı haritayı başka bir ortamda oynatabilir (gece, fırtına: config.js → LEVELS[].env)
+    return mode === 'mission' ? this.level.env || this.level.map || 'kizilkum' : 'kizilkum';
   }
 
   buildScene(mode) {
@@ -1431,13 +1434,14 @@ function skyUniforms(sky, sunDir) {
   };
 }
 
-// Hava durumu: kameranın çevresinde düşen kar ya da savrulan kül (duman havuzundan; ışık eklemez).
-// Yoğunluk grafik kalitesine göre: düşük kalitede parçacık havuzu küçük
+// Hava durumu: kameranın çevresinde düşen kar ya da savrulan kül (duman havuzundan; ışık eklemez). Yoğunluk grafik
+// kalitesine göre: düşük kalitede parçacık havuzu küçük. Yağmur ayrı: çizgiler (rain.js)
 const WEATHER = {
   snow: { rate: 140, color: 0xf4f8ff, size: 0.07, fall: [-1.6, -0.9], drift: 0.6, life: 4.5, alpha: 0.9 },
   ash: { rate: 45, color: 0x7a7672, size: 0.06, fall: [-0.5, -0.15], drift: 0.9, life: 6, alpha: 0.7 },
 };
 function weatherEmitter(kind, game) {
+  if (kind === 'rain') return rainStreaks(game.scene, game.quality);
   const W = WEATHER[kind];
   if (!W) return { rate: 0, spawn() {} };
   const low = game.quality === 'low';

@@ -245,7 +245,7 @@ export function build(W) {
       { group: 'village', type: 'rifleman', pos: V(-15, 38), yaw: -Math.PI / 2 },
       { group: 'village', type: 'rifleman', pos: V(13, 40.5), yaw: Math.PI / 2 },
       { group: 'village', type: 'rifleman', pos: V(15, 25, 3.65), yaw: Math.PI, stationary: true, elevated: true },
-      { group: 'village', type: 'heavy', pos: V(-1, 16), yaw: Math.PI },
+      { group: 'village', type: 'heavy', pos: V(-1, 15), yaw: Math.PI }, // sandığın 1 m önünde (ızgarada yürünebilir)
       { group: 'village', type: 'rifleman', pos: V(-38, 24), yaw: -Math.PI / 2 },
       { group: 'village', type: 'rifleman', pos: V(-46, 16), yaw: 0, patrol: [V(-46, 15.5), V(-34, 16), V(-34, 26), V(-46, 26)] },
       { group: 'village', type: 'shotgunner', pos: V(-40, 27), yaw: Math.PI / 2 },
@@ -262,7 +262,7 @@ export function build(W) {
       { group: 'hq', type: 'rifleman', pos: V(-8.5, -48.5), yaw: 0 },
       { group: 'hq', type: 'shotgunner', pos: V(7, -54), yaw: Math.PI / 2 },
       { group: 'hq', type: 'rifleman', pos: V(-20, -35), yaw: Math.PI / 2 },
-      { group: 'hq', type: 'rifleman', pos: V(20, -38), yaw: Math.PI },
+      { group: 'hq', type: 'rifleman', pos: V(23.5, -38), yaw: Math.PI }, // kamyonun yanı (içindeydi; grup Vadi Karargâhı'na dek kullanılmadı)
     ],
     // İstihbarattan sonra gelen takviye
     reinforcements: [

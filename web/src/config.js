@@ -175,6 +175,10 @@ export const TREES = {
 // dokusunun ortalama saydamlığı (≈0,22) kesme eşiğine (0,2) çok yakın: küçük katmanlarda bütün kümeler eşiğin altına
 // düşüp yapraklar bir anda kayboluyordu. Katman başına bu oranda güçlenir (Golus, "alpha to coverage" notları)
 export const FOLIAGE = { mipBoost: 0.3, maxBoost: 3 };
+// Yağmur (haritanın weather: 'rain'): kameranın çevresinde düşen ince çizgiler (src/rain.js; yuvarlak parçacık olarak
+// neredeyse görünmüyordu). Tek çizim çağrısı, ışık yok. count: çizgi sayısı (düşük kalitede × lowMult), radius/height:
+// kamerayı saran kutu (m), speed: düşüş (m/sn), length: çizgi boyu (m), wind: yatay kayma (m/sn)
+export const RAIN = { count: 1100, lowMult: 0.45, radius: 16, height: 11, speed: [15, 19], length: 0.6, wind: [0.9, 0.3], color: 0xaebccb, opacity: 0.34 };
 
 // Görünmeyen asker çizilmez (yalnız bakılan yer): görüş konisindeki düşmana kameradan birkaç noktasına (baş, göğüs,
 // diz, iki omuz) çarpışma dünyasında ışın atılır; hiçbiri görmüyorsa (duvar, kat arkası) gizlenir, iskeleti seyrek
@@ -1858,6 +1862,79 @@ export const MAPS = {
   },
 };
 
+// Yeni haritalar (kullanıcı isteği "daha fazla birsürü bölüm ekle")
+MAPS.airbase = {
+  name: 'Kartal Hava Üssü', desc: 'Hava üssü, puslu öğle',
+  env: {
+    grade: { saturation: 1.02, tint: [1.02, 1.0, 0.98] }, // öğle pusu: hafif sıcak, düz
+    sky: { zenith: 0x5a84b0, horizon: 0xd6d0c0, ground: 0xa89a80, glow: [0.9, 0.82, 0.6], disc: [1.0, 0.96, 0.85], band: [0.1, 0.08, 0.04], stars: 0 },
+    fog: [80, 480], sunDir: [0.35, 0.85, 0.3], sun: [0xfff2dc, 3.0], hemi: [0xc8d6e6, 0x9a8c74, 2.8], exposure: 1.02,
+    reflect: [0x5a84b0, 0xd6d0c0, 0x9a8c74], view: [0xdce4ee, 0x7a6a54, 1.6, 0xfff2dc, 2.3],
+    dust: 0xc8b896, ambient: { wind: 400, gain: 0.16, distant: 1.1 }, perception: 1, weather: null,
+    grass: { density: 4, color: 0xb0a26c, height: 0.7 }, // bozkır otu
+  },
+};
+MAPS.dam = {
+  name: 'Gölbaşı Barajı', desc: 'Baraj ve santral, yağmurlu',
+  env: {
+    grade: { saturation: 0.92, contrast: 1.06, tint: [0.97, 1.0, 1.03] }, // yağmur: soğuk, soluk
+    sky: { zenith: 0x4e5a66, horizon: 0x8e989e, ground: 0x4a5048, glow: [0.2, 0.22, 0.24], disc: [0.3, 0.3, 0.32], band: [0.03, 0.03, 0.04], stars: 0 },
+    fog: [30, 250], sunDir: [-0.3, 0.75, 0.5], sun: [0xd8e0ea, 1.4], hemi: [0xb4c0cc, 0x6a7066, 3.2], exposure: 1.04,
+    reflect: [0x5a6670, 0x8e989e, 0x4a5048], view: [0xbcc6d0, 0x52564e, 1.55, 0xd8e0ea, 1.3],
+    dust: 0x7a7c74, ambient: { wind: 320, gain: 0.2, distant: 1.0 }, perception: 0.86, weather: 'rain',
+    grass: { density: 14, color: 0x6a7e4a, height: 0.9 },
+  },
+};
+MAPS.railyard = {
+  name: 'Demiryolu Kavşağı', desc: 'Makas sahası, gece',
+  env: {
+    grade: { saturation: 0.98, tint: [0.97, 0.99, 1.05], vignette: 0.3 }, // gece: mavi, köşeler koyu
+    sky: { zenith: 0x05080f, horizon: 0x1e2232, ground: 0x07070a, glow: [0.22, 0.18, 0.2], disc: [0.9, 0.92, 1.0], band: [0.1, 0.05, 0.03], stars: 1 },
+    fog: [26, 240], sunDir: [0.5, 0.55, -0.55], sun: [0xaec0ff, 0.85], hemi: [0x6a7ec0, 0x4a4858, 4.5], exposure: 1.5,
+    reflect: [0x0a1224, 0x2a3048, 0x0a0a0c], view: [0x6a7aa8, 0x2a2018, 0.9, 0xb0c0ff, 0.6],
+    dust: 0x5a5a62, ambient: { wind: 240, gain: 0.12, distant: 0.9 }, perception: 0.84, weather: null,
+  },
+};
+// Aynı haritada başka ortam (seviyenin env alanı; harita kurucusu level.map): gece, fırtına, yangın. Işık sayısı
+// aynı, yalnız renk/şiddet; çevrim içi arena değiller
+const NIGHT = {
+  sky: { zenith: 0x05080f, horizon: 0x1c2638, ground: 0x07070a, glow: [0.16, 0.2, 0.32], disc: [0.85, 0.9, 1.0], band: [0.1, 0.05, 0.02], stars: 1 },
+  sun: [0xaec0ff, 0.8], hemi: [0x6a7cb8, 0x4a4652, 4.5], exposure: 1.48,
+  reflect: [0x0a1224, 0x283248, 0x0a0a0c], view: [0x6a78a0, 0x2a2420, 0.9, 0xb0c0ff, 0.6],
+};
+MAPS.kizilkumNight = {
+  name: MAPS.kizilkum.name, desc: 'Çöl vadisi, gece',
+  env: { ...MAPS.kizilkum.env, ...NIGHT, grade: { saturation: 0.98, tint: [0.97, 0.99, 1.05], vignette: 0.28 }, fog: [32, 260], sunDir: [-0.45, 0.55, -0.6], perception: 0.84, grass: { ...MAPS.kizilkum.env.grass, color: 0x6a6650 } },
+};
+MAPS.harborStorm = {
+  name: MAPS.harbor.name, desc: 'Fırtınalı gece',
+  env: {
+    ...MAPS.harbor.env, ...NIGHT,
+    grade: { saturation: 0.86, contrast: 1.05, tint: [0.96, 0.99, 1.05], vignette: 0.3 },
+    sky: { zenith: 0x0c1018, horizon: 0x2a3442, ground: 0x0a0a0c, glow: [0.1, 0.12, 0.16], disc: [0.5, 0.55, 0.6], band: [0.02, 0.02, 0.03], stars: 0 },
+    fog: [22, 200], sunDir: [-0.3, 0.6, 0.6], sun: [0xa8b8d0, 0.7], hemi: [0x6a7a94, 0x3e4048, 4.6],
+    ambient: { ...MAPS.harbor.env.ambient, wind: 700, gain: 0.3 }, perception: 0.8, weather: 'rain',
+  },
+};
+MAPS.passNight = {
+  name: MAPS.pass.name, desc: 'Karlı geçit, gece',
+  env: { ...MAPS.pass.env, ...NIGHT, grade: { saturation: 0.95, tint: [0.96, 0.99, 1.06], vignette: 0.28 }, fog: [24, 210], sunDir: [0.4, 0.6, 0.5], hemi: [0x7a8ccc, 0x5a6072, 4.6], perception: 0.8 },
+};
+MAPS.forestFire = {
+  name: MAPS.forest.name, desc: 'Yanan orman, alacakaranlık',
+  env: {
+    ...MAPS.forest.env,
+    grade: { saturation: 1.06, tint: [1.05, 0.98, 0.94], vignette: 0.22 },
+    sky: { zenith: 0x2a161a, horizon: 0xc0603a, ground: 0x3a2418, glow: [1.0, 0.38, 0.16], disc: [1.0, 0.58, 0.32], band: [0.5, 0.14, 0.04], stars: 0 },
+    fog: [22, 220], sunDir: [-0.6, 0.3, 0.7], sun: [0xff8a50, 2.3], hemi: [0xb48a7a, 0x6a5040, 3.0], exposure: 1.12,
+    reflect: [0x4a2028, 0xc0603a, 0x3a2418], view: [0xc89080, 0x5a2a1a, 1.3, 0xff9a6a, 1.8],
+    dust: 0x8a5a40, perception: 0.8, weather: 'ash', grass: { ...MAPS.forest.env.grass, color: 0x7a7a46 },
+  },
+};
+MAPS.coastNight = {
+  name: MAPS.coast.name, desc: 'Kumsal ve burun, gece',
+  env: { ...MAPS.coast.env, ...NIGHT, grade: { saturation: 0.97, tint: [0.97, 0.99, 1.05], vignette: 0.28 }, fog: [30, 260], sunDir: [0.3, 0.5, 0.8], perception: 0.84, grass: { ...MAPS.coast.env.grass, color: 0x5e5e48 } },
+};
 MAPS.municipality = { name: 'Belediye Merkezi', desc: 'İç mekân baskını ve korunan komuta bilgisayarı', env: { ...MAPS.ruins.env, weather: null, fog: [45, 270], exposure: 1.13 } };
 
 // Seviyeler (kolaydan zora). İlk iki seviye Kızılkum'un bölümleri; sonrakiler başka haritalarda, her biri
@@ -1958,7 +2035,7 @@ export const LEVELS = [
     brief: 'Kızıl kanyondaki robot komuta üssü: kapıyı düşür, robot sürüsünü yok et, üç enerji çekirdeğini patlat, kapatma kodlarını al ve robot dalgalarına karşı pisti tut.',
     start: 0, objectives: ['outpost', 'robots', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
     radioIntro: 'Son Kale. Ne olursa olsun bu gece bitiyor. Alfa Timi, yanındayız.',
-    outro: 'Kapatma kodları çalıştı. Robot ordusu sustu. Demir Şafak tamamlandı, Komutan.',
+    outro: 'Kapatma kodları çalıştı. Robot ordusu sustu. Ama düşman üslerini bırakmadı, Komutan: savaş sürüyor.',
     enemies: { groups: ['outpost', 'robots', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 5 },
     defendTime: 110,
     tuning: { reaction: 0.78, aim: 0.82, damage: 1.18, perception: 1.0, awareness: 1.22, attackers: 1, grenades: true },
@@ -1974,8 +2051,90 @@ export const LEVELS = [
   },
 ];
 
+// Yeni bölümler (kullanıcı isteği "daha fazla birsürü bölüm ekle"): üç yeni harita (hava üssü, baraj, demiryolu) ve
+// eski haritalarda yeni hedef sıraları, gece/fırtına/yangın ortamları (env). Son Kale'den sonra açılır
+LEVELS.push(
+  {
+    id: 12, map: 'airbase', name: 'Kartal Hava Üssü', tag: 'Çok zor · tank',
+    brief: 'Ele geçirilen hava üssünü geri al: kapıyı düşür, pist kenarındaki iki uçaksavarı patlat, kontrol kulesinden uçuş kayıtlarını al ve kuzeydeki pisti helikopter gelene dek tut. Apronda bir tank, dört makineli yuvası.',
+    start: 0, objectives: ['outpost', 'aa', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Kartal Hava Üssü düşmanın elinde. Jetleri yerde, uçaksavarları pistte. Alfa Timi, üssü geri alıyoruz.',
+    outro: 'Tahliye tamam. Üs bizim, jetlerimiz yarın sabah kalkıyor.',
+    enemies: { groups: ['outpost', 'village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 4, tanks: 1 },
+    defendTime: 100,
+    tuning: { reaction: 0.8, aim: 0.84, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
+  },
+  {
+    id: 13, map: 'dam', name: 'Gölbaşı Barajı', tag: 'Zor · yağmur',
+    brief: 'Sağanak yağmurda barajın santraline sız: vadi yolundaki kontrol noktasını al, kontrol binasından kapatma şemasını çal, santraldeki üç jeneratörü C4 ile patlat ve helikoptere bin. Nehri iki köprüden geçebilirsin.',
+    start: 0, objectives: ['outpost', 'intel', 'aa', 'extract'], allies: 3, allyTier: 5,
+    radioIntro: 'Gölbaşı Barajı robot fabrikalarına elektrik veriyor. Santrali karartırsak üretim durur. Yağmur sesleri yutuyor, iyi kullan.',
+    outro: 'Tahliye tamam. Santral karardı, fabrikaların ışıkları söndü.',
+    enemies: { groups: ['outpost', 'hq', 'village'], exclude: [], reinforcements: true, hmg: 3 },
+    tuning: { reaction: 0.84, aim: 0.88, damage: 1.1, perception: 0.95, awareness: 1.15, attackers: 1, grenades: true },
+  },
+  {
+    id: 14, map: 'railyard', name: 'Demiryolu Kavşağı', tag: 'Çok zor · gece',
+    brief: 'Gece düşmanın ikmal hattındaki makas sahasına baskın: saha kapısını temizle, katarların arasındaki iki uçaksavarı patlat, yük sahasındaki pisti helikopter gelene dek tut. Vagonların arası dar, köşeler tehlikeli.',
+    start: 0, objectives: ['outpost', 'aa', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Demiryolu kavşağı cephenin damarı. Katarlar mühimmat taşıyor. Alfa Timi, karanlık bizden yana.',
+    outro: 'Tahliye tamam. Kavşak kapandı, ikmal hattı kesildi.',
+    enemies: { groups: ['outpost', 'village'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 3, tanks: 1 },
+    defendTime: 95,
+    tuning: { reaction: 0.8, aim: 0.84, damage: 1.15, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
+  },
+  {
+    id: 15, map: 'kizilkum', env: 'kizilkumNight', name: 'Vadi Karargâhı', tag: 'Zor · gece',
+    brief: 'Kızılkum Vadisi\'ne gece dönüş: köyün içinden sessizce geç, komuta merkezinden yeni planları al ve kuzeydeki iniş bölgesini dalgalara karşı tut. Kulede keskin nişancı, iki makineli yuvası.',
+    start: 1, objectives: ['intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Düşman vadiyi geri aldı ve komuta merkezine yeni planlar getirdi. Gece seni gizler. Köyden geç, merkeze gir.',
+    outro: 'Tahliye tamam. Planlar elimizde, vadi bir kez daha bizim.',
+    enemies: { groups: ['village', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: [1] }, // karakol yuvası arkada kalır
+    defendTime: 95,
+    tuning: { reaction: 0.82, aim: 0.86, damage: 1.12, perception: 0.95, awareness: 1.18, attackers: 1, grenades: true },
+  },
+  {
+    id: 16, map: 'harbor', env: 'harborStorm', name: 'Fırtınalı Liman', tag: 'Çok zor · fırtına',
+    brief: 'Fırtınalı gecede limana dönüş: kapıyı al, rıhtımdaki iki uçaksavarı patlat ve kuzeydeki pistte helikoptere bin. Yağmur görüşü kısaltır; konteyner sahası dar.',
+    start: 0, objectives: ['outpost', 'aa', 'extract'], allies: 3, allyTier: 5,
+    radioIntro: 'Liman yeniden düştü ve fırtına geliyor. Rüzgâr sesini yutar, ama görüş de kısa. İki makineli yuvası var.',
+    outro: 'Tahliye tamam. Fırtınaya rağmen liman bizim.',
+    enemies: { groups: ['outpost', 'village'], exclude: [], hardTypes: true, hmg: 2 },
+    tuning: { reaction: 0.82, aim: 0.86, damage: 1.12, perception: 1.0, awareness: 1.2, attackers: 1, grenades: true },
+  },
+  {
+    id: 17, map: 'pass', env: 'passNight', name: 'Gece Geçidi', tag: 'Çok zor · gece',
+    brief: 'Karlı geçitte gece baskını: karakolu al, sığınaktaki yeni haritaları çal ve tahliyeyi tankların gözü önünde tut. Görüş çok kısa, sığınakların mazgallarında makineli.',
+    start: 0, objectives: ['outpost', 'intel', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Geçit yine kapandı. Bu gece kar ve karanlık birlikte. Sığınaktaki haritalar olmadan ilerleyemeyiz.',
+    outro: 'Tahliye tamam. Geçit yeniden açık, haritalar komutanlıkta.',
+    enemies: { groups: ['outpost', 'hq'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: [0, 2, 3], tanks: 1 }, // karakol + sığınak mazgalları
+    defendTime: 100,
+    tuning: { reaction: 0.8, aim: 0.84, damage: 1.15, perception: 0.95, awareness: 1.2, attackers: 1, grenades: true },
+  },
+  {
+    id: 18, map: 'forest', env: 'forestFire', name: 'Yanan Orman', tag: 'Zor · robot',
+    brief: 'Kara Orman alev alev: kereste kampını temizle, dumanın içinde istasyonu koruyan savaş robotlarını yok et ve açıklıkta helikoptere bin. Kül görüşü kapatır; bazuka ve C4 robota karşı en iyi silah.',
+    start: 0, objectives: ['outpost', 'robots', 'extract'], allies: 3, allyTier: 5,
+    radioIntro: 'Robotlar ormanı ateşe verdi, istasyonu geri almak istiyorlar. Önce kamp, sonra robotlar.',
+    outro: 'Tahliye tamam. Robotlar küllerin altında kaldı.',
+    enemies: { groups: ['outpost', 'robots'], exclude: [], hardTypes: true, hmg: 2 },
+    tuning: { reaction: 0.82, aim: 0.86, damage: 1.12, perception: 0.92, awareness: 1.18, attackers: 1, grenades: true },
+  },
+  {
+    id: 19, map: 'coast', env: 'coastNight', name: 'Gece Çıkarması', tag: 'Son görev · gece',
+    brief: 'Ay ışığında ikinci çıkarma: sığınakları al, kıyı toplarını sustur, tankları ele geçir ya da patlat ve burundaki pisti son dalgaya dek tut. Bu gece her şey bitiyor.',
+    start: 0, objectives: ['outpost', 'aa', 'lz', 'defend', 'board'], allies: 3, allyTier: 5,
+    radioIntro: 'Son çıkarma, Komutan. Düşman kıyıya bütün gücünü yığdı. Rampa iniyor; Alfa Timi, sonuna kadar yanındayız.',
+    outro: 'Tahliye tamam. Kıyı bizim, savaş bitti. Demir Şafak, görev tamamlandı.',
+    enemies: { groups: ['outpost', 'village'], exclude: [], hardTypes: true, reinforcements: true, extraWave: true, hmg: 4, tanks: 2 },
+    defendTime: 100,
+    tuning: { reaction: 0.76, aim: 0.8, damage: 1.2, perception: 1.0, awareness: 1.25, attackers: 1, grenades: true },
+  },
+);
+
 // Özel operasyonlar normal görev numaralarını değiştirmez: ilk beş görevin ardından belediye baskını.
-LEVELS.splice(5, 0, LEVELS.pop());
+LEVELS.splice(5, 0, ...LEVELS.splice(LEVELS.findIndex((l) => l.id === 11), 1));
 
 // Vuruş kutuları (kemiğe bağlı, görünmez; bağlanma pozunda ölçüldü). Gövde/kafa kutuları kemik boyunca
 // "along" metre ileride ve "size" boyutunda; uzuv kutuları iki eklem arasını "width" kalınlıkta kaplar.

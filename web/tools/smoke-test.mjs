@@ -213,7 +213,9 @@ console.log('Kayıt ve kredi');
       return { ok, no, text: document.getElementById('menuCreditsVal').textContent, saved: JSON.parse(localStorage.getItem('demirsafak.save')).credits, log: E.log.length };
     });
     check(e.ok && !e.no && e.text === '500 KR' && e.saved === 500 && e.log === 2, `Kredi harcandı/kazanıldı, yetersiz harcama reddedildi, kayıt anında yazıldı (${e.text})`);
-    // Yeniden açılınca kredi korunur
+    // Yeniden açılınca kredi korunur. Chromium localStorage yazımını tarayıcı sürecine eşzamansız iletir: yazımdan
+    // milisaniyeler sonra yenilenen sayfa yük altında eski kopyayı okuyabiliyordu (oyuncu bu kadar hızlı yenilemez)
+    await page.waitForTimeout(400);
     await page.reload();
     await page.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 60000 });
     const after = await page.evaluate(() => ({ credits: window.__game.economy.credits, stored: JSON.parse(localStorage.getItem('demirsafak.save') || 'null')?.credits }));
@@ -331,8 +333,9 @@ console.log('Bağımsız sürüm (dist/index.html)');
   await page.click('#btnPlay');
   await sleep(200);
   check(await page.isVisible('#diffScreen'), 'Seviye ekranı görünüyor');
-  // On seviye + 5. seviyeden sonra özel operasyon (Belediye Merkezi; campaign.js sırası)
-  check((await page.$$('#levelList .lvl')).length === 11, 'On bir görev listelendi (on seviye + özel operasyon)');
+  // On sekiz seviye + 5. seviyeden sonra özel operasyon (Belediye Merkezi; campaign.js sırası)
+  const lvlCount = (await page.$$('#levelList .lvl')).length;
+  check(lvlCount === 19, `${lvlCount} görev listelendi (on sekiz seviye + özel operasyon)`);
   const cards = await page.evaluate(() => [...document.querySelectorAll('#levelList .lvl .m')].map((m) => m.textContent));
   check(/Kızılkum/.test(cards[0]) && /Liman/.test(cards[2]) && /Belediye Merkezi/.test(cards[5]) && /Gece Rafinerisi/.test(cards[6]), 'Kartlarda harita adları (Kızılkum → Belediye Merkezi → Gece Rafinerisi)');
   check(/Komando/.test(cards[6]) && /5 makineli yuvası/.test(cards[6]) && !/makineli/.test(cards[0]), 'Gece Rafinerisi: komando manga, 5 makineli yuvası; ilk seviyede yuva yok');
@@ -2231,9 +2234,17 @@ console.log('Haritalar, mevziler ve manga kademeleri');
   const expect = {
     1: ['kizilkum', 0, 'Er'], 2: ['kizilkum', 0, 'Onbaşı'], 3: ['harbor', 2, 'Çavuş'], 4: ['ruins', 3, 'Çavuş'], 5: ['pass', 4, 'Uzman Çavuş'], 6: ['refinery', 5, 'Komando'],
     7: ['forest', 3, 'Komando'], 8: ['factory', 3, 'Komando'], 9: ['coast', 4, 'Komando'], 10: ['core', 5, 'Komando'],
+    // Yeni bölümler: üç yeni harita ve eski haritaların gece/fırtına/yangın çeşitlemeleri (seviyenin env alanı)
+    12: ['airbase', 4, 'Komando'], 13: ['dam', 3, 'Komando'], 14: ['railyard', 3, 'Komando'], 15: ['kizilkum', 1, 'Komando'],
+    16: ['harbor', 2, 'Komando'], 17: ['pass', 3, 'Komando'], 18: ['forest', 2, 'Komando'], 19: ['coast', 4, 'Komando'],
   };
+  // Ağaçlı ve konteynerli haritalar (hazır model denetimi)
+  const treeMaps = ['kizilkum', 'pass', 'forest', 'coast', 'dam'];
+  const contMaps = ['kizilkum', 'harbor', 'ruins', 'refinery', 'factory', 'core', 'airbase', 'dam', 'railyard'];
+  // Gece ortamları karanlık ama okunur (siyah piksel sınırı daha geniş)
+  const nightEnvs = ['refinery', 'factory', 'railyard', 'kizilkumNight', 'harborStorm', 'passNight', 'coastNight'];
   // Rafineri en sona: ardından gelen algı ve maliyet ölçümleri en kalabalık gece haritasında yapılır
-  for (const id of [1, 2, 3, 4, 5, 7, 8, 9, 10, 6]) {
+  for (const id of [1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 6]) {
     await start(id);
     const r = await page.evaluate(() => {
       const g = window.__game;
@@ -2259,7 +2270,7 @@ console.log('Haritalar, mevziler ve manga kademeleri');
       }
       return {
         tanks: g.mission.tanks.length,
-        state: g.state, map: g.level.map, gunners: g.enemies.list.filter((e) => e.type === 'gunner' && e.mount).length,
+        state: g.state, map: g.level.map, env: g.level.env || g.level.map, gunners: g.enemies.list.filter((e) => e.type === 'gunner' && e.mount).length,
         rank: g.allies.list[0]?.S.rank, tag: g.allies.list[0]?.rankName, issues, fog: g.scene.fog.color.getHexString(),
         // Tarayıcıda kurulan haritanın çarpıştırıcı özeti (sunucunun yükleyeceği dosyayla aynı olmalı)
         colHash: g.world.toJSON(g.level.map, g.world.mapColliders).hash,
@@ -2349,19 +2360,19 @@ console.log('Haritalar, mevziler ve manga kademeleri');
     check(r.gunners === hmg, `Seviye ${id}: ${hmg} ağır makineli mevzi (${r.gunners})`);
     check(r.rank === rank, `Seviye ${id}: manga kademesi ${rank} (etiket "${r.tag}")`);
     // Fabrika ve kıyıda düşman tanklarına ek olarak haritada boş bırakılmış birer tank (ele geçirilir)
-    const tanks = { 4: 1, 5: 2, 6: 2, 8: 2, 9: 3 }[id] || 0;
+    const tanks = { 4: 1, 5: 2, 6: 2, 8: 2, 9: 3, 12: 1, 14: 1, 17: 1, 19: 3 }[id] || 0;
     check(r.tanks === tanks, `Seviye ${id}: ${tanks} tank (${r.tanks})`);
     check(r.issues.length === 0, `Seviye ${id}: başlangıçtan tüm hedeflere yol var, düşmanlar yürünebilir yerde${r.issues.length ? ` (${r.issues.join(', ')})` : ''}`);
-    if ([1, 5, 7, 9].includes(id)) check(r.trees > 0 && r.treeInst.trunk === r.trees && r.treeInst.leaf === r.trees && r.treeInst.alpha, `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, ${r.treeInst.cells} hücre: bakılmayan hücre çizilmez)`);
-    if ([1, 5, 7, 9].includes(id)) check(r.treeInst.lod === r.trees && r.treeInst.exclusive, `Seviye ${id}: uzak ağaç hücreleri sade gövdeyle (${r.treeInst.lod} örnek; tam ve sade gövde aynı anda çizilmez)`);
+    if (treeMaps.includes(map)) check(r.trees > 0 && r.treeInst.trunk === r.trees && r.treeInst.leaf === r.trees && r.treeInst.alpha, `Seviye ${id}: ${r.trees} ağaç hazır çam modeliyle (gövde + saydam yaprak, ${r.treeInst.cells} hücre: bakılmayan hücre çizilmez)`);
+    if (treeMaps.includes(map)) check(r.treeInst.lod === r.trees && r.treeInst.exclusive, `Seviye ${id}: uzak ağaç hücreleri sade gövdeyle (${r.treeInst.lod} örnek; tam ve sade gövde aynı anda çizilmez)`);
     // Gece haritaları karanlık ama okunur; gündüz haritasında gölgedeki zemin/bina simsiyah değil
-    const darkMax = ['refinery', 'factory'].includes(map) ? 70 : 55;
+    const darkMax = nightEnvs.includes(r.env) ? 70 : 55;
     check(Math.max(...r.dark) <= darkMax, `Seviye ${id}: gölgedeki yüzler simsiyah değil (dört yönde siyah piksel %${r.dark.join('/%')}, sınır %${darkMax})`);
     if (id === 1 && r.allyGun) check(r.allyGun.full > 0 && r.allyGun.tris < r.allyGun.full * 0.45, `Tim askerinin silahı sade kopya (${r.allyGun.id}: ${r.allyGun.full} → ${r.allyGun.tris} üçgen)`);
-    if (![5, 7, 9].includes(id)) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk ve hücre başına bir çizim çağrısı)`);
+    if (contMaps.includes(map)) check(r.containers > 0 && r.contInst[0] === r.containers && r.contInst[1] <= 5, `Seviye ${id}: ${r.containers} konteyner hazır modelle (${r.contInst[1]} renk, renk ve hücre başına bir çizim çağrısı)`);
     if (id >= 3) {
       await waitGame(page, 1.0);
-      await page.screenshot({ path: join(shots, `14-map-${map}.png`) });
+      await page.screenshot({ path: join(shots, `14-map-${r.env}.png`) });
     }
   }
   // Gece haritası daha az görür (algı çarpanı)
@@ -4430,7 +4441,7 @@ if (run('netplay')) {
     cards: [...document.querySelectorAll('#mhVoteGrid .mhVoteCard')].map((c) => c.dataset.map),
     left: window.__game.net?.voteLeft || 0,
   }));
-  check(vote0.end && vote0.cards.length === 11 && vote0.cards.includes('municipality') && vote0.left > 5, `Maç sonu oylaması: ${vote0.cards.length} harita kartı, ${Math.round(vote0.left)} sn (maç ${before.map} haritasındaydı)`);
+  check(vote0.end && vote0.cards.length === 14 && vote0.cards.includes('municipality') && vote0.cards.includes('railyard') && vote0.left > 5, `Maç sonu oylaması: ${vote0.cards.length} harita kartı, ${Math.round(vote0.left)} sn (maç ${before.map} haritasındaydı)`);
   // Kalıcı istatistik: sonuç kartında kazanılan çevrim içi XP ve rütbe (sunucu maç sonunda yazar)
   await until(A, () => !document.getElementById('mhEndXp').hidden, null, 15000).catch(() => {});
   const xpLine = await A.evaluate(() => (document.getElementById('mhEndXp').hidden ? '' : document.getElementById('mhEndXp').textContent));
@@ -4709,7 +4720,7 @@ if (run('coop')) {
     btn: document.getElementById('btnPartyFind').textContent,
     saved: window.__game.settings.coopLevel,
   }));
-  check(pick.levels === 11 && pick.on === '2' && pick.saved === '2' && /Görevi başlat/.test(pick.btn), `Görev seçici: ${pick.levels} görev, seçili ${pick.on}, düğme "${pick.btn}"`);
+  check(pick.levels === 19 && pick.on === '2' && pick.saved === '2' && /Görevi başlat/.test(pick.btn), `Görev seçici: ${pick.levels} görev, seçili ${pick.on}, düğme "${pick.btn}"`);
   await A.screenshot({ path: join(shots, '38-coop-pick.png') });
   await A.evaluate(() => document.getElementById('btnPartyFind').click());
   await until(A, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'campaign', null, 120000);
@@ -4781,7 +4792,7 @@ if (run('coop')) {
     return { shown: !document.getElementById('ppLevels').hidden, n: items.length, fits: b.left >= 0 && b.right <= innerWidth + 1 && items.every((r) => r.width > 100 && r.right <= b.right + 1) };
   });
   await mp.screenshot({ path: join(shots, '38c-coop-mobile-pick.png') });
-  check(mfit.shown && mfit.n === 11 && mfit.fits, `Telefonda görev seçici sığıyor (${mfit.n} görev)`);
+  check(mfit.shown && mfit.n === 19 && mfit.fits, `Telefonda görev seçici sığıyor (${mfit.n} görev)`);
   await mctx.close();
   srv.kill();
 }

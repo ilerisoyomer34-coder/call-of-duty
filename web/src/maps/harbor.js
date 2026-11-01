@@ -145,6 +145,10 @@ export function build(W) {
     ],
     lz: V(-6, -86),
     heliFrom: V(170, -86),
+    // Savunmasız tahliye (Fırtınalı Liman): uçaksavarlardan sonra kuzeydeki piste
+    extract: {
+      aa: { pos: V(-6, -86), cp: 4, radio: ['Şahin-2 fırtınaya rağmen kuzeydeki piste iniyor. Ambarların yanından geç, helikoptere bin.'] },
+    },
     checkpoints: [
       { pos: V(0, 92), yaw: 0 },
       { pos: V(0, 46), yaw: 0 },

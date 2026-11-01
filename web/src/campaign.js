@@ -12,6 +12,9 @@ export function normalizeCampaignProgress(p) {
     p.campaignOrder = 1;
   }
   p.unlocked = Math.max(1,Math.min(LEVELS.length,Math.floor(p.unlocked||1)));
+  // Bitirilmiş görevin ardındaki her zaman açık: kampanyaya yeni bölüm eklenince (12–19) eski sınırda takılan, son
+  // görevi bitirmiş oyuncu yeni bölümü tekrar oynamadan görür
+  for (const L of LEVELS) if (p.best?.[L.id]) p.unlocked = Math.max(p.unlocked, Math.min(LEVELS.length, campaignIndex(L.id) + 2));
   return p;
 }
 export function completeCampaignLevel(p,id) {

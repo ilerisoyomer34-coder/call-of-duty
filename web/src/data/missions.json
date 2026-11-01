@@ -34,6 +34,14 @@
     "8": { "primary": { "reward": 2500 }, "parTimeSec": 1000, "bonus": [{ "id": "tank_ace", "count": 6 }, { "id": "robot_hunter", "count": 2 }, { "id": "untouchable" }] },
     "9": { "primary": { "reward": 2800 }, "parTimeSec": 1080, "bonus": [{ "id": "tank_ace", "count": 4 }, { "id": "longshot", "count": 4 }, { "id": "brotherhood" }] },
     "10": { "primary": { "reward": 3500 }, "parTimeSec": 1260, "bonus": [{ "id": "robot_hunter", "count": 4 }, { "id": "armor_breaker", "count": 4 }, { "id": "blitz" }] },
-    "11": {"primary": {"reward": 4000}, "parTimeSec": 1100, "bonus": [{"id": "no_one_left"}, {"id": "commander", "count": 5}, {"id": "robot_hunter", "count": 3}]}
+    "11": {"primary": {"reward": 4000}, "parTimeSec": 1100, "bonus": [{"id": "no_one_left"}, {"id": "commander", "count": 5}, {"id": "robot_hunter", "count": 3}]},
+    "12": {"primary": {"reward": 3800}, "parTimeSec": 1200, "bonus": [{"id": "tank_ace", "count": 2}, {"id": "longshot", "count": 4}, {"id": "untouchable"}]},
+    "13": {"primary": {"reward": 3600}, "parTimeSec": 1080, "bonus": [{"id": "suppressor"}, {"id": "headhunter", "count": 10}, {"id": "brotherhood"}]},
+    "14": {"primary": {"reward": 4000}, "parTimeSec": 1140, "bonus": [{"id": "tank_ace", "count": 2}, {"id": "blitz"}, {"id": "frugal"}]},
+    "15": {"primary": {"reward": 3800}, "parTimeSec": 1080, "bonus": [{"id": "headhunter", "count": 12}, {"id": "no_one_left"}, {"id": "sidearm"}]},
+    "16": {"primary": {"reward": 4000}, "parTimeSec": 960, "bonus": [{"id": "suppressor"}, {"id": "longshot", "count": 3}, {"id": "untouchable"}]},
+    "17": {"primary": {"reward": 4300}, "parTimeSec": 1200, "bonus": [{"id": "armor_breaker", "count": 5}, {"id": "brotherhood"}, {"id": "commander", "count": 5}]},
+    "18": {"primary": {"reward": 4200}, "parTimeSec": 1020, "bonus": [{"id": "robot_hunter", "count": 1}, {"id": "headhunter", "count": 10}, {"id": "blitz"}]},
+    "19": {"primary": {"reward": 4600}, "parTimeSec": 1260, "bonus": [{"id": "tank_ace", "count": 4}, {"id": "armor_breaker", "count": 6}, {"id": "no_one_left"}]}
   }
 }

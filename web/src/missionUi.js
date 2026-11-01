@@ -174,7 +174,7 @@ export function renderBriefing(root, { level, mapName, mission, record, difficul
   st.title = record?.completed ? `En iyi: ${record.stars} yıldız${record.bestTimeSec != null ? ` · ${formatPar(record.bestTimeSec)}` : ''}` : 'Henüz tamamlanmadı';
   head.append(t, st);
 
-  const map = el('div', `brMap map-${level.map}`);
+  const map = el('div', `brMap map-${level.env || level.map}`);
   map.append(el('b', null, mapName), el('span', null, level.tag));
   const main = el('div', 'brMain');
   main.append(el('h3', null, 'Ana hedef'), el('p', 'brText', level.brief));
