@@ -58,13 +58,12 @@ Ayrıntılı yayın kapıları ve elle yapılacak cihaz testleri: `Docs/RELEASE_
    > Yeni **kişisel** hesaplarda Google, üretime çıkmadan önce **kapalı test** ister. Şu an kural: en az **12 test kullanıcısı**, kesintisiz **14 gün**. Başvururken Console'daki güncel kuralı kontrol et.
 2. **İmzalı paket (.aab), en kolayı GitHub'da derleme** (`.github/workflows/android-aab.yml`; bilgisayarına Android Studio kurman gerekmez):
    1. GitHub'da depo → **Settings → Secrets and variables → Actions → New repository secret**. Adı `ANDROID_KEYSTORE_PASSWORD`, değeri senin seçtiğin en az 12 karakterlik güçlü bir şifre. Bu şifreyi bir yere yaz, kaybetme; kimseyle (sohbet dahil) paylaşma.
-   2. **Actions → "Android paketi (AAB)" → Run workflow** (sürüm kodu boş kalabilir: her çalıştırmada büyür).
-   3. Bitince çalıştırmanın **Artifacts** bölümünden `demir-safak-1.0-<n>.aab`'yi indir (zip içinden çıkar). Play Console'a bu yüklenir.
+   2. Derlemeyi başlat: `mobile/release.json`'daki `versionCode`'u bir artır (GitHub'da dosyayı açıp kalemle düzenleyip kaydetmek yeter; Claude'a "yeni AAB" demek de olur). İş akışı ana dala (`main`) girince **Actions → "Android paketi (AAB)" → Run workflow** düğmesi de çalışır. Play aynı sürüm kodunu ikinci kez kabul etmez.
+   3. Bitince (~10–15 dk) **Actions** sekmesinde çalıştırmanın **Artifacts** bölümünden `demir-safak-<sürüm>-<kod>.aab`'yi indir (zip içinden çıkar). Play Console'a bu yüklenir. Şifre gizli değeri yoksa paket adı `-imzasiz` ile biter: Play kabul etmez.
    4. İlk çalıştırmada yeni yükleme anahtarı üretilir ve `yukleme-anahtari` paketine konur (yalnız **1 gün** durur; dosya senin şifrenle şifreli). Hemen indir:
       - `upload-keystore.p12`'yi güvenli yere yedekle (bulut + harici disk).
       - Aynı yerdeki gibi yeni gizli değer ekle: adı `ANDROID_KEYSTORE_BASE64`, değeri `ANDROID_KEYSTORE_BASE64.txt`'nin içeriği. Sonraki güncellemeler aynı anahtarla imzalanır; Play başka anahtarla imzalı güncellemeyi kabul etmez.
    5. Console'da **Play App Signing** açık kalsın: Google asıl uygulama anahtarını kendisi saklar; yükleme anahtarı kaybolursa Console'dan sıfırlatılabilir.
-   6. "İmzasız deneme derlemesi" seçeneği yalnız derlemenin çalıştığını denemek içindir; Play o paketi kabul etmez.
 
    **Ya da Android Studio'da:**
    1. Android Studio'da **Build → Generate Signed App Bundle / APK → Android App Bundle**.
