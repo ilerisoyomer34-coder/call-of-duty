@@ -113,6 +113,13 @@ export const ONLINE = {
   // Seri ödülü patlamasının görüntüsü (hava saldırısı/topçu; hasar sunucuda data/streaks.json): sarsıntı yarıçapı, boy
   strikeFx: { radius: 9, scale: 1.7 },
   prepWarnSec: 10, // panelde sayaç son bu kadar sn'de kırmızı
+  // Kampanya Co-op'u (server/game/coop.js, data/coop.json): takım teamSize kişiye Alfa botlarıyla dolar; aynı anda
+  // en çok maxEnemies canlı düşman (sıradakiler ölen yerine doğar); oda slots yuvalı (takım + düşman + cesetler);
+  // hedefte E basılıyken hızı holdMaxSpeed'i aşan oyuncunun sayacı sıfırlanır (istemci hareketi durdurur). Botlar (m):
+  // düşman evinden leash'ten öteye kovalamaz, evine aggro'dan yakın gelen oyuncuya yürür, homeNear içinde bekler;
+  // Alfa botu insandan followNear'dan uzaklaşınca onun followDist çevresine yürür. Sınır doluyken önceki aşamanın
+  // hiçbir insana retireDist'ten yakın olmayan düşmanı kalkar (yeni aşamanınkiler doğabilsin)
+  coop: { teamSize: 4, maxEnemies: 10, slots: 24, holdMaxSpeed: 0.6, leash: 35, aggro: 26, homeNear: 2.5, followNear: 6, followDist: 3.5, retireDist: 60 },
   // Maç sonu harita oylaması (kullanıcı isteği "maç sonrası oylansın"): sonuç ekranında bu kadar sn oy verilir;
   // kazanan haritada aynı oyuncularla (aynı taraf, aynı takım) yeni maç açılır. Oy yoksa şimdiki haritadan başka
   // biri, eşitlikte aralarından biri rastgele

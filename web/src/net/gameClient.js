@@ -12,11 +12,14 @@
 //   - Rekabetçi (this.comp): raunt ve bomba durumu olaylardan (NEV.ROUND_STATE, NEV.BOMB), para ve kurma/imha
 //     ilerlemesi anlık görüntüden; satın alma C_BUY. E (etkileşim) basılıyken kurma/imha koşulu tutuyorsa komutun
 //     hareketi sıfırlanır: tahmin, sunucunun saydığı "yerinde durma"yla aynı komutu işler.
+//   - Kampanya Co-op'u (this.coop): seviye karşılamadan, aşama NEV.COOP'tan (→ EV.NET_COOP), hedefte E ilerlemesi
+//     anlık görüntüden; hedefin dibinde E basılıyken hareket aynı biçimde durur (shared/sim/coop.js → holdTarget).
 import { PROTOCOL_VERSION, TICK_DT, TICK_RATE } from '../../shared/constants.js';
 import { MSG, ERR, NEV, PHASE, SIDE, HIT_KIND, SURFACES, SLOT_NONE, VOTE_NONE, WEAPON_SUPPRESSED, WEAPON_NONE } from '../../shared/net/protocol.js';
 import { modsToIndices } from '../../shared/sim/mods.js';
 import { BUY_ITEMS, BOMB, ACT, ROUND_STATE, actionFor } from '../../shared/sim/competitive.js';
 import { streakBits } from '../../shared/sim/streaks.js';
+import { COOP_LEVELS, COOP_STATE, holdTarget, doneFromMask } from '../../shared/sim/coop.js';
 import { Writer, encodeHello, encodeLoadout, encodeVote, encodeBuy, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
@@ -100,6 +103,7 @@ export class GameClient {
     this.loadout = null; // [ana, yan]: sunucunun kuşandırdığı teçhizat (karşılama, sonra NEV.LOADOUT); Rekabetçide ana silah null olabilir
     this.nades = null; // { frag, smoke }: doğuştaki bombalar (NEV.LOADOUT); yoksa ONLINE.nades
     this.comp = null; // Rekabetçi: { round, state, attackSide, winner, reason, bomb, money, act, actProgress }
+    this.coop = null; // Kampanya Co-op'u: { level, stage, state, left, mask, done, act, actProgress }
     this.streaks = true; // seri ödülleri açık mı (Rekabetçide yok)
     this.streak = { kills: 0, ready: 0 }; // anlık görüntüden: bu canda art arda öldürme, hazır ödüller (bit)
     this.vote = null; // maç sonu: { left, at, counts, winner, mine }
@@ -252,6 +256,7 @@ export class GameClient {
         this.slot = m.slot;
         this.loadout = [m.primary, m.secondary];
         this.streaks = m.mode !== 'competitive';
+        if (m.mode === 'campaign' && COOP_LEVELS[m.level]) this.coop = { level: m.level, stage: -1, state: COOP_STATE.ACTIVE, left: 0, mask: 0, done: [], act: 0, actProgress: 0 };
         if (m.mode === 'competitive') {
           // Ana silah raunt başında satın alınır: sunucunun LOADOUT olayına dek yalnız tabanca
           this.loadout = [null, m.secondary];
@@ -349,6 +354,10 @@ export class GameClient {
       this.comp.money = me.money;
       this.comp.act = me.act;
       this.comp.actProgress = me.actProgress;
+    }
+    if (this.coop) {
+      this.coop.act = me.act;
+      this.coop.actProgress = me.actProgress;
     }
     if (me.hp !== this.me.hp) {
       this.me.hp = me.hp;
@@ -456,6 +465,18 @@ export class GameClient {
       case NEV.STREAK:
         g.events.emit(EV.NET_STREAK, e);
         break;
+      case NEV.COOP: {
+        const C = this.coop;
+        if (!C) break;
+        C.stage = e.stage;
+        C.state = e.state;
+        C.left = e.left;
+        C.mask = e.mask;
+        const st = COOP_LEVELS[C.level].stages[e.stage];
+        doneFromMask(e.mask, st?.targets?.length || 0, C.done);
+        g.events.emit(EV.NET_COOP, { ...e });
+        break;
+      }
       case NEV.BOMB: {
         const C = this.comp;
         if (!C) break;
@@ -503,6 +524,14 @@ export class GameClient {
       { slot: this.slot, side: this.mySide, alive: this.game.player.alive, x: st.pos.x, z: st.pos.z, grounded: st.grounded },
       { live: this.phase === PHASE.LIVE && C.state === ROUND_STATE.LIVE, attackSide: C.attackSide, bomb: { state: C.bomb.state, carrier: C.bomb.slot, x: C.bomb.x, z: C.bomb.z }, sites: C.sites }
     );
+  }
+
+  // Co-op: E basılıysa dibinde durulan hedef (yoksa -1); sunucu aynı koşulla sayar
+  coopHold() {
+    const C = this.coop;
+    if (!C || this.phase !== PHASE.LIVE || C.state !== COOP_STATE.ACTIVE || !this.game.player.alive) return -1;
+    const st = this.game.player.state;
+    return holdTarget(COOP_LEVELS[C.level].stages[C.stage], C.done, st.pos.x, st.pos.z, st.grounded);
   }
 
   // Maç öncesi teçhizat paneli (prepScreen.js): seçim ve "hazırım" sunucuya; silah sunucu onaylayınca değişir
@@ -582,6 +611,10 @@ export class GameClient {
       cmd.buttons &= BTN.CROUCH | BTN.ADS | BTN.NO_ADS | BTN.NO_SPRINT;
     } else if (this.comp && cmd.buttons & BTN.USE && this.compAction() !== ACT.NONE) {
       // Bomba kurarken / imha ederken yerinde (sunucu hızlananın ilerlemesini başa döndürür)
+      cmd.moveX = cmd.moveY = 0;
+      cmd.buttons &= ~(BTN.JUMP | BTN.SPRINT);
+    } else if (this.coop && cmd.buttons & BTN.USE && this.coopHold() >= 0) {
+      // Co-op: C4 kurarken / istihbarat alırken yerinde
       cmd.moveX = cmd.moveY = 0;
       cmd.buttons &= ~(BTN.JUMP | BTN.SPRINT);
     }

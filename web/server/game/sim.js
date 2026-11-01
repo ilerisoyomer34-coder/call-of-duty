@@ -7,6 +7,7 @@
 //     gördüğü zamana geri sararak (gecikme telafisi, en çok ONLINE.maxRewindMs) kutularla hesaplar.
 //   - Can, yenilenme, ölüm, doğuş (düşmandan uzak, görüş dışı), skor, evreler (geri sayım → maç → sonuç), botlar.
 //   - Rekabetçi mod (kuralda comp): raunt, bomba ve ekonomi comp.js'te (CompRules); buradaki kancalar onu çağırır.
+//   - Kampanya Co-op'u (kuralda coop): seviyenin aşamaları, aşama düşmanları ve Alfa botları coop.js'te (CoopRules).
 //   - Seri ödülleri (shared/sim/streaks.js): ölmeden art arda öldürmeyle hazır olur, komutun STREAK bitleriyle
 //     kullanılır; hedef komutun bakışından ışınla, patlamalar tohumlu planla zamanında (Rekabetçide yok).
 // Zaman yalnız tick sayacından; rastgelelik tohumlu (Math.random yok).
@@ -27,6 +28,7 @@ import { WEAPONS, WEAPON_ORDER, MOVEMENT as M, ONLINE } from '../../src/config.j
 import BOTS from '../../src/data/bots.json' with { type: 'json' };
 import { BotBrain } from './bot.js';
 import { CompRules } from './comp.js';
+import { CoopRules } from './coop.js';
 
 export const MAX_SLOTS = 16;
 const HIST = ONLINE.historyTicks;
@@ -90,7 +92,8 @@ export class MatchSim {
     this.rules = o.rules;
     this.mode = o.mode;
     this.tick = 0;
-    this.players = new Array(MAX_SLOTS).fill(null);
+    // Co-op'ta takım, aşama düşmanları ve kalkmayı bekleyen cesetler için daha çok yuva
+    this.players = new Array(o.rules.coop ? ONLINE.coop.slots : MAX_SLOTS).fill(null);
     this.secretSeed = hashSeed(o.secret || 'dev', o.matchId || 'm');
     this.rng = new Rng(hashSeed(this.secretSeed, o.seed ?? 1));
     this.shotRng = new Rng(1);
@@ -108,6 +111,7 @@ export class MatchSim {
     this.inTick = false;
     const R = this.rules;
     this.comp = R.comp ? new CompRules(this) : null;
+    this.coop = R.coop ? new CoopRules(this) : null;
     // Seri ödülleri: kural kapatmadıkça açık, Rekabetçide yok
     this.streaksOn = R.streaks !== false && !this.comp;
     // Rekabetçide ısınma hep var (bitince ilk raunt başlar: CompRules.onPhaseEnd)
@@ -188,6 +192,7 @@ export class MatchSim {
       brain: null,
     };
     this.comp?.initPlayer(p);
+    this.coop?.initPlayer(p);
     p.arms = this.makeArms(p);
     if (p.bot) {
       if (!this.nav) this.nav = new NavGrid(this.world, 0.35, () => this.rng.next());
@@ -292,6 +297,7 @@ export class MatchSim {
   // Eksik oyuncuyu yapay zekâyla doldur, insan gelince bot çıkar (bots: 'fill')
   balanceBots() {
     const R = this.rules;
+    if (this.coop) return this.coop.balanceTeam();
     if (R.bots !== 'fill' || this.phase === PHASE.ENDED) return;
     const want = this.sided ? R.perSide.map((n, s) => Math.max(0, n - this.countSide(s, false))) : [Math.max(0, (R.max || 0) - this.humans().length)];
     for (let s = 0; s < want.length; s++) {
@@ -346,6 +352,7 @@ export class MatchSim {
     this.updateNades();
     if (this.strikes.length) this.updateStrikes();
     this.comp?.update();
+    this.coop?.update();
     for (const p of this.players) if (p) this.record(p);
     this.inTick = false;
   }
@@ -363,6 +370,7 @@ export class MatchSim {
         if (p.ready) this.spawn(p);
       }
       this.emit({ k: NEV.ROUND, code: 1, value: 0 });
+      this.coop?.onLive();
     } else if (this.phase === PHASE.LIVE) this.endMatch(2);
     else if (this.phase === PHASE.ENDED) this.finished = true;
   }
@@ -371,7 +379,9 @@ export class MatchSim {
   endMatch(reason) {
     if (this.phase === PHASE.ENDED) return;
     let winner = SIDE.NONE;
-    if (this.sided) winner = this.scores[0] > this.scores[1] ? 0 : this.scores[1] > this.scores[0] ? 1 : SIDE.NONE;
+    // Co-op: görev tamamsa takım, değilse (süre doldu) düşman kazanır
+    if (this.coop) winner = this.coop.onEnd();
+    else if (this.sided) winner = this.scores[0] > this.scores[1] ? 0 : this.scores[1] > this.scores[0] ? 1 : SIDE.NONE;
     else {
       const best = this.ranking()[0];
       winner = best ? best.slot : SLOT_NONE;
@@ -435,6 +445,8 @@ export class MatchSim {
     if (si >= 0 && !frozen) this.useStreak(p, cmd, si);
     // Rekabetçi: E basılıyken bomba kurma / imha (hareketten önceki durumla; istemci o sırada hareketi durdurur)
     if (this.comp) this.comp.onCmd(p, cmd, !frozen && (cmd.buttons & BTN.USE) !== 0);
+    // Co-op: hedefin dibinde E basılı (C4 / istihbarat)
+    else if (this.coop) this.coop.onCmd(p, cmd, !frozen && (cmd.buttons & BTN.USE) !== 0);
     applyCmdMods(p.state.mods, cmd.buttons, a.weapons[cmd.slot]?.d || w.d);
     stepPlayer(p.state, cmd, this.world, TICK_DT);
   }
@@ -811,11 +823,12 @@ export class MatchSim {
           }
         }
       }
-      // Rekabetçide skor raunttur (comp.endRound)
-      if (this.sided && !this.comp) this.scores[killer.side]++;
+      // Rekabetçide skor raunttur (comp.endRound), Co-op'ta aşama
+      if (this.sided && !this.comp && !this.coop) this.scores[killer.side]++;
     }
     this.emit({ k: NEV.KILL, killer: killer ? killer.slot : SLOT_NONE, victim: victim.slot, weapon, flags: head ? 1 : 0 });
     if (this.comp) return this.comp.onKill(victim, killer, weapon);
+    if (this.coop) return this.coop.onKill(victim);
     const lim = this.rules.scoreLimit;
     if (lim && this.phase === PHASE.LIVE) {
       if (this.sided ? Math.max(...this.scores) >= lim : killer && killer.kills >= lim) this.endMatch(1);
@@ -871,6 +884,7 @@ export class MatchSim {
 
   // Doğuş: kendi tarafının (ya da herkesin) noktalarından düşmana en uzak ve görüş dışında olanlardan biri
   pickSpawn(p) {
+    if (this.coop) return this.coop.spawnPoint(p);
     const S = this.arena.spawns;
     const list = this.comp ? this.comp.spawnList(p) : this.sided ? (p.side === 0 ? S.blue : S.red) : S.ffa;
     const foes = this.players.filter((q) => q && q !== p && q.alive && !this.friendly(q, p));
@@ -904,7 +918,11 @@ export class MatchSim {
     const sided = this.sided;
     let scoreA = this.scores[0];
     let scoreB = this.scores[1];
-    if (!sided) {
+    if (this.coop) {
+      // Co-op: biten aşama / aşama sayısı
+      scoreA = this.coop.stagesDone;
+      scoreB = this.coop.L.stages.length;
+    } else if (!sided) {
       // Herkes kendine: kendi öldürme sayın ve en iyi rakibinki
       scoreA = me ? me.kills : 0;
       scoreB = 0;
@@ -944,7 +962,7 @@ export class MatchSim {
             state: me.alive ? me.state : null,
             streak: me.streak,
             streakReady: me.streakReady,
-            ...(this.comp ? this.comp.meView(me) : null),
+            ...(this.comp ? this.comp.meView(me) : this.coop ? this.coop.meView(me) : null),
           }
         : { alive: false, hp: 0, respawnIn: 0, state: null },
       players,

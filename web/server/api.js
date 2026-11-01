@@ -8,6 +8,8 @@ import { levelFromXp, rankFor } from '../src/progression.js';
 
 const DEFAULT_SERVER_NAME = 'Demir Şafak sunucusu';
 import { SIDE } from '../shared/net/protocol.js';
+import { COOP_LEVEL_IDS } from '../shared/sim/coop.js';
+import { partyCap } from './game/rooms.js';
 
 class HttpError extends Error {
   constructor(status, code) {
@@ -272,6 +274,23 @@ export function createApi({ store, hub, parties, limiter, config, log, rooms, ma
       const room = rooms.create('sandbox', 'sandbox');
       room.reserve(members, party ? party.id : '', SIDE.NONE);
       const match = { room: room.code, kind: 'sandbox', mode: 'sandbox', map: room.mapId, side: SIDE.NONE, by: me(p) };
+      for (const m of members) if (m !== p.id) hub.send(m, { t: 'match', match });
+      return { match };
+    },
+    // Kampanya Co-op'u: takım lideri (ya da takımsız oyuncu) seviye seçip açar; takımın çevrim içi üyeleri aynı
+    // tarafa davetli, eksik yerler Alfa Timi botları (server/game/coop.js)
+    'POST /api/party/campaign': async (req, body) => {
+      const p = auth(req);
+      limit(`r:${p.id}`, LIMITS.room);
+      const level = str(body.level);
+      if (!COOP_LEVEL_IDS.includes(level)) throw new HttpError(400, 'bad_level');
+      const party = parties.partyOf(p.id);
+      if (party && party.leader !== p.id) throw new HttpError(409, 'not_leader');
+      const members = (party ? party.members.filter((m) => m === p.id || hub.isOnline(m)) : [p.id]).slice(0, partyCap('campaign'));
+      for (const m of members) matchmaker.cancel(m);
+      const room = rooms.create('campaign', 'campaign', null, level);
+      room.reserve(members, party ? party.id : '', SIDE.BLUE);
+      const match = { room: room.code, kind: 'campaign', mode: 'campaign', map: room.mapId, side: SIDE.BLUE, level, by: me(p) };
       for (const m of members) if (m !== p.id) hub.send(m, { t: 'match', match });
       return { match };
     },

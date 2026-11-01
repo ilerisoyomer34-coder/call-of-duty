@@ -15,6 +15,7 @@ const EXTRA = [
   'src/data/modes.json',
   'src/data/bots.json',
   'src/data/competitive.json',
+  'src/data/coop.json',
   'src/data/weapons.json',
   'src/data/attachments.json',
   'src/data/sights.json',

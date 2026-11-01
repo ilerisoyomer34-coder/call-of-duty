@@ -19,7 +19,7 @@ export const RESERVE_MS = 45_000; // eşleşip henüz bağlanmamış oyuncunun y
 
 export class Room {
   /**
-   * @param {{ code, kind: 'sandbox'|'match', mode, rules, mapId, world, arena, secret, log?, now?, manual?, onClose?, maps?, nextRoom? }} o
+   * @param {{ code, kind: 'sandbox'|'match'|'campaign', mode, rules, mapId, world, arena, secret, log?, now?, manual?, onClose?, maps?, nextRoom? }} o
    *   manual: true → zamanlayıcı yok, testler tick()'i kendisi çağırır
    *   maps: oylanan haritalar (modes.json → matchmaking.maps); nextRoom(mapId) → yeni Room (oylamanın sonunda)
    *   onResults(list): eşleşme maçı bitince insanların sonucu [{ id, record }] (kalıcı istatistik: store.recordMatch)
@@ -196,9 +196,10 @@ export class Room {
         map: this.mapId,
         timeLimit: sim.rules.timeLimit || 0,
         // Rekabetçide kazanmak için gereken raunt (test kısaltmasıyla değişebilir: istemci tablodan değil buradan okur)
-        scoreLimit: sim.comp ? sim.comp.R.toWin : sim.rules.scoreLimit || 0,
+        scoreLimit: sim.comp ? sim.comp.R.toWin : sim.coop ? sim.coop.L.stages.length : sim.rules.scoreLimit || 0,
         primary: p.loadout[0],
         secondary: p.loadout[1],
+        level: sim.coop ? sim.coop.levelId : '',
       })
     );
     this.sendRoster(true);
@@ -229,8 +230,9 @@ export class Room {
         if (!conn.loaded) {
           conn.loaded = true;
           sim.setReady(conn.slot);
-          // Rekabetçi: raunt ve bomba durumu (sonradan katılan da görsün)
+          // Rekabetçi: raunt ve bomba durumu; Co-op: aşama (sonradan katılan da görsün)
           sim.comp?.sendStateTo(conn.slot);
+          sim.coop?.sendStateTo(conn.slot);
         }
         break;
       case MSG.C_BUY:
@@ -336,7 +338,8 @@ export class Room {
     this.ended = true;
     const r = this.sim.result;
     // Kalıcı istatistik maç sonu iletisinden önce: istemci sonucu görünce istediği istatistikler güncel olsun
-    if (this.kind === 'match' && this.onResults) {
+    // (eşleşme maçı ve kampanya; deneme odası sayılmaz)
+    if (this.kind !== 'sandbox' && this.onResults) {
       try {
         this.onResults(this.results());
       } catch (e) {
@@ -344,7 +347,9 @@ export class Room {
       }
     }
     this.sendRoster(true);
-    const bytes = encodeMatchEnd(this.writer, { winner: r.winner, reason: r.reason, scoreA: this.sim.scores[0], scoreB: this.sim.scores[1] });
+    // Co-op'ta skor biten aşama / aşama sayısı
+    const K = this.sim.coop;
+    const bytes = encodeMatchEnd(this.writer, { winner: r.winner, reason: r.reason, scoreA: K ? K.stagesDone : this.sim.scores[0], scoreB: K ? K.L.stages.length : this.sim.scores[1] });
     for (const c of this.conns) if (c.slot >= 0) this.send(c, bytes);
     this.log(`oda ${this.code}: maç bitti (kazanan ${r.winner}, neden ${r.reason})`);
     // Sıradaki harita oylaması: sonuç ekranı oylama ve geçiş boyunca açık kalır

@@ -138,8 +138,10 @@ test('anlık görüntü: yerel kayıt kayıpsız, uzak oyuncu 1/64 m', () => {
 });
 
 test('sunucu iletileri: karşılama, pong, hata, maç sonu', () => {
-  const wel = { slot: 2, tickRate: 64, snapshotRate: 32, serverTick: 99, serverTime: 1546.875, room: 'ABC234', mode: 'tdm', map: 'depo', timeLimit: 480, scoreLimit: 40, primary: 'k8', secondary: 'pistol' };
+  const wel = { slot: 2, tickRate: 64, snapshotRate: 32, serverTick: 99, serverTime: 1546.875, room: 'ABC234', mode: 'tdm', map: 'depo', timeLimit: 480, scoreLimit: 40, primary: 'k8', secondary: 'pistol', level: '' };
   assert.deepEqual(decodeServer(encodeWelcome(w, wel)), { type: MSG.S_WELCOME, ...wel });
+  // Kampanya Co-op'u: seviye kimliği
+  assert.equal(decodeServer(encodeWelcome(w, { ...wel, mode: 'campaign', level: '7' })).level, '7');
   assert.deepEqual(decodeServer(encodePong(w, 5.5, 10.25, 7)), { type: MSG.S_PONG, clientTime: 5.5, serverTime: 10.25, serverTick: 7 });
   assert.deepEqual(decodeServer(encodeError(w, ERR.BUILD_MISMATCH, 'x')), { type: MSG.S_ERROR, code: ERR.BUILD_MISMATCH, detail: 'x' });
   assert.deepEqual(decodeServer(encodeMatchEnd(w, { winner: 1, reason: 2, scoreA: 30, scoreB: 40 })), { type: MSG.S_MATCH_END, winner: 1, reason: 2, scoreA: 30, scoreB: 40 });

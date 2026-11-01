@@ -10,6 +10,10 @@ import ARENAS from './data/arenas.json' with { type: 'json' };
 import { inviteUrl, probeServer, serverInputError } from './net/servers.js';
 import { saveSettings } from './settings.js';
 import MODES from './data/modes.json' with { type: 'json' };
+import { COOP_LEVELS, COOP_LEVEL_IDS } from '../shared/sim/coop.js';
+
+// Seviye seçilerek başlatılan mod (Kampanya Co-op'u): eşleştirme kuyruğu yerine "Görevi başlat"
+const isCampaignMode = (id) => !!MODES.modes.find((m) => m.id === id)?.campaign;
 
 const $ = (id) => document.getElementById(id);
 const STATUS_TEXT = { menu: 'Menüde', playing: 'Oyunda', offline: 'Çevrim dışı' };
@@ -83,6 +87,8 @@ export class OnlineScreen {
     $('btnPartyFind').addEventListener('click', () => {
       const S = this.social;
       if (S.queue) this.act(() => S.cancelQueue(), 'Arama iptal edildi');
+      // Kampanya kuyruğa girmez: lider seçtiği seviyeyi takımla hemen açar
+      else if (isCampaignMode(this.currentMode())) this.act(() => S.startCampaign(this.coopLevel()));
       else this.act(() => S.queueMatch(this.currentMode()));
     });
     $('btnSandbox').addEventListener('click', () => this.act(() => this.social.openSandbox()));
@@ -464,6 +470,34 @@ export class OnlineScreen {
     return MODES.modes.some((x) => x.id === m && x.available) ? m : MODES.modes.find((x) => x.available)?.id || MODES.modes[0].id;
   }
 
+  // Kampanya Co-op'unun seviyesi (liderin seçimi, ayar)
+  coopLevel() {
+    const id = String(this.game.settings.coopLevel || '');
+    return COOP_LEVELS[id] ? id : COOP_LEVEL_IDS[0];
+  }
+
+  renderLevels(leader) {
+    const box = $('ppLevels');
+    box.textContent = '';
+    const cur = this.coopLevel();
+    for (const id of COOP_LEVEL_IDS) {
+      const L = COOP_LEVELS[id];
+      const b = el('button', `ppLevel${id === cur ? ' on' : ''}`);
+      b.type = 'button';
+      b.dataset.level = id;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(id === cur));
+      b.append(el('b', '', id), document.createTextNode(L.name), el('small', '', `${L.stages.length} aşama`));
+      b.disabled = !leader;
+      b.addEventListener('click', () => {
+        this.game.settings.coopLevel = id;
+        saveSettings(this.game.settings);
+        this.renderParty();
+      });
+      box.append(b);
+    }
+  }
+
   setSoloMode(id) {
     this.game.settings.onlineMode = id;
     saveSettings(this.game.settings);
@@ -506,13 +540,20 @@ export class OnlineScreen {
       modes.append(b);
     }
     const mode = MODES.modes.find((m) => m.id === modeId);
+    const camp = !!mode?.campaign;
+    $('ppLevels').hidden = !camp;
+    if (camp) this.renderLevels(leader);
     const find = $('btnPartyFind');
-    find.textContent = S.queue ? 'İptal' : 'Maç ara';
+    find.textContent = S.queue ? 'İptal' : camp ? 'Görevi başlat' : 'Maç ara';
     find.disabled = S.queue ? false : !(leader && mode?.available);
     $('btnSandbox').disabled = !leader || !!S.queue;
     $('btnPartyLeave').hidden = !p;
     this.renderQueue();
-    $('ppNote').textContent = mode?.available
+    $('ppNote').textContent = camp
+      ? leader
+        ? `"Görevi başlat": seçtiğin görevi ${p ? 'takımınla' : 'tek başına'} baştan sona oynarsın; eksik yerlerde Alfa Timi. Hedefler sırayla, ölen toplanma noktasında doğar.`
+        : 'Görevi takım lideri seçip başlatır.'
+      : mode?.available
       ? leader
         ? `"Maç ara": karışık oyuncularla eşleşirsin${p ? 'iz; takımın aynı tarafta' : ''}, eksik yerleri yapay zekâ doldurur. "Deneme odası": ${p ? 'takımınla' : 'tek başına'} serbest atış alanı.`
         : 'Maçı ve deneme odasını takım lideri başlatır.'
@@ -581,7 +622,9 @@ export class OnlineScreen {
         break;
       case 'match_found': {
         const m = n.payload;
-        text.append(strong(m.kind === 'sandbox' ? 'Deneme odası açıldı' : 'Maç bulundu'), document.createTextNode(` · ${m.kind === 'sandbox' ? 'takımın bekliyor' : modeName(m.mode)}`));
+        const head = m.kind === 'sandbox' ? 'Deneme odası açıldı' : m.kind === 'campaign' ? 'Görev başlıyor' : 'Maç bulundu';
+        const sub = m.kind === 'sandbox' ? 'takımın bekliyor' : m.kind === 'campaign' ? `${modeName(m.mode)} · ${COOP_LEVELS[m.level]?.name || ''}` : modeName(m.mode);
+        text.append(strong(head), document.createTextNode(` · ${sub}`));
         acts.append(
           button('Katıl', () => {
             close();

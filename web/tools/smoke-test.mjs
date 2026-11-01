@@ -27,7 +27,7 @@ const MIME = { '.glb': 'model/gltf-binary', '.jpg': 'image/jpeg', '.png': 'image
 const errors = [];
 const SMOKE_NAME = 'Deneme';
 // SMOKE_ONLY=levels,maps gibi: yalnızca adı verilen bölümler koşar (hızlı yerel deneme için).
-// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, app, profile, online, netplay, comp, determinism
+// Bölümler: visual, save, store, mission, levels, missions, squad, downed, commands, radio, balance, interact, maps, range, armor, loadout, artifact, mobile, pwa, app, profile, online, netplay, comp, coop, determinism
 const only = process.env.SMOKE_ONLY;
 const run = (name) => !only || only.split(',').includes(name);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -4646,6 +4646,114 @@ if (run('comp')) {
   check(same === roomA && mfit.open && mfit.fits && mfit.btn, `Telefon aynı Rekabetçi maça katıldı (${same}); satın alma menüsü ekrana sığıyor${mfit.open && mfit.fits ? '' : ` ${JSON.stringify(mfit)} iz ${trace}`}`);
   await mctx.close();
   await A.close();
+  srv.kill();
+}
+
+// ---------------- Kampanya Co-op'u: seviye seçimi, aşama satırı, hedefler, Alfa botları, görev sonucu ----------------
+if (run('coop')) {
+  console.log("Kampanya Co-op'u: görev seçimi, aşamalar, hedef işaretleri, sonuç");
+  const PORT = 8795;
+  // Kısa süreler: ısınma 8 sn (HAZIRIM 3 sn'ye indirir), görev süresi 45 sn (dolunca görev başarısız: sonuç kartı)
+  const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_WARMUP: '8', MATCH_TIME: '45' },
+    stdio: 'ignore',
+  });
+  process.on('exit', () => srv.kill());
+  const base = `http://127.0.0.1:${PORT}`;
+  for (let i = 0; i < 50; i++) {
+    const ok = await fetch(`${base}/api/health`).then((r) => r.ok, () => false);
+    if (ok) break;
+    await sleep(100);
+  }
+  const q = `?server=${encodeURIComponent(base)}`;
+  const until = (pg, fn, arg, ms = 60000) => pg.waitForFunction(fn, arg, { timeout: ms, polling: 100 });
+  const A = await openPage('coop-A', 'low', { name: 'Kaan', query: q });
+  await until(A, () => window.__game.social.status === 'online', null, 30000);
+  await A.evaluate(() => document.getElementById('btnOnline').click());
+  await until(A, () => !!document.querySelector('.ppMode[data-mode="campaign"]'));
+  await A.evaluate(() => document.querySelector('.ppMode[data-mode="campaign"]').click());
+  await until(A, () => !document.getElementById('ppLevels').hidden && document.querySelectorAll('#ppLevels .ppLevel').length > 0, null, 10000).catch(() => {});
+  await A.evaluate(() => document.querySelector('#ppLevels .ppLevel[data-level="2"]').click());
+  const pick = await A.evaluate(() => ({
+    levels: document.querySelectorAll('#ppLevels .ppLevel').length,
+    on: document.querySelector('#ppLevels .ppLevel.on')?.dataset.level,
+    btn: document.getElementById('btnPartyFind').textContent,
+    saved: window.__game.settings.coopLevel,
+  }));
+  check(pick.levels === 11 && pick.on === '2' && pick.saved === '2' && /Görevi başlat/.test(pick.btn), `Görev seçici: ${pick.levels} görev, seçili ${pick.on}, düğme "${pick.btn}"`);
+  await A.screenshot({ path: join(shots, '38-coop-pick.png') });
+  await A.evaluate(() => document.getElementById('btnPartyFind').click());
+  await until(A, () => window.__game.state === 'playing' && window.__game.net?.welcome.mode === 'campaign', null, 120000);
+  const wel = await A.evaluate(() => ({ level: window.__game.net.welcome.level, map: window.__game.net.welcome.map, limit: window.__game.net.welcome.scoreLimit }));
+  check(wel.level === '2' && wel.map === 'kizilkum' && wel.limit === 2, `Kampanya odası: seviye ${wel.level}, harita ${wel.map}, ${wel.limit} aşama`);
+  await until(A, () => !document.getElementById('mhPrep').hidden, null, 30000).catch(() => {});
+  await A.evaluate(() => document.getElementById('btnPrepReady')?.click());
+  // Maç başlar: ilk aşama (uçaksavarlara C4), Alfa botları takımda, hedef etiketleri ve görev satırı
+  await until(A, () => window.__game.net.phase === 1 && window.__game.net.coop?.stage === 0 && !document.getElementById('mhCoop').hidden, null, 60000).catch(() => {});
+  await sleep(1500);
+  const live = await A.evaluate(() => {
+    const n = window.__game.net;
+    const alfa = n.roster.filter((p) => p.side === n.mySide && p.flags & 1).map((p) => p.name);
+    return {
+      stage: document.getElementById('mhCoopStage').textContent,
+      text: document.getElementById('mhCoopText').textContent,
+      alfa,
+      foes: n.roster.filter((p) => p.side !== n.mySide).length,
+      tags: document.querySelectorAll('.coopTag').length,
+      labelA: document.getElementById('mhLabelA').textContent,
+      scoreB: document.getElementById('mhScoreB').textContent,
+      info: document.getElementById('mhInfo').textContent,
+    };
+  });
+  check(/AŞAMA 1\/2/.test(live.stage) && /kalan 2/.test(live.text) && live.alfa.length === 3 && live.alfa.includes('Demir') && live.foes > 0 && live.tags === 2 && live.labelA === 'BİTEN AŞAMA' && live.scoreB === '2',
+    `İlk aşama: "${live.stage} · ${live.text}", Alfa ${live.alfa.join('/')}, ${live.foes} düşman, ${live.tags} hedef etiketi`);
+  await A.screenshot({ path: join(shots, '38b-coop-live.png') });
+  // Hedefte E çubuğu (doğrudan: sunucuda yürüyüş beklenmez)
+  const bar = await A.evaluate(() => {
+    const g = window.__game;
+    const C = g.net.coop;
+    const keep = { act: C.act, prog: C.actProgress };
+    C.act = 3;
+    C.actProgress = 0.5;
+    g.matchHud.coop.update();
+    const out = { shown: !document.getElementById('mhAct').hidden, w: document.getElementById('mhActBar').style.width, label: document.getElementById('mhActLabel').textContent };
+    C.act = keep.act;
+    C.actProgress = keep.prog;
+    g.matchHud.coop.update();
+    return out;
+  });
+  check(bar.shown && bar.w === '50%' && /C4/.test(bar.label), `Hedef çubuğu: "${bar.label}" ${bar.w}`);
+  // Süre dolar: görev başarısız (sonuç kartı)
+  await until(A, () => window.__game.net.phase === 2 && !document.getElementById('mhEnd').hidden, null, 150000).catch(() => {});
+  const end = await A.evaluate(() => ({ title: document.getElementById('mhEndTitle').textContent, sub: document.getElementById('mhEndSub').textContent, vote: !document.getElementById('mhVote').hidden, stage: document.getElementById('mhCoopStage').textContent }));
+  check(end.title === 'GÖREV BAŞARISIZ' && /süre doldu/.test(end.sub) && /0\/2 aşama/.test(end.sub) && !end.vote && end.stage === 'GÖREV BAŞARISIZ', `Görev sonu: ${end.title} · "${end.sub}" (oylama yok)`);
+  await A.close();
+  // Telefon: görev seçici ekrana sığar
+  const mctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await seedName(mctx, 'Lale');
+  await mctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: '', contentType: 'text/css' }));
+  await mctx.addInitScript(() => {
+    try {
+      localStorage.setItem('demirsafak.settings.v1', JSON.stringify({ quality: 'low' }));
+    } catch {
+      /* depolama yok */
+    }
+  });
+  const mp = await mctx.newPage();
+  mp.on('pageerror', (e) => errors.push(`[coop-mobile] pageerror: ${e.message}`));
+  await mp.goto(pathToFileURL(join(root, 'dist/index.html')).href + q);
+  await mp.waitForFunction(() => window.__game && window.__game.state === 'menu' && document.getElementById('loading').hidden, null, { timeout: 90000 });
+  await until(mp, () => window.__game.social.status === 'online', null, 30000);
+  await mp.tap('#btnOnline');
+  await mp.tap('.ppMode[data-mode="campaign"]');
+  const mfit = await mp.evaluate(() => {
+    const b = document.getElementById('ppLevels').getBoundingClientRect();
+    const items = [...document.querySelectorAll('#ppLevels .ppLevel')].map((x) => x.getBoundingClientRect());
+    return { shown: !document.getElementById('ppLevels').hidden, n: items.length, fits: b.left >= 0 && b.right <= innerWidth + 1 && items.every((r) => r.width > 100 && r.right <= b.right + 1) };
+  });
+  await mp.screenshot({ path: join(shots, '38c-coop-mobile-pick.png') });
+  check(mfit.shown && mfit.n === 11 && mfit.fits, `Telefonda görev seçici sığıyor (${mfit.n} görev)`);
+  await mctx.close();
   srv.kill();
 }
 

@@ -9,6 +9,9 @@
 //   - Rekabetçi (sim.comp): raunt başında parasına göre silah ve bomba alır; saldırırken bombacı rauntun bölgesine
 //     gidip kurar (E basılı, yerinde), diğerleri ona eşlik eder, yerdeki bombayı en yakını alır, kurulunca bombayı
 //     korurlar; savunurken bölgelere dağılıp bekler, bomba kurulunca gidip imha eder. Çatışma her şeyin önünde.
+//   - Kampanya Co-op'u (sim.coop): düşman evini (p.home: doğduğu yer ya da dalganın saldırdığı nokta) korur; gördüğünü
+//     kovalar ama evinden ONLINE.coop.leash'ten öteye gitmez, evine yakın gelen oyuncunun bölgesine yürür, yoksa
+//     evine döner. Alfa botu (p.follow) en yakın canlı insanın çevresinde kendi açısındaki yere yürür.
 // Rastgelelik tohumlu (sim.secretSeed + yuva).
 import { TICK_DT } from '../../shared/constants.js';
 import { createInputCmd, BTN } from '../../shared/sim/movement.js';
@@ -22,6 +25,8 @@ import { PHASE } from '../../shared/net/protocol.js';
 import { STREAKS, streakBits } from '../../shared/sim/streaks.js';
 
 const DEG = Math.PI / 180;
+// Co-op hedefi: yerinde bekle
+const STAY = Object.freeze({ goal: null });
 
 // El bombası nişanı: düz zeminde menzil → bakış eğimi tablosu (atışla aynı fizik, çarpışmasız); alçak yay seçilir
 const NADE_TABLE = (() => {
@@ -110,6 +115,7 @@ export class BotBrain {
   onSpawn(sim, p) {
     this.reset(p);
     this.cg = null;
+    this.coopGoal = null;
     if (sim.comp && sim.phase === PHASE.BUY) this.compBuy(sim, p);
   }
 
@@ -183,6 +189,53 @@ export class BotBrain {
     if (!g) return null;
     if (!this.cg || Math.abs(this.cg.x - g.x) > 0.5 || Math.abs(this.cg.z - g.z) > 0.5) this.cg = g;
     return { goal: this.cg };
+  }
+
+  // Kampanya Co-op'u hedefi: { goal, sprint? }; goal null: yerinde bekle (gezinmeye düşmez: muhafız evini bırakmaz).
+  // Hedef nesnesi aynı yer için aynı kalır (yol her tick yeniden aranmasın)
+  coopObjective(sim, p) {
+    const C = ONLINE.coop;
+    const st = p.state;
+    const t = this.now;
+    if (p.follow) {
+      // En yakın canlı insan; çevresinde yuvaya göre dağılmış yer (üst üste yürümesinler)
+      let lead = null;
+      let ld = Infinity;
+      for (const q of sim.players) {
+        if (!q || q.bot || !q.alive || q.side !== p.side) continue;
+        const d = Math.hypot(q.state.pos.x - st.pos.x, q.state.pos.z - st.pos.z);
+        if (d < ld) {
+          ld = d;
+          lead = q;
+        }
+      }
+      if (!lead) {
+        const s = sim.coop.stageDef;
+        return { goal: s ? this.keepGoal(s.pos[0], s.pos[1], 4) : null };
+      }
+      if (ld < C.followNear) return STAY;
+      const a = (p.slot * 2.4) % (Math.PI * 2);
+      return { goal: this.keepGoal(lead.state.pos.x + Math.cos(a) * C.followDist, lead.state.pos.z + Math.sin(a) * C.followDist, 2), sprint: C.followNear * 2 };
+    }
+    if (!p.home) return STAY;
+    const h = p.home;
+    // Az önce gördüğü rakibin son yeri (evinin yakınındaysa)
+    if (this.lastKnown && t < this.seekUntil && Math.hypot(this.lastKnown.x - h.x, this.lastKnown.z - h.z) < C.leash) return { goal: this.lastKnown };
+    // Evine yakın gelen insan: bölgesine yürür (kesin yer değil)
+    for (const q of sim.players) {
+      if (!q || !q.alive || q.side === p.side) continue;
+      if (Math.hypot(q.state.pos.x - h.x, q.state.pos.z - h.z) < C.aggro) return { goal: this.keepGoal(q.state.pos.x, q.state.pos.z, 6) };
+    }
+    if (Math.hypot(st.pos.x - h.x, st.pos.z - h.z) < C.homeNear) return STAY;
+    return { goal: this.keepGoal(h.x, h.z, 1) };
+  }
+
+  // Aynı yere yakın hedefte eski nesne kalır (followPath yeni nesnede yolu yeniden arar)
+  keepGoal(x, z, tol) {
+    const g = this.coopGoal;
+    if (g && Math.hypot(g.x - x, g.z - z) < tol) return g;
+    this.coopGoal = { x, z };
+    return this.coopGoal;
   }
 
   onDamaged(attacker) {
@@ -301,6 +354,8 @@ export class BotBrain {
       const fx = -Math.sin(this.yaw);
       const fz = -Math.cos(this.yaw);
       let fwd = dist > BOTS.engageMaxDist ? 1 : dist < BOTS.tooCloseDist ? -0.7 : 0;
+      // Co-op düşmanı evinden uzaklaşmaz (gördüğüne oradan ateş eder)
+      if (fwd > 0 && p.home && Math.hypot(st.pos.x - p.home.x, st.pos.z - p.home.z) > ONLINE.coop.leash) fwd = 0;
       if (fwd > 0 && this.followPath(sim, p, { x: tgt.state.pos.x, z: tgt.state.pos.z }, t)) {
         dirX = this.moveDir.x;
         dirZ = this.moveDir.z;
@@ -310,14 +365,15 @@ export class BotBrain {
       dirZ += fz * fwd + fx * this.strafe * 0.8;
       if (this.crouch) c.buttons |= BTN.CROUCH;
     } else {
-      // Rekabetçide görev hedefi (kurma/imha yerinde E basılı); yoksa boşta: hedef noktaya yürü (gerekirse koş)
-      const obj = sim.comp && !sim.frozen ? this.compObjective(sim, p) : null;
+      // Rekabetçide / Co-op'ta görev hedefi (kurma/imha yerinde E basılı; Co-op'ta goal null: yerinde bekle); yoksa
+      // boşta: hedef noktaya yürü (gerekirse koş)
+      const obj = sim.frozen ? null : sim.comp ? this.compObjective(sim, p) : sim.coop ? this.coopObjective(sim, p) : null;
       if (obj && obj.use) c.buttons |= BTN.USE;
       else if (obj) {
-        if (this.followPath(sim, p, obj.goal, t)) {
+        if (obj.goal && this.followPath(sim, p, obj.goal, t)) {
           dirX = this.moveDir.x;
           dirZ = this.moveDir.z;
-          sprint = this.remaining > 8;
+          sprint = this.remaining > (obj.sprint ?? 8);
         }
       } else {
         if (!this.goal || t > this.seekUntil + 30) this.pickGoal(sim, p, t);

@@ -1,7 +1,8 @@
 // Çevrim içi maç arayüzü (S6): skor çubuğu ve süre, maç öncesi teçhizat paneli (prepScreen.js), geri sayım bandı,
 // öldürme akışı, puan tablosu (Tab basılı;
 // dokunmatikte skor çubuğuna dokun), ölüm kartı (kim vurdu, doğuşa kalan), maç sonu ekranı. Rekabetçide raunt, para,
-// bomba, satın alma ve izleme compHud.js'te; skor çubuğu raunt sayısını gösterir.
+// bomba, satın alma ve izleme compHud.js'te; skor çubuğu raunt sayısını gösterir. Kampanya Co-op'unda görev satırı ve
+// hedef işaretleri coopHud.js'te; skor çubuğu biten aşama / toplamı, sonuç kartı görevin sonucunu gösterir.
 // Veri game.net'ten ve olaylardan (EV.NET_*); adlar sunucudan geldiği için hep textContent.
 import { EV } from '../events.js';
 import { PHASE, SIDE, RF, WEAPON_MELEE, WEAPON_FRAG, WEAPON_AIRSTRIKE, WEAPON_ARTILLERY, SLOT_NONE, VOTE_NONE } from '../../shared/net/protocol.js';
@@ -10,6 +11,7 @@ import { weaponShortName } from '../weaponInfo.js';
 import { PrepScreen } from './prepScreen.js';
 import { CompHud } from './compHud.js';
 import { StreakHud } from './streakHud.js';
+import { CoopHud } from './coopHud.js';
 import { COMP_RULES, BOMB } from '../../shared/sim/competitive.js';
 import MODES from '../data/modes.json' with { type: 'json' };
 import ARENAS from '../data/arenas.json' with { type: 'json' };
@@ -39,6 +41,7 @@ export class MatchHud {
     this.prep = new PrepScreen(game);
     this.comp = new CompHud(game, this);
     this.streaks = new StreakHud(game, this);
+    this.coop = new CoopHud(game, this);
     $('mhBar').addEventListener('click', () => {
       if (!this.active) return;
       this.pinned = !this.pinned;
@@ -72,7 +75,7 @@ export class MatchHud {
     this.voteCards = null;
     const W = net.welcome;
     const sandbox = W.mode === 'sandbox';
-    const arena = ARENAS[W.map]?.name || W.map;
+    const arena = (net.coop ? this.coop.levelName(net.coop.level) : '') || ARENAS[W.map]?.name || W.map;
     $('mhInfo').textContent = `${modeTitle(W.mode).toLocaleUpperCase('tr-TR')} · ${arena.toLocaleUpperCase('tr-TR')} · ODA ${W.room}`;
     $('matchHud').hidden = false;
     $('mhBar').classList.toggle('sandbox', sandbox);
@@ -80,6 +83,7 @@ export class MatchHud {
     this.prep.start(net);
     this.comp.start(net);
     this.streaks.start(net);
+    this.coop.start(net);
     // Maç başındaki çevrim içi istatistik: sonda kazanılan XP ve terfi bunun farkıyla (sunucu maç sonunda yazar)
     this.statsBefore = null;
     $('mhEndXp').hidden = true;
@@ -95,6 +99,7 @@ export class MatchHud {
     this.prep.stop();
     this.comp.stop();
     this.streaks.stop();
+    this.coop.stop();
     this.active = false;
     this.net = null;
     $('matchHud').hidden = true;
@@ -152,21 +157,23 @@ export class MatchHud {
     }
     // Skor ve süre
     const sided = net.remotes.sided;
-    $('mhLabelA').textContent = sided ? (net.mySide === SIDE.BLUE ? 'MAVİ · SİZ' : 'MAVİ') : 'SEN';
-    $('mhLabelB').textContent = sided ? (net.mySide === SIDE.RED ? 'KIRMIZI · SİZ' : 'KIRMIZI') : 'LİDER';
+    const K = net.coop;
+    $('mhLabelA').textContent = K ? 'BİTEN AŞAMA' : sided ? (net.mySide === SIDE.BLUE ? 'MAVİ · SİZ' : 'MAVİ') : 'SEN';
+    $('mhLabelB').textContent = K ? 'TOPLAM' : sided ? (net.mySide === SIDE.RED ? 'KIRMIZI · SİZ' : 'KIRMIZI') : 'LİDER';
     $('mhScoreA').textContent = String(net.scoreA);
     $('mhScoreB').textContent = String(net.scoreB);
     const limit = net.welcome.scoreLimit;
     const C = net.comp;
     // Rekabetçide scoreLimit kazanmak için gereken raunt (sunucunun kuralı)
     const toWin = limit || COMP_RULES.rounds.toWin;
-    $('mhLimit').textContent = C ? (C.round ? `RAUNT ${C.round} · İLK ${toWin}` : `İLK ${toWin} RAUNT`) : limit ? `${limit} öldürme` : '';
+    $('mhLimit').textContent = K ? 'KAMPANYA' : C ? (C.round ? `RAUNT ${C.round} · İLK ${toWin}` : `İLK ${toWin} RAUNT`) : limit ? `${limit} öldürme` : '';
     const left = net.timeLeft;
     // Rekabetçide her evrenin süresi (raunt, satın alma, raunt sonu; bomba kurulunca bombanın)
     const timed = net.phase === PHASE.WARMUP || (net.phase === PHASE.LIVE && (net.welcome.timeLimit || C)) || net.phase === PHASE.BUY || net.phase === PHASE.ROUND_END;
     $('mhTime').textContent = timed ? fmtTime(left) : net.phase === PHASE.ENDED ? 'BİTTİ' : '∞';
     $('mhTime').classList.toggle('bomb', !!C && C.bomb.state === BOMB.PLANTED);
     this.comp.update(dt, input);
+    this.coop.update();
     this.streaks.update(net.state === 'playing' && !this.overlayOpen ? input : { pressed: () => false });
     this.prep.update();
     // Teçhizat paneli açıkken geri sayım panelin kendi sayacında
@@ -241,9 +248,17 @@ export class MatchHud {
       title = r.winner === net.slot ? 'BİRİNCİ OLDUN' : `KAZANAN: ${w ? w.name : '?'}`;
       cls = r.winner === net.slot ? 'win' : '';
     }
+    // Kampanya: görevin sonucu (takım kazandıysa görev tamam)
+    if (net.coop) {
+      const ok = r.winner === SIDE.BLUE;
+      title = ok ? 'GÖREV TAMAM' : 'GÖREV BAŞARISIZ';
+      cls = ok ? 'win' : 'lose';
+    }
     $('mhEndTitle').textContent = title;
     $('mhEndTitle').className = cls;
-    $('mhEndSub').textContent = net.comp
+    $('mhEndSub').textContent = net.coop
+      ? `${this.coop.levelName(net.coop.level)} · ${r.scoreA}/${r.scoreB} aşama · ${r.winner === SIDE.BLUE ? 'takım tahliye edildi' : 'süre doldu'}`
+      : net.comp
       ? `Mavi ${r.scoreA} – ${r.scoreB} Kırmızı · ${r.winner === SIDE.NONE ? 'raunt sınırı (berabere)' : `ilk ${net.welcome.scoreLimit || COMP_RULES.rounds.toWin} raunt`}`
       : net.remotes.sided
         ? `Mavi ${r.scoreA} – ${r.scoreB} Kırmızı · ${r.reason === 1 ? 'skor sınırı' : 'süre doldu'}`

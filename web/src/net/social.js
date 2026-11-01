@@ -506,6 +506,12 @@ export class SocialClient {
     this.game.events.emit(EV.MATCH_FOUND, r.match);
     return r;
   }
+  // Kampanya Co-op'u: lider (ya da takımsız oyuncu) seviyeyi seçip açar; takım üyelerine sunucu bildirir
+  async startCampaign(level) {
+    const r = await this.fetch('POST', '/api/party/campaign', { level });
+    this.game.events.emit(EV.MATCH_FOUND, r.match);
+    return r;
+  }
   async queueMatch(mode) {
     const r = await this.fetch('POST', '/api/match/queue', { mode });
     if (r.queue && !this.queue) {

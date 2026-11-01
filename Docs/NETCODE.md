@@ -179,6 +179,12 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
   - Ölmeden art arda öldürme 3 → İHA taraması (takımına rakipler duvar ardından işaretli, yalnız görüntü: konumlar zaten anlık görüntüde), 5 → hava saldırısı (nişangâhın gösterdiği yere bakış yönünde 5 patlama), 8 → topçu (hedef çevresine 6 sn boyunca 10 mermi, tohumlu). Ödül öldürmeleri seriyi büyütmez; ölünce seri sıfırlanır, hazır ödül kalır.
   - Kullanım komutun `STREAK` bitleriyle; hedef gözden bakışla ışın (`streakTarget`). Patlamalar planla zamanında (`strikes`), her biri `NEV.BLAST` (tür 2) ve el bombası kuralıyla hasar (siper, takım arkadaşı yok, kendine azaltılmış); öldürme 252/251.
   - Botlar hazır ödülün en güçlüsünü bildikleri rakibe kullanır (`bot.js → useStreak`).
+- **Kampanya Co-op'u** (`server/game/coop.js` → `CoopRules`, kurallar `shared/sim/coop.js`, aşamalar `src/data/coop.json`; kuralda `coop: true`, modda `campaign: true`):
+  - Aşamalar `tools/make-coop.mjs` ile görev haritasının kendi verisinden (`config.js → LEVELS[].objectives`, `maps/<id>.js`): `clear` (grubu temizle), `hold` (hedefin dibinde E basılı: uçaksavar C4'ü, istihbarat), `reach` (noktaya var; son aşama tahliye), `defend` (noktada süre boyunca dalgalar). Konumlar başlangıçla aynı yürünebilir bölgedeki boş zemine oturtulur; tank/araç hedefleri çevrim içinde yok. Harita ya da görev değişince çalıştırılıp commit'lenir (`--check`, `tests/coop.test.mjs` eskiyse düşer).
+  - Takım lideri seviye seçip açar (`POST /api/party/campaign {level}`, oda türü `campaign`, eşleştirme kuyruğuna girmez); takım en çok 4 insan, eksikler Alfa Timi botları (tim adlarıyla; insan gelince bot çıkar, `balanceTeam`).
+  - Düşmanlar sunucu botları: aşama başlayınca (ve bir sonraki aşamanınkiler önden) yerlerinde doğar, yeniden doğmaz, cesetleri `corpseSec` sonra kalkar; aynı anda en çok `ONLINE.coop.maxEnemies` canlı (oda `slots` yuvalı). Evini korur (`p.home`), gördüğünü kovalar ama `leash`'ten öteye gitmez, evine `aggro`'dan yakın gelen oyuncunun bölgesine yürür. Sınır doluyken geride kalmış eski aşama düşmanı kalkar (`retireStale`). Alfa botu en yakın insanın çevresinde yürür.
+  - Ölen insan `respawn` sn sonra son bitirilen aşamanın yerinde doğar. Son aşama bitince görev tamam (takım kazanır); `timeLimit` (20 dk) dolarsa başarısız. Skor biten aşama / toplam; seri ödülleri açık; sonuç kalıcı istatistiğe yazılır (mod `campaign`).
+  - İstemci: `gameClient.coop` (seviye karşılamadan, aşama `NEV.COOP`'tan, E ilerlemesi anlık görüntüden; hedefte E basılıyken hareket aynı koşulla durur), `coopHud.js` (görev satırı, hedef halkaları ve uzaklıklı etiketler, radar, C4/istihbarat çubuğu, aşama bantları), takım panelinde görev seçici (`settings.coopLevel`).
 - **Kalıcı istatistik ve çevrim içi rütbe:** eşleşme maçı bitince `Room.results()` insanların sonucunu (kazanma, öldürme, ölüm, kafadan, puan, en iyi seri, kullanılan ödül, XP = puan + `ONLINE.xpMatch` + galibiyette `xpWin`) `store.recordMatch`'e verir (`stats`, `match_history` tabloları; oyuncu başına son 20 maç; hesap silinince gider). `GET /api/stats[?id=]` toplamlar, son maçlar ve rütbe (`src/progression.js → levelFromXp/rankFor`, kampanyayla aynı eğri ve rütbe adları).
 - **Doğuş:** kendi tarafının noktalarından (herkes kendine modunda `ffa`), rakibe en uzak ve görüş dışında olanı.
 - **Evreler:** `WARMUP` (teçhizat paneli ve geri sayım, hareket ve atış yok; `modes.json → warmup` 60 sn) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır; eşleşme odasında oylama boyunca açık kalır).
@@ -268,6 +274,7 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 | Co-op: Yapay Zekâya Karşı | Takım mavi tarafta (en çok 4), karşıda 6 bot; 50 öldürme ya da 8 dk |
 | Deneme odası | Botsuz, süresiz |
 | Rekabetçi | 5v5, bomba kur / imha et; 7 raunt alan kazanır (en çok 12, 6'dan sonra roller değişir); raunt içinde doğuş yok; para ve satın alma |
+| Kampanya Co-op | 1–4 insan + Alfa botları; seçilen görevin aşamaları sırayla; 20 dk |
 
 Arenalar (`data/arenas.json`):
 - Depo: elle kurulmuş (`src/maps/depo.js`; nokta simetrik, doğuşlar birbirini görmez).
@@ -292,6 +299,7 @@ Arenalar (`data/arenas.json`):
   - `tests/room.test.mjs` (sunucu hareketi tahminle bit düzeyinde aynı, komut bütçesi, gecikme telafisi, atış doğrulaması, botlu TDM/ÖM)
   - `tests/game-server.test.mjs` (gerçek sunucu: el sıkışma ve retler, deneme odası, hızlı maç)
   - `tests/streaks.test.mjs` (eşikler, ölümde sıfırlanma, hava saldırısı hedef/hasar/takım arkadaşı, Rekabetçide yok, maç sonucu → kalıcı istatistik)
+  - `tests/coop.test.mjs` (aşama verisi güncel, takım Alfa botlarıyla dolar ve dengelenir, clear/hold/reach/defend, düşman yeniden doğmaz ve cesedi kalkar, toplanma noktasında doğuş, süre dolunca başarısız, ağ olayı, kampanya odası, kuyruk reddi)
   - `tests/competitive.test.mjs` (kurallar, raunt akışı, satın alma, kurma/imha/patlama, yok etme, süre, para, yarı değişimi, maç sonu, botlarla 5v5)
   - `tests/grenade.test.mjs` (atış sınırı, patlama hasarı ve öldürme yazımı, kendi bombası, takım arkadaşı, siper, sisin görüşü kesmesi, istemcide aynı yörünge)
 - Duman `online`: sunucu alt süreçte; iki sayfa arasında arama, istek, kart, kabul, "Oyunda" durumu, davet, mod, çevrim dışı istek ve telefon görünümü.
@@ -302,6 +310,7 @@ Arenalar (`data/arenas.json`):
   - olmayan oda için hata ekranı;
   - hızlı TDM: takım aynı tarafta, 6 YZ, skor, öldürme akışı, el bombası ve sis (sunucu olayları, adet, bulut), puan tablosu;
   - telefonda ÖM.
+- Duman `coop`: görev seçici (11 görev, telefonda sığar), kampanya odası (seviye, harita, aşama sayısı), ilk aşamanın satırı, Alfa botları, hedef etiketleri, C4 çubuğu, süre dolunca "GÖREV BAŞARISIZ" kartı (oylama yok).
 - Duman `comp`: tek oyuncu + 9 YZ, kısa süreler (`COMP_BUY/ROUND/POST/WIN`): yalnız tabancalı teçhizat paneli, satın alma menüsü (800 $, el bombası), raunt başı/sonu bandı, bölge etiketleri, kurma çubuğu, izleme kamerası, ikinci rauntta silah satın alma, telefonda menü.
 - Duman `determinism`: `shared/sim/replay.js` esbuild ile paketlenip Chromium'da koşar. Kızılkum ve Yıkık Şehir'de 10.000 komut sonrası konum Node ile karşılaştırılır (≤ 1 mm) ve her 1000 tick'in özeti eşleşmelidir.
 - Davranış referansı: `Docs/BASELINE.md` (`node tools/baseline.mjs --compare`).

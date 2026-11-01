@@ -9,10 +9,14 @@ import { CollisionWorld } from '../../shared/sim/collision.js';
 import { SIDE } from '../../shared/net/protocol.js';
 import MODES from '../../src/data/modes.json' with { type: 'json' };
 import ARENAS from '../../src/data/arenas.json' with { type: 'json' };
+import { COOP_LEVELS } from '../../shared/sim/coop.js';
 import { Room } from './room.js';
 
 export const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 export const MM = MODES.matchmaking;
+
+// Kampanya Co-op'u gibi seviye seçilerek başlatılan modlar eşleştirme kuyruğuna girmez (modes.json → campaign)
+export const isCampaign = (id) => !!MODES.modes.find((m) => m.id === id)?.campaign;
 
 export const modeRules = (id) => (id === 'sandbox' ? MODES.sandbox.rules : MODES.modes.find((m) => m.id === id && m.available)?.rules || null);
 
@@ -53,9 +57,14 @@ export class RoomManager {
     }
   }
 
-  // mapId: maç sonu oylamasının kazananı (verilmezse haritalar sırayla döner)
-  create(kind, mode, mapId = null) {
+  // mapId: maç sonu oylamasının kazananı (verilmezse haritalar sırayla döner). Kampanya (kind 'campaign'): level
+  // seviyenin kimliği (data/coop.json), harita seviyeninki
+  create(kind, mode, mapId = null, level = null) {
     const rules = kind === 'sandbox' ? { ...modeRules('sandbox') } : { ...modeRules(mode), ...this.overrides };
+    if (kind === 'campaign') {
+      rules.level = String(level);
+      mapId = COOP_LEVELS[rules.level].map;
+    }
     if (!mapId || !ARENAS[mapId]) mapId = MM.maps[this.mapTurn++ % MM.maps.length];
     const code = this.newCode();
     const room = new Room({
@@ -125,7 +134,7 @@ export class Matchmaker {
 
   // "Maç ara": takım lideri (ya da takımsız oyuncu) bütün takımı kuyruğa sokar
   enqueue(playerId, mode) {
-    if (!modeRules(mode) || mode === 'sandbox') return { error: 'bad_mode' };
+    if (!modeRules(mode) || mode === 'sandbox' || isCampaign(mode)) return { error: 'bad_mode' };
     const party = this.parties.partyOf(playerId);
     if (party && party.leader !== playerId) return { error: 'not_leader' };
     const members = (party ? party.members : [playerId]).filter((m) => this.hub.isOnline(m));

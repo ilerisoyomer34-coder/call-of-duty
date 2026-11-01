@@ -751,6 +751,14 @@ body.muted #btnSound { color: #ff8a6a; border-color: rgba(255,138,106,.5); }
 .ppMode:disabled { cursor: default; opacity: .7; }
 .btn:disabled { opacity: .42; cursor: not-allowed; filter: saturate(.4); }
 .ppNote { margin: 0; font: 500 13px/1.35 var(--f-ui); color: var(--sand-dim); }
+/* Kampanya Co-op'u: görev seçici (takım lideri) */
+.ppLevels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 210px; overflow-y: auto; }
+.ppLevels[hidden] { display: none; }
+.ppLevel { display: flex; align-items: center; gap: 8px; padding: 7px 9px; text-align: left; background: rgba(13,16,19,.55); border: 1px solid rgba(231,220,196,.18); color: var(--sand); font: 600 12px/1.2 var(--f-ui); cursor: pointer; }
+.ppLevel b { min-width: 22px; font: 800 13px/1 var(--f-num); color: #ffc04a; }
+.ppLevel small { margin-left: auto; font: 500 10px/1 var(--f-ui); color: var(--sand-dim); white-space: nowrap; }
+.ppLevel.on { border-color: #ffc04a; background: rgba(255,192,74,.12); }
+.ppLevel:disabled { cursor: default; opacity: .7; }
 .ppQueue { display: flex; align-items: center; gap: 10px; font: 600 15px/1.2 var(--f-ui); color: #5ee7ff; }
 .ppQueue[hidden] { display: none; }
 .ppQueue .spin { width: 14px; height: 14px; border: 2px solid rgba(94,231,255,.3); border-top-color: #5ee7ff; border-radius: 50%; animation: ppSpin .9s linear infinite; }
@@ -1234,6 +1242,13 @@ body.touch .mhBuyBox .mhPrepClock b { font-size: 20px; }
 body.touch .mhBuyCard { width: 92px; }
 body.touch .mhBuyCard .mhPrepImg { display: none; }
 body.comp .mhInfo { display: none; }
+/* Kampanya Co-op'u (src/net/coopHud.js): görev satırı skor çubuğunun altında, hedef etiketleri sarı */
+.mhCoop { display: flex; align-items: stretch; gap: 0; max-width: 92vw; background: rgba(13,16,19,.7); border-left: 3px solid #ffc04a; }
+.mhCoop[hidden] { display: none; }
+.mhCoop b { padding: 5px 9px; font: 800 11px/1.3 var(--f-ui); letter-spacing: .12em; color: #ffc04a; white-space: nowrap; }
+.mhCoop span { padding: 5px 10px 5px 0; font: 600 12px/1.3 var(--f-ui); color: var(--sand); }
+body.coop .mhInfo { display: none; }
+.coopTag b { font-size: 12px; letter-spacing: .12em; }
 .siteTag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 2px #000; }
 .siteTag b { font: 800 18px/1 var(--f-ui); color: #ffc04a; padding: 2px 7px; border: 2px solid #ffc04a; background: rgba(13,16,19,.45); }
 .siteTag small { font: 600 11px/1 var(--f-num); color: var(--sand); }
@@ -1470,6 +1485,8 @@ body.touch #squad { display: none; }
         <div class="mhBomb" id="mhBomb" hidden></div>
         <button class="mhBuyChip" id="mhBuyChip" type="button" hidden>SATIN AL · <b id="mhBuyChipTime">0:15</b></button>
       </div>
+      <!-- Kampanya Co-op'u (src/net/coopHud.js): aşama ve hedef -->
+      <div class="mhCoop" id="mhCoop" hidden><b id="mhCoopStage"></b><span id="mhCoopText"></span></div>
       <!-- Seri ödülleri (src/net/streakHud.js): ilerleme ve hazır olanı kullan (7/8/9 ya da dokun) -->
       <div class="mhStreaks" id="mhStreaks" hidden></div>
     </div>
@@ -1623,6 +1640,7 @@ body.touch #squad { display: none; }
         <div class="ppHead"><b id="ppTitle">Takım</b><span id="ppCount"></span></div>
         <div class="onList" id="ppMembers"></div>
         <div class="ppModes" id="ppModes" role="radiogroup" aria-label="Oyun modu"></div>
+        <div class="ppLevels" id="ppLevels" role="radiogroup" aria-label="Kampanya görevi" hidden></div>
         <div class="ppQueue" id="ppQueue" hidden><i class="spin"></i><span id="ppQueueText"></span></div>
         <div class="row"><button class="btn primary" id="btnPartyFind" type="button" disabled>Maç ara</button><button class="btn" id="btnSandbox" type="button">Deneme odası</button><button class="btn" id="btnPartyLeave" type="button">Takımdan ayrıl</button></div>
         <p class="ppNote" id="ppNote"></p>

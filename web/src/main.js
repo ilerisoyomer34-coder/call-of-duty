@@ -953,7 +953,7 @@ export class Game {
     this.menus.hideAll();
     releaseStudio();
     const L = loadingScreen();
-    L.show(match.kind === 'sandbox' ? 'DENEME ODASI' : 'MAÇA BAĞLANILIYOR');
+    L.show(match.kind === 'sandbox' ? 'DENEME ODASI' : match.kind === 'campaign' ? 'GÖREVE BAĞLANILIYOR' : 'MAÇA BAĞLANILIYOR');
     this.state = 'loading';
     L.step('Sunucuya bağlanılıyor', 0.1);
     const net = new GameClient(this, match);
@@ -1368,6 +1368,7 @@ export class Game {
     if (this.net) {
       this.net.remotes.updateTags(this.hud, this.width, this.height);
       this.matchHud.comp.updateTags(this.hud, this.width, this.height);
+      this.matchHud.coop.updateTags(this.hud, this.width, this.height);
       this.matchHud.streaks.updateMarks(this.hud, this.width, this.height);
       this.matchHud.update(dt, this.console.open ? NULL_INPUT : I);
     }

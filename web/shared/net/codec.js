@@ -394,6 +394,8 @@ export function encodeWelcome(w, m) {
   w.u16(m.scoreLimit);
   w.str(m.primary);
   w.str(m.secondary);
+  // Kampanya Co-op'unun seviyesi (data/coop.json kimliği; diğer modlarda boş)
+  w.str(m.level || '');
   return w.bytes();
 }
 
@@ -541,6 +543,12 @@ function writeEvent(w, e) {
       writeVec16(w, e.pos);
       w.u16(encYaw(e.yaw || 0));
       break;
+    case NEV.COOP:
+      w.u8(e.stage);
+      w.u8(e.state);
+      w.u8(Math.min(255, e.left));
+      w.u16(e.mask & 0xffff);
+      break;
     case NEV.NADE:
       // Konum ve hız sunucuda bu nicemlemeyle yuvarlanmış (quantizeNade): istemcinin yörüngesi birebir aynı
       w.u16(e.id & 0xffff);
@@ -595,6 +603,8 @@ function readEvent(r) {
       return { k, state: r.u8(), slot: r.u8(), site: r.u8(), pos: readVec16(r) };
     case NEV.STREAK:
       return { k, slot: r.u8(), kind: r.u8(), state: r.u8(), pos: readVec16(r), yaw: decYaw(r.u16()) };
+    case NEV.COOP:
+      return { k, stage: r.u8(), state: r.u8(), left: r.u8(), mask: r.u16() };
     case NEV.NADE:
       return { k, id: r.u16(), kind: r.u8(), slot: r.u8(), pos: readVec16(r), vel: { x: decVel(r.i16()), y: decVel(r.i16()), z: decVel(r.i16()) } };
     case NEV.BLAST:
@@ -730,6 +740,7 @@ export function decodeServer(bytes) {
           scoreLimit: r.u16(),
           primary: r.str(),
           secondary: r.str(),
+          level: r.str(),
         };
       case MSG.S_SNAPSHOT:
         return readSnapshot(r, type);

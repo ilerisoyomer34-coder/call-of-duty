@@ -1,7 +1,7 @@
 # PROTOCOL — oyun bağlantısının ikili ileti kataloğu
 
 Kod: `web/shared/net/protocol.js` (sabitler), `web/shared/net/codec.js` (kodlama/çözme), testler `web/tests/codec.test.mjs`.
-Sürüm `PROTOCOL_VERSION = 2` (`web/shared/constants.js`; 2: Rekabetçi alanları). Bayt düzeni değişince sürüm artar.
+Sürüm `PROTOCOL_VERSION = 3` (`web/shared/constants.js`; 2: Rekabetçi alanları, 3: Kampanya Co-op'u: karşılamada seviye, `COOP` olayı). Bayt düzeni değişince sürüm artar.
 
 ## Bağlantı
 
@@ -86,14 +86,16 @@ Rekabetçi satın alma. `item`: `shared/sim/competitive.js → BUY_ITEMS` dizini
 ## Sunucu → istemci
 
 ### `0x81 S_WELCOME`
-`u8 slot · u8 tickRate · u8 snapshotRate · u32 serverTick · f64 serverTime · str room · str mode · str map · u16 timeLimit · u16 scoreLimit · str primary · str secondary`
+`u8 slot · u8 tickRate · u8 snapshotRate · u32 serverTick · f64 serverTime · str room · str mode · str map · u16 timeLimit · u16 scoreLimit · str primary · str secondary · str level`
+
+`level`: Kampanya Co-op'unun seviyesi (`data/coop.json` kimliği; diğer modlarda boş). Co-op'ta `scoreLimit` aşama sayısı.
 
 ### `0x82 S_SNAPSHOT` (32 Hz, alıcıya özel, tam görüntü)
 Başlık:
 `u32 tick · u16 ackSeq · u8 bufDepth · u16 tickUs · u8 phase · u16 phaseLeft×10 · i16 scoreA · i16 scoreB`
 
 Yerel oyuncu:
-`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10 · u16 money · u8 act (0 yok, 1 bomba kuruyor, 2 imha ediyor) · u8 actProgress×255 · u8 streak (bu canda art arda öldürme) · u8 streakReady (hazır seri ödülleri, bit)`, kayıt varsa:
+`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10 · u16 money · u8 act (0 yok, 1 bomba kuruyor, 2 imha ediyor, 3 Co-op hedefinde E basılı) · u8 actProgress×255 · u8 streak (bu canda art arda öldürme) · u8 streakReady (hazır seri ödülleri, bit)`, kayıt varsa:
 `f32 pos×3 · f32 vel×3 · u16 crouchT×1024 · u16 adsT×1024 · f32 sprintOut · u16 buttons · u8 (1 yerde, 2 çömelik, 4 koşuyor)`
 
 Diğer oyuncular:
@@ -117,7 +119,9 @@ Olaylar:
 | `ROUND_STATE` 12 | `u8 round · u8 state (0 satın alma, 1 raunt, 2 raunt sonu) · u8 attackSide · u8 winner (255 yok) · u8 reason (1 yok etme, 2 süre, 3 bomba patladı, 4 imha)` | herkes (katılana bir kez) |
 | `STREAK` 14 | `u8 slot · u8 kind (data/streaks.json sırası) · u8 state (0 hazır, 1 kullanıldı) · i16 pos×3 (hedef) · u16 yaw` | hazır: sahibi; kullanıldı: herkes |
 | `BOMB` 13 | `u8 state (0 yok, 1 taşınıyor, 2 yerde, 3 kuruldu, 4 imha, 5 patladı) · u8 slot (taşıyan / kuran / imha eden) · u8 site (255 yok) · i16 pos×3` | herkes (katılana bir kez) |
+| `COOP` 15 | `u8 stage · u8 state (0 sürüyor, 1 aşama bitti, 2 görev tamam, 3 başarısız) · u8 left (clear: düşman, hold: hedef, defend: sn) · u16 mask (bitmiş hedefler)` | herkes (katılana bir kez) |
 
+- Kampanya Co-op'u: `scoreA/scoreB` biten aşama / aşama sayısı (`S_MATCH_END`'de de); maç sonucu takım (görev tamam) ya da kırmızı (süre doldu).
 - Rekabetçi: evre `PHASE.BUY` 4 (satın alma, hareket yok) ve `PHASE.ROUND_END` 3 (raunt sonu); `scoreA/scoreB` kazanılan raunt; `phaseLeft` o evrenin süresi (bomba kurulunca bombanın). Raunt başında doğuştan önce `LOADOUT` gelir (eldeki silah ve bombalar raunttan rauntta kalır).
 
 - `NADE`: sunucu bombanın başlangıcını bu nicemlemeye yuvarlayıp (`codec.js → quantizeNade`) onunla yürütür; istemci aynı sayılarla `shared/sim/grenade.js → stepGrenade`'i aynı çarpışma dünyasında koşturur, yörünge birebir aynı. Patlamayı ve hasarı yalnız sunucu belirler (`BLAST`); `BLAST` gelmezse istemci bombayı `fuse + 3` sn sonra siler.

@@ -57,6 +57,7 @@ export const NEV = {
   ROUND_STATE: 12, // Rekabetçi: raunt durumu (sayı, satın alma/raunt/sonu, saldıran taraf, kazanan, neden)
   BOMB: 13, // Rekabetçi: bombanın durumu (taşınıyor, yerde, kuruldu, imha, patladı), kim, bölge, konum
   STREAK: 14, // seri ödülü: hazır (yalnız sahibine) ya da kullanıldı (herkese: tür, hedef, bakış yönü)
+  COOP: 15, // Kampanya Co-op'u: aşama, durumu (sürüyor/bitti/görev tamam/başarısız), kalan, bitmiş hedefler
 };
 
 // BLAST olayının türü: el bombası / sis (shared/sim/grenade.js → NADE_KIND) ve seri ödülü patlaması
