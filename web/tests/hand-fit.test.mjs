@@ -6,9 +6,9 @@ import { WEAPONS, WEAPON_ORDER } from '../src/config.js';
 import HAND_FIT from '../src/data/handFit.json' with { type: 'json' };
 import { fitAll } from '../tools/handFitLib.mjs';
 
-// Ölçülemeyip ipucuyla kalanlar: MG4 ve AWM'nin kabzası dipçiğe karışık (başparmak delikli), MP7'nin kabzası şarjörle
-// bir (kabzadan derin), minigunun arka tutamağı ince tüp
-const HINTED = new Set(['lmg/right', 'awm/right', 'minigun/right', 'mp7/right']);
+// Ölçülemeyip ipucuyla kalanlar: AWM'nin kabzası dipçiğe karışık (başparmak delikli), MP7'nin kabzası şarjörle
+// bir (kabzadan derin), minigunun arka tutamağı ince tüp. MG4'ün yeni modelinde (kullanıcının MG43'ü) kabza ayrı
+const HINTED = new Set(['awm/right', 'minigun/right', 'mp7/right']);
 
 const fit = await fitAll();
 

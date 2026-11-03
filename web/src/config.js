@@ -438,7 +438,7 @@ export const WEAPONS = {
       kickRot: 1.1,
       shake: 0.13,
     },
-    ads: { fovMult: 0.52, time: 0.38, moveMult: 0.55, sensMult: 0.68, vmFov: 40 }, // taktik dürbün (ACOG) ~3×
+    ads: { fovMult: 0.72, time: 0.36, moveMult: 0.55, sensMult: 0.76, vmFov: 40 }, // demir nişangâh: üst kapakta gez, tritium arpacık (kullanıcının MG43 modeli)
     mobility: 0.86,
     equipTime: 0.8,
     unequipTime: 0.5,
@@ -1181,7 +1181,7 @@ export const WEAPON_AIM = {
   mar556:    { distance: 0.225, fov: 38, left: [-0.024, -0.034, -0.4005],hold: 'vertical', right: [0.023, -0.043, 0.024] },
   smg:       { distance: 0.24,  fov: 44, left: [-0.023, -0.026, -0.25], hold: 'vertical', right: [0.023, -0.044, 0.024] },
   shotgun:   { distance: 0.32,  fov: 44, left: [-0.025, -0.018, -0.34], hold: 'under',    right: [0.024, -0.044, 0.028] },
-  lmg:       { distance: 0.24,  fov: 42, left: [-0.03,   0.005, -0.336],hold: 'under',   right: [0.027, -0.045, 0.026] },
+  lmg:       { distance: 0.25,  fov: 42, left: [-0.03,  -0.02,  -0.37], hold: 'under',   right: [0.027, -0.045, 0.026] },
   sniper:    { distance: 0.20,  fov: 40, left: [-0.027, -0.012, -0.23], hold: 'under',   right: [0.025, -0.047, 0.028] },
   pistol:    { distance: 0.38,  fov: 46, left: [-0.026, -0.055, 0.017], hold: 'cup',     right: [0.022, -0.043, 0.018] },
   d50:       { distance: 0.43,  fov: 46, left: [-0.027, -0.055, 0.027], hold: 'cup',     right: [0.024, -0.044, 0.026], sight: [0, 0.0802, 0.023], front: [0, 0.0784, -0.17] },

@@ -12,7 +12,7 @@ Oyundaki "Emeği geçenler" ekranı yalnız bu iki rolü gösterir. Aşağıdaki
 | Oyundaki ad | Kaynak dosya | Sahibi | Lisans |
 |---|---|---|---|
 | MAR-556 | mar_556_1.blend | Oyuncunun kendi modeli | Kullanıcıya ait (doğrulanmalı) |
-| MG-43 | mg_43_1.blend1 | Oyuncunun kendi modeli | Kullanıcıya ait (doğrulanmalı) |
+| MG-43 | MG43.blend (dokulu, 3 Kasım 2026) | Kullanıcının kendi modeli (Tarık Kerem Öz) | Kullanıcıya ait |
 | MR-82 Marret | marret_m82.blend1 | Oyuncunun kendi modeli | Kullanıcıya ait (doğrulanmalı) |
 | D-50 Kartal | golden_dessert_eagle_1.blend | Oyuncunun kendi modeli | Kullanıcıya ait (doğrulanmalı) |
 

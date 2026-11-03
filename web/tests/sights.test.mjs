@@ -55,7 +55,7 @@ test('dürbünlü, nişan alınamayan ve etiketler', () => {
   assert.ok(!isScoped('rifle') && !isScoped('mk4'));
   assert.ok(canAim('rifle'));
   assert.ok(hasReticle('mk4') && !hasReticle('k8'));
-  assert.equal(sightLabel('lmg'), 'Taktik dürbün 3×');
+  assert.equal(sightLabel('lmg'), 'Tritium demir nişangâh'); // kullanıcının MG43 modeli: üst kapakta gez, tritium arpacık
   assert.equal(sightFor('yok-boyle-silah').id, 'iron', 'katalogda olmayan silah demir nişangâhlı');
 });
 

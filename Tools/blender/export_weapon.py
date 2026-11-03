@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 
 import bpy
@@ -51,7 +52,16 @@ if cfg.get('curves'):
             c.objects.link(mo)
         bpy.data.objects.remove(ob, do_unlink=True)
 
-# 1) Sahne nesnelerini ve hariç tutulanları sil
+# 1) Önce her parçanın dünya dönüşümü sabitlenir: ebeveyni (boş kök nesne) silinince ebeveyn ters matrisi düşer ve
+#    parça yerinden kayar (MG43'te alıcı ve bağlı parçalar 31 cm geride kalıyordu)
+world = {ob.name: ob.matrix_world.copy() for ob in bpy.data.objects if ob.type == 'MESH'}
+for ob in bpy.data.objects:
+    if ob.type == 'MESH':
+        ob.parent = None
+for ob in bpy.data.objects:
+    if ob.type == 'MESH':
+        ob.matrix_world = world[ob.name]
+# Sahne nesnelerini ve hariç tutulanları sil
 exclude = re.compile(cfg.get('exclude') or '^$')
 for ob in list(bpy.data.objects):
     if ob.type != 'MESH' or (cfg.get('exclude') not in (None, '^$') and exclude.search(ob.name)):
@@ -88,6 +98,45 @@ for ob in list(bpy.data.objects):
     ob.modifiers.clear()
     ob.data = me
     ob.matrix_world = Matrix.Identity(4)
+
+# 2b) fold: nişan hattını kapatan oynar parçayı (taşıma kolu gibi) menteşesinde yatır. Kutunun içinde kalan ayrık
+#     ağ adaları (bağlı köşe kümeleri) pivot çevresinde, verilen eksende döner; kutudan taşan ada (gövdeye bağlı taban)
+#     yerinde kalır. Koordinatlar orijinal .blend'de (dünya)
+for fold in cfg.get('fold', []):
+    import bmesh
+    ob = bpy.data.objects.get(fold['object'])
+    if not ob:
+        warnings.append(f"Yatırılacak nesne yok: {fold['object']}")
+        continue
+    (x0, y0, z0), (x1, y1, z1) = fold['box']
+    inside = lambda p: x0 <= p.x <= x1 and y0 <= p.y <= y1 and z0 <= p.z <= z1
+    rotm = Matrix.Translation(Vector(fold['pivot'])) @ Matrix.Rotation(math.radians(fold['deg']), 4, fold['axis']) @ Matrix.Translation(-Vector(fold['pivot']))
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    seen = set()
+    moved = 0
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        comp, stack = [], [v]
+        seen.add(v.index)
+        while stack:
+            a = stack.pop()
+            comp.append(a)
+            for e in a.link_edges:
+                b = e.other_vert(a)
+                if b.index not in seen:
+                    seen.add(b.index)
+                    stack.append(b)
+        if all(inside(c.co) for c in comp):
+            for c in comp:
+                c.co = rotm @ c.co
+            moved += 1
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+    if not moved:
+        warnings.append(f"Yatırma kutusunda ada yok: {fold['object']}")
 
 # 3) Eksen: namlu Blender +Y yönüne (glTF'de -Z olur), sağ taraf +X
 rot = Matrix.Identity(4)
@@ -143,8 +192,13 @@ tris_after = sum(tri_count(ob.data) for ob in bpy.data.objects)
 # 5) GLB dışa aktar
 os.makedirs(OUT_DIR, exist_ok=True)
 glb = os.path.join(OUT_DIR, f'{wid}.glb')
+# textures: true → UV'ler ve malzemelerin dokuları (renk, pürüz/metal, normal) GLB'ye JPEG olarak gömülür; yoksa
+# yalnız renk tabanlı malzeme (UV de yazılmaz, dosya küçük kalır)
+textures = bool(cfg.get('textures'))
 kw = dict(filepath=glb, export_format='GLB', use_selection=False, export_cameras=False, export_apply=True,
-          export_yup=True, export_texcoords=False, export_normals=True, export_animations=False)
+          export_yup=True, export_texcoords=textures, export_normals=True, export_animations=False)
+if textures:
+    kw.update(export_image_format='JPEG', export_jpeg_quality=int(cfg.get('jpegQuality', 86)))
 try:
     bpy.ops.export_scene.gltf(export_lights=False, **kw)
 except TypeError:
@@ -177,6 +231,15 @@ data[wid] = entry
 with open(DATA_FILE, 'w', encoding='utf-8') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write('\n')
+
+# Dokular GLB'den ayrı JPEG dosyalarına (Sketchfab silahlarıyla aynı düzen; telefonda doku sınırı, Node ölçüm araçları)
+if textures:
+    try:
+        out = subprocess.run(['node', 'tools/split-glb-textures.mjs', wid], cwd=os.path.join(ROOT, 'web'), capture_output=True, text=True, check=True)
+        print(out.stdout.strip())
+        entry = json.load(open(DATA_FILE, encoding='utf-8'))[wid]
+    except (OSError, subprocess.CalledProcessError) as e:
+        warnings.append(f"Dokular ayrılamadı (node tools/split-glb-textures.mjs {wid} elle çalıştırılmalı): {getattr(e, 'stderr', '') or e}")
 
 # 7) Önizleme ve rapor
 os.makedirs(REPORT_DIR, exist_ok=True)
@@ -226,7 +289,11 @@ with open(os.path.join(REPORT_DIR, f'{wid}.md'), 'w', encoding='utf-8') as f:
     f.write(f"- Üçgen: {tris_before} → {tris_after}\n")
     f.write(f"- Uygulanan ölçek: {scale:.3f} (uzunluk {length:.3f} m → {entry['length']:.3f} m)\n")
     f.write(f"- Parçalar: gövde + {', '.join(entry['parts']) or '—'}\n")
-    f.write(f"- Doku: yok (yalnızca PBR renk malzemeleri)\n")
+    if textures:
+        imgs = sorted({n.image.name for m in bpy.data.materials if m.users and m.node_tree for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image})
+        f.write(f"- Doku: ayrı JPEG dosyaları (`web/assets/weapons/{wid}_t*.jpg`; kaynak: {', '.join(imgs)})\n")
+    else:
+        f.write(f"- Doku: yok (yalnızca PBR renk malzemeleri)\n")
     f.write(f"- Oyun koordinatlarında noktalar: `{json.dumps(entry['points'], ensure_ascii=False)}`\n")
     if png:
         f.write(f"\n![{wid}]({wid}.jpg)\n")

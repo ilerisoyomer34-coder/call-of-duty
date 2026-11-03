@@ -3076,12 +3076,13 @@ console.log('Atış poligonu');
   const rets = await page.evaluate(() => {
     const V = window.__game.viewmodel.models;
     const out = {};
-    for (const id of ['rifle', 'mar556', 'smg', 'lmg', 'mk4', 'ak74']) out[id] = V[id].reticle ? V[id].reticle.material.map.uuid : null;
-    return { out, housing: ['mar556', 'lmg', 'mk4', 'ak74'].filter((id) => !!V[id].housing), glow: ['pistol', 'k8'].every((id) => { let n = 0; V[id].root.traverse((o) => { if (o.isMesh && o.geometry.type === 'CircleGeometry') n++; }); return n > 0; }) };
+    for (const id of ['rifle', 'mar556', 'smg', 'mk4', 'ak74']) out[id] = V[id].reticle ? V[id].reticle.material.map.uuid : null;
+    // MG4 (kullanıcının MG43 modeli) demir nişangâhlı: tritium arpacık ışıklı noktalarda
+    return { out, housing: ['mar556', 'mk4', 'ak74'].filter((id) => !!V[id].housing), glow: ['pistol', 'k8', 'lmg'].every((id) => { let n = 0; V[id].root.traverse((o) => { if (o.isMesh && o.geometry.type === 'CircleGeometry') n++; }); return n > 0; }) };
   });
   const uuids = Object.values(rets.out);
   check(uuids.every(Boolean) && new Set(uuids).size === uuids.length, `Kolimatör işaretleri silah başına farklı (${Object.keys(rets.out).join(', ')})`);
-  check(rets.housing.length === 4 && rets.glow, `Açık nişangâh gövdeleri (${rets.housing.join(', ')}) ve ışıklı demir nişangâh noktaları`);
+  check(rets.housing.length === 3 && rets.glow, `Açık nişangâh gövdeleri (${rets.housing.join(', ')}) ve ışıklı demir nişangâh noktaları`);
   // AWM: atıştan sonra sürgü çekilir, dürbünden çıkılır, nişan sürgü bitince geri gelir
   await page.evaluate(() => window.__game.weapons.switchTo('awm'));
   await page.waitForFunction(() => window.__game.weapons.currentId === 'awm' && window.__game.weapons.state === 'idle', null, { timeout: 120000, polling: 50 });

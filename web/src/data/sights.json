@@ -28,7 +28,7 @@
     "mar556": {"sight": "reddot", "housing": {"shape": "tube", "r": 0.016, "len": 0.05}},
     "smg": {"sight": "minireflex"},
     "shotgun": {"sight": "iron"},
-    "lmg": {"sight": "acog", "housing": {"shape": "acog", "r": 0.022, "len": 0.12}},
+    "lmg": {"sight": "tritium", "glow": [[0, 0.104, -0.5935]]},
     "sniper": {"sight": "mildot"},
     "pistol": {"sight": "tritium", "glow": [[0, 0.0555, -0.1615], [-0.0072, 0.0545, 0.0068], [0.0072, 0.0545, 0.0068]]},
     "d50": {"sight": "fiber", "glow": [[0, 0.0768, -0.17]], "glowPost": 0.0034},

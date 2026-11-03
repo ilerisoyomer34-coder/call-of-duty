@@ -4,45 +4,61 @@
     "points": {
       "muzzle": [
         0,
-        0.082,
-        -0.872
+        0.063,
+        -0.706
       ],
       "sight": [
         0,
-        0.178,
-        0.006
+        0.1458,
+        0.002
+      ],
+      "front": [
+        0,
+        0.1062,
+        -0.614
       ],
       "leftHand": [
         0,
-        0.02,
-        -0.336
+        -0.005,
+        -0.371
       ],
       "eject": [
-        0.034,
-        0.088,
-        -0.166
+        0.03,
+        0.045,
+        -0.086
       ]
     },
     "parts": [
       "charging",
-      "mag",
-      "optic"
+      "mag"
     ],
     "bounds": {
       "min": [
-        -0.049,
-        -0.201,
-        -0.871
+        -0.106,
+        -0.109,
+        -0.706
       ],
       "max": [
-        0.068,
-        0.218,
-        0.322
+        0.051,
+        0.145,
+        0.327
       ]
     },
-    "length": 1.193,
-    "tris": 11268,
-    "bytes": 321156
+    "length": 1.033,
+    "tris": 35992,
+    "bytes": 1212032,
+    "materials": {
+      "Metal_Black": {
+        "map": "assets/weapons/mg43_t0.jpg",
+        "normalMap": "assets/weapons/mg43_t1.jpg",
+        "ormMap": "assets/weapons/mg43_t2.jpg"
+      },
+      "Polymer_Black": {
+        "map": "assets/weapons/mg43_t3.jpg",
+        "normalMap": "assets/weapons/mg43_t4.jpg",
+        "ormMap": "assets/weapons/mg43_t5.jpg"
+      }
+    }
   },
   "mar556": {
     "file": "assets/weapons/mar556.glb",
