@@ -22,10 +22,10 @@ test('F tuşları tim komutlarında; konsol ` ve F10', () => {
 });
 
 test('değişen atama kayda yalnız fark olarak yazılır ve geri uygulanır', () => {
-  applyBindingOverrides({ reload: ['KeyY'] });
-  assert.deepEqual(BINDINGS.reload, ['KeyY']);
-  assert.deepEqual(diffFromDefaults(), { reload: ['KeyY'] });
-  assert.deepEqual(conflictsOf('fire', 'KeyY'), ['reload']);
+  applyBindingOverrides({ reload: ['KeyO'] });
+  assert.deepEqual(BINDINGS.reload, ['KeyO']);
+  assert.deepEqual(diffFromDefaults(), { reload: ['KeyO'] });
+  assert.deepEqual(conflictsOf('fire', 'KeyO'), ['reload']);
   applyBindingOverrides({ bilinmeyen: ['KeyK'], jump: 'bozuk' });
   assert.deepEqual(BINDINGS.jump, [...DEFAULT_BINDINGS.jump], 'bozuk değer yok sayılır');
   assert.deepEqual(diffFromDefaults(), {});

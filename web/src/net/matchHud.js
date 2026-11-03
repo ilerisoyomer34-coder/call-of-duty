@@ -12,6 +12,7 @@ import { PrepScreen } from './prepScreen.js';
 import { CompHud } from './compHud.js';
 import { StreakHud } from './streakHud.js';
 import { CoopHud } from './coopHud.js';
+import { NetChat } from './netChat.js';
 import { COMP_RULES, BOMB } from '../../shared/sim/competitive.js';
 import MODES from '../data/modes.json' with { type: 'json' };
 import ARENAS from '../data/arenas.json' with { type: 'json' };
@@ -42,6 +43,8 @@ export class MatchHud {
     this.comp = new CompHud(game, this);
     this.streaks = new StreakHud(game, this);
     this.coop = new CoopHud(game, this);
+    // Maç içi iletişim (M8): sohbet, telsiz çarkı, takım işaretleri, susturma
+    this.chat = new NetChat(game, this);
     $('mhBar').addEventListener('click', () => {
       if (!this.active) return;
       this.pinned = !this.pinned;
@@ -84,6 +87,7 @@ export class MatchHud {
     this.comp.start(net);
     this.streaks.start(net);
     this.coop.start(net);
+    this.chat.start(net);
     // Maç başındaki çevrim içi istatistik: sonda kazanılan XP ve terfi bunun farkıyla (sunucu maç sonunda yazar)
     this.statsBefore = null;
     $('mhEndXp').hidden = true;
@@ -100,6 +104,7 @@ export class MatchHud {
     this.comp.stop();
     this.streaks.stop();
     this.coop.stop();
+    this.chat.stop();
     this.active = false;
     this.net = null;
     $('matchHud').hidden = true;
@@ -205,7 +210,7 @@ export class MatchHud {
   renderBoard(body) {
     const net = this.net;
     const rows = this.sortedRoster();
-    const sig = rows.map((p) => `${p.slot}:${p.kills}:${p.deaths}:${p.score}:${Math.round(p.ping / 10)}`).join('|');
+    const sig = rows.map((p) => `${p.slot}:${p.kills}:${p.deaths}:${p.score}:${Math.round(p.ping / 10)}:${this.chat.isMuted(p.id) ? 1 : 0}`).join('|');
     if (sig === this.boardSig && body.children.length) return;
     this.boardSig = sig;
     body.textContent = '';
@@ -223,6 +228,17 @@ export class MatchHud {
       if (p.flags & RF.BOT) nm.append(el('small', 'yz', 'YZ'));
       else if (p.tag) nm.append(el('small', 'tg', `#${p.tag}`));
       if (myParty && p.party === myParty && p.slot !== net.slot) nm.append(el('small', 'pt', 'TAKIM'));
+      // Başka bir insanın satırı: tıkla/dokun → sohbetini sustur / aç (bu oturum)
+      if (!(p.flags & RF.BOT) && p.slot !== net.slot && p.id) {
+        r.classList.add('mutable');
+        r.title = 'Sohbetini sustur / aç';
+        if (this.chat.isMuted(p.id)) nm.append(el('small', 'mute', 'SUSTURULDU'));
+        r.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.chat.toggleMute(p.id);
+          this.renderBoard(body);
+        });
+      }
       r.append(nm, el('span', '', String(p.kills)), el('span', '', String(p.deaths)), el('span', '', String(p.score)), el('span', '', p.flags & RF.BOT ? '—' : String(p.ping)));
       body.append(r);
     }

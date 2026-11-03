@@ -3,12 +3,16 @@
 // oyuncu listesi değişince S_ROSTER gönderir. Maç bitince sonucu yollar; eşleşme odasında sıradaki harita oylanır
 // (S_VOTE), kazanan haritada aynı oyuncularla yeni oda açılır (S_NEXT) ve bu oda kapanır; boş oda kısa sürede kapanır.
 // Zaman: oda açıldığından beri geçen ms (sunucu saati); tick k bu saatte k / 64 sn'de işlenir (istemci ClockSync).
+// Maç içi iletişim (M8): sohbet ve telsiz kalıbı bağlantı başına jeton kovasından geçer (fazlası sessizce atılır),
+// metin temizlenir, alıcılar shared/net/chat.js → chatVisible kuralıyla seçilir (takım kanalı, Rekabetçide ölülerin
+// "herkese"si yalnız ölülere); takım işareti gözden görüş hattıyla doğrulanıp yalnız takıma gider.
 import { performance } from 'node:perf_hooks';
 import { TICK_RATE, PROTOCOL_VERSION, SNAPSHOT_RATE } from '../../shared/constants.js';
-import { MSG, ERR, RF, PHASE, SIDE, VOTE_NONE } from '../../shared/net/protocol.js';
-import { Writer, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, encodeVoteState, encodeNext } from '../../shared/net/codec.js';
+import { MSG, ERR, RF, PHASE, SIDE, VOTE_NONE, CHAT_FLAG, MARK_KIND } from '../../shared/net/protocol.js';
+import { Writer, encodeWelcome, encodeRoster, encodePong, encodeError, encodeMatchEnd, encodeSnapshot, encodeVoteState, encodeNext, encodeChatLine, encodeMarkOut } from '../../shared/net/codec.js';
+import { RADIO_LINES, TokenBucket, sanitizeChat, chatVisible, markValid } from '../../shared/net/chat.js';
 import { ONLINE } from '../../src/config.js';
-import { MatchSim } from './sim.js';
+import { MatchSim, eyeHeight } from './sim.js';
 
 const TICK_MS = 1000 / TICK_RATE;
 const MAX_CATCHUP = 8; // bir uyanışta en çok bu kadar tick; daha gerideyse saat kaydırılır
@@ -244,12 +248,66 @@ export class Room {
       case MSG.C_VOTE:
         this.castVote(conn, m.map);
         break;
+      case MSG.C_CHAT:
+        if (conn.loaded) this.onChat(conn, m);
+        break;
+      case MSG.C_MARK:
+        if (conn.loaded) this.onMark(conn, m);
+        break;
       case MSG.C_LEAVE:
         this.leave(conn);
         conn.transport.close(1000, 'leave');
         break;
       default:
         break;
+    }
+  }
+
+  // --- Maç içi iletişim ---
+  onChat(conn, m) {
+    const sim = this.sim;
+    const p = sim.players[conn.slot];
+    if (!p || p.id !== conn.playerId) return;
+    const C = ONLINE.chat;
+    conn.chatBucket ??= new TokenBucket(C.perSec, C.burst);
+    if (!conn.chatBucket.allow(this.now() / 1000)) return;
+    const radio = !!(m.flags & CHAT_FLAG.RADIO);
+    let text = '';
+    if (radio) {
+      if (!Number.isInteger(m.radio) || m.radio < 0 || m.radio >= RADIO_LINES.length) return;
+    } else {
+      text = sanitizeChat(m.text);
+      if (!text) return;
+    }
+    const dead = !p.alive;
+    const msg = { team: !!(m.flags & CHAT_FLAG.TEAM), dead };
+    // Ölünün "herkese"si yalnız ölülere: ölümün raunt boyu sürdüğü modda (Rekabetçi), raunt sürerken
+    const rules = { sided: sim.sided, deadChat: !!sim.comp && sim.phase === PHASE.LIVE };
+    const bytes = encodeChatLine(this.writer, { slot: p.slot, flags: (msg.team ? CHAT_FLAG.TEAM : 0) | (radio ? CHAT_FLAG.RADIO : 0) | (dead ? CHAT_FLAG.DEAD : 0), radio: m.radio, text });
+    const from = { side: p.side, alive: p.alive };
+    for (const c of this.conns) {
+      if (c.slot < 0) continue;
+      const to = sim.players[c.slot];
+      if (to && chatVisible(msg, from, { side: to.side, alive: to.alive }, rules)) this.send(c, bytes);
+    }
+  }
+
+  // Takım işareti: canlı oyuncu, taraflı modda; menzil ve görüş hattı sunucuda doğrulanır
+  onMark(conn, m) {
+    const sim = this.sim;
+    const p = sim.players[conn.slot];
+    if (!p || p.id !== conn.playerId || !p.alive || !sim.sided) return;
+    const C = ONLINE.chat;
+    conn.markBucket ??= new TokenBucket(C.markMax / C.markWindowSec, C.markMax);
+    if (!conn.markBucket.allow(this.now() / 1000)) return;
+    const st = p.state;
+    const eye = { x: st.pos.x, y: st.pos.y + eyeHeight(st), z: st.pos.z };
+    if (!markValid(sim.world, eye, m.pos)) return;
+    const bytes = encodeMarkOut(this.writer, { slot: p.slot, kind: m.kind === MARK_KIND.ENEMY ? MARK_KIND.ENEMY : MARK_KIND.HERE, pos: m.pos });
+    for (const c of this.conns) {
+      if (c.slot < 0) continue;
+      const to = sim.players[c.slot];
+      if (to && to.side === p.side) this.send(c, bytes);
     }
   }
 

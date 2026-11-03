@@ -20,6 +20,7 @@ const EXTRA = [
   'src/data/attachments.json',
   'src/data/sights.json',
   'src/data/squad.json',
+  'src/data/netRadio.tr.json',
 ];
 
 function walk(dir, out) {

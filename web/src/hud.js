@@ -970,6 +970,8 @@ export class HUD {
     g.matchHud?.comp.drawRadar(ctx, toMap, R, P.yaw);
     // Kampanya Co-op'u: aşamanın hedefleri (coopHud.js)
     g.matchHud?.coop.drawRadar(ctx, toMap, R);
+    // Çevrim içi takım işaretleri (netChat.js)
+    g.matchHud?.chat.drawRadar(ctx, toMap, R);
     for (const mk of markers) {
       const [x, z] = toMap(mk.p.x, mk.p.z);
       const d = Math.hypot(x, z);

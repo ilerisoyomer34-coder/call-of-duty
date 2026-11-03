@@ -20,6 +20,8 @@ export function handleBack(game) {
   if (g.state === 'playing') {
     // Açık çark ve telsiz satırı önce kapanır; yoksa duraklat
     if (g.wheel?.open) g.wheel.close(false);
+    else if (g.matchHud?.chat?.wheel.open) g.matchHud.chat.wheel.close(false);
+    else if (g.matchHud?.chat?.open) g.matchHud.chat.close();
     else if (g.chat?.open) g.chat.closeChat();
     else g.pause();
     return true;

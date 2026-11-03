@@ -6,7 +6,7 @@
 // Bozuk ya da kısa ileti istisna fırlatmaz, null döner (sunucu bozuk ileti sayacını artırır).
 // Komutun bakış değerleri istemcide de bu nicemlemeden geçer (quantizeCmd): tahmin, sunucunun gördüğü
 // girdiyle aynı sayılarla çalışır.
-import { MSG, NEV, LIMITS } from './protocol.js';
+import { MSG, NEV, LIMITS, CHAT_FLAG } from './protocol.js';
 import { QUANT } from '../constants.js';
 
 const TAU = Math.PI * 2;
@@ -322,6 +322,42 @@ export function encodeVote(w, map) {
   return w.bytes();
 }
 
+// Metni UTF-8'de en çok max bayta, harf sınırından kes (Writer.str bayttan keser: çok baytlı harf yarılmasın)
+const enc8 = new TextEncoder();
+export function utf8Clip(text, max) {
+  const s = String(text ?? '');
+  if (enc8.encode(s).length <= max) return s;
+  let out = '';
+  let n = 0;
+  for (const ch of s) {
+    const b = enc8.encode(ch).length;
+    if (n + b > max) break;
+    out += ch;
+    n += b;
+  }
+  return out;
+}
+
+// Maç içi sohbet: bayrak (takım, telsiz) + telsizse kalıp dizini (u8), değilse metin (≤ maxChatBytes)
+export function encodeChat(w, c) {
+  w.reset();
+  w.u8(MSG.C_CHAT);
+  const flags = c.flags & (CHAT_FLAG.TEAM | CHAT_FLAG.RADIO);
+  w.u8(flags);
+  if (flags & CHAT_FLAG.RADIO) w.u8(c.radio);
+  else w.str(utf8Clip(c.text, LIMITS.maxChatBytes));
+  return w.bytes();
+}
+
+// Takım işareti: tür + dünya noktası (konum nicemlemesiyle)
+export function encodeMark(w, m) {
+  w.reset();
+  w.u8(MSG.C_MARK);
+  w.u8(m.kind);
+  writeVec16(w, m.pos);
+  return w.bytes();
+}
+
 export function encodePing(w, clientTime) {
   w.reset();
   w.u8(MSG.C_PING);
@@ -366,6 +402,13 @@ export function decodeClient(bytes) {
         return { type, map: r.u8() };
       case MSG.C_BUY:
         return { type, item: r.u8(), mods: readMods(r) };
+      case MSG.C_CHAT: {
+        const flags = r.u8();
+        if (flags & ~(CHAT_FLAG.TEAM | CHAT_FLAG.RADIO)) return null;
+        return flags & CHAT_FLAG.RADIO ? { type, flags, radio: r.u8() } : { type, flags, text: r.str(LIMITS.maxChatBytes) };
+      }
+      case MSG.C_MARK:
+        return { type, kind: r.u8(), pos: readVec16(r) };
       case MSG.C_LOADOUT:
         return { type, primary: r.str(LIMITS.maxStr), secondary: r.str(LIMITS.maxStr), ready: r.u8() === 1, pmods: readMods(r), smods: readMods(r) };
       case MSG.C_LOADED:
@@ -444,6 +487,27 @@ export function encodeVoteState(w, v) {
   w.u8(v.counts.length);
   for (const c of v.counts) w.u8(Math.min(255, c));
   w.u8(v.winner);
+  return w.bytes();
+}
+
+// Sohbet satırı (alıcıya): gönderenin yuvası, bayraklar, telsizse kalıp dizini değilse metin
+export function encodeChatLine(w, c) {
+  w.reset();
+  w.u8(MSG.S_CHAT);
+  w.u8(c.slot);
+  w.u8(c.flags);
+  if (c.flags & CHAT_FLAG.RADIO) w.u8(c.radio);
+  else w.str(utf8Clip(c.text, LIMITS.maxChatBytes));
+  return w.bytes();
+}
+
+// Takım işareti (takıma): koyanın yuvası, türü, noktası
+export function encodeMarkOut(w, m) {
+  w.reset();
+  w.u8(MSG.S_MARK);
+  w.u8(m.slot);
+  w.u8(m.kind);
+  writeVec16(w, m.pos);
   return w.bytes();
 }
 
@@ -767,6 +831,13 @@ export function decodeServer(bytes) {
       }
       case MSG.S_NEXT:
         return { type, room: r.str(), map: r.str(), mode: r.str() };
+      case MSG.S_CHAT: {
+        const slot = r.u8();
+        const flags = r.u8();
+        return flags & CHAT_FLAG.RADIO ? { type, slot, flags, radio: r.u8() } : { type, slot, flags, text: r.str() };
+      }
+      case MSG.S_MARK:
+        return { type, slot: r.u8(), kind: r.u8(), pos: readVec16(r) };
       default:
         return null;
     }

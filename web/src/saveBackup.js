@@ -13,7 +13,7 @@ export const BACKUP_FIELDS = Object.freeze(['version', 'credits', 'inventory', '
 export const BACKUP_SETTINGS = Object.freeze([
   'sensitivity', 'adsSensitivity', 'invertY', 'fov', 'adsMode', 'crouchMode', 'sprintMode', 'quality', 'renderScale', 'fpsCap', 'postFx',
   'muted', 'masterVolume', 'sfxVolume', 'ambientVolume', 'cameraShake', 'headBob', 'crosshairColor', 'blood',
-  'damageNumbers', 'showFps', 'realNames', 'wheelSlowMo', 'chatSlowMo', 'radioVoice', 'radioVolume', 'commsCam',
+  'damageNumbers', 'showFps', 'realNames', 'wheelSlowMo', 'chatSlowMo', 'radioVoice', 'radioVolume', 'commsCam', 'chatFilter',
   'physics', 'voiceCommands', 'buttonIcons', 'rerollBonuses', 'bindings', 'onlineLoadout', 'onlineClasses', 'onlineClass',
   'coopLevel',
 ]);

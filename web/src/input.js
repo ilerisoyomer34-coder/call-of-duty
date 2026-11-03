@@ -40,6 +40,9 @@ export const BINDINGS = {
   ping: ['KeyZ'],
   // Telsiz sohbet satırı (yazılı komut) ve sesli komut (basılı tut, konuş) — §8.3
   chat: ['Enter', 'NumpadEnter'],
+  // Çevrim içi maç sohbeti (çok oyunculu §11.1): Y herkese, U takıma (Enter da takıma açar)
+  chatAll: ['KeyY'],
+  chatTeam: ['KeyU'],
   voice: ['KeyN'],
   talk: ['KeyK'], // eller serbest konuşma kipi (aç/kapat): cevap bitince mikrofon yeniden dinler
   // Çevrim içi maç: puan tablosu (basılı tut); Rekabetçi satın alma menüsü (yalnız raunt başında: atış modu tuşuyla
@@ -94,8 +97,8 @@ export const ACTION_LABELS = {
   holdBreath: 'Nefesini tut (dürbün)', useItem1: 'Sarf yuvası 1', useItem2: 'Sarf yuvası 2', tracker: 'Görev takipçisi',
   cmdFollow: 'Takip edin', cmdHold: 'Pozisyonu koruyun', cmdSuppress: 'Baskı ateşi (nişangâhın baktığı yere)', cmdCover: 'Siper alın',
   cmdHeal: 'Beni iyileştir (medik)', cmdHoldFire: 'Ateşi kesin', cmdFreeFire: 'Serbest ateş',
-  wheel: 'Komut çarkı (basılı tut)', ping: 'İşaretle (çift basış: iptal)',
-  chat: 'Telsiz: yazılı komut', voice: 'Sesli komut (basılı tut)', talk: 'Konuşma kipi (eller serbest, aç/kapat)',
+  wheel: 'Komut çarkı (basılı tut; çevrim içinde telsiz kalıpları)', ping: 'İşaretle (çift basış: iptal; çevrim içinde "düşman burada")',
+  chat: 'Telsiz: yazılı komut (çevrim içinde takım sohbeti)', chatAll: 'Sohbet: herkese (çevrim içi)', chatTeam: 'Sohbet: takıma (çevrim içi)', voice: 'Sesli komut (basılı tut)', talk: 'Konuşma kipi (eller serbest, aç/kapat)',
   scoreboard: 'Puan tablosu (çevrim içi, basılı tut)',
   buyMenu: 'Satın alma (Rekabetçi, raunt başında)',
   streak1: 'Seri ödülü: İHA taraması', streak2: 'Seri ödülü: hava saldırısı (nişangâha)', streak3: 'Seri ödülü: topçu atışı (nişangâha)',

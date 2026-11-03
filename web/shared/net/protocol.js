@@ -12,6 +12,8 @@ export const MSG = {
   C_LOADOUT: 0x06, // maç öncesi teçhizat seçimi (ana + yan silah) ve "hazırım"
   C_VOTE: 0x07, // maç sonu harita oyu (modes.json → matchmaking.maps dizini)
   C_BUY: 0x08, // Rekabetçi: satın alma (shared/sim/competitive.js → BUY_ITEMS dizini + silahın eklentileri)
+  C_CHAT: 0x09, // maç içi sohbet: takım/herkes bayrağı + metin ya da telsiz kalıbının dizini (shared/net/chat.js)
+  C_MARK: 0x0a, // takım işareti: dünya noktası ve türü (sunucu görüş hattıyla doğrular)
   // Sunucu → istemci
   S_WELCOME: 0x81,
   S_SNAPSHOT: 0x82,
@@ -21,10 +23,17 @@ export const MSG = {
   S_MATCH_END: 0x86,
   S_VOTE: 0x87, // maç sonu oylamasının durumu: kalan süre, harita başına oy, kazanan (oylama bitince)
   S_NEXT: 0x88, // sıradaki maçın odası ve haritası (aynı oyuncular, aynı taraflar)
+  S_CHAT: 0x89, // sohbet satırı: gönderenin yuvası, bayraklar (takım, telsiz, ölü), metin ya da kalıp dizini
+  S_MARK: 0x8a, // takım işareti: koyanın yuvası, türü, noktası
 };
 
 // S_VOTE: oylama sürerken kazanan yok
 export const VOTE_NONE = 255;
+
+// Sohbet bayrakları (C_CHAT/S_CHAT): takım kanalı, telsiz kalıbı (metin yerine dizin), gönderen öldüğünde yazdı
+// (yalnız sunucu koyar). İşaret türü (C_MARK/S_MARK): "buraya bak" / "düşman burada" (çift basış)
+export const CHAT_FLAG = { TEAM: 1, RADIO: 2, DEAD: 4 };
+export const MARK_KIND = { HERE: 0, ENEMY: 1 };
 
 // Bağlantıyı kapatan hata kodları (S_ERROR). Türkçe metinler istemcide (src/net/gameClient.js → NET_ERRORS)
 export const ERR = {
@@ -112,4 +121,5 @@ export const LIMITS = {
   maxShotsPerCmd: 4,
   maxStr: 64,
   maxMods: 8, // silah başına eklenti (kategori sayısı)
+  maxChatBytes: 255, // sohbet metninin UTF-8 bayt sınırı (sunucu ayrıca ONLINE.chat.maxLen harfe kırpar)
 };

@@ -20,7 +20,8 @@ import { modsToIndices } from '../../shared/sim/mods.js';
 import { BUY_ITEMS, BOMB, ACT, ROUND_STATE, actionFor } from '../../shared/sim/competitive.js';
 import { streakBits } from '../../shared/sim/streaks.js';
 import { COOP_LEVELS, COOP_STATE, holdTarget, doneFromMask } from '../../shared/sim/coop.js';
-import { Writer, encodeHello, encodeLoadout, encodeVote, encodeBuy, encodeInput, encodePing, encodeSimple, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
+import { Writer, encodeHello, encodeLoadout, encodeVote, encodeBuy, encodeInput, encodePing, encodeSimple, encodeChat, encodeMark, decodeServer, quantizeCmd } from '../../shared/net/codec.js';
+import { CHAT_FLAG, sanitizeChat } from '../../shared/net/chat.js';
 import { ClockSync } from '../../shared/net/clock.js';
 import { createPlayerState, stepPlayer, applyCmdMods, BTN } from '../../shared/sim/movement.js';
 import { lerp } from '../../shared/sim/math.js';
@@ -306,6 +307,12 @@ export class GameClient {
         this.next = m;
         this.game.events.emit(EV.NET_NEXT, m);
         break;
+      case MSG.S_CHAT:
+        this.game.events.emit(EV.NET_CHAT, m);
+        break;
+      case MSG.S_MARK:
+        this.game.events.emit(EV.NET_MARK, m);
+        break;
       case MSG.S_ERROR:
         this.error = this.errorOf(m.code, m.detail);
         if (!this.welcome) this.onFail?.(this.error);
@@ -493,6 +500,26 @@ export class GameClient {
       default:
         break;
     }
+  }
+
+  // Maç içi sohbet (M8): sunucu temizler, hız sınırlar ve alıcılarına (gönderen dahil) S_CHAT olarak dağıtır
+  sendChat(text, team) {
+    const t = sanitizeChat(text);
+    if (!t || !this.welcome) return false;
+    this.send(encodeChat(this.w, { flags: team ? CHAT_FLAG.TEAM : 0, text: t }));
+    return true;
+  }
+
+  // Telsiz kalıbı (data/netRadio.tr.json dizini): her zaman takıma
+  sendRadio(index) {
+    if (!this.welcome) return;
+    this.send(encodeChat(this.w, { flags: CHAT_FLAG.TEAM | CHAT_FLAG.RADIO, radio: index }));
+  }
+
+  // Takım işareti: sunucu gözden görüş hattıyla doğrulayıp takıma (koyan dahil) S_MARK olarak dağıtır
+  sendMark(pos, kind) {
+    if (this.state !== 'playing' || !this.game.player.alive) return;
+    this.send(encodeMark(this.w, { kind, pos }));
   }
 
   // Maç sonu oyu (modes.json → matchmaking.maps dizini); oy değiştirilebilir, sunucu son oyu sayar

@@ -285,12 +285,12 @@ export class Game {
     this.input.onLockChange = (locked, selfExit) => {
       // Telsiz satırı kapanırken istenen kilit satır yeniden açıldıktan sonra gelebilir: yazarken imleç serbest
       // kalsın (kilitliyken Esc tarayıcıya gider, satırı kapatamaz)
-      if (locked && this.chat?.open) {
+      if (locked && (this.chat?.open || this.matchHud?.chat?.open)) {
         this.input.exitLock();
         return;
       }
       // Konsol ve telsiz satırı imleci bilerek serbest bırakır: o zaman duraklatma
-      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.input.touch.active && !this.matchHud?.overlayOpen) this.pause();
+      if (!locked && !selfExit && this.state === 'playing' && !this.console.open && !this.chat?.open && !this.matchHud?.chat?.open && !this.input.touch.active && !this.matchHud?.overlayOpen) this.pause();
     };
     this.clickToPlay = document.getElementById('clickToPlay');
     this.clickToPlay.addEventListener('click', () => {
@@ -1307,8 +1307,14 @@ export class Game {
     // Kalkış sahnesinde oyuncu helikopterin içinde: kontrol yok, kamera kabinden bakar
     const cine = !!this.mission.takeoff;
     // Telsize yazarken oyuncu durur (tuşlar yazı alanına gider)
-    const canAct = this.player.alive && !this.console.open && !this.chat.open && this.state === 'playing' && !cine && !this.matchHud.overlayOpen;
+    const netChat = this.matchHud.chat;
+    const canAct = this.player.alive && !this.console.open && !this.chat.open && !netChat.open && this.state === 'playing' && !cine && !this.matchHud.overlayOpen;
     if (this.mode === 'mission' && canAct && !this.wheel.open && I.pressed('chat')) this.chat.openChat();
+    // Çevrim içi maç sohbeti (M8): Y herkese, U ve Enter takıma (ölüyken de yazılır)
+    if (this.net && netChat.active && !netChat.open && !netChat.wheel.open && !this.console.open && this.state === 'playing' && !this.matchHud.overlayOpen) {
+      if (I.pressed('chatAll')) netChat.openInput(false);
+      else if (I.pressed('chatTeam') || I.pressed('chat')) netChat.openInput(true);
+    }
     if (this.console.open || cine) I.consumeLook();
     const driving = this.vehicles.driving;
     if (cine) {
@@ -1327,6 +1333,9 @@ export class Game {
       const cmdOk = canAct && this.mode === 'mission';
       if (cmdOk) this.wheel.update(dt, I);
       else if (this.wheel.open) this.wheel.close(false);
+      // Çevrim içi telsiz çarkı (T): aynı çark, telsiz kalıplarıyla; oyun yavaşlamaz
+      if (canAct && this.net) netChat.wheel.update(dt, I);
+      else if (netChat.wheel.open) netChat.wheel.close(false);
       this.player.update(dt, canAct ? I : NULL_INPUT);
       this.player.applyCamera(this.camera, dt);
       // Rekabetçi: ölüyken canlı bir takım arkadaşının gözünden izle (raunt içinde doğuş yok)
@@ -1336,7 +1345,7 @@ export class Game {
     // Görüş konisi (askerler görüş dışındayken iskeletlerini seyrek günceller: inView)
     _projView.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.viewFrustum.setFromProjectionMatrix(_projView);
-    const wheelOpen = this.wheel.open;
+    const wheelOpen = this.wheel.open || netChat.wheel.open;
     // Sarf malzemesi takılırken silah kullanılmaz (kit kendi tuşlarını ve iptali okur); çark açıkken 3/4 muhatap seçer
     // Çevrim içinde geri sayım ve maç sonunda sis de atılmaz (sunucu kabul etmez; yuvadaki adet boşa düşmesin)
     const netHold = !!(this.net && (this.net.frozen || this.net.state !== 'playing'));
@@ -1350,6 +1359,9 @@ export class Game {
       // Eller serbest konuşma kipi (K): aç/kapat
       if (I.pressed('talk')) this.voice.setTalk(!this.voice.talk);
     }
+    // Çevrim içi takım işareti (Z; çift basış "düşman burada")
+    if (canAct && this.net && !wheelOpen && I.pressed('ping')) netChat.markPressed();
+    if (this.net) netChat.update();
     if (I.released('voice') && !this.voice.talk) this.voice.stop();
     this.chat.update(dt);
     this.commands.update();
@@ -1372,6 +1384,7 @@ export class Game {
       this.net.remotes.updateTags(this.hud, this.width, this.height);
       this.matchHud.comp.updateTags(this.hud, this.width, this.height);
       this.matchHud.coop.updateTags(this.hud, this.width, this.height);
+      netChat.updateTags(this.hud, this.width, this.height);
       this.matchHud.streaks.updateMarks(this.hud, this.width, this.height);
       this.matchHud.update(dt, this.console.open ? NULL_INPUT : I);
     }
@@ -1380,7 +1393,7 @@ export class Game {
     this.audio.updateAmbient();
     this.stats.time = this.mission.time;
     this.indoor.update(dt);
-    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !cine && !this.matchHud.overlayOpen;
+    const lockMissing = this.state === 'playing' && !I.locked && !I.lockFailed && !I.touch.active && !this.console.open && !this.chat.open && !netChat.open && !cine && !this.matchHud.overlayOpen;
     this.clickToPlay.hidden = !lockMissing;
     if (this.state === 'dying') {
       this.deathT += dt;

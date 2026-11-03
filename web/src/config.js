@@ -126,6 +126,12 @@ export const ONLINE = {
   voteSec: 20,
   nextShowSec: 2.5, // istemci: kazanan harita gösterildikten sonra yeni maça geçiş
   nextLingerSec: 15, // eski oda geçiş için bu kadar daha açık kalır (oyuncular ayrılınca kapanır)
+  // Maç içi iletişim (M8, shared/net/chat.js, src/net/netChat.js): metin en çok maxLen harf; saniyede perSec ileti,
+  // art arda en çok burst (sunucu fazlasını sessizce atar). Sohbet kutusunda en çok keep satır, satır fadeSec sonra
+  // solar. Takım işareti markSec görünür, markWindowSec içinde en çok markMax; gözden markRange m'den uzağa ve duvar
+  // arkasına konamaz (sunucu görüş hattıyla doğrular). Çift basış markDoubleSec içinde → "düşman burada". Ekranda en
+  // çok markShown işaret (5 kişilik takım × markMax yetmezse eskisi kalkar)
+  chat: { maxLen: 120, perSec: 1, burst: 3, keep: 7, fadeSec: 8, markSec: 4, markMax: 3, markWindowSec: 5, markRange: 150, markDoubleSec: 0.35, markShown: 12 },
   // El bombası ve sis (shared/sim/grenade.js; sunucu yetkili, istemci aynı yörüngeyi çizer). Her doğuşta frag/smoke
   // kadar; atış GRENADE ile aynı his (hız, yukarı itiş, oyuncu hızının payı), pişirme yok (fitil sabit)
   nades: {

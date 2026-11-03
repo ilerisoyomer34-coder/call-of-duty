@@ -45,6 +45,12 @@ export function isProfane(name) {
   return f.split(/[ _-]+/).some((w) => WORD.has(w));
 }
 
+// Maç içi sohbet (§11.5, ayardan kapatılabilir, yalnız okuyanın ekranında): küfür sayılan kelime yıldızlanır.
+// Kelime sınırı boşluk; noktalama kelimeye yapışıksa da yakalanır (denetim biçimi harf dışını atar)
+export function maskProfanity(text) {
+  return String(text || '').replace(/\S+/g, (w) => (isProfane(w.replace(/[^\p{L}\p{N}@$]/gu, '')) ? '*'.repeat(Array.from(w).length) : w));
+}
+
 /**
  * Ad denetimi.
  * @returns {{ ok: boolean, name: string, error: null | 'short' | 'long' | 'chars' | 'letter' | 'banned' }}

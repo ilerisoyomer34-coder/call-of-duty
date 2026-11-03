@@ -4433,6 +4433,44 @@ if (run('netplay')) {
   await A.screenshot({ path: join(shots, '35-net-scoreboard.png') });
   await A.keyboard.up('Tab');
   check(board.shown && board.rows === 8 && board.yz === 6 && board.team === 1, `Puan tablosu (Tab): ${board.rows} satır, ${board.yz} YZ rozeti, takım arkadaşı işaretli`);
+  // Maç içi iletişim (M8): A takıma yazar (U → yaz → Enter), B (aynı takım) satırı "(TAKIM)" önekiyle görür; herkese
+  // satırı ve telsiz kalıbı ("[Telsiz] Düşman görüldü!"); A'nın "düşman burada" işareti B'de dünyada ve radarda; B,
+  // A'yı susturunca A'nın yeni satırı gelmez. Hız sınırı (art arda 3) aşılmasın diye susturma denemesi biraz bekler
+  await A.keyboard.press('KeyU');
+  const typing = await until(A, () => window.__game.matchHud.chat.open, null, 20000).then(() => true).catch(() => false);
+  if (typing) {
+    await A.keyboard.type('Sol koridor temiz');
+    await A.keyboard.press('Enter');
+  }
+  await until(A, () => window.__game.player.alive, null, 30000).catch(() => {});
+  const sentM8 = await A.evaluate(() => {
+    const g = window.__game;
+    const nc = g.matchHud.chat;
+    g.net.sendChat('iyi oyunlar', false);
+    // Çarkın dördüncü kalıbı "Düşman görüldü!" (data/netRadio.tr.json → wheel)
+    g.net.sendRadio(Number(nc.wheel.slices[3].id));
+    const p = nc.aimPoint() || { x: g.player.pos.x + 2, y: g.player.pos.y + 0.05, z: g.player.pos.z };
+    g.net.sendMark(p, 1);
+    return { closed: !nc.open, slices: nc.wheel.slices.length, me: g.net.roster.find((r) => r.slot === g.net.slot)?.id };
+  });
+  await until(B, () => document.querySelectorAll('#mhChatLog .ncLine').length >= 3 && document.querySelectorAll('.ncMark').length > 0, null, 30000).catch(() => {});
+  const cb = await B.evaluate(() => ({
+    lines: [...document.querySelectorAll('#mhChatLog .ncLine')].map((l) => l.textContent),
+    marks: [...document.querySelectorAll('.ncMark b')].map((m) => m.textContent),
+    radar: window.__game.matchHud.chat.marks.length,
+  }));
+  await B.screenshot({ path: join(shots, '35b-net-chat.png') });
+  check(typing && sentM8.closed && cb.lines.some((t) => /^\(TAKIM\) .*: Sol koridor temiz$/.test(t)) && cb.lines.some((t) => /: iyi oyunlar$/.test(t) && !/TAKIM/.test(t)) && cb.lines.some((t) => /^\[Telsiz\] .*Düşman görüldü!/.test(t)),
+    `Maç içi sohbet: U ile takıma yazıldı, takım arkadaşında ${cb.lines.length} satır (${cb.lines.join(' | ')})`);
+  check(sentM8.slices === 8 && cb.marks.includes('DÜŞMAN') && cb.radar >= 1, `Takım işareti: arkadaşın ekranında "${cb.marks.join(', ')}" ve radarda (${cb.radar}); telsiz çarkında ${sentM8.slices} kalıp`);
+  await B.evaluate((id) => window.__game.matchHud.chat.toggleMute(id), sentM8.me);
+  await sleep(2200);
+  await A.evaluate(() => window.__game.net.sendChat('susturuldum mu', false));
+  await sleep(2500);
+  const mutedSeen = await B.evaluate(() => [...document.querySelectorAll('#mhChatLog .ncLine')].some((l) => /susturuldum mu/.test(l.textContent)));
+  const selfSeen = await A.evaluate(() => [...document.querySelectorAll('#mhChatLog .ncLine')].some((l) => /susturuldum mu/.test(l.textContent)));
+  await B.evaluate((id) => window.__game.matchHud.chat.toggleMute(id), sentM8.me);
+  check(!mutedSeen && selfSeen, `Susturma: susturulan oyuncunun satırı gelmez (gönderen kendi satırını görüyor: ${selfSeen})`);
   // Maç sonu harita oylaması (sunucu MATCH_TIME=130): sonuç ekranında bütün haritalar; ikisi Liman'a oy verir, süre
   // dolunca aynı oyuncular Liman'daki yeni maça aynı tarafta geçer
   const before = await A.evaluate(() => ({ room: window.__game.net.welcome.room, map: window.__game.net.welcome.map, side: window.__game.net.mySide }));
@@ -4519,6 +4557,19 @@ if (run('netplay')) {
   });
   await mp.screenshot({ path: join(shots, '36-net-mobile.png') });
   check(mfit.mode === 'dm' && mfit.inView && mfit.players === 6 && mfit.label === 'SEN', `Telefonda Ölüm Maçı: ${mfit.players} oyuncu (5 YZ), skor çubuğu ekranda`);
+  // Telefonda maç içi iletişim: SOHBET/TELSİZ düğmeleri ekranda; SOHBET yazma satırını açar (ÖM'de takım yok: HERKES)
+  const mcomms = await mp.evaluate(() => {
+    const box = document.getElementById('mhComms');
+    const r = box.getBoundingClientRect();
+    return { shown: getComputedStyle(box).display !== 'none', fits: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight };
+  });
+  await mp.tap('#btnNetChat');
+  const mchat = await until(mp, () => window.__game.matchHud.chat.open, null, 15000)
+    .then(() => mp.evaluate(() => ({ chan: document.getElementById('mhChatChan').textContent, form: !document.getElementById('mhChatForm').hidden })))
+    .catch(() => ({}));
+  await mp.screenshot({ path: join(shots, '36b-net-mobile-chat.png') });
+  await mp.evaluate(() => window.__game.matchHud.chat.close());
+  check(mcomms.shown && mcomms.fits && mchat.form && mchat.chan === 'HERKES', `Telefonda SOHBET/TELSİZ düğmeleri ekranda; SOHBET yazma satırını açıyor (ÖM: ${mchat.chan})`);
   await mctx.close();
   srv.kill();
 }

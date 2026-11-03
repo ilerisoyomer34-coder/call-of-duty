@@ -463,6 +463,7 @@ export class Menus {
     chk('sBlood', S.blood);
     chk('sPhysics', S.physics);
     chk('sCommsCam', S.commsCam);
+    chk('sChatFilter', S.chatFilter !== false);
     chk('sDmgNum', S.damageNumbers);
     chk('sRealNames', S.realNames);
     $('sRealNames').closest('.set').hidden = STORE_BUILD;
@@ -533,6 +534,7 @@ export class Menus {
     S.blood = $('sBlood').checked;
     S.physics = $('sPhysics').checked;
     S.commsCam = $('sCommsCam').checked;
+    S.chatFilter = $('sChatFilter').checked;
     S.damageNumbers = $('sDmgNum').checked;
     S.realNames = $('sRealNames').checked;
     S.rerollBonuses = $('sReroll').checked;

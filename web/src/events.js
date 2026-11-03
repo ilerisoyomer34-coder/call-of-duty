@@ -50,6 +50,8 @@ export const EV = Object.freeze({
   NET_STREAK: 'NET_STREAK', // seri ödülü: { slot, kind, state (0 hazır, 1 kullanıldı), pos, yaw }
   NET_COOP: 'NET_COOP', // Kampanya Co-op'u: { stage, state (shared/sim/coop.js → COOP_STATE), left, mask }
   NET_MATCH_END: 'NET_MATCH_END', // { winner, reason, scoreA, scoreB }
+  NET_CHAT: 'NET_CHAT', // maç içi sohbet satırı: { slot, flags (CHAT_FLAG), text?, radio? (kalıp dizini) }
+  NET_MARK: 'NET_MARK', // takım işareti: { slot, kind (MARK_KIND), pos }
   // Oyuncu ilerlemesi (progression.js)
   XP_GAINED: 'XP_GAINED', // { amount, reason, level, frac }
   LEVEL_UP: 'LEVEL_UP', // { level, rank: { name, short }, credits }

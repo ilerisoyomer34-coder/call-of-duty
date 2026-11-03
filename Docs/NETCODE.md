@@ -265,6 +265,14 @@ Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.ran
 
 **Konsol:** `net_graph 0|1|2`, `net_profile`, `net_fakelag`, `net_fakejitter`, `net_fakeloss`, `net_status`.
 
+**Maç içi iletişim (M8, `shared/net/chat.js`, `src/net/netChat.js`, ayarlar `config.js → ONLINE.chat`):**
+- Metin sohbeti: Y herkese, U ve Enter takıma (dokunmatikte SOHBET); yazarken oyuncu durur, imleç serbest; Tab kanal, Esc vazgeç. Sunucu: jeton kovası (saniyede 1, art arda 3), temizleme (görünmez ve yön değiştiren Unicode, en çok 120 harf), alıcılar `chatVisible` (takım kanalı aynı tarafa; Rekabetçide raunt sürerken ölünün "herkese"si yalnız ölülere). Satırlar 8 sn sonra solar; "(TAKIM)", "*ÖLÜ*", "[Telsiz]" önekleri; ad tarafın renginde.
+- Küfür süzgeci (Ayarlar → "Sohbette küfür süzgeci", `settings.chatFilter`): ad süzgecinin listesiyle (`shared/names.js → maskProfanity`), yalnız okuyanın ekranında.
+- Susturma (bu oturum): puan tablosunda oyuncu satırına dokun/tıkla ya da sohbete `/sustur ad`; susturulanın satırı, kalıbı ve işareti görünmez.
+- Telsiz kalıpları (`data/netRadio.tr.json`, ağda dizin): T basılı (dokunmatikte TELSİZ) komut çarkının aynısı (`CommandWheel` spec: muhatapsız, oyun yavaşlamaz); Rekabetçide bomba kalıpları. Takım arkadaşının kalıbı telsiz sesiyle okunur.
+- Takım işareti: Z nişangâhın baktığı yüzeye; 0,35 sn içinde ikinci basış "düşman burada". Sunucu menzil (150 m) ve görüş hattıyla doğrular, 5 sn'de en çok 3; takımda dünyada etiket ve radarda elmas (4 sn).
+- Protokol 4: `C_CHAT/C_MARK`, `S_CHAT/S_MARK` (`Docs/PROTOCOL.md`). Testler `tests/netchat.test.mjs`, duman `netplay` (iki sayfa: takım/herkese satırı, telsiz, işaret, susturma; telefonda SOHBET/TELSİZ).
+
 ### Modlar (`src/data/modes.json`)
 
 | Mod | Kural |

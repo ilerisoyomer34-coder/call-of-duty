@@ -8,7 +8,7 @@ import { saveSettings } from './settings.js';
 export const BINDING_GROUPS = [
   ['Hareket', ['forward', 'back', 'left', 'right', 'sprint', 'crouch', 'jump', 'leanLeft', 'leanRight']],
   ['Savaş', ['fire', 'ads', 'reload', 'fireMode', 'grenade', 'melee', 'interact', 'weapon1', 'weapon2', 'weapon3', 'swapWeapon', 'useItem1', 'useItem2', 'holdBreath', 'tracker', 'scoreboard', 'buyMenu', 'streak1', 'streak2', 'streak3', 'pause']],
-  ['Tim', ['wheel', 'ping', 'chat', 'voice', 'cmdFollow', 'cmdHold', 'cmdSuppress', 'cmdCover', 'cmdHeal', 'cmdHoldFire', 'cmdFreeFire']],
+  ['Tim ve sohbet', ['wheel', 'ping', 'chat', 'chatAll', 'chatTeam', 'voice', 'cmdFollow', 'cmdHold', 'cmdSuppress', 'cmdCover', 'cmdHeal', 'cmdHoldFire', 'cmdFreeFire']],
 ];
 
 // Aynı tuşu paylaşması bilerek serbest olan eylemler (bağlamları ayrı): koşu/nefes tutma (dürbünde Shift),

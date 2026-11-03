@@ -3,6 +3,8 @@
 // 1–4 ile değişir). Çark açıkken oyun yavaşlar (Ayarlar → çark yavaşlatması).
 // Dokunmatikte TELSİZ düğmesi çarkı açıp kapar; dilime dokununca komut verilir, ortaya dokununca muhatap değişir.
 // Dilim seçimi fare hareketinin biriktirdiği yöne göredir: imleç kilitliyken de çalışır.
+// Aynı sınıf çevrim içi maçta telsiz kalıplarını gösterir (spec: dilimler, muhatapsız orta, yavaşlatma yok, seçilen
+// kalıp game.net'e; src/net/netChat.js → radioWheelSpec).
 import { COMMANDS } from './commands.js';
 import SQUAD from './data/squad.json' with { type: 'json' };
 
@@ -18,9 +20,25 @@ const DEAD_ZONE = 18; // seçim için en az fare yolu (piksel)
 const MAX_R = 90;
 const NS = 'http://www.w3.org/2000/svg';
 
+// Görevdeki tim komut çarkı: dilimler komutlar, ortada muhatap, açıkken oyun yavaşlar
+function commandSpec(game) {
+  return {
+    id: 'wheel',
+    slices: WHEEL_SLICES.map((id) => ({ id, icon: CMD_ICONS[id], label: COMMANDS[id].label })),
+    addressees: ADDRESSEES,
+    slowMo: true,
+    hint: 'Fareyle dilim seç · tekerlek: muhatap · bırakınca verilir',
+    touchHint: 'Komuta dokun · ortası: muhatap',
+    canShow: () => game.mode === 'mission' && game.allies.list.some((a) => !a.dead) && !game.player.down,
+    apply: (id, addr) => game.commands.issue(id, addr, { inputMethod: 'wheel' }),
+  };
+}
+
 export class CommandWheel {
-  constructor(game) {
+  constructor(game, spec = null) {
     this.game = game;
+    this.spec = spec || commandSpec(game);
+    this.slices = this.spec.slices;
     this.open = false;
     this.sel = -1;
     this.vx = 0;
@@ -32,33 +50,44 @@ export class CommandWheel {
 
   // Açıkken oyun saatinin çarpanı
   get slow() {
-    return this.open ? this.game.settings.wheelSlowMo ?? 0.3 : 1;
+    return this.open && this.spec.slowMo ? this.game.settings.wheelSlowMo ?? 0.3 : 1;
+  }
+
+  // Dilimleri yeniden kur (çevrim içi: Rekabetçide bomba kalıpları)
+  setSlices(slices) {
+    if (this.open) this.close(false);
+    this.spec.slices = slices;
+    this.slices = slices;
+    this.root.remove();
+    this.build();
   }
 
   build() {
     // Dokunmatik düğme katmanının (#touch) üstünde dursun: dilimlere dokunulabilsin
     const host = document.getElementById('app') || document.body;
     const root = document.createElement('div');
-    root.id = 'wheel';
+    root.id = this.spec.id;
+    root.className = 'wheel';
     root.hidden = true;
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '-100 -100 200 200');
-    this.wedges = WHEEL_SLICES.map((id, i) => {
+    const N = this.slices.length;
+    this.wedges = this.slices.map((sl, i) => {
       // Dilim 0 tepede, saat yönünde
-      const a0 = ((i - 0.5) / WHEEL_SLICES.length) * Math.PI * 2 - Math.PI / 2;
-      const a1 = ((i + 0.5) / WHEEL_SLICES.length) * Math.PI * 2 - Math.PI / 2;
+      const a0 = ((i - 0.5) / N) * Math.PI * 2 - Math.PI / 2;
+      const a1 = ((i + 0.5) / N) * Math.PI * 2 - Math.PI / 2;
       const p = (r, a) => `${(Math.cos(a) * r).toFixed(1)} ${(Math.sin(a) * r).toFixed(1)}`;
       const path = document.createElementNS(NS, 'path');
       path.setAttribute('d', `M ${p(38, a0)} L ${p(96, a0)} A 96 96 0 0 1 ${p(96, a1)} L ${p(38, a1)} A 38 38 0 0 0 ${p(38, a0)} Z`);
-      path.dataset.cmd = id;
+      path.dataset.cmd = sl.id;
       const am = (a0 + a1) / 2;
       // Simge üstte, ad iki satıra bölünür (dilim dar): "Pozisyonu / koru"
       const cx = Math.cos(am) * 67;
       const cy = Math.sin(am) * 67;
       const text = document.createElementNS(NS, 'text');
       text.setAttribute('x', cx.toFixed(1));
-      const words = COMMANDS[id].label.split(' ');
-      const lines = [CMD_ICONS[id], words[0], words.slice(1).join(' ')].filter(Boolean);
+      const words = sl.label.split(' ');
+      const lines = [sl.icon, words[0], words.slice(1).join(' ')].filter(Boolean);
       lines.forEach((ln, k) => {
         const ts = document.createElementNS(NS, 'tspan');
         ts.setAttribute('x', cx.toFixed(1));
@@ -90,12 +119,14 @@ export class CommandWheel {
     cg.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.cycle(1);
+      // Muhatapsız çarkta (çevrim içi telsiz) ortası kapatır
+      if (this.spec.addressees) this.cycle(1);
+      else this.close(false);
     });
     svg.appendChild(cg);
     const hint = document.createElement('div');
     hint.className = 'wHint';
-    hint.textContent = 'Fareyle dilim seç · tekerlek: muhatap · bırakınca verilir';
+    hint.textContent = this.spec.hint;
     this.hint = hint;
     root.append(svg, hint);
     // Menü ekranlarının (duraklatma vb.) altında, dokunmatik düğmelerin üstünde
@@ -109,20 +140,26 @@ export class CommandWheel {
   }
 
   renderAddr() {
-    const a = ADDRESSEES[this.addr];
+    const list = this.spec.addressees;
+    if (!list) {
+      this.addrText.textContent = this.spec.center || '';
+      return;
+    }
+    const a = list[this.addr];
     this.addrText.textContent = a === 'all' ? 'TÜM TİM' : a.toLocaleUpperCase('tr-TR');
     this.game.commands && (this.game.commands.addressee = a);
   }
 
   cycle(d) {
-    this.addr = (this.addr + d + ADDRESSEES.length) % ADDRESSEES.length;
+    const list = this.spec.addressees;
+    if (!list) return;
+    this.addr = (this.addr + d + list.length) % list.length;
     this.renderAddr();
     this.game.audio.uiClick?.();
   }
 
   show(touch = false) {
-    const g = this.game;
-    if (g.mode !== 'mission' || !g.allies.list.some((a) => !a.dead) || g.player.down) return;
+    if (!this.spec.canShow()) return;
     this.open = true;
     this.byTouch = touch;
     this.sel = -1;
@@ -130,7 +167,7 @@ export class CommandWheel {
     this.vy = 0;
     this.root.hidden = false;
     this.root.classList.toggle('touch', touch);
-    this.hint.textContent = touch ? 'Komuta dokun · ortası: muhatap' : 'Fareyle dilim seç · tekerlek: muhatap · bırakınca verilir';
+    this.hint.textContent = touch ? this.spec.touchHint : this.spec.hint;
     this.highlight();
     this.game.audio.radio?.();
   }
@@ -140,7 +177,7 @@ export class CommandWheel {
     if (!this.open) return;
     this.open = false;
     this.root.hidden = true;
-    if (apply && this.sel >= 0) this.game.commands.issue(WHEEL_SLICES[this.sel], ADDRESSEES[this.addr], { inputMethod: 'wheel' });
+    if (apply && this.sel >= 0) this.spec.apply(this.slices[this.sel].id, this.spec.addressees?.[this.addr]);
   }
 
   highlight() {
@@ -153,7 +190,7 @@ export class CommandWheel {
       if (input.pressed('wheel')) this.show(input.touch.active);
       return;
     }
-    if (input.pressed('pause') || !g.player.alive || g.player.down) {
+    if (input.pressed('pause') || (!this.spec.allowDead && (!g.player.alive || g.player.down))) {
       this.close(false);
       return;
     }
@@ -172,7 +209,7 @@ export class CommandWheel {
     }
     if (r > DEAD_ZONE) {
       const a = Math.atan2(this.vy, this.vx) + Math.PI / 2; // tepe = 0
-      const n = WHEEL_SLICES.length;
+      const n = this.slices.length;
       const i = ((Math.round((a / (Math.PI * 2)) * n) % n) + n) % n;
       if (i !== this.sel) {
         this.sel = i;
@@ -182,7 +219,7 @@ export class CommandWheel {
     }
     if (input.pressed('nextWeapon')) this.cycle(1);
     if (input.pressed('prevWeapon')) this.cycle(-1);
-    for (let k = 0; k < ADDRESSEES.length; k++) {
+    for (let k = 0; k < (this.spec.addressees?.length || 0); k++) {
       if (input.pressed(`weapon${k + 1}`)) {
         this.addr = k;
         this.renderAddr();

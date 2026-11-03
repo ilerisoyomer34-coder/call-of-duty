@@ -1,7 +1,7 @@
 # PROTOCOL — oyun bağlantısının ikili ileti kataloğu
 
 Kod: `web/shared/net/protocol.js` (sabitler), `web/shared/net/codec.js` (kodlama/çözme), testler `web/tests/codec.test.mjs`.
-Sürüm `PROTOCOL_VERSION = 3` (`web/shared/constants.js`; 2: Rekabetçi alanları, 3: Kampanya Co-op'u: karşılamada seviye, `COOP` olayı). Bayt düzeni değişince sürüm artar.
+Sürüm `PROTOCOL_VERSION = 4` (`web/shared/constants.js`; 2: Rekabetçi alanları, 3: Kampanya Co-op'u: karşılamada seviye, `COOP` olayı, 4: maç içi sohbet, telsiz kalıbı ve takım işareti). Bayt düzeni değişince sürüm artar.
 
 ## Bağlantı
 
@@ -82,6 +82,16 @@ Yalnız maç sonu oylaması sürerken. Oy değiştirilebilir, son oy sayılır.
 `u8 item · mods`
 
 Rekabetçi satın alma. `item`: `shared/sim/competitive.js → BUY_ITEMS` dizini (ana silahlar fiyat sırasıyla, sonra el bombası ve sis); `mods` silahın eklentileri (`C_LOADOUT` biçimi). Sunucu yalnız satın alma evresinde (`PHASE.BUY`), canlıyken, para yetiyorsa ve bomba sınırı (`competitive.json → nades`) aşılmıyorsa kabul eder; kabul edince parayı düşer ve `NEV.LOADOUT` (şimdi) gönderir.
+
+### `0x09 C_CHAT`
+`u8 flags · (flags & RADIO ? u8 radio : str text)`
+
+Maç içi sohbet (çok oyunculu §11). `flags`: `CHAT_FLAG.TEAM` (1) takım kanalı, `RADIO` (2) telsiz kalıbı; başka bit bozuk ileti. `radio`: `data/netRadio.tr.json → lines` dizini; `text` en çok 255 bayt (istemci harf sınırında keser). Sunucu bağlantı başına jeton kovasından geçirir (`ONLINE.chat.perSec`, `burst`; fazlası sessizce atılır), metni temizler (`shared/net/chat.js → sanitizeChat`: görünmez/yön değiştiren karakterler, boşluklar, en çok `maxLen` harf), alıcıları `chatVisible` kuralıyla seçip `S_CHAT` gönderir (gönderen dahil).
+
+### `0x0a C_MARK`
+`u8 kind · i16 x · i16 y · i16 z` (1/64 m)
+
+Takım işareti: `MARK_KIND.HERE` (0) "buraya bak", `ENEMY` (1) "düşman burada". Yalnız taraflı modda ve canlıyken; `markWindowSec` içinde en çok `markMax`; nokta gözden `markRange` içinde ve görüş hattında olmalı (`markValid`: duvar arkasına konamaz). Geçerliyse aynı taraftaki herkese (koyan dahil) `S_MARK`.
 
 ## Sunucu → istemci
 
@@ -166,6 +176,16 @@ Oylama `ONLINE.voteSec` sürer, yalnız bağlı oyuncuların oyu sayılır. Kaza
 `str room · str map · str mode`
 
 Kazanan haritada açılan yeni oda. Bağlı her insan aynı taraf ve takımla ayrılmıştır. İstemci `ONLINE.nextShowSec` sonra eski odadan ayrılıp buna bağlanır (`main.nextOnline`). Eski oda `ONLINE.nextLingerSec` daha açık kalır.
+
+### `0x89 S_CHAT`
+`u8 slot · u8 flags · (flags & RADIO ? u8 radio : str text)`
+
+Sohbet satırı. `flags` ek olarak `DEAD` (4): gönderen yazarken ölüydü ("*ÖLÜ*" öneki). Kim alır: takım kanalı (taraflı modda) yalnız aynı taraf (ölüler dahil), tarafsız modda herkes; Rekabetçide raunt sürerken ölünün "herkese"si yalnız ölülere. Küfür süzgeci ve susturma istemcide (okuyanın ekranında).
+
+### `0x8a S_MARK`
+`u8 slot · u8 kind · i16 x · i16 y · i16 z`
+
+Takım işareti; istemci `ONLINE.chat.markSec` boyunca dünyada uzaklıklı etiket ve radarda elmas çizer.
 
 ## REST (oda açma ve eşleştirme)
 
