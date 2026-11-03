@@ -1243,11 +1243,12 @@ console.log('Komut çarkı, işaret ve tuş atama');
   await page.click('#btnControls');
   await page.click('.kbind[data-action="reload"][data-slot="0"]');
   const wait = await page.evaluate(() => document.querySelector('.kbind.wait')?.dataset.action);
-  await page.keyboard.press('KeyY');
+  // O boş tuş (Y herkese sohbet: atanırsa öbür eylemden alınır, kayıtta iki fark olurdu)
+  await page.keyboard.press('KeyO');
   const kb1 = await page.evaluate(() => {
     return { reload: [...document.querySelectorAll('.kbind[data-action="reload"]')].map((b) => b.textContent), saved: window.__game.save.data.settings.bindings, note: document.getElementById('keyNote').textContent };
   });
-  check(wait === 'reload' && kb1.reload[0] === 'Y' && JSON.stringify(kb1.saved) === '{"reload":["KeyY"]}', `Şarjör tuşu R → Y (kayıtta yalnız fark: ${JSON.stringify(kb1.saved)})`);
+  check(wait === 'reload' && kb1.reload[0] === 'O' && JSON.stringify(kb1.saved) === '{"reload":["KeyO"]}', `Şarjör tuşu R → O (kayıtta yalnız fark: ${JSON.stringify(kb1.saved)})`);
   await page.click('.kbind[data-action="reload"][data-slot="0"]');
   await page.keyboard.press('KeyT');
   const kb2 = await page.evaluate(() => ({ wheel: document.querySelector('.kbind[data-action="wheel"][data-slot="0"]').textContent, note: document.getElementById('keyNote').textContent, warn: document.getElementById('keyNote').classList.contains('warn') }));
@@ -4146,7 +4147,7 @@ if (run('netplay')) {
   console.log('Çevrim içi maç: deneme odası, hızlı maç, botlar');
   const PORT = 8793;
   const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', join(root, 'server/index.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40', MATCH_TIME: '130' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: ':memory:', QUIET: '1', MATCH_SEARCH_SEC: '1', MATCH_WARMUP: '40', MATCH_TIME: '160' },
     stdio: 'ignore',
   });
   process.on('exit', () => srv.kill());
@@ -4337,12 +4338,15 @@ if (run('netplay')) {
   await A.evaluate(() => {
     const G = window.__game.grenades;
     const g = window.__game;
-    // Yalnız bu oyuncunun bombaları (botlar da atar); adetler olay anında (sonradan ölüp doğarsa dolar)
-    window.__nades = { mine: [], blast: [] };
+    // Yalnız bu oyuncunun bombaları (botlar da atar); adetler olay anında (sonradan ölüp doğarsa dolar). Yazılımsal
+    // GPU'da kare saniyeler sürebilir: atış ile olayın işlendiği kare arasında ölüp yeniden doğduysa (doğuş sayacı
+    // atıştakinden büyük) adet doğuşla dolmuştur, bu da doğru (sunucu da doğuşta doldurur)
+    window.__nades = { mine: [], blast: [], spawns: 0, at: {} };
+    g.events.on('NET_SPAWN', () => window.__nades.spawns++);
     const sp = G.netSpawn.bind(G);
     const bl = G.netBlast.bind(G);
     G.netSpawn = (e) => {
-      if (e.slot === g.net.slot) window.__nades.mine.push({ id: e.id, kind: e.kind, frags: g.weapons.grenades, smoke: g.kit.count('smoke') });
+      if (e.slot === g.net.slot) window.__nades.mine.push({ id: e.id, kind: e.kind, frags: g.weapons.grenades, smoke: g.kit.count('smoke'), sp: window.__nades.spawns });
       return sp(e);
     };
     G.netBlast = (e) => (window.__nades.blast.push(e.id), bl(e));
@@ -4355,6 +4359,7 @@ if (run('netplay')) {
       await until(A, () => window.__game.player.alive && window.__game.weapons.state === 'idle' && window.__game.net.phase === 1, null, 60000).catch(() => {});
       await A.evaluate((k) => {
         const g = window.__game;
+        window.__nades.at[k] = window.__nades.spawns;
         if (k === 1) g.kit.use(g.kit.slots.findIndex((s) => s?.id === 'smoke'));
         else g.weapons.startThrow('frag', 'grenade');
       }, kind);
@@ -4368,8 +4373,9 @@ if (run('netplay')) {
   const nade1 = await A.evaluate(() => ({ ...window.__nades, clouds: window.__game.world.smokes.length, alive: window.__game.player.alive, state: window.__game.weapons.state, kit: window.__game.kit.count('smoke') }));
   const myFrag = nade1.mine.find((m) => m.kind === 0 && nade1.blast.includes(m.id));
   const mySmoke = nade1.mine.find((m) => m.kind === 1 && nade1.blast.includes(m.id));
-  check(nade0.frags === 1 && nade0.smoke === 1 && nade0.btn !== 'none' && myFrag?.frags === 0 && mySmoke?.smoke === 0 && nade1.clouds > 0,
-    `Çevrim içi el bombası ve sis: doğuşta ${nade0.frags} bomba + ${nade0.smoke} sis (BOMBA düğmesi ${nade0.btn}), sunucunun olayları ${JSON.stringify(nade1.mine.map((m) => m.kind))} patladı, sis bulutu ${nade1.clouds}, atınca kalan ${myFrag?.frags}/${mySmoke?.smoke} (canlı ${nade1.alive}, silah ${nade1.state}, sis ${nade1.kit})`);
+  const spent = (m, key) => m && (m[key] === 0 || m.sp > nade1.at[m.kind]);
+  check(nade0.frags === 1 && nade0.smoke === 1 && nade0.btn !== 'none' && spent(myFrag, 'frags') && spent(mySmoke, 'smoke') && nade1.clouds > 0,
+    `Çevrim içi el bombası ve sis: doğuşta ${nade0.frags} bomba + ${nade0.smoke} sis (BOMBA düğmesi ${nade0.btn}), sunucunun olayları ${JSON.stringify(nade1.mine.map((m) => m.kind))} patladı, sis bulutu ${nade1.clouds}, atınca kalan ${myFrag?.frags}/${mySmoke?.smoke} (arada doğuş ${[myFrag, mySmoke].map((m) => (m ? m.sp - nade1.at[m.kind] : '-')).join('/')}; canlı ${nade1.alive}, silah ${nade1.state}, sis ${nade1.kit})`);
   // Seri ödülleri: rozetler (İHA/HAVA/TOPÇU, ilerleme), hazır olan parlar; takımın İHA'sı rakipleri işaretler
   const streak = await A.evaluate(() => {
     const g = window.__game;
@@ -4449,20 +4455,28 @@ if (run('netplay')) {
     g.net.sendChat('iyi oyunlar', false);
     // Çarkın dördüncü kalıbı "Düşman görüldü!" (data/netRadio.tr.json → wheel)
     g.net.sendRadio(Number(nc.wheel.slices[3].id));
-    const p = nc.aimPoint() || { x: g.player.pos.x + 2, y: g.player.pos.y + 0.05, z: g.player.pos.z };
-    g.net.sendMark(p, 1);
     return { closed: !nc.open, slices: nc.wheel.slices.length, me: g.net.roster.find((r) => r.slot === g.net.slot)?.id };
   });
-  await until(B, () => document.querySelectorAll('#mhChatLog .ncLine').length >= 3 && document.querySelectorAll('.ncMark').length > 0, null, 30000).catch(() => {});
-  const cb = await B.evaluate(() => ({
-    lines: [...document.querySelectorAll('#mhChatLog .ncLine')].map((l) => l.textContent),
-    marks: [...document.querySelectorAll('.ncMark b')].map((m) => m.textContent),
-    radar: window.__game.matchHud.chat.marks.length,
-  }));
+  await until(B, () => document.querySelectorAll('#mhChatLog .ncLine').length >= 3, null, 30000).catch(() => {});
+  const cb = await B.evaluate(() => ({ lines: [...document.querySelectorAll('#mhChatLog .ncLine')].map((l) => l.textContent) }));
+  // İşaret yalnız canlıyken (sunucu ölünün işaretini atar) ve botlar A'yı her an vurabilir: en çok üç deneme, B'de
+  // görünene dek (işaret markSec sonra kalktığı için görünür görünmez okunur)
+  let mk = { marks: [], radar: 0 };
+  for (let i = 0; i < 3 && !mk.marks.length; i++) {
+    await until(A, () => window.__game.player.alive, null, 20000).catch(() => {});
+    await A.evaluate(() => {
+      const g = window.__game;
+      const p = g.matchHud.chat.aimPoint() || { x: g.player.pos.x + 2, y: g.player.pos.y + 0.05, z: g.player.pos.z };
+      g.net.sendMark(p, 1);
+    });
+    await until(B, () => document.querySelectorAll('.ncMark').length > 0, null, 8000).catch(() => {});
+    mk = await B.evaluate(() => ({ marks: [...document.querySelectorAll('.ncMark b')].map((m) => m.textContent), radar: window.__game.matchHud.chat.marks.length }));
+  }
   await B.screenshot({ path: join(shots, '35b-net-chat.png') });
-  check(typing && sentM8.closed && cb.lines.some((t) => /^\(TAKIM\) .*: Sol koridor temiz$/.test(t)) && cb.lines.some((t) => /: iyi oyunlar$/.test(t) && !/TAKIM/.test(t)) && cb.lines.some((t) => /^\[Telsiz\] .*Düşman görüldü!/.test(t)),
+  // Yazarken ölmüş olabilir: satır "*ÖLÜ*" önekli gelir
+  check(typing && sentM8.closed && cb.lines.some((t) => /^(\*ÖLÜ\* )?\(TAKIM\) .*: Sol koridor temiz$/.test(t)) && cb.lines.some((t) => /: iyi oyunlar$/.test(t) && !/TAKIM/.test(t)) && cb.lines.some((t) => /^(\*ÖLÜ\* )?\[Telsiz\] .*Düşman görüldü!/.test(t)),
     `Maç içi sohbet: U ile takıma yazıldı, takım arkadaşında ${cb.lines.length} satır (${cb.lines.join(' | ')})`);
-  check(sentM8.slices === 8 && cb.marks.includes('DÜŞMAN') && cb.radar >= 1, `Takım işareti: arkadaşın ekranında "${cb.marks.join(', ')}" ve radarda (${cb.radar}); telsiz çarkında ${sentM8.slices} kalıp`);
+  check(sentM8.slices === 8 && mk.marks.includes('DÜŞMAN') && mk.radar >= 1, `Takım işareti: arkadaşın ekranında "${mk.marks.join(', ')}" ve radarda (${mk.radar}); telsiz çarkında ${sentM8.slices} kalıp`);
   await B.evaluate((id) => window.__game.matchHud.chat.toggleMute(id), sentM8.me);
   await sleep(2200);
   await A.evaluate(() => window.__game.net.sendChat('susturuldum mu', false));
@@ -4471,7 +4485,7 @@ if (run('netplay')) {
   const selfSeen = await A.evaluate(() => [...document.querySelectorAll('#mhChatLog .ncLine')].some((l) => /susturuldum mu/.test(l.textContent)));
   await B.evaluate((id) => window.__game.matchHud.chat.toggleMute(id), sentM8.me);
   check(!mutedSeen && selfSeen, `Susturma: susturulan oyuncunun satırı gelmez (gönderen kendi satırını görüyor: ${selfSeen})`);
-  // Maç sonu harita oylaması (sunucu MATCH_TIME=130): sonuç ekranında bütün haritalar; ikisi Liman'a oy verir, süre
+  // Maç sonu harita oylaması (sunucu MATCH_TIME=160): sonuç ekranında bütün haritalar; ikisi Liman'a oy verir, süre
   // dolunca aynı oyuncular Liman'daki yeni maça aynı tarafta geçer
   const before = await A.evaluate(() => ({ room: window.__game.net.welcome.room, map: window.__game.net.welcome.map, side: window.__game.net.mySide }));
   await Promise.all([A, B].map((pg) => until(pg, () => !document.getElementById('mhVote').hidden && document.querySelectorAll('#mhVoteGrid .mhVoteCard').length > 0, null, 200000).catch(() => {})));
