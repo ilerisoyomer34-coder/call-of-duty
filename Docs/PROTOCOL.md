@@ -1,0 +1,198 @@
+# PROTOCOL — oyun bağlantısının ikili ileti kataloğu
+
+Kod: `web/shared/net/protocol.js` (sabitler), `web/shared/net/codec.js` (kodlama/çözme), testler `web/tests/codec.test.mjs`.
+Sürüm `PROTOCOL_VERSION = 4` (`web/shared/constants.js`; 2: Rekabetçi alanları, 3: Kampanya Co-op'u: karşılamada seviye, `COOP` olayı, 4: maç içi sohbet, telsiz kalıbı ve takım işareti). Bayt düzeni değişince sürüm artar.
+
+## Bağlantı
+
+- Adres: sosyal sunucunun adresi, yol `/game` (ikili WebSocket, `binaryType = 'arraybuffer'`). Sosyal katman `/ws` (JSON) ayrı bağlantıdır.
+- Sıra:
+  1. İstemci `C_HELLO` gönderir (5 sn içinde).
+  2. Sunucu sürümü, derleme özetini, kimliği ve oda üyeliğini denetler. Geçerse `S_WELCOME` ve `S_ROSTER`, geçmezse `S_ERROR` + kapanış.
+  3. İstemci haritayı kurar, `C_LOADED` gönderir; sunucu oyuncuyu doğurur ve anlık görüntü göndermeye başlar.
+  4. İstemci her tick `C_INPUT`, saat eşitleme için `C_PING` gönderir.
+- Sınırlar (Ek B, `server/game/gateway.js → GAME_LIMITS`):
+  - istemci iletisi en çok 512 bayt;
+  - saniyede en çok 80 `C_INPUT`, 120 ileti;
+  - 3 bozuk ya da sınır dışı ileti → `S_ERROR BAD_MESSAGE` / `RATE_LIMIT` ve kapanış;
+  - IP başına en çok 4 bağlantı.
+- Derleme özeti: `server/game/buildhash.js` (`shared/**`, `src/config.js`, maç verisi ve paylaşılan kodun okuduğu veri: silah, eklenti, nişangâh, tim, Rekabetçi kuralları), istemciye derlemede `__BUILD_HASH__` olarak gömülür. `BUILD_CHECK=0` denetimi kapatır (yalnız geliştirme).
+
+## Genel kurallar
+
+- Küçük uçlu (little-endian). `str` = `u8` uzunluk + UTF-8 bayt (en çok 255).
+- Bozuk, kısa ya da fazla baytlı ileti istisna fırlatmaz, `null` döner.
+- Nicemleme:
+
+| Alan | Tür | Çözünürlük |
+|---|---|---|
+| yaw | u16 | tam tur / 65536 |
+| pitch | i16 | (π/2) / 32767 |
+| analog hareket | i8 | 1/127 |
+| uzak oyuncu konumu | i16 | 1/64 m (±512 m) |
+| uzak oyuncu yatay hızı | i16 | 1/128 m/s |
+| yerel oyuncu konum/hız | f32 | kayıpsız (simülasyon zaten 1/1024 m ve 1/256 m/s nicemli) |
+| çömelme/nişan oranı | u16 | 1/1024 |
+
+İstemci tahmini komutu gönderilmeden önce aynı nicemlemeden geçirir (`quantizeCmd`): sunucu ile istemci aynı sayılarla yürür.
+
+## İstemci → sunucu
+
+### `0x01 C_HELLO`
+`u16 protocolVersion · str buildHash · str token · str room · str primary · str secondary`
+
+- `token`: sosyal katmanın oturum belirteci.
+- `room`: 6 karakterlik oda kodu.
+- Teçhizat sunucuda doğrulanır: roket ve tanımsız silah yerine `ONLINE.defaultPrimary` / `defaultSecondary`.
+
+### `0x02 C_INPUT`
+`u32 ackSnapshotTick · u8 n (1–3) · n × komut` (en eskiden yeniye; son 3 komut, kayıp telafisi)
+
+Komut:
+`u16 seq · u16 buttons · i8 moveX · i8 moveY · u16 yaw · i16 pitch · u8 (slot | fireMode<<4) · u32 viewTick×256 · u8 shots · shots × (u16 yaw · i16 pitch)`
+
+- `buttons`: `BTN` (`shared/sim/movement.js`):
+  - `RELOAD`: şarjör değiştirme bu komutta başladı.
+  - `MELEE`: yakın dövüş isabet anı.
+  - `STREAK_LO` / `STREAK_HI` (bit 14–15): seri ödülü dizini + 1 (`shared/sim/streaks.js → streakBits`); hedef komutun bakışından ışınla.
+  - `THROW_FRAG` / `THROW_SMOKE`: el bombası / sis bu komutta bırakıldı. Yön komutun `yaw/pitch`'i, çıkış noktası oyuncunun bu komuttan önceki göz hizası. Sunucu doğuştaki adedi (`ONLINE.nades.fragCount/smokeCount`) ve iki atış arasını (`cooldown × tolerance`) denetler.
+  - `NO_SPRINT` / `NO_ADS`: istemcinin silah durumundan gelen kısıtlar.
+- `viewTick`: oyuncunun o an gördüğü sunucu zamanı (tick, kesirli). Gecikme telafisi buna geri sarar; en çok `ONLINE.maxRewindMs`.
+- `shots`: bu komuttaki atışların nişan yönü (en çok 4). Saçılmayı ve isabeti sunucu hesaplar.
+
+### `0x03 C_PING`
+`f64 clientTime`
+
+### `0x04 C_LOADED` · `0x05 C_LEAVE`
+Gövdesiz.
+
+### `0x06 C_LOADOUT`
+`str primary · str secondary · u8 ready (1 hazırım) · mods(primary) · mods(secondary)`
+
+`mods`: `u8 n` (en çok 8) + `n × u8` eklenti dizini (`shared/sim/mods.js → ATT_IDS`). `C_HELLO` da `str secondary`'den sonra aynı iki `mods` alanını taşır. Sunucu `modsFromIndices` ile doğrular (uyumsuz eklenti atılır).
+
+Maç öncesi teçhizat paneli (`src/net/prepScreen.js`). Sunucu `shared/sim/loadout.js → validLoadout` ile doğrular (geçersiz yuva varsayılana döner). Isınmada hemen kuşandırır, maç sürerken sonraki doğuşta. Kabul ettiğini `NEV.LOADOUT` ile döner. Isınmada bağlı herkes `ready` ise kalan süre `ONLINE.readyStartSec`'e iner.
+
+### `0x07 C_VOTE`
+`u8 map` (`modes.json → matchmaking.maps` dizini)
+
+Yalnız maç sonu oylaması sürerken. Oy değiştirilebilir, son oy sayılır.
+
+### `0x08 C_BUY`
+`u8 item · mods`
+
+Rekabetçi satın alma. `item`: `shared/sim/competitive.js → BUY_ITEMS` dizini (ana silahlar fiyat sırasıyla, sonra el bombası ve sis); `mods` silahın eklentileri (`C_LOADOUT` biçimi). Sunucu yalnız satın alma evresinde (`PHASE.BUY`), canlıyken, para yetiyorsa ve bomba sınırı (`competitive.json → nades`) aşılmıyorsa kabul eder; kabul edince parayı düşer ve `NEV.LOADOUT` (şimdi) gönderir.
+
+### `0x09 C_CHAT`
+`u8 flags · (flags & RADIO ? u8 radio : str text)`
+
+Maç içi sohbet (çok oyunculu §11). `flags`: `CHAT_FLAG.TEAM` (1) takım kanalı, `RADIO` (2) telsiz kalıbı; başka bit bozuk ileti. `radio`: `data/netRadio.tr.json → lines` dizini; `text` en çok 255 bayt (istemci harf sınırında keser). Sunucu bağlantı başına jeton kovasından geçirir (`ONLINE.chat.perSec`, `burst`; fazlası sessizce atılır), metni temizler (`shared/net/chat.js → sanitizeChat`: görünmez/yön değiştiren karakterler, boşluklar, en çok `maxLen` harf), alıcıları `chatVisible` kuralıyla seçip `S_CHAT` gönderir (gönderen dahil).
+
+### `0x0a C_MARK`
+`u8 kind · i16 x · i16 y · i16 z` (1/64 m)
+
+Takım işareti: `MARK_KIND.HERE` (0) "buraya bak", `ENEMY` (1) "düşman burada". Yalnız taraflı modda ve canlıyken; `markWindowSec` içinde en çok `markMax`; nokta gözden `markRange` içinde ve görüş hattında olmalı (`markValid`: duvar arkasına konamaz). Geçerliyse aynı taraftaki herkese (koyan dahil) `S_MARK`.
+
+## Sunucu → istemci
+
+### `0x81 S_WELCOME`
+`u8 slot · u8 tickRate · u8 snapshotRate · u32 serverTick · f64 serverTime · str room · str mode · str map · u16 timeLimit · u16 scoreLimit · str primary · str secondary · str level`
+
+`level`: Kampanya Co-op'unun seviyesi (`data/coop.json` kimliği; diğer modlarda boş). Co-op'ta `scoreLimit` aşama sayısı.
+
+### `0x82 S_SNAPSHOT` (32 Hz, alıcıya özel, tam görüntü)
+Başlık:
+`u32 tick · u16 ackSeq · u8 bufDepth · u16 tickUs · u8 phase · u16 phaseLeft×10 · i16 scoreA · i16 scoreB`
+
+Yerel oyuncu:
+`u8 flags (1 canlı, 2 kayıt var, 4 korumalı) · u8 hp · u16 respawnIn×10 · u16 money · u8 act (0 yok, 1 bomba kuruyor, 2 imha ediyor, 3 Co-op hedefinde E basılı) · u8 actProgress×255 · u8 streak (bu canda art arda öldürme) · u8 streakReady (hazır seri ödülleri, bit)`, kayıt varsa:
+`f32 pos×3 · f32 vel×3 · u16 crouchT×1024 · u16 adsT×1024 · f32 sprintOut · u16 buttons · u8 (1 yerde, 2 çömelik, 4 koşuyor)`
+
+Diğer oyuncular:
+`u8 n` + her biri `u8 slot · u8 flags (PF) · i16 pos×3 · i16 vel.x · i16 vel.z · u16 yaw · i16 pitch · u8 crouchT×255 · u8 hp · u8 weapon`
+
+Olaylar:
+`u8 n` + her biri `u8 tür` + gövde:
+
+| Tür | Gövde | Kime |
+|---|---|---|
+| `SHOT` 1 | `u8 slot · u8 weapon (üst bit: susturuculu) · i16 end×3 · u8 hit · u8 surface` | atan dışında herkes |
+| `HIT` 2 | `u8 victim · u8 dmg · u8 flags (1 kafa, 2 öldürdü, 4 korumalı) · i16 point×3` | atan |
+| `DAMAGE` 3 | `u8 attacker · u8 dmg · i16 from.x · i16 from.z` | vurulan |
+| `KILL` 4 | `u8 killer (255 dünya) · u8 victim · u8 weapon (254 bıçak, 253 el bombası, 252 hava saldırısı, 251 topçu) · u8 flags (1 kafa)` | herkes |
+| `SPAWN` 5 | `u8 slot · i16 pos×3 · u16 yaw` | herkes |
+| `MELEE` 6 / `RELOAD` 7 | `u8 slot` | diğerleri |
+| `ROUND` 8 | `u8 code (1 maç başladı, 2 bitti) · u8 value` | herkes |
+| `LOADOUT` 9 | `u8 primary (255: ana silah yok) · u8 secondary · u8 now (1 şimdi elde, 0 sonraki doğuşta) · u8 nades (alt 4 bit el bombası, üst 4 sis)` | seçen |
+| `NADE` 10 | `u16 id · u8 kind (0 el bombası, 1 sis) · u8 slot · i16 pos×3 (1/64 m) · i16 vel×3 (1/512 m/s)` | herkes |
+| `BLAST` 11 | `u16 id · u8 kind (0 el bombası, 1 sis, 2 seri ödülü patlaması) · i16 pos×3` | herkes |
+| `ROUND_STATE` 12 | `u8 round · u8 state (0 satın alma, 1 raunt, 2 raunt sonu) · u8 attackSide · u8 winner (255 yok) · u8 reason (1 yok etme, 2 süre, 3 bomba patladı, 4 imha)` | herkes (katılana bir kez) |
+| `STREAK` 14 | `u8 slot · u8 kind (data/streaks.json sırası) · u8 state (0 hazır, 1 kullanıldı) · i16 pos×3 (hedef) · u16 yaw` | hazır: sahibi; kullanıldı: herkes |
+| `BOMB` 13 | `u8 state (0 yok, 1 taşınıyor, 2 yerde, 3 kuruldu, 4 imha, 5 patladı) · u8 slot (taşıyan / kuran / imha eden) · u8 site (255 yok) · i16 pos×3` | herkes (katılana bir kez) |
+| `COOP` 15 | `u8 stage · u8 state (0 sürüyor, 1 aşama bitti, 2 görev tamam, 3 başarısız) · u8 left (clear: düşman, hold: hedef, defend: sn) · u16 mask (bitmiş hedefler)` | herkes (katılana bir kez) |
+
+- Kampanya Co-op'u: `scoreA/scoreB` biten aşama / aşama sayısı (`S_MATCH_END`'de de); maç sonucu takım (görev tamam) ya da kırmızı (süre doldu).
+- Rekabetçi: evre `PHASE.BUY` 4 (satın alma, hareket yok) ve `PHASE.ROUND_END` 3 (raunt sonu); `scoreA/scoreB` kazanılan raunt; `phaseLeft` o evrenin süresi (bomba kurulunca bombanın). Raunt başında doğuştan önce `LOADOUT` gelir (eldeki silah ve bombalar raunttan rauntta kalır).
+
+- `NADE`: sunucu bombanın başlangıcını bu nicemlemeye yuvarlayıp (`codec.js → quantizeNade`) onunla yürütür; istemci aynı sayılarla `shared/sim/grenade.js → stepGrenade`'i aynı çarpışma dünyasında koşturur, yörünge birebir aynı. Patlamayı ve hasarı yalnız sunucu belirler (`BLAST`); `BLAST` gelmezse istemci bombayı `fuse + 3` sn sonra siler.
+
+- `scoreA/scoreB`: taraflı modda mavi/kırmızı. Herkes kendine modunda kendi öldürme sayın ve en iyi rakibinki.
+- `weapon`: `WEAPON_ORDER` sırası.
+
+### `0x83 S_ROSTER` (değişince, en sık 4 Hz)
+`u8 n` + her biri:
+`u8 slot · str id · str name · u16 tag · u8 side (0 mavi, 1 kırmızı, 255 yok) · u8 flags (1 YZ, 2 bağlı, 8 teçhizatta hazır) · u16 kills · u16 deaths · u16 score · u16 ping · str party`
+
+### `0x84 S_PONG`
+`f64 clientTime · f64 serverTime · u32 serverTick`
+
+### `0x85 S_ERROR`
+`u8 code · str detail`
+
+Kodlar:
+1. `VERSION_MISMATCH`
+2. `BUILD_MISMATCH`
+3. `AUTH_FAILED`
+4. `ROOM_NOT_FOUND`
+5. `ROOM_FULL`
+6. `NOT_MEMBER`
+7. `BAD_MESSAGE`
+8. `RATE_LIMIT`
+9. `REPLACED`
+10. `ROOM_CLOSED`
+11. `TIMEOUT`
+
+Türkçe metinler `src/net/gameClient.js → NET_ERRORS`.
+
+### `0x86 S_MATCH_END`
+`u8 winner (taraf ya da yuva; 255 berabere) · u8 reason (1 skor sınırı, 2 süre) · i16 scoreA · i16 scoreB`
+
+### `0x87 S_VOTE` (eşleşme odasında maç bitince; her oyda ve sonuçta)
+`u16 left×10 · u8 n · n × u8 oy sayısı · u8 winner (255 sürüyor)`
+
+Oylama `ONLINE.voteSec` sürer, yalnız bağlı oyuncuların oyu sayılır. Kazanan: en çok oy. Eşitlikte aralarından biri, hiç oy yoksa şimdiki haritadan başka biri (odanın tohumlu üreteci).
+
+### `0x88 S_NEXT`
+`str room · str map · str mode`
+
+Kazanan haritada açılan yeni oda. Bağlı her insan aynı taraf ve takımla ayrılmıştır. İstemci `ONLINE.nextShowSec` sonra eski odadan ayrılıp buna bağlanır (`main.nextOnline`). Eski oda `ONLINE.nextLingerSec` daha açık kalır.
+
+### `0x89 S_CHAT`
+`u8 slot · u8 flags · (flags & RADIO ? u8 radio : str text)`
+
+Sohbet satırı. `flags` ek olarak `DEAD` (4): gönderen yazarken ölüydü ("*ÖLÜ*" öneki). Kim alır: takım kanalı (taraflı modda) yalnız aynı taraf (ölüler dahil), tarafsız modda herkes; Rekabetçide raunt sürerken ölünün "herkese"si yalnız ölülere. Küfür süzgeci ve susturma istemcide (okuyanın ekranında).
+
+### `0x8a S_MARK`
+`u8 slot · u8 kind · i16 x · i16 y · i16 z`
+
+Takım işareti; istemci `ONLINE.chat.markSec` boyunca dünyada uzaklıklı etiket ve radarda elmas çizer.
+
+## REST (oda açma ve eşleştirme)
+
+| Uç | Gövde | Sonuç |
+|---|---|---|
+| `POST /api/party/sandbox` | — | Deneme odası. Takımda yalnız lider açar; takım üyelerine sosyal WebSocket'ten `{ t: 'match', match }` gider. |
+| `POST /api/match/queue` | `{ mode }` | Takımın tamamı kuyruğa girer. Hatalar: `not_leader`, `bad_mode`, `party_too_big`. Üyelere `{ t: 'queue', queue }`. |
+| `POST /api/match/cancel` | — | Takımın araması iptal. |
+
+Eşleşince her üyeye `{ t: 'match', match: { room, kind, mode, map, side } }` gider.

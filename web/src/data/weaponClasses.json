@@ -1,0 +1,15 @@
+{
+  "_doc": "Silah sınıfları (Call of Duty Mobile düzeni): teçhizat ekranında sınıf sekmeleri bu sırayla çıkar, TÜMÜ görünümünde kartlar bu sırayla başlıklı bölümlere ayrılır. Silahın sınıfı data/weapons.json → type. name: tekil ad (kart etiketi), group: bölüm başlığı (çoğul), short: sekme adı, desc: sekme/bölüm altındaki kısa tanım.",
+  "classes": [
+    { "id": "ar", "name": "Taarruz Tüfeği", "group": "Taarruz Tüfekleri", "short": "TAARRUZ", "desc": "Her mesafede dengeli: orta tempo, iyi menzil, denetlenebilir tepme." },
+    { "id": "smg", "name": "Taramalı", "group": "Taramalılar", "short": "TARAMALI", "desc": "Hafif makineli: yakın mesafede en yüksek tempo ve hareketlilik, menzil kısa." },
+    { "id": "lmg", "name": "Ağır Taramalı", "group": "Ağır Taramalılar", "short": "AĞIR TARAMALI", "desc": "Hafif makineli tüfek: büyük şarjör, bastırma ateşi; ağır ve nişanı yavaş." },
+    { "id": "shotgun", "name": "Pompalı", "group": "Pompalılar", "short": "POMPALI", "desc": "Saçma: çok yakında ölümcül, uzakta etkisiz." },
+    { "id": "marksman", "name": "Nişancı Tüfeği", "group": "Nişancı Tüfekleri", "short": "NİŞANCI", "desc": "Yarı otomatik ya da pompalı, dürbünlü: uzak mesafede hızlı takip atışı." },
+    { "id": "sniper", "name": "Keskin Nişancı", "group": "Keskin Nişancılar", "short": "KESKİN NİŞANCI", "desc": "Tek atışta etkisiz bırakır; dürbün büyütmesi yüksek, nefes tutulabilir." },
+    { "id": "pistol", "name": "Tabanca", "group": "Tabancalar", "short": "TABANCA", "desc": "Yan silah: hızlı çekilir, şarjör bitince kurtarır." },
+    { "id": "launcher", "name": "Bazuka", "group": "Bazukalar", "short": "BAZUKA", "desc": "Yan silah yerine taşınan roketatar: tanklara, mevzilere ve kalabalığa karşı patlayıcı." },
+    { "id": "special", "name": "Özel Silah", "group": "Özel Silahlar", "short": "ÖZEL", "desc": "Oyunun özel silahları, mağazadan açılır: kendine özgü kurallar, çok yüksek ateş gücü." },
+    { "id": "melee", "name": "Bıçak", "group": "Bıçaklar", "short": "BIÇAK", "desc": "Elde taşınır, nişan alınmaz: sessiz ve hızlı; elde bıçakla daha hızlı koşulur." }
+  ]
+}

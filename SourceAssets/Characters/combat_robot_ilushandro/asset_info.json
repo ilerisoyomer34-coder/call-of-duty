@@ -1,0 +1,15 @@
+{
+  "title": "Combat Robot",
+  "author": "ILUSHANDRO",
+  "author_url": "https://sketchfab.com/ILUSHANDRO",
+  "source_url": "https://sketchfab.com/3d-models/combat-robot-55fe65bbb4074979ac0cb44850df4ddc",
+  "license": "CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-15",
+  "format": "glTF Binary (.glb), 154 sert parça, iskeletsiz ve animasyonsuz, kaide (Floor) dahil; 1024 px renk/normal/ORM/ışıma dokuları",
+  "category": "Characters",
+  "intended_use": "Düşman savaş robotu (7–10. bölümler)",
+  "original_file": "combat_robot.glb (kullanıcının oturuma yüklediği dosya)",
+  "sha256": "cb34d2e56f88968186cef8eee5b103bd91dfb8936823abe251c84d6be60d765d",
+  "modifications": "web/tools/prepare-robot.mjs: kaide atıldı; mesh'ler bağlı bileşenlerine ayrılıp gövde parçalarına (leğen, gövde, iki kol, iki bacakta uyluk/baldır/ayak) atandı, eklem düğümleriyle ağaç kuruldu (oyunda kodla yürür, nişan alır, devrilir), 122 bin → 35 bin üçgen, 2,9 m boya ölçeklendi, dokular ayrı JPEG yapıldı.",
+  "notes": "Dokulardaki 'KEEP OUT', 'WARNING' gibi genel uyarı yazıları marka değildir. Aynı oturumda yüklenen Haze / Pelter / Centurion mech modelleri (Lagst) Sketchfab Standard lisanslı olduğu için alınmadı."
+}

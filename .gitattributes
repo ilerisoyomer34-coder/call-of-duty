@@ -1,0 +1,3 @@
+# Ev sunucusu başlatıcıları: Windows betiği CRLF ister, macOS betiği LF (yoksa çift tıklayınca çalışmaz)
+*.bat text eol=crlf
+*.command text eol=lf

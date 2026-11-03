@@ -1,0 +1,17 @@
+{
+  "title": "Sniper",
+  "author": "DJMaesen",
+  "author_url": "https://sketchfab.com/bumstrum",
+  "source_url": "https://sketchfab.com/3d-models/sniper-cdefd833b4b5407ba32c53c9e7f50cae",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-14",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (a1aed164-sniper.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), 3 doku (2048 PNG: renk, metal/pürüz/AO, normal), 13 087 üçgen",
+  "category": "Weapons",
+  "game_name": "NT-33 Şahin (awm)",
+  "intended_use": "Sürgü mekanizmalı keskin nişancı tüfeği (dürbünlü)",
+  "original_file": "original/sniper.glb",
+  "sha256": "415eab1e49757f1dbfcee3ff19802b62303d8f04c89e84ac752992fb48e54e26",
+  "modifications": "web/tools/prepare-weapon-glb.mjs: namlu -Z, gerçek boya ölçeklendi, köken kabzada; şarjör ve sürgü (kurma kolu) ayrı parça; dokular küçültülüp JPEG olarak ayrıldı.",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında gösterilir. Dokularda marka/seri no yazısı bulunmadı (tam çözünürlükte bakıldı)."
+}

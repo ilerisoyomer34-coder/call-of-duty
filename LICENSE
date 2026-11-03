@@ -1,0 +1,45 @@
+DEMİR ŞAFAK — TESCİLLİ YAZILIM LİSANSI
+
+Telif hakkı © 2026 Ömer İlerisoy ve Tarık Kerem Öz. Tüm hakları saklıdır.
+
+Bu depodaki kaynak kod, oyun tasarımı, seviye ve harita tasarımları, metinler, telsiz replikleri, kodla
+üretilen modeller ve dokular, simgeler, mağaza görselleri ve derlenmiş oyun dosyaları (birlikte "Yazılım")
+telif hakkı sahiplerinin mülküdür.
+
+Kaynak kodun herkese açık bir depoda görünür olması hiçbir kullanım hakkı vermez. Telif hakkı sahiplerinin
+önceden verilmiş yazılı izni olmadan Yazılımın tamamı ya da herhangi bir bölümü:
+
+  1. kopyalanamaz, çoğaltılamaz, başka bir depoda, sitede ya da sunucuda yayımlanamaz;
+  2. değiştirilemez; ondan türev çalışma (başka oyun, klon, yeniden adlandırılmış sürüm, mod paketi)
+     yapılamaz;
+  3. satılamaz, kiralanamaz, lisanslanamaz, uygulama mağazalarına ya da oyun sitelerine yüklenemez;
+  4. başka bir ürünün parçası yapılamaz, yapay zekâ modeli eğitmek için veri olarak kullanılamaz.
+
+Herkese tanınan izin: oyunu resmî adresinden (https://ilerisoyomer34-coder.github.io/call-of-duty/) ya da
+resmî mağaza sayfalarından oynamak; oyunun ekran görüntüsünü ve videosunu, oyunun adı belirtilerek
+paylaşmak. Bu izin yukarıdaki yasakları kaldırmaz.
+
+Üçüncü taraf bileşenler bu lisansın dışındadır ve kendi lisanslarıyla kullanılır: yazılım kütüphaneleri
+(ör. three.js — MIT, Rapier — Apache-2.0, ws — MIT, Anthropic SDK — MIT, meshoptimizer — MIT),
+Sketchfab modelleri (CC BY 4.0), Mixamo animasyonları (Adobe kullanım koşulları) ve yazı tipleri
+(SIL Open Font License 1.1). Sahipleri, lisansları ve yapılan değişiklikler CREDITS.md dosyasında ve oyunda
+"Emeği geçenler → Lisanslar" ekranında yazılıdır. Bu bileşenlerin kendi lisanslarının tanıdığı haklar
+saklıdır.
+
+İzin istekleri ve güvenlik bildirimleri: GitHub üzerinden depo sahibine (SECURITY.md).
+
+YAZILIM "OLDUĞU GİBİ" SUNULUR; AÇIK YA DA ÖRTÜLÜ HİÇBİR GARANTİ VERİLMEZ. TELİF HAKKI SAHİPLERİ YAZILIMIN
+KULLANIMINDAN DOĞAN HİÇBİR ZARARDAN SORUMLU TUTULAMAZ.
+
+---------------------------------------------------------------------------------------------------------
+
+DEMIR SAFAK — PROPRIETARY LICENSE (English summary; the Turkish text above prevails)
+
+Copyright © 2026 Ömer İlerisoy and Tarık Kerem Öz. All rights reserved.
+
+The source code being publicly visible does not grant any license. Without prior written permission you may
+not copy, redistribute, publish, modify, create derivative works of, sell, sublicense, upload to app stores
+or game portals, include in other products, or use as AI training data any part of this software. You may
+play the game from its official address or official store pages and share screenshots and videos naming the
+game. Third-party components keep their own licenses (see CREDITS.md). THE SOFTWARE IS PROVIDED "AS IS",
+WITHOUT WARRANTY OF ANY KIND.

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512">
+  <!-- Demir Şafak simgesi: nişan dürbününün içinde ufuktan doğan güneş. Yazı yok (yazı tipine bağımlı olmasın).
+       tools/make-icons.mjs bu dosyadan PNG simgeleri üretir; #bg zemini, #art çizimi (maskelenebilir
+       sürümde güvenli bölgeye sığsın diye küçültülür). -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2226"/>
+      <stop offset="1" stop-color="#0d1013"/>
+    </linearGradient>
+    <radialGradient id="sunGrad" cx="256" cy="318" r="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe0a0"/>
+      <stop offset="0.5" stop-color="#f0a33a"/>
+      <stop offset="1" stop-color="#e0513f"/>
+    </radialGradient>
+    <radialGradient id="glowGrad" cx="256" cy="318" r="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f0a33a" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#f0a33a" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="scope"><circle cx="256" cy="256" r="171"/></clipPath>
+    <clipPath id="sky"><rect x="0" y="0" width="512" height="318"/></clipPath>
+    <polygon id="ray" points="256,318 236,70 276,70"/>
+  </defs>
+  <rect id="bg" width="512" height="512" rx="108" fill="url(#bgGrad)"/>
+  <g id="art">
+    <g clip-path="url(#scope)">
+      <rect x="0" y="0" width="512" height="512" fill="#1a1712"/>
+      <g clip-path="url(#sky)">
+        <rect x="0" y="0" width="512" height="318" fill="url(#glowGrad)"/>
+        <g fill="#f0a33a" fill-opacity="0.26">
+          <use xlink:href="#ray" transform="rotate(-80 256 318)"/>
+          <use xlink:href="#ray" transform="rotate(-60 256 318)"/>
+          <use xlink:href="#ray" transform="rotate(-40 256 318)"/>
+          <use xlink:href="#ray" transform="rotate(-20 256 318)"/>
+          <use xlink:href="#ray"/>
+          <use xlink:href="#ray" transform="rotate(20 256 318)"/>
+          <use xlink:href="#ray" transform="rotate(40 256 318)"/>
+          <use xlink:href="#ray" transform="rotate(60 256 318)"/>
+          <use xlink:href="#ray" transform="rotate(80 256 318)"/>
+        </g>
+        <circle cx="256" cy="318" r="112" fill="url(#sunGrad)"/>
+      </g>
+      <rect x="0" y="318" width="512" height="194" fill="#0d1013"/>
+      <rect x="60" y="318" width="392" height="9" fill="#f0a33a"/>
+      <rect x="150" y="352" width="212" height="7" fill="#9a6a2a"/>
+      <rect x="196" y="382" width="120" height="6" fill="#9a6a2a" fill-opacity="0.7"/>
+    </g>
+    <g fill="#e7dcc4">
+      <circle cx="256" cy="256" r="178" fill="none" stroke="#e7dcc4" stroke-width="15"/>
+      <rect x="249" y="58" width="14" height="64"/>
+      <rect x="58" y="249" width="64" height="14"/>
+      <rect x="390" y="249" width="64" height="14"/>
+      <rect x="249" y="390" width="14" height="64"/>
+    </g>
+  </g>
+</svg>

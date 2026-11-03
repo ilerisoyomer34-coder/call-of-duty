@@ -1,0 +1,21 @@
+{
+  "_": "Çevrim içi telsiz kalıpları (çok oyunculu belge §11.2): T basılı tutunca çarkta seçilir, takıma gider. Ağda dizinle taşınır (shared/net/chat.js → RADIO_LINES): yeni satır sona eklenir, sıra değişmez. wheel: çarkta görünenler (en çok 8, saat yönünde, ilki tepede). comp: yalnız Rekabetçide görünen satırlar wheel'in yerine geçer (aynı sayıda)",
+  "lines": [
+    { "id": "follow", "icon": "»", "label": "Takip edin", "text": "Beni takip edin!" },
+    { "id": "hold", "icon": "■", "label": "Pozisyonu tutun", "text": "Pozisyonu tutun!" },
+    { "id": "push", "icon": "➤", "label": "Hücum", "text": "Hücum!" },
+    { "id": "fallback", "icon": "◄", "label": "Geri çekilin", "text": "Geri çekilin!" },
+    { "id": "enemy", "icon": "✛", "label": "Düşman görüldü", "text": "Düşman görüldü!" },
+    { "id": "clear", "icon": "✓", "label": "Bölge temiz", "text": "Bölge temiz." },
+    { "id": "help", "icon": "✚", "label": "Yardım lazım", "text": "Yardım lazım!" },
+    { "id": "ok", "icon": "✔", "label": "Anlaşıldı", "text": "Anlaşıldı!" },
+    { "id": "no", "icon": "✕", "label": "Olumsuz", "text": "Olumsuz." },
+    { "id": "thanks", "icon": "♥", "label": "Teşekkürler", "text": "Teşekkürler." },
+    { "id": "niceShot", "icon": "★", "label": "Güzel atış", "text": "Güzel atış!" },
+    { "id": "bomb", "icon": "◆", "label": "Bomba bende", "text": "Bomba bende." },
+    { "id": "plantA", "icon": "A", "label": "A'ya kuruyorum", "text": "Bombayı A'ya kuruyorum!" },
+    { "id": "plantB", "icon": "B", "label": "B'ye kuruyorum", "text": "Bombayı B'ye kuruyorum!" }
+  ],
+  "wheel": ["follow", "hold", "push", "enemy", "help", "fallback", "ok", "niceShot"],
+  "comp": ["follow", "hold", "plantA", "enemy", "help", "plantB", "ok", "bomb"]
+}

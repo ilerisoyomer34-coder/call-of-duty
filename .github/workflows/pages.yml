@@ -1,0 +1,35 @@
+# GitHub Pages yayını: web/dist/pwa/ değişince oyunu 'gh-pages' dalına kopyalar (web/tools/deploy-pages.mjs ile
+# aynı iş). Dal yalnız yayın içindir; her yayında tek commit'lik anlık görüntüyle üzerine yazılır.
+# Derleme yapılmaz: dist/ depoya commit'lenir, yayımlanan her sürüm bir commit'e karşılık gelir.
+name: Pages yayını
+
+on:
+  push:
+    branches: [main, claude/war-game-design-yzxvv6]
+    paths: ['web/dist/pwa/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gh-pages dalına gönder
+        working-directory: web/dist/pwa
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          test -f index.html && test -f sw.js && test -f manifest.webmanifest
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Yayın: ${GITHUB_SHA::7} (${GITHUB_REF_NAME})"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages

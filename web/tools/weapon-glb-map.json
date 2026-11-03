@@ -1,0 +1,1167 @@
+{
+  "k8": {
+    "source": "SourceAssets/Sketchfab/k8_du/original/low-poly_c8_iur.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.9,
+    "exclude": "^(ar15 30rnd mag \\(steel\\)_8|55645)",
+    "parts": {
+      "mag": "^ar15 30rnd mag empty",
+      "charging": "charging handle"
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.125
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0225,
+        -0.449
+      ],
+      "sight": [
+        0,
+        0.097,
+        0.126
+      ],
+      "leftHand": [
+        0,
+        -0.008,
+        -0.2
+      ],
+      "eject": [
+        0.03,
+        0.02,
+        0.05
+      ],
+      "front": [
+        0,
+        0.097,
+        -0.223
+      ]
+    }
+  },
+  "kr4": {
+    "source": "SourceAssets/Sketchfab/kr4_du/original/low-poly_colt_m4a1.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.84,
+    "exclude": "^(ar15 30rnd mag \\(steel\\)_15|55645)",
+    "parts": {
+      "mag": "^ar15 30rnd mag empty",
+      "charging": "charging handle"
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.125
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0225,
+        -0.412
+      ],
+      "sight": [
+        0,
+        0.0942,
+        0.154
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.15
+      ],
+      "eject": [
+        0.03,
+        0.02,
+        0.05
+      ],
+      "front": [
+        0,
+        0.0867,
+        -0.2335
+      ]
+    }
+  },
+  "mk4": {
+    "source": "SourceAssets/Sketchfab/mk4_pieterferreira/original/m4_carbine_rifle.glb",
+    "forward": "-z",
+    "up": "+y",
+    "scaleTo": 0.84,
+    "ratio": 0.2,
+    "error": 0.002,
+    "materials": {
+      "*": {
+        "baseColor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "alphaMode": "MASK",
+        "alphaCutoff": 0.5
+      }
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.09
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.032,
+        -0.425
+      ],
+      "sight": [
+        0,
+        0.098,
+        0.06
+      ],
+      "leftHand": [
+        0,
+        -0.045,
+        -0.18
+      ],
+      "eject": [
+        0.03,
+        0.03,
+        0.02
+      ]
+    },
+    "partBoxes": {
+      "mag": [
+        [
+          -0.04,
+          -0.2,
+          -0.08
+        ],
+        [
+          0.04,
+          -0.05,
+          0.07
+        ]
+      ],
+      "optic": [
+        [
+          -0.04,
+          0.055,
+          -0.03
+        ],
+        [
+          0.04,
+          0.15,
+          0.1
+        ]
+      ]
+    },
+    "textures": {
+      "0": {
+        "paint": [
+          [
+            105,
+            218,
+            26,
+            101,
+            118,
+            330
+          ]
+        ]
+      }
+    },
+    "splitBoxes": {
+      "optic": [
+        [
+          -0.035,
+          0.075,
+          -0.02
+        ],
+        [
+          0.035,
+          0.14,
+          0.075
+        ]
+      ],
+      "mag": [
+        [
+          -0.04,
+          -0.2,
+          -0.08
+        ],
+        [
+          0.04,
+          -0.05,
+          0.07
+        ]
+      ]
+    }
+  },
+  "kt9": {
+    "source": "SourceAssets/Sketchfab/kt9_deryckere/original/gun.glb",
+    "localTo": "Gun.obj.cleaner",
+    "forward": "-y",
+    "up": "+z",
+    "scaleTo": 0.92,
+    "hand": [
+      0,
+      -0.022,
+      0.15
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.021,
+        -0.46
+      ],
+      "sight": [
+        0,
+        0.122,
+        0.22
+      ],
+      "leftHand": [
+        0,
+        -0.02,
+        -0.16
+      ],
+      "eject": [
+        0.035,
+        0.02,
+        0.02
+      ]
+    },
+    "textures": {
+      "0": {
+        "max": 1024,
+        "paint": [
+          [
+            103,
+            655,
+            50,
+            27,
+            100,
+            648
+          ],
+          [
+            105,
+            693,
+            48,
+            14,
+            100,
+            720
+          ],
+          [
+            105,
+            803,
+            48,
+            14,
+            100,
+            790
+          ],
+          [
+            748,
+            331,
+            56,
+            18,
+            760,
+            325
+          ],
+          [
+            746,
+            568,
+            54,
+            20,
+            775,
+            596
+          ],
+          [
+            897,
+            76,
+            10,
+            84,
+            910,
+            70
+          ]
+        ]
+      },
+      "3": {
+        "paint": [
+          [
+            1140,
+            748,
+            100,
+            62,
+            1120,
+            790
+          ],
+          [
+            826,
+            1465,
+            112,
+            25,
+            820,
+            1480
+          ],
+          [
+            808,
+            1685,
+            114,
+            30,
+            800,
+            1700
+          ],
+          [
+            1048,
+            1685,
+            184,
+            24,
+            1040,
+            1695
+          ],
+          [
+            1806,
+            1752,
+            172,
+            20,
+            1800,
+            1762
+          ],
+          [
+            1492,
+            689,
+            92,
+            58,
+            1530,
+            800
+          ]
+        ]
+      }
+    },
+    "splitBoxes": {
+      "mag": [
+        [
+          -0.05,
+          -0.2,
+          -0.03
+        ],
+        [
+          0.05,
+          -0.06,
+          0.1
+        ]
+      ]
+    }
+  },
+  "knife": {
+    "source": "SourceAssets/Sketchfab/knife_cglab34/original/knife.glb",
+    "forward": "-x",
+    "up": "+y",
+    "scaleTo": 0.3,
+    "hand": [
+      0,
+      0.029,
+      0.08
+    ],
+    "points": {
+      "tip": [
+        0,
+        0.034,
+        -0.151
+      ],
+      "guard": [
+        0,
+        0.03,
+        0.024
+      ]
+    }
+  },
+  "ak74": {
+    "source": "SourceAssets/Sketchfab/ak74_du/original/low-poly_ak-74m_zenitco.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.94,
+    "exclude": "^(54539|ak74 30rnd empty mag)",
+    "parts": {
+      "mag": "^ak74 30rnd mag \\(polymer\\)",
+      "charging": "bolt carrier",
+      "optic": "^vzor1 red dot"
+    },
+    "hand": [
+      0,
+      -0.025,
+      0.08
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.019,
+        -0.595
+      ],
+      "sight": [
+        0,
+        0.0975,
+        0.03
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.2
+      ],
+      "eject": [
+        0.022,
+        0.035,
+        -0.04
+      ]
+    }
+  },
+  "bren2": {
+    "source": "SourceAssets/Sketchfab/bren2_du/original/low-poly_cz_bren_2.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.7,
+    "exclude": "^(55645_0|55645 m16 30rnd mag)",
+    "parts": {
+      "mag": "^55645 m16 3ornd mag empty",
+      "charging": "reload handle"
+    },
+    "hand": [
+      0,
+      -0.03,
+      0.125
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.002,
+        -0.335
+      ],
+      "sight": [
+        0,
+        0.081,
+        0.137
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.15
+      ],
+      "eject": [
+        0.026,
+        0.02,
+        0.02
+      ],
+      "front": [
+        0,
+        0.0787,
+        -0.15
+      ]
+    }
+  },
+  "awm": {
+    "source": "SourceAssets/Sketchfab/awm_djmaesen/original/sniper.glb",
+    "forward": "+z",
+    "up": "+y",
+    "scaleTo": 1.2,
+    "parts": {
+      "mag": "^mag$",
+      "bolt": "^(boltback|bolt)$"
+    },
+    "hand": [
+      0,
+      0.025,
+      0.045
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0787,
+        -0.91
+      ],
+      "sight": [
+        0,
+        0.135,
+        0.004
+      ],
+      "leftHand": [
+        0,
+        0.035,
+        -0.32
+      ],
+      "eject": [
+        0.02,
+        0.07,
+        -0.1
+      ],
+      "boltAxis": [
+        0,
+        0.078,
+        -0.11
+      ],
+      "boltHandle": [
+        0.043,
+        0.037,
+        -0.053
+      ]
+    }
+  },
+  "_notes": {
+    "points": "Oyun uzayında (metre, namlu -Z, üst +Y) köken değişmeden önceki konumlar; araç el (hand) noktasını kökene taşır",
+    "textures.paint": "[x, y, genişlik, yükseklik, örnekX, örnekY]: özgün doku pikselleri; gerçek marka/seri no yazıları örnek noktanın rengiyle boyanır",
+    "partBoxes": "Parça adı → [min, max] kutusu: merkezi kutuya düşen mesh o parçaya gider (kaynakta parçalar adlandırılmamışsa)",
+    "splitBoxes": "Parça adı → [min, max]: gövdede kalan mesh'lerin ağırlık merkezi kutuya düşen üçgenleri o parçaya taşınır (cam, nişangah gövdesiyle aynı mesh'teyse)"
+  },
+  "bazooka": {
+    "source": "SourceAssets/Sketchfab/bazooka_melvinstubbe/original/bazooka_m20.glb",
+    "forward": "+z",
+    "up": "+y",
+    "scaleTo": 1.35,
+    "hand": [
+      0.007,
+      0.025,
+      -0.04
+    ],
+    "points": {
+      "muzzle": [
+        0.007,
+        0.084,
+        -0.76
+      ],
+      "sight": [
+        -0.065,
+        0.135,
+        0.1
+      ],
+      "leftHand": [
+        0.007,
+        0.03,
+        -0.32
+      ],
+      "eject": [
+        0.007,
+        0.084,
+        0.59
+      ]
+    }
+  },
+  "ak47": {
+    "source": "SourceAssets/Sketchfab/uploaded_ak47/original/ak-47__-_game_ready_assault_rifle_weapon.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.88,
+    "hand": [
+      -0.0087,
+      0.025,
+      0.148
+    ],
+    "points": {
+      "muzzle": [
+        -0.0087,
+        0.0775,
+        -0.44
+      ],
+      "sight": [
+        -0.0087,
+        0.1215,
+        -0.0574
+      ],
+      "front": [
+        -0.0087,
+        0.1275,
+        -0.4208
+      ],
+      "leftHand": [
+        -0.0087,
+        0.056,
+        -0.155
+      ],
+      "eject": [
+        0.018,
+        0.086,
+        0
+      ]
+    },
+    "parts": {
+      "mag": "^Magazine_low$",
+      "charging": "^Slide_low$"
+    }
+  },
+  "adar215": {
+    "source": "SourceAssets/Sketchfab/uploaded_adar215/original/low-poly_adar_2-15.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.87,
+    "hand": [
+      0,
+      -0.03,
+      0.17
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0223,
+        -0.435
+      ],
+      "sight": [
+        0,
+        0.083,
+        0.128
+      ],
+      "front": [
+        0,
+        0.081,
+        -0.226
+      ],
+      "leftHand": [
+        0,
+        -0.01,
+        -0.16
+      ],
+      "eject": [
+        0.028,
+        0.04,
+        0.035
+      ]
+    },
+    "exclude": "^(55645 case_|55645_7$|55645 ar15 10rnd mag \\(pmag\\))",
+    "parts": {
+      "mag": "^55645 ar15 10rnd mag empty",
+      "charging": "charging handle"
+    }
+  },
+  "g95": {
+    "source": "SourceAssets/Sketchfab/uploaded_g95/original/low-poly_g95_a1.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.89,
+    "hand": [
+      0,
+      -0.03,
+      0.17
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.0218,
+        -0.4623
+      ],
+      "sight": [
+        0,
+        0.086,
+        0.145
+      ],
+      "front": [
+        0,
+        0.086,
+        -0.323
+      ],
+      "leftHand": [
+        0,
+        -0.012,
+        -0.18
+      ],
+      "eject": [
+        0.03,
+        0.037,
+        0.025
+      ]
+    },
+    "exclude": "^(ar15 30rnd mag empty|55645)",
+    "parts": {
+      "mag": "^ar15 30rnd mag \\(hk\\)",
+      "charging": "charging handle"
+    }
+  },
+  "mp7": {
+    "source": "SourceAssets/Sketchfab/uploaded_mp7/original/low-poly_hk_mp7_a1.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.638,
+    "hand": [
+      0,
+      -0.025,
+      0.1
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.047,
+        -0.319
+      ],
+      "sight": [
+        0,
+        0.131,
+        0.215
+      ],
+      "front": [
+        0,
+        0.131,
+        -0.145
+      ],
+      "leftHand": [
+        0,
+        -0.01,
+        -0.122
+      ],
+      "eject": [
+        0.027,
+        0.07,
+        0.025
+      ]
+    },
+    "exclude": "^(4\\.6x30|4630_1$|4630 mp7 30rnd mag_|mp7 suppressor)",
+    "parts": {
+      "mag": "^4630 mp7 30rnd empty mag",
+      "charging": "charging handle"
+    }
+  },
+  "stm556": {
+    "source": "SourceAssets/Sketchfab/uploaded_stm556/original/low-poly_stm-556.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.89,
+    "hand": [
+      0,
+      -0.03,
+      0.17
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.021,
+        -0.4733
+      ],
+      "sight": [
+        0,
+        0.089,
+        0.08
+      ],
+      "leftHand": [
+        0,
+        -0.01,
+        -0.18
+      ],
+      "eject": [
+        0.03,
+        0.037,
+        0.035
+      ]
+    },
+    "exclude": "^(55645|ar15 30rnd mag  \\(stm\\))",
+    "parts": {
+      "mag": "^ar15 30rnd mag epmty",
+      "charging": "charging handle",
+      "optic": "stm556 red dot"
+    }
+  },
+  "m4super90": {
+    "source": "SourceAssets/Sketchfab/uploaded_m4super90/original/m4_super_90_jw2_brand-friendly_version.glb",
+    "forward": "-z",
+    "up": "+y",
+    "scaleTo": 1.015,
+    "exclude": "^12g$",
+    "hand": [
+      0,
+      -0.014,
+      0.182
+    ],
+    "parts": {
+      "charging": "^bolt$"
+    },
+    "points": {
+      "muzzle": [
+        0,
+        0.057,
+        -0.509
+      ],
+      "sight": [
+        0,
+        0.086,
+        0.113
+      ],
+      "front": [
+        0,
+        0.086,
+        -0.465
+      ],
+      "leftHand": [
+        0,
+        0.016,
+        -0.18
+      ],
+      "eject": [
+        0.026,
+        0.056,
+        0.015
+      ]
+    },
+    "textures": {
+      "0": {
+        "paint": [
+          [
+            750,
+            35,
+            63,
+            239,
+            739,
+            150
+          ],
+          [
+            374,
+            492,
+            53,
+            270,
+            437,
+            556
+          ],
+          [
+            255,
+            848,
+            14,
+            80,
+            253,
+            852
+          ],
+          [
+            500,
+            784,
+            10,
+            56,
+            510,
+            805
+          ]
+        ]
+      },
+      "1": {
+        "paint": [
+          [
+            750,
+            35,
+            63,
+            239,
+            739,
+            150
+          ],
+          [
+            374,
+            492,
+            53,
+            270,
+            437,
+            556
+          ],
+          [
+            255,
+            848,
+            14,
+            80,
+            253,
+            852
+          ],
+          [
+            500,
+            784,
+            10,
+            56,
+            510,
+            805
+          ]
+        ]
+      },
+      "2": {
+        "paint": [
+          [
+            750,
+            35,
+            63,
+            239,
+            739,
+            150
+          ],
+          [
+            374,
+            492,
+            53,
+            270,
+            437,
+            556
+          ],
+          [
+            255,
+            848,
+            14,
+            80,
+            253,
+            852
+          ],
+          [
+            500,
+            784,
+            10,
+            56,
+            510,
+            805
+          ]
+        ]
+      },
+      "3": {
+        "paint": [
+          [
+            750,
+            35,
+            63,
+            239,
+            739,
+            150
+          ],
+          [
+            374,
+            492,
+            53,
+            270,
+            437,
+            556
+          ],
+          [
+            255,
+            848,
+            14,
+            80,
+            253,
+            852
+          ],
+          [
+            500,
+            784,
+            10,
+            56,
+            510,
+            805
+          ]
+        ]
+      }
+    }
+  },
+  "ar10t": {
+    "source": "SourceAssets/Sketchfab/uploaded_ar10t/original/armalite_ar-10t_battle_rifle.glb",
+    "forward": "+z",
+    "up": "+y",
+    "scaleTo": 1.02,
+    "exclude": "^(mag_short|mag_loaded|mag_empty|bullets)$",
+    "hand": [
+      0,
+      0.08,
+      0.15
+    ],
+    "parts": {
+      "mag": "^mag$"
+    },
+    "points": {
+      "muzzle": [
+        0,
+        0.119,
+        -0.602
+      ],
+      "sight": [
+        0,
+        0.211,
+        0.124
+      ],
+      "front": [
+        0,
+        0.211,
+        -0.388
+      ],
+      "leftHand": [
+        0,
+        0.095,
+        -0.2185
+      ],
+      "eject": [
+        0.027,
+        0.146,
+        0.04
+      ]
+    },
+    "ratio": 0.65,
+    "error": 0.001,
+    "textures": {
+      "0": {
+        "paint": [
+          [
+            896,
+            422,
+            46,
+            32,
+            888,
+            412
+          ]
+        ]
+      },
+      "2": {
+        "paint": [
+          [
+            896,
+            422,
+            46,
+            32,
+            888,
+            412
+          ]
+        ]
+      },
+      "6": {
+        "paint": [
+          [
+            18,
+            76,
+            135,
+            94,
+            165,
+            120
+          ],
+          [
+            752,
+            714,
+            34,
+            94,
+            742,
+            760
+          ]
+        ]
+      },
+      "7": {
+        "paint": [
+          [
+            18,
+            76,
+            135,
+            94,
+            165,
+            120
+          ],
+          [
+            752,
+            714,
+            34,
+            94,
+            742,
+            760
+          ]
+        ]
+      },
+      "8": {
+        "paint": [
+          [
+            18,
+            76,
+            135,
+            94,
+            165,
+            120
+          ],
+          [
+            752,
+            714,
+            34,
+            94,
+            742,
+            760
+          ]
+        ]
+      }
+    }
+  },
+  "ithaca37": {
+    "source": "SourceAssets/Sketchfab/uploaded_ithaca37/original/ithaca_model_37_riot_shotgun.glb",
+    "forward": "-z",
+    "up": "+y",
+    "scaleTo": 1.0,
+    "exclude": "12gauge",
+    "hand": [
+      0,
+      0.02,
+      0.18
+    ],
+    "splitBoxes": {
+      "pump": [
+        [
+          -0.034,
+          -0.025,
+          -0.293
+        ],
+        [
+          0.034,
+          0.043,
+          -0.1
+        ]
+      ]
+    },
+    "points": {
+      "muzzle": [
+        0,
+        0.08,
+        -0.475
+      ],
+      "sight": [
+        0,
+        0.097,
+        0.085
+      ],
+      "front": [
+        0,
+        0.097,
+        -0.455
+      ],
+      "leftHand": [
+        0,
+        0.012,
+        -0.205
+      ],
+      "eject": [
+        0,
+        0.025,
+        0.048
+      ]
+    }
+  },
+  "uar10": {
+    "source": "SourceAssets/Sketchfab/uploaded_uar10/original/low-poly_uar-10.glb",
+    "forward": "+x",
+    "up": "+y",
+    "scaleTo": 0.98,
+    "hand": [
+      0,
+      -0.03,
+      0.17
+    ],
+    "points": {
+      "muzzle": [
+        0,
+        0.022,
+        -0.508
+      ],
+      "sight": [
+        0,
+        0.088,
+        0.17
+      ],
+      "leftHand": [
+        0,
+        -0.006,
+        -0.2
+      ],
+      "eject": [
+        0.03,
+        0.02,
+        0.046
+      ]
+    },
+    "exclude": "^(76251 case_|76251_0$|76251 ar10 20rnd mag \\(pmag\\))",
+    "parts": {
+      "mag": "^76251 ar10 20rnd mag empty",
+      "charging": "charging handle",
+      "optic": "uar10 scope"
+    }
+  }
+}

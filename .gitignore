@@ -1,0 +1,49 @@
+# Node
+node_modules/
+web/tools/shots/
+
+# Unreal Engine (ileride eklenecek UE5 projesi için)
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+*.opensdf
+*.sdf
+*.suo
+
+# Gizli bilgiler (Docs/SECURITY_TR.md; web/tools/secret-scan.mjs her push'ta depoyu da tarar)
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+# İmza anahtarları ve sertifikalar (Android/iOS mağaza imzası, TLS): kaybolursa uygulama güncellenemez, sızarsa
+# başkası oyunun adıyla imzalar. Depoya asla girmez; kullanıcının kendi yedeğinde durur
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.p8
+*.mobileprovision
+key.properties
+keystore.properties
+signing.properties
+# Sunucu veritabanları (oyuncu hesapları, belirteç özetleri, sunucunun kimlik anahtarı)
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+# Kimlik dosyaları
+.netrc
+.npmrc
+# Ev sunucusu: bilgisayara özel ayarlar (SERVER_SECRET) ve indirilen tünel programı
+web/server/host.env
+web/server/bin/
+web/dist/artifact-assets/
+# Mağaza uygulaması derlemesi (her derlemede yeniden üretilir; mobile/ içinde npm run sync kopyalar)
+web/dist/app/

@@ -1,0 +1,324 @@
+# NETCODE — paylaşılan simülasyon ve ağ çekirdeği
+
+Bu belge kodla birlikte güncellenir. Kapsam:
+- M1: paylaşılan simülasyon.
+- S1–S3: sosyal katman.
+- S4–S6: oyun bağlantısı, tahmin, uzlaştırma, aralama, sunucu atışı, gecikme telafisi, maç modları, eşleştirme, botlar.
+
+Bayt düzenleri `Docs/PROTOCOL.md`'de.
+
+## Yerleşim
+
+| Yol | İçerik | Kim çalıştırır |
+|---|---|---|
+| `web/shared/constants.js` | `TICK_RATE` (64), `TICK_DT`, nicemleme adımları (`QUANT`) | istemci, sunucu |
+| `web/shared/sim/math.js` | `clamp`, `lerp`, `damp`, `quantize` (`src/util.js` bunları yeniden dışa aktarır) | istemci, sunucu |
+| `web/shared/sim/rng.js` | `mulberry32`, `hashSeed`, `Rng`, `inCone` | istemci, sunucu |
+| `web/shared/sim/collision.js` | `CollisionWorld`: kutu ızgarası, ışın, görüş, `moveCharacter`, `box/block`, `toJSON/fromJSON` | istemci (`World` genişletir), sunucu |
+| `web/shared/sim/movement.js` | `stepPlayer`, `InputCmd`, `BTN`, `SIM_EV`, durum kurucuları | istemci (`Player`), sunucu |
+| `web/shared/sim/weapon.js` | tempo (`triggerShots`), sapma (`spreadDeg`, bloom), geri tepme deseni (`recoilKick`), mermi yönü (`pelletDir`) | istemci (`PlayerWeapons`), sunucu |
+| `web/shared/sim/hitboxes.js` | pozdan vuruş kutuları ve ışın kesişimi | sunucu (M4), istemci hata ayıklama |
+| `web/shared/sim/replay.js` | tohumlu 10.000 komutluk tekrar (determinizm testi) | test |
+| `web/shared/sim/nav.js`, `heap.js` | gezinme ızgarası, A* (tek oyunculu yapay zekâ ve sunucu botları) | istemci, sunucu |
+| `web/shared/net/` | `protocol`, `codec` (ikili), `clock` (`ClockSync`), `netsim`, `transport` | istemci, sunucu |
+| `web/shared/maps/<harita>.collision.json` | haritanın statik çarpıştırıcıları | sunucu |
+
+Kural: `shared/` altında DOM, THREE, `Date.now`, `performance.now` ve `Math.random` yok. Ayar değerleri `src/config.js`'ten gelir. Bu dosyanın içe aktarması yoktur, Node da okur.
+
+## Tick ve nicemleme
+
+- Hareket her zaman `dt = 1/64` sn ile ilerler.
+  - Tek oyunculuda `Player.update` kare süresini biriktirir ve tam tick'leri koşturur.
+  - Bir karede en çok `SIM.maxTicksPerFrame` (10) tick çalışır; fazlası atılır.
+  - Kamera, önceki ve şimdiki tick konumları arasında aralanır (`renderPos`).
+  - Konum 2 m'den fazla sıçrarsa ışınlanma sayılır ve aralama yapılmaz.
+- Tick sonunda değerler nicemlenir: konum 1/1024 m, hız 1/256 m/s, `crouchT`/`adsT` 1/1024. Böylece JS motorları arasındaki son bit farkları birikmez.
+- Konsolda `cl_fixedstep 0` eski kare adımına döner (A/B karşılaştırması). Bu yolda nicemleme yapılmaz.
+
+## `stepPlayer(s, cmd, world, dt)`
+
+- Durumu **yerinde** günceller ve olay bitlerini (`SIM_EV`) döndürür. Belgedeki "yeni durum döndür" biçiminden sapmanın nedeni çalışma sırasında bellek ayırmamaktır. Tahmin geçmişi için `clonePlayerState` kullanılır.
+- Adımın sırası:
+  1. Koşu/nişan/çömelme kuralları.
+  2. Zemin ivmesi ve sürtünme ya da hava ivmesi.
+  3. Zıplama.
+  4. `moveCharacter` (dikey silindir, kayma, basamak, tavan).
+  5. Nicemleme.
+- Dış etkiler `s.mods` ile girer: silah hareketliliği, nişan çarpanı/süresi, zırh hızı, eylem çarpanı, koşu engeli, nişan izni. İstemci her karede doldurur, sunucu kendi silah/zırh durumundan dolduracak.
+- Olayların yan etkileri (ses, yapay zekâ gürültüsü, şarjör değiştirme iptali, aç/kapa düğmelerinin sıfırlanması) çağıranda yapılır: `Player.onSimEvents`.
+
+## `InputCmd`
+
+`{ seq, moveX, moveY, yaw, pitch, buttons }`
+
+- `moveX/moveY`: −1…1, ağda i8 (1/127 adım). Telefon joystick'i ve gamepad analog gelir.
+- `yaw/pitch`: radyan; ağda yaw u16 (tam tur), pitch i16.
+- `buttons` (`BTN`): `JUMP` (basış, bir tick tüketene dek tutulur), `CROUCH`, `SPRINT`, `ADS` (istenen durum; aç/kapa ayarı istemcide çözülür), `FIRE`, `RELOAD`, `USE`, `LEAN_L`, `LEAN_R`, `MELEE`.
+- Nişan basış kenarı (koşuyu keser) önceki tick'in düğmelerinden hesaplanır (`s.buttons`).
+- İstemci tarafı: `src/inputCmd.js → updateInputCmd`.
+
+## Rastgelelik
+
+- Oyuncu silahı: saçılma, saçma taneleri, geri tepmenin rastgele payı ve roket sapması `PlayerWeapons.rng`'den (`Rng`) gelir.
+  - Tek oyunculuda tohum her görev başında yenilenir.
+  - Çevrim içide sunucu `hashSeed(serverSecret, matchId, playerId, cmd.seq)` kullanacak (M4). İstemci kendi tohumuyla yalnız kozmetik iz çizer.
+- Kozmetik rastgelelik (kan, ışık, duman, kamera vuruş sarsıntısı) ile tek oyunculu düşman ve dost yapay zekâsı `Math.random` ile kalır. Bunlar sunucuya taşınmıyor (`Docs/DECISIONS.md`).
+
+## Çarpışma verisi
+
+- Haritalar (`src/maps/*.js`) yalnız `box`, `block`, `addGeometry`, `addCollider`, `bounds`, `floorSurface` kullanır. Aynı kod Node'da görselsiz `CollisionWorld` ile çalışır.
+- `node tools/export-collision.mjs` her harita için `shared/maps/<id>.collision.json` üretir (`--check`: güncel mi).
+  - Biçim: `{ map, format, units, bounds, floorSurface, roads, surfaces, hash, boxes: [[minx, miny, minz, maxx, maxy, maxz, yüzeyIndeksi]] }`.
+  - Koordinatlar 0,1 mm'ye yuvarlanır. İstemci haritayı kendisi kurar ve farkı en çok 0,05 mm olur. Bu fark uzlaştırma eşiğinin (1 cm) çok altında; ışınlar 1 mm içinde aynı sonucu verir (`tests/collision-export.test.mjs`).
+- Yalnız statik ve sahipsiz çarpıştırıcılar dosyaya girer. Tank, mevzi ve kum torbası gibi görev ekleri girmez. `World.mapColliders` haritanın kendi çarpıştırıcı sayısıdır.
+- Güncellik iki yerden denetlenir:
+  - Birim testi: harita Node'da yeniden kurulup özet karşılaştırılır.
+  - Duman `maps` bölümü: tarayıcıda kurulan dünyanın özeti dosyadakiyle aynı olmalı.
+
+## Vuruş kutuları
+
+`hitboxesFor(pose, out)` boy, yaw, pitch ve yürüyüş fazından şu kutuları üretir:
+
+| Parça | Şekil | Bölge (silah / oyuncu çarpanı) |
+|---|---|---|
+| Baş | küre | `head` / `head` |
+| Göğüs | kapsül | `torso` / `torso` |
+| Karın | yaw ile dönmüş kutu | `torso` / `torso` |
+| İki kol | kapsül (omuzdan nişan yönüne) | `limb` / `torso` |
+| İki bacak | kapsül | `limb` / `leg` |
+
+- Çarpanlar mevcut veriden gelir (`weapons.zones`, `armor.json → playerZones`), belgedeki CS:GO değerleri değil.
+- Konsolda `sv_showhitboxes 1`, asker ve dostların kutularını tel kafes çizer.
+
+## Sosyal katman (S2–S3): REST + WebSocket
+
+- **Sunucu:** `web/server/` (tek süreç).
+  - `index.js`: HTTP ve `/ws` aynı port.
+  - `api.js`: REST uçları.
+  - `hub.js`: çevrim içi bağlantılar, durum.
+  - `party.js`: parti ve davet, bellekte.
+  - `db.js`: `node:sqlite`.
+  - `limits.js`: sınırlar.
+  - `ratelimit.js`, `backup.mjs`.
+- **Kimlik:**
+  - `POST /api/session { name }` → `{ id, name, tag, token }`.
+  - Sonraki istekler `Authorization: Bearer <token>`.
+  - İstemci belirteci kayıtta tutar (`save.data.profile.token`).
+  - 401 alırsa (sunucu veritabanı sıfırlandı) yeni kimlik alır.
+- **REST:**
+  - Profil: `GET/PATCH /api/me`.
+  - Arama: `GET /api/players?q=ad[#etiket]` (önek, Türkçe katlama, en az 2 harf).
+  - Arkadaşlık:
+    - `GET /api/friends` → `{ friends[{status}], incoming, outgoing }`.
+    - `POST /api/friends/request|respond|remove`.
+  - Bildirim: `GET /api/notifications`, `POST /api/notifications/seen`.
+  - Parti: `GET /api/party`, `POST /api/party/invite|respond|leave|kick|mode`.
+  - Yapay zekâlı telsiz: `POST /api/ai/radio { text, context, history }` → `{ speaker, reply, actions[] }` (`server/ai.js`, kurallar `shared/ai/radio.js`). Anahtar `ANTHROPIC_API_KEY` sunucu ortamında; yoksa `503 ai_off`. Sınırlar `LIMITS.aiRadio/aiDaily/aiGlobal`, gövde 16 KB.
+  - Sağlık: `GET /api/health[?c=<meydan okuma>]` → `{ ok, online, rooms, serverId, name, ai, key, proof }`. `serverId` ve kimlik anahtarı (ECDSA P-256, `key` SPKI DER base64url) veritabanıyla kalıcı (`meta` tablosu); `proof` = `proofMessage(serverId, c)` imzası (SHA-256, IEEE P1363, base64url; `c` 16–64 karakter base64url değilse boş); `name` `SERVER_NAME`'den.
+  - Hatalar `{ error: kod }`; Türkçe metinler `src/net/social.js → ERRORS`.
+- **WebSocket `/ws`:**
+  - İstemci → sunucu:
+    - İlk ileti `{ t: 'hello', token, status }` (5 sn içinde); sonra `{ t: 'status', status: 'menu'|'playing' }` ve `{ t: 'ping' }`.
+    - En çok 2 KB, saniyede 20 ileti.
+    - Yanlış kimlik `4001` ile kapanır.
+  - Sunucu → istemci:
+    - Açılış: `welcome` (ad, listeler, parti, son bildirimler).
+    - Liste ve durum: `friends` (ilişki değişince), `presence` (arkadaşın durumu).
+    - Arkadaşlık: `notification` (`friend_request`, `friend_accepted`), `friend_declined`.
+    - Parti: `party`, `party_invite`, `party_invite_declined`.
+- **İstemci `SocialClient`** (`game.social`):
+  - Adres önceliği: `?server=` (geliştirme, kaydedilmez) › Ayarlar "Çevrim içi sunucu" (Çevrim içi → "Sunucu bağlantısı" alanı ve davet bağlantısı `?sunucu=` buraya yazar) › `config.js → NET.serverUrl`.
+  - Bağlanmadan önce `/api/health` okunur. Hesap (id/tag/token) sunucunun kalıcı kimliğine bağlıdır: `profile.server` etkin sunucu, öbürleri `profile.servers[serverId]` (`src/net/servers.js → selectIdentity/rememberIdentity/forgetIdentity`). Ev sunucusunun tünel adresi değişse de aynı hesap; başka sunucuya geçince o sunucunun hesabı. Kimliği bilinmeyen eski hesap ilk bağlanılan sunucuya ait sayılır (yanlışsa 401 → yalnız o sunucunun hesabı silinir). Belirteç gönderilmeden önce sunucu kimliğini kanıtlar: oyun rastgele meydan okumayla imza ister, WebCrypto ile doğrular, anahtarı hesaba sabitler (`verifyServerProof`, `identityVerdict`, `pinIdentity`); anahtar değişmişse ya da imza yoksa bağlantı `server_impostor`/`server_unverified` hatasıyla durur (sahte davet bağlantısı belirteç çalamaz). Ayrıntı `Docs/SECURITY_TR.md`.
+  - Davet bağlantısı: `NET.gameUrl?sunucu=<adres>` (ev sunucusu başlatıcısı `web/server/host.mjs` üretir). Açılışta `consumeInvite()` adresi kaydeder, parametreyi siler, Çevrim içi ekranını açar.
+  - Kopunca `NET.reconnectSec` aralıklarıyla yeniden bağlanır; 25 sn'de bir `ping` gönderir.
+  - Olaylar: `EV.SOCIAL_STATUS`, `FRIENDS_CHANGED`, `NOTIFICATION`, `PARTY_CHANGED`, `PROFILE_CHANGED`.
+- **Ekran:** `src/onlineScreen.js` (Arkadaşlar / Oyuncu ara / İstekler, parti paneli) ve `#socialToasts` bildirim kartları (menüde ve oyunda; yanıt düğmeli kartlar 30 sn kalır).
+
+## Oyun bağlantısı (S4–S6)
+
+### Sunucu (`web/server/game/`)
+
+**`sim.js` → `MatchSim`** (ağdan bağımsız, testler doğrudan sürer):
+- **Komut bütçesi:**
+  - Her tick bir komut işlenir; kuyruk 3'ü aşarsa iki.
+  - Oyuncunun kredisi tick başına 1 artar, en çok `ONLINE.creditMax`. Gecikip biriken komutlar yetişir ama gerçek zamandan hızlı oynanamaz.
+  - Komut yoksa oyuncu o tick durur (son komut tekrarlanmaz). Böylece istemci tahmini ile sunucu aynı komut dizisini işler.
+- **Hareket:**
+  - `stepPlayer`, modlar `applyCmdMods(md, buttons, silah)`.
+  - Zırh, etkileşim ve sarf malzemesi çevrim içinde yok (el bombası ve sis dışında, aşağıda).
+- **Atış:**
+  - İstemci atış anını ve nişan yönünü komutla bildirir (`shots`). Sunucu doğrular:
+    - tempo kredisi (`fireTolerance`);
+    - şarjör ve şarjör değiştirme süresi (`reloadTolerance`);
+    - silah değiştirme süresi.
+  - Saçılmayı kendi tohumuyla üretir: `hashSeed(gizli, maç, oyuncu, seq, atış)`.
+  - Işını önce dünyaya, sonra rakiplerin geri sarılmış vuruş kutularına atar.
+  - Dost ateşi kapalı; mermi dosttan geçer.
+- **Gecikme telafisi:**
+  - Her tick her oyuncunun pozu `ONLINE.historyTicks` derinliğinde saklanır.
+  - Atış komutun `viewTick`'ine (oyuncunun gördüğü sunucu zamanı) aralanarak sarılır.
+  - En çok `ONLINE.maxRewindMs` (200 ms) geri.
+- **Can:**
+  - 100.
+  - Yenilenme `regenDelay` / `regenRate`.
+  - Doğuş koruması `protectSec`; ateş edince biter.
+- **El bombası ve sis** (`shared/sim/grenade.js`, ayarlar `ONLINE.nades`):
+  - Her doğuşta 1 el bombası + 1 sis (`fragCount/smokeCount`). Atış komutun `THROW_FRAG/THROW_SMOKE` bitiyle gelir; yön komutun bakışı, çıkış oyuncunun bu komuttan önceki göz hizası (atışlar gibi). İki atış arası `cooldown`, atıştan sonra `lockSec` ateş yok (ikisi de `tolerance` paylı); atmak doğuş korumasını bitirir.
+  - Yörünge paylaşılan `stepGrenade` (yerçekimi, sekme, `CollisionWorld.raycast`): sunucu başlangıcı ağ nicemlemesine yuvarlar (`quantizeNade`) ve onunla yürütür; `NEV.NADE` aynı sayıları taşır, istemci aynı dünyada aynı adımla çizer.
+  - Patlama (`NEV.BLAST`): yarıçap içindeki herkese `damage × (1 − d/r)^falloff`; göğüs ya da baştan görüş hattı yoksa `coverMult`. Takım arkadaşına hasar yok, atana `selfMult`. Öldürme `WEAPON_FRAG` (253) ile atana yazılır; atan oyundan ayrıldıysa kimseye.
+  - Sis: patlama yerinde bulut (`smoke.duration`); `MatchSim.canSee` (botların algısı) bulutun içinden geçen hattı keser (`smokeBlocksLine`), mermi ve patlama yalnız duvara bakar.
+  - Botlar çatışmada `bots.json → nadeDist` aralığındaki rakibe `nadeChancePerSec` olasılıkla atar (`nadeCooldownSec`).
+- **Rekabetçi** (`server/game/comp.js` → `CompRules`, kurallar `shared/sim/competitive.js` + `src/data/competitive.json`; kuralda `comp: true`):
+  - Raunt: `PHASE.BUY` (satın alma, hareket yok) → `LIVE` (raunt süresi; bomba kurulunca sayaç bombanın) → `ROUND_END` → sonraki raunt. Raunt içinde ölen doğmaz; herkes raunt başında rol tarafının doğuşunda doğar (saldıran kırmızı, savunan mavi doğuş noktaları). Hayatta kalan silahını ve atmadığı bombaları korur.
+  - Taraflar: oyuncunun tarafı maç boyunca aynı; ilk yarı kırmızı saldırır, `half` rauntundan sonra roller değişir, para ve silahlar başa döner. Skor kazanılan raunt; `toWin` alan kazanır, `max` raundda berabere.
+  - Bomba: raunt başında saldıranlardan birine. Taşıyan ölünce yere düşer, yanından geçen saldıran alır. Bölgede (`arenas.json → sites`, `tools/make-arenas.mjs`) E (etkileşim) basılı ve yerinde `plantSec` → kurulur; savunan bombanın dibinde `defuseSec` → imha. Koşul `actionFor` (istemci aynı koşulla komutun hareketini sıfırlar, tahmin aynı kalır); `maxSpeed`'i aşan ilerlemeyi kaybeder. Patlama yarıçaptaki herkesi yaralar.
+  - Bitiş: saldıranlar yok edildi (kurulmadıysa) ya da süre doldu → savunan; savunanlar yok edildi ya da bomba patladı → saldıran; imha → savunan.
+  - Para: başlangıç, öldürme (silah sınıfına göre), raunt (kazanan sabit, kaybeden art arda kayba göre), kurma/imha payı, tavan. Satın alma `C_BUY`; botlar raunt başında parasına göre alır.
+  - Can yenilenmez, doğuş koruması yok. Botlar: bombacı rauntun bölgesine gidip kurar, diğerleri eşlik eder, yerdeki bombayı en yakını alır; savunanlar bölgelere dağılır, kurulunca imhaya gider.
+- **Seri ödülleri** (`shared/sim/streaks.js`, `src/data/streaks.json`; Rekabetçide yok):
+  - Ölmeden art arda öldürme 3 → İHA taraması (takımına rakipler duvar ardından işaretli, yalnız görüntü: konumlar zaten anlık görüntüde), 5 → hava saldırısı (nişangâhın gösterdiği yere bakış yönünde 5 patlama), 8 → topçu (hedef çevresine 6 sn boyunca 10 mermi, tohumlu). Ödül öldürmeleri seriyi büyütmez; ölünce seri sıfırlanır, hazır ödül kalır.
+  - Kullanım komutun `STREAK` bitleriyle; hedef gözden bakışla ışın (`streakTarget`). Patlamalar planla zamanında (`strikes`), her biri `NEV.BLAST` (tür 2) ve el bombası kuralıyla hasar (siper, takım arkadaşı yok, kendine azaltılmış); öldürme 252/251.
+  - Botlar hazır ödülün en güçlüsünü bildikleri rakibe kullanır (`bot.js → useStreak`).
+- **Kampanya Co-op'u** (`server/game/coop.js` → `CoopRules`, kurallar `shared/sim/coop.js`, aşamalar `src/data/coop.json`; kuralda `coop: true`, modda `campaign: true`):
+  - Aşamalar `tools/make-coop.mjs` ile görev haritasının kendi verisinden (`config.js → LEVELS[].objectives`, `maps/<id>.js`): `clear` (grubu temizle), `hold` (hedefin dibinde E basılı: uçaksavar C4'ü, istihbarat), `reach` (noktaya var; son aşama tahliye), `defend` (noktada süre boyunca dalgalar). Konumlar başlangıçla aynı yürünebilir bölgedeki boş zemine oturtulur; tank/araç hedefleri çevrim içinde yok. Harita ya da görev değişince çalıştırılıp commit'lenir (`--check`, `tests/coop.test.mjs` eskiyse düşer).
+  - Takım lideri seviye seçip açar (`POST /api/party/campaign {level}`, oda türü `campaign`, eşleştirme kuyruğuna girmez); takım en çok 4 insan, eksikler Alfa Timi botları (tim adlarıyla; insan gelince bot çıkar, `balanceTeam`).
+  - Düşmanlar sunucu botları: aşama başlayınca (ve bir sonraki aşamanınkiler önden) yerlerinde doğar, yeniden doğmaz, cesetleri `corpseSec` sonra kalkar; aynı anda en çok `ONLINE.coop.maxEnemies` canlı (oda `slots` yuvalı). Evini korur (`p.home`), gördüğünü kovalar ama `leash`'ten öteye gitmez, evine `aggro`'dan yakın gelen oyuncunun bölgesine yürür. Sınır doluyken geride kalmış eski aşama düşmanı kalkar (`retireStale`). Alfa botu en yakın insanın çevresinde yürür.
+  - Ölen insan `respawn` sn sonra son bitirilen aşamanın yerinde doğar. Son aşama bitince görev tamam (takım kazanır); `timeLimit` (20 dk) dolarsa başarısız. Skor biten aşama / toplam; seri ödülleri açık; sonuç kalıcı istatistiğe yazılır (mod `campaign`).
+  - İstemci: `gameClient.coop` (seviye karşılamadan, aşama `NEV.COOP`'tan, E ilerlemesi anlık görüntüden; hedefte E basılıyken hareket aynı koşulla durur), `coopHud.js` (görev satırı, hedef halkaları ve uzaklıklı etiketler, radar, C4/istihbarat çubuğu, aşama bantları), takım panelinde görev seçici (`settings.coopLevel`).
+- **Kalıcı istatistik ve çevrim içi rütbe:** eşleşme maçı bitince `Room.results()` insanların sonucunu (kazanma, öldürme, ölüm, kafadan, puan, en iyi seri, kullanılan ödül, XP = puan + `ONLINE.xpMatch` + galibiyette `xpWin`) `store.recordMatch`'e verir (`stats`, `match_history` tabloları; oyuncu başına son 20 maç; hesap silinince gider). `GET /api/stats[?id=]` toplamlar, son maçlar ve rütbe (`src/progression.js → levelFromXp/rankFor`, kampanyayla aynı eğri ve rütbe adları).
+- **Doğuş:** kendi tarafının noktalarından (herkes kendine modunda `ffa`), rakibe en uzak ve görüş dışında olanı.
+- **Evreler:** `WARMUP` (teçhizat paneli ve geri sayım, hareket ve atış yok; `modes.json → warmup` 60 sn) → `LIVE` → `ENDED` (sonuç, `endScreenSec` sonra oda kapanır; eşleşme odasında oylama boyunca açık kalır).
+- **Maç öncesi teçhizat (`chooseLoadout`, `C_LOADOUT`):**
+  - Isınmada seçilen ana/yan silah hemen kuşanılır, maç sürerken seçilen sonraki doğuşta.
+  - Kabul edilen teçhizat seçene `NEV.LOADOUT` ile döner; istemci elindeki silahı ancak o zaman değiştirir (geç gelen seçimde tahmin ile sunucu ayrışmasın).
+  - Tick dışında doğan olaylar `lateEvents`'te bekler, sonraki tick'in olaylarına katılır.
+  - Bağlı bütün insanlar "hazırım" derse ısınmanın kalanı `ONLINE.readyStartSec`'e iner; kısalan süre geri uzamaz.
+  - Seçilebilir silahlar `shared/sim/loadout.js` (roket ve `online: false` yok); istemcinin paneli aynı listeyi gösterir.
+- **Botlar:** `rules.bots = 'fill'` ise eksik yerler yapay zekâyla dolar; insan gelince o taraftan bir bot çıkar.
+
+**`bot.js` → `BotBrain`:**
+- İnsan gibi her tick bir `InputCmd` üretir; hareket ve atış doğrulaması aynı yoldan geçer.
+- Algı: görüş açısı ve mesafe, duvar arkası değil; yakında ateş eden duyulur.
+- Tepki süresi, ilk nişanda sapma (zamanla oturur), dönüş hızı sınırı, seri atış ve ara.
+- Çatışmada yana kayar, uzaksa yaklaşır.
+- Boşta gezinme noktalarına ya da rakiplerin bölgesine yol bulur; takılırsa zıplar ve hedef değiştirir.
+- Beceri `rules.botSkill`, aralıklar `data/bots.json`.
+
+**`room.js` → `Room`:**
+- 64 Hz döngü (gerçek saate göre, gerideyse yetişir; çok gerideyse saat kaydırılır).
+- Anlık görüntü her 2 tick'te, alıcıya özel: yerel uzlaştırma kaydı + diğer oyuncular + aradaki olaylar.
+- Liste (`S_ROSTER`) değişince gönderilir.
+- Ping, onaylanan anlık görüntünün gönderilme anından ölçülür.
+- Boş oda 30 sn sonra kapanır.
+- **Maç sonu harita oylaması** (yalnız eşleşme odası; deneme odasında yok):
+  - Maç bitince bütün haritalar (`modes.json → matchmaking.maps`) `ONLINE.voteSec` boyunca oylanır (`C_VOTE`, durum `S_VOTE`).
+  - Kazanan: en çok oy; eşitlikte eşitlerden biri, oy yoksa şimdiki haritadan başka biri.
+  - `RoomManager.create(kind, mode, mapId)` kazanan haritada yeni oda açar; bağlı her insan aynı taraf ve takımla ayrılır, `S_NEXT` gider.
+  - Eski oda `nextLingerSec` daha açık kalır, sonra kapanır.
+
+**`rooms.js`:**
+- `RoomManager`:
+  - oda kodu, 31 sembolden 6 karakter;
+  - arena çarpışma verisi `shared/maps/<arena>.collision.json`;
+  - yeni maçlar haritaları sırayla gezer (oylamanın kazananı verilirse o).
+- `Matchmaker`:
+  - takım (party) birlikte ve aynı tarafa konur;
+  - önce yeri olan süren maça katılır: bot yeri insana açılır, oyuncular karışık;
+  - yoksa `searchSec` bekler, bekleyen takımları bir maçta toplar, kalan yerler yapay zekâ.
+
+**`gateway.js`:** `/game`, el sıkışma ve sınırlar. `NETSIM=<profil>` sunucu tarafı gecikme benzetimi.
+
+### İstemci (`web/src/net/`)
+
+**`gameClient.js` → `GameClient` (`game.net`):**
+- El sıkışma, `ClockSync`, komut gönderimi (her pakette son 3 komut).
+- **Tahmin:**
+  - `Player` her tick `prepareCmd` (komut ağ biçimine yuvarlanır, modlar doldurulur), sonra `stepPlayer`, sonra `commitCmd` çağırır.
+  - `commitCmd` komutu ve sonraki durumu 256'lık halkaya yazar ve gönderir.
+- **Uzlaştırma:**
+  - Anlık görüntü sunucunun işlediği son komuttaki (`ackSeq`) durumu getirir.
+  - Halkadaki tahmin aynıysa (`reconcileEps`) dokunulmaz.
+  - Değilse sunucu durumundan sonraki komutlar yeniden oynatılır.
+  - Görüntüdeki fark `player.netCorr` ile yumuşar (`correctionHalfLife`).
+- **Zaman genişletme:** sunucudaki komut tamponu 1'in altındaysa tick %3 hızlanır, 4'ün üstündeyse %3 yavaşlar.
+- **Atış, şarjör, yakın dövüş:**
+  - İstemcide görünür; `weapons.js` `net.onShot / onReload / onMelee` ile komuta ekler.
+  - İsabet işareti, kan, hasar yönü ve ölüm sunucu olaylarından gelir.
+- **El bombası ve sis:** G (el bombası) ve sarf yuvasındaki sis (4; `kit.resetOnline`) yerel atış görünümünü oynatır, bırakınca `net.onThrow` komuta biti ekler; bomba ancak sunucunun `NADE` olayıyla sahneye girer (`grenades.netSpawn`, paylaşılan adım), `BLAST` ile patlar (`netBlast`: görüntü, ses, fizik itmesi; hasar sunucudan). Geri sayımda ve maç sonunda atılmaz (`netHold`).
+
+**`remotePlayers.js`:**
+- Uzak oyuncular sunucu saatinin `interpMs` gerisinde çizilir (titreşime göre 60–250 ms) ve iki görüntü arası aralanır.
+- Görüntü gecikirse en çok `extrapolateMs` ileri tahmin edilir.
+- Aynı taraf mavi görünüm ve ad etiketi, rakip düşman görünümü; rakibin adı yalnız nişangâhtayken.
+
+**`matchHud.js`:** skor çubuğu ve süre, geri sayım, öldürme akışı, puan tablosu (Tab; dokunmatikte skora dokun), ölüm kartı, maç sonu ve harita oylaması (kartlar; şerit rengi haritanın ufku).
+
+**`prepScreen.js`:** maç öncesi teçhizat paneli (ısınma boyunca). Ana/yan silah kartları yatay kayar, HAZIRIM, "Haritaya bak" (üstteki TEÇHİZAT çipi geri açar). Esc paneli kapatır, duraklatmaz. Son seçim `settings.onlineLoadout` (el sıkışmada gönderilir). Silah görselleri panel açıkken çizilir, kapanınca stüdyo bağlamı bırakılır.
+
+**Sıradaki maç (`main.nextOnline`):** `S_NEXT` gelince kazanan harita `ONLINE.nextShowSec` gösterilir, sonra eski odadan ayrılıp yeni odaya bağlanılır (menüye dönmeden).
+
+**Rekabetçi istemcisi:** `gameClient.comp` (raunt/bomba olaylardan, para ve eylem anlık görüntüden), `compHud.js` (rol, para, bomba satırı, kurma/imha çubuğu, raunt bantları), `buyScreen.js` (satın alma evresinde kendiliğinden açılır; B), `compWorld.js` (bölge halkaları ve etiketleri, bomba modeli ve bip, radar), `spectate.js` (ölünce canlı takım arkadaşının gözünden; sol tık sıradaki).
+
+**Seri ödülleri ve istatistik istemcisi:** `streakHud.js` (skor çubuğunun altında İHA/HAVA/TOPÇU rozetleri, ilerleme ve hazır; 7/8/9 ya da dokun; İHA işaretleri), `onlineScreen.js` Profil sekmesi (rütbe amblemi, toplamlar, son maçlar), maç sonu kartında kazanılan XP ve terfi (`matchHud.showXp`: maç başı ve sonu istatistik farkı). Maç öncesi panelde kayıtlı 5 teçhizat sınıfı (`settings.onlineClasses`, sekme).
+
+**`wsTransport.js`:** ikili WebSocket. Konsol `net_fakelag` / `net_profile` ya da `?netsim=` iki yönde `NetSim` uygular.
+
+**Konsol:** `net_graph 0|1|2`, `net_profile`, `net_fakelag`, `net_fakejitter`, `net_fakeloss`, `net_status`.
+
+**Maç içi iletişim (M8, `shared/net/chat.js`, `src/net/netChat.js`, ayarlar `config.js → ONLINE.chat`):**
+- Metin sohbeti: Y herkese, U ve Enter takıma (dokunmatikte SOHBET); yazarken oyuncu durur, imleç serbest; Tab kanal, Esc vazgeç. Sunucu: jeton kovası (saniyede 1, art arda 3), temizleme (görünmez ve yön değiştiren Unicode, en çok 120 harf), alıcılar `chatVisible` (takım kanalı aynı tarafa; Rekabetçide raunt sürerken ölünün "herkese"si yalnız ölülere). Satırlar 8 sn sonra solar; "(TAKIM)", "*ÖLÜ*", "[Telsiz]" önekleri; ad tarafın renginde.
+- Küfür süzgeci (Ayarlar → "Sohbette küfür süzgeci", `settings.chatFilter`): ad süzgecinin listesiyle (`shared/names.js → maskProfanity`), yalnız okuyanın ekranında.
+- Susturma (bu oturum): puan tablosunda oyuncu satırına dokun/tıkla ya da sohbete `/sustur ad`; susturulanın satırı, kalıbı ve işareti görünmez.
+- Telsiz kalıpları (`data/netRadio.tr.json`, ağda dizin): T basılı (dokunmatikte TELSİZ) komut çarkının aynısı (`CommandWheel` spec: muhatapsız, oyun yavaşlamaz); Rekabetçide bomba kalıpları. Takım arkadaşının kalıbı telsiz sesiyle okunur.
+- Takım işareti: Z nişangâhın baktığı yüzeye; 0,35 sn içinde ikinci basış "düşman burada". Sunucu menzil (150 m) ve görüş hattıyla doğrular, 5 sn'de en çok 3; takımda dünyada etiket ve radarda elmas (4 sn).
+- Protokol 4: `C_CHAT/C_MARK`, `S_CHAT/S_MARK` (`Docs/PROTOCOL.md`). Testler `tests/netchat.test.mjs`, duman `netplay` (iki sayfa: takım/herkese satırı, telsiz, işaret, susturma; telefonda SOHBET/TELSİZ).
+
+### Modlar (`src/data/modes.json`)
+
+| Mod | Kural |
+|---|---|
+| Takım Ölüm Maçı | 4v4, 40 öldürme ya da 8 dk |
+| Ölüm Maçı | 6 oyuncu, 20 öldürme ya da 6 dk |
+| Co-op: Yapay Zekâya Karşı | Takım mavi tarafta (en çok 4), karşıda 6 bot; 50 öldürme ya da 8 dk |
+| Deneme odası | Botsuz, süresiz |
+| Rekabetçi | 5v5, bomba kur / imha et; 7 raunt alan kazanır (en çok 12, 6'dan sonra roller değişir); raunt içinde doğuş yok; para ve satın alma |
+| Kampanya Co-op | 1–4 insan + Alfa botları; seçilen görevin aşamaları sırayla; 20 dk |
+
+Arenalar (`data/arenas.json`):
+- Depo: elle kurulmuş (`src/maps/depo.js`; nokta simetrik, doğuşlar birbirini görmez).
+- Bütün görev haritaları (kullanıcı isteği): harita kodu görevle aynı (`buildMission`), çevrim içinde varil ve ikmal sandığı yok (sunucunun dünyasında değiller).
+  - Doğuş ve bot noktaları `tools/make-arenas.mjs` ile haritanın çarpışma dünyasından üretilir: boş zemin, başlangıçla aynı yürünebilir bölge, iki taraf 80 m arayla.
+  - Harita değişince `export-collision` ve `make-arenas` çalıştırılır; `tests/arenas.test.mjs` eskiyse düşer, her haritada botların doğup dolaştığını da dener.
+
+## Testler
+
+- Birim:
+  - `tests/rng.test.mjs`
+  - `tests/collision.test.mjs`
+  - `tests/movement.test.mjs`
+  - `tests/weapon.test.mjs`
+  - `tests/hitboxes.test.mjs`
+  - `tests/collision-export.test.mjs`
+  - `tests/determinism.test.mjs`
+  - `tests/names.test.mjs`
+  - `tests/server.test.mjs` (sunucu bellek içi veritabanıyla; kimlik, arama, istek, anlık bildirim, durum, parti, dayanıklılık)
+  - `tests/codec.test.mjs` (gidiş-dönüş, nicemleme sınırları, bozuk ileti)
+  - `tests/clock.test.mjs` (saat farkı < 5 ms; ağ benzetimi sıra ve gecikme)
+  - `tests/room.test.mjs` (sunucu hareketi tahminle bit düzeyinde aynı, komut bütçesi, gecikme telafisi, atış doğrulaması, botlu TDM/ÖM)
+  - `tests/game-server.test.mjs` (gerçek sunucu: el sıkışma ve retler, deneme odası, hızlı maç)
+  - `tests/streaks.test.mjs` (eşikler, ölümde sıfırlanma, hava saldırısı hedef/hasar/takım arkadaşı, Rekabetçide yok, maç sonucu → kalıcı istatistik)
+  - `tests/coop.test.mjs` (aşama verisi güncel, takım Alfa botlarıyla dolar ve dengelenir, clear/hold/reach/defend, düşman yeniden doğmaz ve cesedi kalkar, toplanma noktasında doğuş, süre dolunca başarısız, ağ olayı, kampanya odası, kuyruk reddi)
+  - `tests/competitive.test.mjs` (kurallar, raunt akışı, satın alma, kurma/imha/patlama, yok etme, süre, para, yarı değişimi, maç sonu, botlarla 5v5)
+  - `tests/grenade.test.mjs` (atış sınırı, patlama hasarı ve öldürme yazımı, kendi bombası, takım arkadaşı, siper, sisin görüşü kesmesi, istemcide aynı yörünge)
+- Duman `online`: sunucu alt süreçte; iki sayfa arasında arama, istek, kart, kabul, "Oyunda" durumu, davet, mod, çevrim dışı istek ve telefon görünümü.
+- Duman `netplay`:
+  - takım kurulur; deneme odasına üye kendiliğinden katılır;
+  - hareket öbür ekranda < 0,3 m farkla izlenir; tahmin farkı < 1 cm;
+  - net_graph ve Orta benzetim;
+  - olmayan oda için hata ekranı;
+  - hızlı TDM: takım aynı tarafta, 6 YZ, skor, öldürme akışı, el bombası ve sis (sunucu olayları, adet, bulut), puan tablosu;
+  - telefonda ÖM.
+- Duman `coop`: görev seçici (19 görev, telefonda sığar), kampanya odası (seviye, harita, aşama sayısı), ilk aşamanın satırı, Alfa botları, hedef etiketleri, C4 çubuğu, süre dolunca "GÖREV BAŞARISIZ" kartı (oylama yok).
+- Duman `comp`: tek oyuncu + 9 YZ, kısa süreler (`COMP_BUY/ROUND/POST/WIN`): yalnız tabancalı teçhizat paneli, satın alma menüsü (800 $, el bombası), raunt başı/sonu bandı, bölge etiketleri, kurma çubuğu, izleme kamerası, ikinci rauntta silah satın alma, telefonda menü.
+- Duman `determinism`: `shared/sim/replay.js` esbuild ile paketlenip Chromium'da koşar. Kızılkum ve Yıkık Şehir'de 10.000 komut sonrası konum Node ile karşılaştırılır (≤ 1 mm) ve her 1000 tick'in özeti eşleşmelidir.
+- Davranış referansı: `Docs/BASELINE.md` (`node tools/baseline.mjs --compare`).

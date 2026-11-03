@@ -1,0 +1,15 @@
+{
+  "title": "3 soldier low poly (outdated)",
+  "author": "buh",
+  "author_url": "https://sketchfab.com/buh-late",
+  "source_url": "https://sketchfab.com/3d-models/3-soldier-low-poly-outdated-9b5bd75966764a87ae09c8b77e21f4c2",
+  "license": "CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-15",
+  "format": "glTF Binary (.glb), 3 iskeletli asker (her biri 59 kemik), animasyonsuz, A pozu, 1024 px renk/normal/pürüz-metal dokuları",
+  "category": "Characters",
+  "intended_use": "Alfa Timi askerleri: Alfa-1 Demir (orman kamuflajı), Alfa-2 Kaya (çöl kamuflajı), Alfa-3 Yıldız (gaz maskeli woodland); lobideki operatör",
+  "original_file": "3_soldier_low_poly.glb (kullanıcının oturuma yüklediği dosya)",
+  "sha256": "35effdb2dbf9b0b604ed6595fd4cb5d85a1da75c147744b53b4658fcb41f475a",
+  "modifications": "web/tools/prepare-squad.mjs: üç asker ayrıldı; her biri A pozundan oyunun asker iskeletinin T pozuna bükülüp (kemik yönleri ve avuç ekseni eşlendi) deri ağırlıklarıyla yeniden şekillendirildi, 59 kemik oyunun Mixamo adlı 49 kemiğine aktarıldı (avuç içi kemikleri ele), ağlar ~16 bin üçgene sadeleştirildi, konumlar nicemlendi, dokular ayrı JPEG yapıldı. Animasyonlar oyunun düşman askerinin kliplerinden (kemik dönüşleriyle) oynar.",
+  "notes": "CC BY 4.0: yazar ve kaynak CREDITS.md'de ve oyundaki Lisanslar ekranında anılır."
+}

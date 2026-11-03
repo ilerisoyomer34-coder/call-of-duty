@@ -1,0 +1,506 @@
+{
+  "_doc": "Yerel Türkçe telsiz sözlüğü. Türkçe ve ASCII yazım, ekler, yaygın eş anlamlılar, yön/mesafe ve sekiz adıma kadar sıralı emir desteklenir. Desteklenmeyen eylemler açıkça bildirilir; bulut yapay zekâ bağlantısı gerektirmez.",
+  "minScore": 0.6,
+  "priority": [
+    "THROW_GRENADE",
+    "HOLD_FIRE",
+    "HEAL_PLAYER",
+    "TAKE_COVER",
+    "SUPPRESS",
+    "FREE_FIRE",
+    "CLEAR_AREA",
+    "FOLLOW",
+    "HOLD",
+    "ATTACK",
+    "MOVE_TO"
+  ],
+  "commands": {
+    "HEAL_PLAYER": {
+      "label": "Beni iyileştir",
+      "roots": [
+        "iyileştir",
+        "yaralıyım",
+        "tedavi",
+        "iyileş",
+        "yaralandım",
+        "kanıyorum",
+        "kanama"
+      ],
+      "weight": 1.3,
+      "say": "Beni iyileştir!",
+      "confirm": [
+        "Geliyorum, dayan!",
+        "Medik yolda!",
+        "Seni toparlıyorum, kıpırdama!"
+      ],
+      "phrases": [
+        "ilk yardım",
+        "canımı doldur",
+        "bana yardım et",
+        "beni tedavi et",
+        "sağlık desteği",
+        "yarama bak",
+        "bana sağlık ver",
+        "yardıma gel",
+        "kan kaybediyorum",
+        "sağlığımı yenile",
+        "bana pansuman yap",
+        "beni kurtar"
+      ]
+    },
+    "TAKE_COVER": {
+      "label": "Siper al",
+      "roots": [
+        "siper",
+        "eğil",
+        "saklan",
+        "çömel",
+        "gizlen",
+        "korunak"
+      ],
+      "phrases": [
+        "koruma al",
+        "yere yatın",
+        "yere yat",
+        "kafanızı eğin",
+        "başını eğ",
+        "örtüye geç",
+        "güvenli yere saklan",
+        "kendini koru",
+        "kendinizi koruyun",
+        "duvarın arkasına saklan",
+        "açıkta durma",
+        "kendini gizle",
+        "kendinizi gizleyin",
+        "siperin arkasına saklan",
+        "başını kaldırma",
+        "ateşten korun"
+      ],
+      "weight": 1.2,
+      "say": "Siper alın!",
+      "confirm": [
+        "Siperdeyiz!",
+        "Anlaşıldı, siperdeyim!",
+        "Siper aldım!"
+      ]
+    },
+    "HOLD_FIRE": {
+      "label": "Ateşi kes",
+      "phrases": [
+        "ateşi kes",
+        "ateş etme",
+        "ateş etmeyin",
+        "ateşi kesin",
+        "ateşe ara ver",
+        "silahları indirin",
+        "silahını indir",
+        "tetiği bırak",
+        "çatışmayı kes",
+        "ateş yok",
+        "ateş açmayın",
+        "mermi harcamayın",
+        "atışı durdur",
+        "saldırıyı durdur",
+        "ateş etmeyi bırak",
+        "ateş etmeyi bırakın",
+        "ateş etmeyi durdur",
+        "silahını kullanma",
+        "silahlar sussun",
+        "kimse ateş etmesin",
+        "tetiğe dokunma"
+      ],
+      "roots": [
+        "sessiz"
+      ],
+      "weight": 1.2,
+      "say": "Ateşi kesin!",
+      "confirm": [
+        "Ateş kesildi.",
+        "Tetikler serbest değil.",
+        "Sessiz kalıyoruz."
+      ]
+    },
+    "FREE_FIRE": {
+      "label": "Serbest ateş",
+      "phrases": [
+        "ateş serbest",
+        "serbest ateş",
+        "ateş açabilirsiniz",
+        "karşılık ver",
+        "karşı ateş",
+        "gördüğüne ateş et",
+        "vurabilirsiniz",
+        "tehditlere ateş aç",
+        "çatışmaya devam",
+        "istediğiniz hedefe ateş edin",
+        "ateşe başlayın",
+        "ateşe başla",
+        "düşmanlara karşılık verin",
+        "gördüğünüz düşmanı vurun"
+      ],
+      "roots": [
+        "serbest"
+      ],
+      "weight": 1.1,
+      "say": "Ateş serbest!",
+      "confirm": [
+        "Ateş serbest!",
+        "Anlaşıldı, serbest atış!",
+        "Tetikler serbest!"
+      ]
+    },
+    "SUPPRESS": {
+      "label": "Baskı ateşi",
+      "roots": [
+        "baskı",
+        "bastır",
+        "baskıla"
+      ],
+      "phrases": [
+        "kafalarını kaldırmasınlar",
+        "baskı ateşi",
+        "koruma ateşi",
+        "beni kolla",
+        "beni ateşle koru",
+        "bana ateş desteği",
+        "ateş desteği ver",
+        "destek ateşi",
+        "kafasını kaldırtma",
+        "kafalarını kaldırmayın",
+        "şurayı ateş altında tut",
+        "orayı ateş altında tut",
+        "düşmanı bastır",
+        "bana koruma ateşi ver",
+        "ilerleyişimi koru",
+        "üstüme ateş geliyor bastır"
+      ],
+      "weight": 1.1,
+      "say": "Baskı ateşi açın!",
+      "confirm": [
+        "Baskı ateşi başlıyor!",
+        "Kafalarını kaldıramayacaklar!",
+        "Bastırıyorum!"
+      ]
+    },
+    "ATTACK": {
+      "label": "Hedefe saldır",
+      "roots": [
+        "saldır",
+        "vur",
+        "öldür",
+        "indir",
+        "hücum",
+        "etkisiz",
+        "ateşle"
+      ],
+      "weight": 1.0,
+      "say": "Hedefe saldırın!",
+      "confirm": [
+        "Hedef görüldü, ateş!",
+        "Hedefe odaklanıyorum!",
+        "İndiriyorum!"
+      ],
+      "phrases": [
+        "ateş et",
+        "ateş aç",
+        "hedefi düşür",
+        "hedefi al",
+        "hedefe odaklan",
+        "o düşmanı vur",
+        "düşmanı hallet",
+        "ateş edin",
+        "ateş edelim",
+        "şu düşmanı etkisiz hale getir",
+        "işaret ettiğim düşmana saldır",
+        "gösterdiğim hedefi vur",
+        "hedefi ortadan kaldır",
+        "şuradaki askere ateş et"
+      ]
+    },
+    "MOVE_TO": {
+      "label": "Oraya git",
+      "roots": [
+        "git",
+        "gid",
+        "ilerle",
+        "gir",
+        "geç",
+        "yürü",
+        "koş",
+        "dolan",
+        "ileriye",
+        "çekil",
+        "yanaş",
+        "ulaş"
+      ],
+      "weight": 0.9,
+      "say": "Oraya ilerleyin!",
+      "confirm": [
+        "Pozisyona ilerliyorum!",
+        "Gidiyorum!",
+        "Hareket ediyorum!"
+      ],
+      "phrases": [
+        "geri çekil",
+        "geri gel",
+        "kanada geç",
+        "yanına git",
+        "ileriye doğru",
+        "hedefe doğru",
+        "noktaya ilerle",
+        "mesafe al",
+        "yaklaş",
+        "buraya gel",
+        "buraya gelin",
+        "yanına ilerle",
+        "etrafından dolan",
+        "arkasına geç",
+        "kanadına git",
+        "sol kanada geç",
+        "sağ kanada geç",
+        "geri dön",
+        "konuma ulaş",
+        "belirttiğim yere git"
+      ]
+    },
+    "FOLLOW": {
+      "label": "Takip et",
+      "roots": [
+        "takip",
+        "toplan",
+        "gelin",
+        "yanıma",
+        "peşimden",
+        "arkamdan",
+        "peşime",
+        "ardımdan",
+        "yanımda"
+      ],
+      "weight": 0.9,
+      "say": "Beni takip edin!",
+      "confirm": [
+        "Arkandayız komutanım!",
+        "Seni takip ediyoruz!",
+        "Yanındayım!"
+      ],
+      "phrases": [
+        "beni izle",
+        "bana katıl",
+        "yanıma gel",
+        "bana gel",
+        "bir araya gel",
+        "benimle gel",
+        "etrafımda toplan",
+        "beni koru",
+        "bana eşlik et",
+        "arkamı kolla",
+        "benimle kal",
+        "yanımdan ayrılma",
+        "beni yalnız bırakma",
+        "yanımdan uzaklaşma",
+        "benim arkamdan gel",
+        "bizi takip et",
+        "peşimizi bırakma",
+        "yanıma dön",
+        "buraya toplanın",
+        "bana yaklaş"
+      ]
+    },
+    "HOLD": {
+      "label": "Pozisyonu koru",
+      "roots": [
+        "bekle",
+        "dur",
+        "pozisyon",
+        "tutun",
+        "savun",
+        "mevzilen",
+        "kalın"
+      ],
+      "phrases": [
+        "burada kal",
+        "burada kalın",
+        "yerinizde kalın",
+        "olduğun yerde kal",
+        "yerini koru",
+        "yerinizde durun",
+        "burayı tut",
+        "bölgeyi tut",
+        "hareketi durdur",
+        "ilerlemeyi durdur",
+        "pozisyonu koru",
+        "şimdilik bekle",
+        "yerinden ayrılma",
+        "yerini terk etme",
+        "kıpırdama",
+        "kımıldama",
+        "konumunu koru",
+        "bu noktayı tut",
+        "burada nöbet tut",
+        "nöbet tut",
+        "dur olduğun yerde"
+      ],
+      "weight": 0.9,
+      "say": "Pozisyonu koruyun!",
+      "confirm": [
+        "Pozisyonu tutuyoruz.",
+        "Burada bekliyoruz.",
+        "Yerimizdeyiz."
+      ]
+    },
+    "CLEAR_AREA": {
+      "label": "Bölgeyi temizle",
+      "roots": [
+        "temizle",
+        "temiz",
+        "taram"
+      ],
+      "weight": 1.0,
+      "say": "Bölgeyi temizleyin!",
+      "confirm": [
+        "Giriyoruz!",
+        "Bölgeye giriyorum!",
+        "Temizliyoruz!"
+      ],
+      "phrases": [
+        "bölgeyi ara",
+        "etrafı ara",
+        "arama yap",
+        "odayı kontrol et",
+        "çevreyi kontrol et",
+        "tehditleri temizle",
+        "bölgeyi güvene al",
+        "içeriyi kontrol et",
+        "tehdit var mı bak",
+        "bölgeyi emniyete al",
+        "etraftaki tehditleri temizle",
+        "odayı tara",
+        "çevrede devriye gez"
+      ]
+    },
+    "THROW_GRENADE": {
+      "label": "El bombası at",
+      "roots": [],
+      "phrases": [
+        "bomba at",
+        "bombayı at",
+        "bomba fırlat",
+        "bombayı fırlat",
+        "el bombası at",
+        "el bombasını at",
+        "el bombası fırlat",
+        "el bombasını fırlat",
+        "bomba kullan",
+        "bomba yolla",
+        "bomba gönder",
+        "at bomba",
+        "fırlat bomba"
+      ],
+      "weight": 1.4,
+      "say": "El bombası atın!",
+      "confirm": [
+        "Hedefe el bombası atıyorum!",
+        "Anlaşıldı, bomba hazırlıyorum!"
+      ]
+    }
+  },
+  "addressees": {
+    "all": [
+      "herkes",
+      "tim",
+      "hepiniz",
+      "hepsi",
+      "ekip",
+      "manga",
+      "alfa",
+      "takım",
+      "arkadaşlar",
+      "askerler",
+      "tüm tim",
+      "bütün tim",
+      "tüm ekip"
+    ],
+    "Alfa-1": [
+      "demir",
+      "alfa 1",
+      "alfa-1",
+      "alfa bir",
+      "bir",
+      "lider yardımcısı",
+      "tüfekçi"
+    ],
+    "Alfa-2": [
+      "kaya",
+      "alfa 2",
+      "alfa-2",
+      "alfa iki",
+      "iki",
+      "medik",
+      "sıhhiyeci",
+      "sıhhiye",
+      "doktor"
+    ],
+    "Alfa-3": [
+      "yıldız",
+      "alfa 3",
+      "alfa-3",
+      "alfa üç",
+      "üç",
+      "makineli tüfekçi",
+      "ağır silahçı"
+    ]
+  },
+  "targetWords": [
+    "şu",
+    "şunu",
+    "şura",
+    "şuraya",
+    "oraya",
+    "bu",
+    "bunu",
+    "orası",
+    "orayı",
+    "şuradaki",
+    "oradaki",
+    "şurayı",
+    "oradakini",
+    "şundaki",
+    "işaretlediğim",
+    "baktığım",
+    "gösterdiğim"
+  ],
+  "unknown": {
+    "say": "Anlaşılmadı komutanım, tekrar eder misiniz?",
+    "suggest": [
+      "Siper alın",
+      "Takip edin",
+      "Pozisyonu koruyun"
+    ]
+  },
+  "help": "Adla hitap edin: “Demir sola 20 metre git, sonra bekle”. Takip, bekle, siper, saldırı, baskı, ateşi kes/serbest, alan temizliği, el bombası ve medik emirleri kullanılabilir. “Durum raporu” ve “emirleri iptal et” de çalışır. Bina/ağaç hedeflerini nişangâhla gösterin; görev ve tahliye noktalarını adlarıyla söyleyin. Sekiz adıma kadar emir sırayla yürütülür. Son emri “aynısını yap” ile tekrarlayın; beklettikten sonra “devam et” deyin. “Aynı yere git” son verilen noktayı kullanır. “Şimdi bekle” son hitap edilen askere gider; “herkes bekle” tüm timi durdurur. “Demir bomba at” baktığınız yönde, “Demir sağa 20 metre bomba at” belirtilen noktaya atar. Yakın dost, engel veya menzil sorunu varsa asker gerekçesini söyler.",
+  "unsupported": [
+    {
+      "patterns": [
+        "(?:tank|helikopter|arac)[a-z ]*(?:bin|kullan|sur|ucur|pilot)",
+        "(?:binin|bin|pilotluk) (?:tanka|helikoptere|araca)"
+      ],
+      "say": "Takıma araç kullandırma emri henüz yok. Askerleri aracın yanına göndermek için “tankın yanına git” veya “helikopterin yanına git” diyebilirsiniz."
+    },
+    {
+      "patterns": [
+        "(?:c4|patlayici)[a-z ]*(?:at|firlat|yerlestir|kur|patlat)",
+        "bomba[a-z ]*(?:yerlestir|kur|patlat)",
+        "(?:sis|duman) bomba",
+        "(?:patlat|imha et)[a-z ]*(?:tank|arac|helikopter)"
+      ],
+      "say": "Telsizden el bombası atılabilir; C4 yerleştirme, sis bombası ve uzaktan patlatma emri henüz yok. Hedefi gösterip “Demir bomba at” deyin."
+    },
+    {
+      "patterns": [
+        "(?:silah|mermi|muhimmat)[a-z ]*(?:ver|degistir|paylas|birak)",
+        "(?:kanat|ucgen|cizgi|kama) (?:duzeni|formasyon)"
+      ],
+      "say": "Bu ekipman veya formasyon emri henüz uygulanamıyor. Tim otomatik aralık korur; askerleri adlarıyla ayrı noktalara gönderebilirsiniz."
+    }
+  ]
+}

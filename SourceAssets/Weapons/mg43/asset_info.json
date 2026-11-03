@@ -1,0 +1,14 @@
+{
+  "title": "MG43 hafif makineli tüfek (oyunda HK MG4 / MG-43)",
+  "author": "Kullanıcının kendi Blender modeli (dosyadaki doku yollarına göre Tarık Kerem Öz, oyunun tasarımcısı)",
+  "author_url": "",
+  "source_url": "",
+  "license": "Kullanıcıya ait (kendi modeli)",
+  "download_date": "2026-11-03",
+  "format": "Blender (.blend, zstd sıkıştırmalı, Blender 5.1; bpy 5.0.1 ile açılıyor)",
+  "category": "Weapons",
+  "intended_use": "Oyuncu hafif makineli tüfeği (MG-43)",
+  "original_file": "MG43.blend (kullanıcı 3 Kasım 2026'da yükledi; önceki mg_43_1.blend'in yerine)",
+  "modifications": "Kamera ve ışıklar atıldı; ebeveyn dönüşümleri parçalara gömüldü; namlu üstündeki taşıma kolu nişan hattını kapattığı için menteşesinde sola yatırıldı (weapon_rig_map.json → fold); cephane kutusu + fişek kayışı şarjör, kurma kolu ayrı parça, kalanı tek gövde. Dokular ayrı JPEG (web/assets/weapons/mg43_t*.jpg).",
+  "notes": "36 bin üçgen, metal ve polimer için renk/pürüz-metal/normal dokuları (1024 px, dosyaya gömülü). Demir nişangâh: üst kapakta gez yaprağı, tritium (yeşil) arpacık. Dönüştürme: Tools/blender/export_weapon.py mg43 --render, rapor: Docs/import_reports/mg43.md"
+}

@@ -1,0 +1,9 @@
+{
+  "author": "8sianDude (https://sketchfab.com/haoliu95)",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "source": "https://sketchfab.com/3d-models/ithaca-model-37-riot-shotgun-8caca0af16a74184bb63758f7b58c22a",
+  "title": "Ithaca Model 37 \"Riot\" Shotgun",
+  "original_file": "ithaca_model_37_riot_shotgun.glb",
+  "sha256": "4ba135c0e1e669702cd6ab3031b97f29a3032f1f34607fce19aa64a3788d8471",
+  "changes": "Oyun için yön/ölçek, tutuş ve nişan noktaları; hareketli parçalar ayrılır; dokular JPEG olarak paketlenir."
+}

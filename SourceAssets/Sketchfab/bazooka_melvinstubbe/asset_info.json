@@ -1,0 +1,17 @@
+{
+  "title": "Bazooka M20",
+  "author": "Melvin Stubbe",
+  "author_url": "https://sketchfab.com/MelvinEbbuts",
+  "source_url": "https://sketchfab.com/3d-models/bazooka-m20-a53d6716c9c24302a6fdd71ff70a7d63",
+  "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+  "download_date": "2026-10-15",
+  "provided_by": "Kullanıcı Sketchfab'den indirip oturuma yükledi (81a93dd0-bazooka_m20.glb); lisans bilgisi GLB içindeki asset.extras alanından okundu",
+  "format": "glTF Binary (.glb), 1 malzeme (KHR_materials_pbrSpecularGlossiness: yayınık renk, parlaklık, normal), 3 doku (1024 px PNG), 4 438 üçgen",
+  "category": "Weapons",
+  "game_name": "BZ-20 Yıldırım (gerçek adla M20 Bazuka), oyundaki kimliği rpg",
+  "intended_use": "Eski kodla kurulmuş roketatarın yerine yan silah bazuka: görünüm modeli, harita roket sandıkları, teçhizat simgesi ve önizlemesi",
+  "original_file": "original/bazooka_m20.glb",
+  "sha256": "dfaa90969ab514a059e6375200af8c69a1d3ef9d29719da7a52cb0c3d6a662ed",
+  "modifications": "web/tools/prepare-weapon-glb.mjs bazooka: namlu -Z, üst +Y, 1,35 m boya ölçeklendi, köken tabanca kabzasının üstü; specular-glossiness malzeme metal/pürüz düzenine çevrildi (parlaklık → pürüz), dokular 1024 px JPEG olarak ayrıldı. Dokularda marka ya da yazı yok.",
+  "notes": "CC BY 4.0 atıf gerektirir: yazar, kaynak, lisans ve değişiklikler CREDITS.md'de ve oyun içi 'Lisanslar' ekranında (Emeği geçenler → Lisanslar) gösterilir."
+}

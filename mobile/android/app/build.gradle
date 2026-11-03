@@ -1,0 +1,73 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "io.github.ilerisoyomer34coder.demirsafak"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "io.github.ilerisoyomer34coder.demirsafak"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Sürüm: GitHub'daki AAB derlemesi her çalıştırmada artan sürüm kodu verir (-PdsVersionCode, -PdsVersionName);
+    // Android Studio'da yukarıdaki değerler geçerli. Play aynı sürüm kodunu ikinci kez kabul etmez
+    if (project.hasProperty('dsVersionCode')) defaultConfig.versionCode = project.property('dsVersionCode') as Integer
+    if (project.hasProperty('dsVersionName')) defaultConfig.versionName = project.property('dsVersionName')
+    // Yükleme anahtarı yalnız ortam değişkeninden (.github/workflows/android-aab.yml, anahtar GitHub gizli değerinde).
+    // Anahtar ve şifre depoya girmez; değişken yoksa (Android Studio) imza "Generate Signed App Bundle" ile verilir
+    def uploadStore = System.getenv('DS_KEYSTORE_FILE')
+    signingConfigs {
+        if (uploadStore) {
+            upload {
+                storeFile file(uploadStore)
+                storeType 'pkcs12'
+                storePassword System.getenv('DS_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('DS_KEY_ALIAS') ?: 'upload'
+                keyPassword System.getenv('DS_KEY_PASSWORD') ?: System.getenv('DS_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (uploadStore) signingConfig signingConfigs.upload
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

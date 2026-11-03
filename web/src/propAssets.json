@@ -1,0 +1,133 @@
+{
+  "helicopter": {
+    "file": "assets/props/helicopter.glb",
+    "rotors": {
+      "main": [
+        "RotorMain",
+        "RotorHub"
+      ],
+      "tail": [
+        "RotorTail"
+      ]
+    },
+    "axes": {
+      "main": "y",
+      "tail": "x"
+    },
+    "forward": "+z",
+    "length": 11,
+    "tint": {
+      "Material.004": "#55603f"
+    },
+    "credit": {
+      "title": "HELICOPTER",
+      "author": "pranav27 (https://sketchfab.com/pranav27)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/helicopter-c33f1be4708b422e8750d9b1db9894bf"
+    },
+    "tris": 49084,
+    "bytes": 771628
+  },
+  "pine": {
+    "file": "assets/props/pine.glb",
+    "kind": "tree",
+    "rotors": null,
+    "axes": null,
+    "forward": null,
+    "length": null,
+    "bounds": {
+      "min": [
+        -1.077,
+        0,
+        -1.051
+      ],
+      "max": [
+        1.106,
+        5.315,
+        1.115
+      ]
+    },
+    "tint": {},
+    "credit": {
+      "title": "Pine Tree",
+      "author": "evolveduk (https://sketchfab.com/evolveduk)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9"
+    },
+    "tris": 3977,
+    "bytes": 2586076
+  },
+  "containers": {
+    "file": "assets/props/containers.glb",
+    "kind": "container",
+    "variants": [
+      "contRed",
+      "contGrey",
+      "contGreen",
+      "contOrange",
+      "contBlue"
+    ],
+    "rotors": null,
+    "axes": null,
+    "forward": null,
+    "length": null,
+    "bounds": {
+      "min": [
+        -28.01,
+        0,
+        195.776
+      ],
+      "max": [
+        -12.59,
+        2.573,
+        207.005
+      ]
+    },
+    "tint": {},
+    "credit": {
+      "title": "containers estilo ps1/ps2",
+      "author": "PauloWardson (https://sketchfab.com/PauloWardson)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/containers-estilo-ps1ps2-c4e722648a024585ba4dbfdb36c65f7c"
+    },
+    "tris": 60,
+    "bytes": 213220
+  },
+  "municipality": {
+    "file": "assets/props/municipality.glb",
+    "kind": "building",
+    "credit": {
+      "title": "House",
+      "author": "Thomas Visonà (https://sketchfab.com/TakeAndPlay)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/house-256adc61a3c04654a056d75a48a69d60"
+    },
+    "tris": 84400,
+    "bytes": 5216700
+  },
+  "fpsArms": {
+    "file": "assets/props/fps-arms.glb",
+    "kind": "arms",
+    "materials": {
+      "FPSGloves": {
+        "map": "assets/props/fpsgloves_map.jpg",
+        "normalMap": "assets/props/fpsgloves_normalMap.jpg",
+        "ormMap": "assets/props/fpsgloves_ormMap.jpg"
+      },
+      "FPSSleeves": {
+        "map": "assets/props/fpssleeves_map.jpg",
+        "normalMap": "assets/props/fpssleeves_normalMap.jpg",
+        "ormMap": "assets/props/fpssleeves_ormMap.jpg"
+      }
+    },
+    "credit": {
+      "author": "DanlyVostok (https://sketchfab.com/1799danly)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/soldier-full-tactical-gear-850593a8c7114c188395ba1849a66eb9",
+      "title": "Soldier Full Tactical Gear"
+    },
+    "tris": 8156,
+    "bytes": 206688,
+    "changes": "Detailed tactical gloves and sleeves extracted; anatomical wrist/palm frames, finger grip, continuous cuff and UVs adapted for first person."
+  }
+}

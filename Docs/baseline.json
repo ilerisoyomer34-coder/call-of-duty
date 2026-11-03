@@ -1,0 +1,398 @@
+{
+  "commit": "4dae2b2",
+  "dt": "1/60",
+  "values": {
+    "walk.topSpeed": {
+      "v": 4,
+      "unit": "m/s"
+    },
+    "walk.t95": {
+      "v": 0.08333333333333333,
+      "unit": "s"
+    },
+    "walk.stopDist": {
+      "v": 0.09999999999999432,
+      "unit": "m"
+    },
+    "walk.stopTime": {
+      "v": 0.06666666666666667,
+      "unit": "s"
+    },
+    "sprint.topSpeed": {
+      "v": 6.5,
+      "unit": "m/s"
+    },
+    "sprint.t95": {
+      "v": 0.11666666666666667,
+      "unit": "s"
+    },
+    "crouch.topSpeed": {
+      "v": 2,
+      "unit": "m/s"
+    },
+    "crouch.t95": {
+      "v": 0.05,
+      "unit": "s"
+    },
+    "strafe.topSpeed": {
+      "v": 4,
+      "unit": "m/s"
+    },
+    "strafe.t95": {
+      "v": 0.08333333333333333,
+      "unit": "s"
+    },
+    "back.topSpeed": {
+      "v": 4,
+      "unit": "m/s"
+    },
+    "back.t95": {
+      "v": 0.08333333333333333,
+      "unit": "s"
+    },
+    "ads.topSpeed": {
+      "v": 2.799999999999999,
+      "unit": "m/s"
+    },
+    "ads.t95": {
+      "v": 0.05,
+      "unit": "s"
+    },
+    "jump.height": {
+      "v": 0.7283333333333333,
+      "unit": "m"
+    },
+    "jump.airTime": {
+      "v": 0.6333333333333333,
+      "unit": "s"
+    },
+    "sprintJump.dist": {
+      "v": 2.698333333333345,
+      "unit": "m"
+    },
+    "walk.dist1s": {
+      "v": 3.886111111111113,
+      "unit": "m"
+    },
+    "crouchDown.t95": {
+      "v": 0.25,
+      "unit": "s"
+    },
+    "rifle.spread.hip0": {
+      "v": 2.6,
+      "unit": "°"
+    },
+    "rifle.spread.ads0": {
+      "v": 0.26000000000000023,
+      "unit": "°"
+    },
+    "rifle.rpm": {
+      "v": 720,
+      "unit": "rpm"
+    },
+    "rifle.spread.after10": {
+      "v": 3.1000000000000005,
+      "unit": "°"
+    },
+    "rifle.recoil.pitch10": {
+      "v": 6.8,
+      "unit": "°"
+    },
+    "rifle.recoil.yaw10": {
+      "v": -0.09999999999999996,
+      "unit": "°"
+    },
+    "rifle.recoil.after05": {
+      "v": 0.20094072939440144,
+      "unit": "°"
+    },
+    "shotgun.spread.hip0": {
+      "v": 1.2,
+      "unit": "°"
+    },
+    "shotgun.spread.ads0": {
+      "v": 0.72,
+      "unit": "°"
+    },
+    "shotgun.rpm": {
+      "v": 90,
+      "unit": "rpm"
+    },
+    "shotgun.recoil.after05": {
+      "v": 0.11618587538839067,
+      "unit": "°"
+    },
+    "pistol.spread.hip0": {
+      "v": 1.8,
+      "unit": "°"
+    },
+    "pistol.spread.ads0": {
+      "v": 0.27,
+      "unit": "°"
+    },
+    "pistol.rpm": {
+      "v": 420,
+      "unit": "rpm"
+    },
+    "pistol.spread.after10": {
+      "v": 2.7,
+      "unit": "°"
+    },
+    "pistol.recoil.pitch10": {
+      "v": 2.521963899663126,
+      "unit": "°"
+    },
+    "pistol.recoil.yaw10": {
+      "v": -0.011337367965964967,
+      "unit": "°"
+    },
+    "pistol.recoil.after05": {
+      "v": 0.07490523765616339,
+      "unit": "°"
+    },
+    "mar556.spread.hip0": {
+      "v": 2.8,
+      "unit": "°"
+    },
+    "mar556.spread.ads0": {
+      "v": 0.2240000000000002,
+      "unit": "°"
+    },
+    "mar556.rpm": {
+      "v": 810,
+      "unit": "rpm"
+    },
+    "mar556.spread.after10": {
+      "v": 3.4333333333333336,
+      "unit": "°"
+    },
+    "mar556.recoil.pitch10": {
+      "v": 4.578287624718532,
+      "unit": "°"
+    },
+    "mar556.recoil.yaw10": {
+      "v": 0.16288110021721927,
+      "unit": "°"
+    },
+    "mar556.recoil.after05": {
+      "v": 0.061036022513222654,
+      "unit": "°"
+    },
+    "lmg.spread.hip0": {
+      "v": 4,
+      "unit": "°"
+    },
+    "lmg.spread.ads0": {
+      "v": 0.56,
+      "unit": "°"
+    },
+    "lmg.rpm": {
+      "v": 900,
+      "unit": "rpm"
+    },
+    "lmg.spread.after10": {
+      "v": 5.3,
+      "unit": "°"
+    },
+    "lmg.spread.after30": {
+      "v": 7.700000000000001,
+      "unit": "°"
+    },
+    "lmg.recoil.pitch10": {
+      "v": 5.0699999999999985,
+      "unit": "°"
+    },
+    "lmg.recoil.yaw10": {
+      "v": 0.55,
+      "unit": "°"
+    },
+    "lmg.recoil.after05": {
+      "v": 0.663092341248874,
+      "unit": "°"
+    },
+    "sniper.spread.hip0": {
+      "v": 7,
+      "unit": "°"
+    },
+    "sniper.spread.ads0": {
+      "v": 0,
+      "unit": "°"
+    },
+    "sniper.rpm": {
+      "v": 90,
+      "unit": "rpm"
+    },
+    "sniper.recoil.after05": {
+      "v": 0.3061243645218101,
+      "unit": "°"
+    },
+    "d50.spread.hip0": {
+      "v": 2.4,
+      "unit": "°"
+    },
+    "d50.spread.ads0": {
+      "v": 0.2879999999999998,
+      "unit": "°"
+    },
+    "d50.rpm": {
+      "v": 180,
+      "unit": "rpm"
+    },
+    "d50.recoil.after05": {
+      "v": 0.07729172118517887,
+      "unit": "°"
+    },
+    "smg.spread.hip0": {
+      "v": 2,
+      "unit": "°"
+    },
+    "smg.spread.ads0": {
+      "v": 0.3599999999999999,
+      "unit": "°"
+    },
+    "smg.rpm": {
+      "v": 960,
+      "unit": "rpm"
+    },
+    "smg.spread.after10": {
+      "v": 4.1,
+      "unit": "°"
+    },
+    "smg.spread.after30": {
+      "v": 7,
+      "unit": "°"
+    },
+    "smg.recoil.pitch10": {
+      "v": 4.4300000000000015,
+      "unit": "°"
+    },
+    "smg.recoil.yaw10": {
+      "v": 0.25,
+      "unit": "°"
+    },
+    "smg.recoil.after05": {
+      "v": 0.08889678205960429,
+      "unit": "°"
+    },
+    "rpg.spread.hip0": {
+      "v": 3,
+      "unit": "°"
+    },
+    "rpg.spread.ads0": {
+      "v": 0.2999999999999998,
+      "unit": "°"
+    },
+    "k8.spread.hip0": {
+      "v": 2.9,
+      "unit": "°"
+    },
+    "k8.spread.ads0": {
+      "v": 0.23199999999999976,
+      "unit": "°"
+    },
+    "k8.rpm": {
+      "v": 720,
+      "unit": "rpm"
+    },
+    "k8.spread.after10": {
+      "v": 3.1999999999999997,
+      "unit": "°"
+    },
+    "k8.recoil.pitch10": {
+      "v": 6.472750508451823,
+      "unit": "°"
+    },
+    "k8.recoil.yaw10": {
+      "v": -0.10457344754398151,
+      "unit": "°"
+    },
+    "k8.recoil.after05": {
+      "v": 0.25622921407717486,
+      "unit": "°"
+    },
+    "kr4.spread.hip0": {
+      "v": 2.5,
+      "unit": "°"
+    },
+    "kr4.spread.ads0": {
+      "v": 0.25,
+      "unit": "°"
+    },
+    "kr4.rpm": {
+      "v": 450,
+      "unit": "rpm"
+    },
+    "kr4.spread.after10": {
+      "v": 2.8,
+      "unit": "°"
+    },
+    "kr4.recoil.pitch10": {
+      "v": 0.62471303841418,
+      "unit": "°"
+    },
+    "kr4.recoil.yaw10": {
+      "v": -0.23631471038079438,
+      "unit": "°"
+    },
+    "kr4.recoil.after05": {
+      "v": 0.008926944321427767,
+      "unit": "°"
+    },
+    "mk4.spread.hip0": {
+      "v": 2.6,
+      "unit": "°"
+    },
+    "mk4.spread.ads0": {
+      "v": 0.18199999999999994,
+      "unit": "°"
+    },
+    "mk4.rpm": {
+      "v": 840,
+      "unit": "rpm"
+    },
+    "mk4.spread.after10": {
+      "v": 3.2000000000000006,
+      "unit": "°"
+    },
+    "mk4.recoil.pitch10": {
+      "v": 4.18201711560652,
+      "unit": "°"
+    },
+    "mk4.recoil.yaw10": {
+      "v": 0.14640048595675012,
+      "unit": "°"
+    },
+    "mk4.recoil.after05": {
+      "v": 0.049472992943442845,
+      "unit": "°"
+    },
+    "kt9.spread.hip0": {
+      "v": 4.5,
+      "unit": "°"
+    },
+    "kt9.spread.ads0": {
+      "v": 0.08999999999999986,
+      "unit": "°"
+    },
+    "kt9.rpm": {
+      "v": 330,
+      "unit": "rpm"
+    },
+    "kt9.spread.after10": {
+      "v": 9.299999999999997,
+      "unit": "°"
+    },
+    "kt9.recoil.pitch10": {
+      "v": 4.841165020054983,
+      "unit": "°"
+    },
+    "kt9.recoil.yaw10": {
+      "v": -0.025118679767984924,
+      "unit": "°"
+    },
+    "kt9.recoil.after05": {
+      "v": 0.3989891568068003,
+      "unit": "°"
+    }
+  }
+}
